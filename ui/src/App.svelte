@@ -35,6 +35,7 @@
       const win = getCurrentWindow();
       win
         .onCloseRequested(async (event) => {
+          editor.flushPending();
           if (!editor.dirty) return;
           event.preventDefault();
           if (await confirmLeave()) await win.destroy();

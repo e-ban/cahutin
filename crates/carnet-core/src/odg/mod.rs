@@ -273,6 +273,16 @@ mod tests {
     }
 
     #[test]
+    fn control_characters_never_break_the_xml() {
+        // U+000B est le retour à la ligne manuel de Word dans le texte brut copié.
+        let d = doc_with(vec![text(RichText::plain("avant\u{b}après\u{c}fin\u{1}\u{7f}!"), None)]);
+        let mut e = export(&d, &AssetStore::default());
+        let content = e.xml("content.xml");
+        roxmltree::Document::parse(&content).unwrap();
+        assert!(content.contains("avant<text:line-break/>après<text:line-break/>fin!"));
+    }
+
+    #[test]
     fn bold_run_gets_bold_style() {
         let mut rt = RichText::plain("Fort");
         rt.paragraphs[0].runs[0].bold = true;

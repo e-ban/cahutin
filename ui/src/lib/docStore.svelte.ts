@@ -65,10 +65,23 @@ class Editor {
     this.#sync();
   }
 
-  markSaved(path: string) {
+  markSaved(path: string, snapshot?: Document) {
     this.path = path;
-    this.#history.markSaved();
+    this.#history.markSaved(snapshot);
     this.#sync();
+  }
+
+  // Éditions en cours hors du document (texte en cours de saisie, recadrage) : validées avant
+  // d'enregistrer, d'ouvrir un autre document ou de fermer la fenêtre.
+  #flushers = new Set<() => void>();
+
+  onFlush(fn: () => void): () => void {
+    this.#flushers.add(fn);
+    return () => this.#flushers.delete(fn);
+  }
+
+  flushPending() {
+    for (const fn of [...this.#flushers]) fn();
   }
 
   /** Nouveau document ou document ouvert : l'historique repart de zéro. */
@@ -130,6 +143,7 @@ export type DiscardChoice = "save" | "discard" | "cancel";
  * modifications ? ». Renvoie vrai si l'on peut continuer.
  */
 export async function confirmDiscardIfDirty(ask: () => Promise<DiscardChoice>, save?: () => Promise<boolean>): Promise<boolean> {
+  editor.flushPending();
   if (!editor.dirty) return true;
   const choice = await ask();
   if (choice === "cancel") return false;

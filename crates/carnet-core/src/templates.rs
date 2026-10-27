@@ -114,9 +114,12 @@ fn photo_asset(e: &Element) -> Option<&Id> {
     }
 }
 
-/// Modèle tiré d'une page : les zones sont vidées, les éléments fixes gardés avec leurs images.
+/// Modèle tiré d'une page : les zones sont vidées ; parmi les autres éléments, seuls les formes et les
+/// éléments verrouillés (bandeau, logo) sont gardés. Une photo ou un texte libre peut montrer un enfant
+/// ou le nommer : il ne part pas dans un modèle destiné à être partagé.
 pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
     let mut page = page.clone();
+    page.elements.retain(|e| e.zone || e.locked || matches!(e.kind, ElementKind::Shape(_)));
     for e in page.elements.iter_mut().filter(|e| e.zone) {
         match &mut e.kind {
             ElementKind::Photo(p) => {
@@ -350,6 +353,29 @@ mod tests {
         assert!(t.page.elements.iter().any(|e| matches!(&e.kind, ElementKind::Photo(p) if p.asset.as_deref() == Some(logo_id.as_str()))));
         assert_eq!(t.assets.len(), 1);
         assert_eq!(t.assets[0].meta.id, logo_id);
+    }
+
+    #[test]
+    fn from_page_drops_free_photos_and_texts() {
+        let mut store = AssetStore::default();
+        let child = logo_asset();
+        let child_id = child.meta.id.clone();
+        store.insert(child);
+        let mut page = Page::new(A4_PORTRAIT);
+        let free = |kind| Element {
+            id: new_id(),
+            frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 50.0, h_mm: 50.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            kind,
+        };
+        page.elements.push(free(ElementKind::Photo(PhotoProps { asset: Some(child_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false })));
+        page.elements.push(free(ElementKind::Text(TextProps { content: RichText::plain("Léa a ri"), style: TextStyle::default_zone(), prompt: None })));
+        page.elements.push(free(ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0 })));
+        let t = from_page("Partagé", &page, &store);
+        assert_eq!(t.page.elements.len(), 1);
+        assert!(matches!(t.page.elements[0].kind, ElementKind::Shape(_)));
+        assert!(t.assets.is_empty());
     }
 
     #[test]

@@ -6,7 +6,8 @@ export interface History<T> {
   commit(next: T): void;
   undo(): void;
   redo(): void;
-  markSaved(): void;
+  /** `snapshot` : l'état réellement écrit, s'il a changé depuis le début de l'enregistrement. */
+  markSaved(snapshot?: T): void;
 }
 
 /** Historique d'annulation par instantanés. `limit` borne le nombre d'annulations possibles. */
@@ -46,8 +47,8 @@ export function createHistory<T>(initial: T, limit = 100): History<T> {
       past.push(current);
       current = next;
     },
-    markSaved() {
-      saved = current;
+    markSaved(snapshot?: T) {
+      saved = snapshot === undefined ? current : snapshot;
     },
   };
 }

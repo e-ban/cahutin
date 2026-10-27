@@ -11,7 +11,8 @@
   import Underline from "@tiptap/extension-underline";
   import { Placeholder, UndoRedo } from "@tiptap/extensions";
   import { onDestroy, onMount } from "svelte";
-  import { richToTiptap, tiptapToRich } from "../lib/richtext";
+  import { editor as doc } from "../lib/docStore.svelte";
+  import { richToTiptap, sanitizePlainText, tiptapToRich } from "../lib/richtext";
   import { textEditing } from "../lib/textEditing.svelte";
   import type { RichText, TextProps } from "../lib/types";
 
@@ -20,6 +21,7 @@
   let host: HTMLDivElement;
   let editor: Editor | null = null;
   let finished = false;
+  let stopFlush: (() => void) | null = null;
 
   function finish() {
     if (finished || !editor) return;
@@ -48,11 +50,19 @@
       content: richToTiptap(props.content),
       editorProps: {
         attributes: { class: "tiptap-host", spellcheck: "true", lang: "fr" },
-        // Le collage ne garde que le texte : pas de mise en forme impossible à exporter.
+        // Le collage et le dépôt ne gardent que le texte : pas de mise en forme impossible à exporter.
         handlePaste(view, event) {
           const text = event.clipboardData?.getData("text/plain");
           if (text == null) return false;
-          view.dispatch(view.state.tr.insertText(text.replace(/\r\n?/g, "\n")));
+          view.dispatch(view.state.tr.insertText(sanitizePlainText(text)));
+          return true;
+        },
+        handleDrop(view, event) {
+          const text = event.dataTransfer?.getData("text/plain");
+          if (!text) return false;
+          event.preventDefault();
+          const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? view.state.selection.from;
+          view.dispatch(view.state.tr.insertText(sanitizePlainText(text), pos));
           return true;
         },
         handleKeyDown(_view, event) {
@@ -69,14 +79,18 @@
         if (next?.closest(".right")) return;
         finish();
       },
-      onSelectionUpdate: () => textEditing.tick++,
-      onTransaction: () => textEditing.tick++,
+      // Différé : la fermeture de l'éditeur provoque une transaction pendant le rendu de Svelte.
+      onSelectionUpdate: () => queueMicrotask(() => textEditing.tick++),
+      onTransaction: () => queueMicrotask(() => textEditing.tick++),
     });
     textEditing.current = editor;
+    // Enregistrer ou fermer pendant la saisie : le texte tapé est validé d'abord.
+    stopFlush = doc.onFlush(finish);
     editor.commands.focus("end");
   });
 
   onDestroy(() => {
+    stopFlush?.();
     finish();
     if (textEditing.current === editor) textEditing.current = null;
     editor?.destroy();

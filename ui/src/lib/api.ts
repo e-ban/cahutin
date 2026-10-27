@@ -11,6 +11,7 @@ export const gridSet = (page: Page, cols: number, rows: number) => invoke<Page>(
 export const gridMerge = (page: Page, a: string, b: string) => invoke<Page>("grid_merge", { page, a, b });
 export const gridSplit = (page: Page, cell: string) => invoke<Page>("grid_split", { page, cell });
 export const gridSetKind = (page: Page, cell: string, kind: ZoneKind) => invoke<Page>("grid_set_kind", { page, cell, kind });
+export const pageSetSize = (page: Page, widthMm: number, heightMm: number) => invoke<Page>("page_set_size", { page, widthMm, heightMm });
 export const gridLiberate = (page: Page) => invoke<Page>("grid_liberate", { page });
 export const listTemplates = () => invoke<TemplateInfo[]>("list_templates");
 export const instantiateTemplate = (id: string) => invoke<InstantiatedPage>("instantiate_template", { id });

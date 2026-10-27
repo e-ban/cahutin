@@ -170,6 +170,12 @@ pub fn set_cell_kind(page: &mut Page, cell: &str, kind: ZoneKind) -> Result<(), 
     Ok(())
 }
 
+/// Change la taille de la page (portrait ou paysage) ; les cases de la grille suivent.
+pub fn set_page_size(page: &mut Page, size: PageSize) {
+    page.size = size;
+    layout(page);
+}
+
 /// Abandonne la grille : les zones gardent leur cadre et deviennent librement déplaçables.
 pub fn liberate(page: &mut Page) {
     page.grid = None;
@@ -321,6 +327,18 @@ mod tests {
         assert!(p.grid.is_none());
         assert_eq!(p.elements.iter().map(|e| e.frame).collect::<Vec<_>>(), frames);
         assert!(p.elements.iter().all(|e| e.zone));
+    }
+
+    #[test]
+    fn resizing_the_page_relays_out_the_grid() {
+        let mut p = a4();
+        set_grid(&mut p, 2, 3);
+        set_page_size(&mut p, PageSize { width_mm: 297.0, height_mm: 210.0 });
+        assert_eq!(p.size.width_mm, 297.0);
+        for e in &p.elements {
+            assert!(e.frame.x_mm + e.frame.w_mm <= 297.0 - GRID_MARGIN_MM + 1e-6);
+            assert!(e.frame.y_mm + e.frame.h_mm <= 210.0 - GRID_MARGIN_MM + 1e-6, "{:?}", e.frame);
+        }
     }
 
     #[test]

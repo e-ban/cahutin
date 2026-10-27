@@ -35,8 +35,8 @@ Avec `npm run tauri dev` :
 2. **Couper le réseau** pour toute la suite.
 3. Importer un dossier de photos de téléphone contenant des photos en portrait, en paysage et une HEIC. Attendu : les photos sont droites et la HEIC est signalée par un message clair.
 4. Créer une page depuis « Grille de photos », avec 4 photos et 2 textes. L'exporter pour LibreOffice, puis ouvrir le fichier `.odg` sur un poste **sans** les polices installées. Attendu : même apparence, objets modifiables.
-5. Utiliser « Exporter en PDF », puis « Imprimer » vers « Microsoft Print to PDF ». Attendu : rendu identique à l'écran, aucune zone vide ni texte d'invite visible.
+5. Utiliser « Exporter en PDF », puis « Imprimer » vers « Microsoft Print to PDF ». Attendu : rendu identique à l'écran, aucune zone vide ni texte d'invite visible. Recommencer avec un document dont la première page est en paysage : vérifier que la page du PDF est bien A4 paysage, sans être tournée deux fois. Un document qui mélange portrait et paysage ne prend qu'une orientation à l'export PDF ; il passe par « Imprimer ».
 6. Créer un modèle personnel, copier son fichier `.carnet-modele` sur un autre poste, dans `%APPDATA%\fr.carnet.app\modeles`, et l'utiliser.
-7. Modifier un document, puis fermer la fenêtre. Attendu : l'application demande « Enregistrer les modifications ? ».
+7. Modifier un document, puis fermer la fenêtre. Attendu : l'application demande « Enregistrer les modifications ? ». Recommencer en fermant la fenêtre **pendant la saisie** d'un texte : la question doit aussi apparaître, et le texte tapé doit être enregistré.
 8. Utiliser le bouton « ? » (rapport de problème). Attendu : le fichier ne contient ni chemin, ni texte de document, ni nom d'enfant.
 9. **Test des 5 minutes**, avec au moins un collègue qui découvre l'outil. Chronométrer, depuis le lancement, la création d'une page avec 4 photos et 2 textes, exportée en PDF. Noter les hésitations.

@@ -261,11 +261,14 @@ fn write_run_text(x: &mut Xml, text: &str, at_start: &mut bool) {
                 word.clear();
                 x.empty("text:tab", &[]);
             }
-            '\n' => {
+            // U+000B et U+000C : retours à la ligne manuels du texte brut copié depuis Word.
+            '\n' | '\u{b}' | '\u{c}' => {
                 x.text(&word);
                 word.clear();
                 x.empty("text:line-break", &[]);
             }
+            // Les autres caractères de contrôle sont interdits en XML et rendraient le fichier illisible.
+            c if c.is_control() => continue,
             c => word.push(c),
         }
         *at_start = false;

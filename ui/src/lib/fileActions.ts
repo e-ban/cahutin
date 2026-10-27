@@ -23,23 +23,34 @@ async function guard<T>(action: () => Promise<T>): Promise<T | undefined> {
   }
 }
 
+let saving = false;
+
+/** Écrit l'état du document au moment de l'appel ; ce qui change pendant l'écriture reste « modifié ». */
+async function write(path: string): Promise<boolean> {
+  if (saving) return false;
+  saving = true;
+  try {
+    const snapshot = editor.doc;
+    const ok = await guard(() => api.saveDocument(path, snapshot));
+    if (ok === undefined) return false;
+    editor.markSaved(path, snapshot);
+    return true;
+  } finally {
+    saving = false;
+  }
+}
+
 export async function saveAs(): Promise<boolean> {
+  editor.flushPending();
   const picked = await saveDialog({ defaultPath: `${baseName()}.carnet`, filters: [{ name: "Document Carnet", extensions: ["carnet"] }] });
   if (!picked) return false;
-  const path = withExt(picked, "carnet");
-  const ok = await guard(() => api.saveDocument(path, editor.doc));
-  if (ok === undefined) return false;
-  editor.markSaved(path);
-  return true;
+  return write(withExt(picked, "carnet"));
 }
 
 export async function save(): Promise<boolean> {
+  editor.flushPending();
   if (!editor.path) return saveAs();
-  const path = editor.path;
-  const ok = await guard(() => api.saveDocument(path, editor.doc));
-  if (ok === undefined) return false;
-  editor.markSaved(path);
-  return true;
+  return write(editor.path);
 }
 
 function askToSave(): Promise<DiscardChoice> {
@@ -71,6 +82,7 @@ export async function openDoc() {
 }
 
 export async function exportOdg() {
+  editor.flushPending();
   const picked = await saveDialog({ defaultPath: `${baseName()}.odg`, filters: [{ name: "LibreOffice Draw", extensions: ["odg"] }] });
   if (!picked) return;
   const path = withExt(picked, "odg");
@@ -78,6 +90,7 @@ export async function exportOdg() {
 }
 
 export function print() {
+  editor.flushPending();
   editor.selection = [];
   editor.cropping = null;
   editor.editingText = null;
@@ -86,6 +99,7 @@ export function print() {
 }
 
 export async function exportPdf() {
+  editor.flushPending();
   const picked = await saveDialog({ defaultPath: `${baseName()}.pdf`, filters: [{ name: "PDF", extensions: ["pdf"] }] });
   if (!picked) return;
   const path = withExt(picked, "pdf");

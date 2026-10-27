@@ -42,6 +42,7 @@ pub fn run() {
             commands::grid_split,
             commands::grid_set_kind,
             commands::grid_liberate,
+            commands::page_set_size,
             commands::list_templates,
             commands::instantiate_template,
             commands::save_page_as_template,

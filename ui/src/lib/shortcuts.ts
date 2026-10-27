@@ -12,7 +12,7 @@ export function handleShortcut(ev: KeyboardEvent) {
   const ctrl = ev.ctrlKey || ev.metaKey;
   if (ctrl && ev.key.toLowerCase() === "s") {
     ev.preventDefault();
-    save();
+    if (!ev.repeat) save();
     return;
   }
   if (ctrl && ev.key.toLowerCase() === "p") {

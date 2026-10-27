@@ -2,6 +2,7 @@
   import PageView from "./PageView.svelte";
   import { editor } from "../lib/docStore.svelte";
   import { newPage } from "../lib/factory";
+  import { pageSetSize } from "../lib/api";
   import { deletePage } from "../lib/fileActions";
   import { fr } from "../lib/i18n/fr";
   import type { Page } from "../lib/types";
@@ -27,8 +28,15 @@
     });
   }
 
-  function rotate() {
-    editor.updatePage((p) => ({ ...p, size: { width_mm: p.size.height_mm, height_mm: p.size.width_mm } }));
+  // Le moteur recalcule la grille éventuelle, pour que les zones restent sur la page.
+  async function rotate() {
+    const p = editor.page;
+    try {
+      const page = await pageSetSize(p, p.size.height_mm, p.size.width_mm);
+      editor.updatePage(() => page);
+    } catch (e) {
+      editor.notice = String(e);
+    }
   }
 </script>
 

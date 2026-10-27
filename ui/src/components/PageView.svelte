@@ -70,6 +70,12 @@
     liveCrop = null;
   }
 
+  // Enregistrer ou fermer pendant un recadrage : le recadrage en cours est validé d'abord.
+  $effect(() => {
+    if (!cropping || !oncropend) return;
+    return editor.onFlush(endCrop);
+  });
+
   function cropOf(e: Element): Crop | undefined {
     return e.id === cropping && liveCrop ? liveCrop : undefined;
   }

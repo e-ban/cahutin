@@ -5,7 +5,7 @@ use crate::state::AppState;
 use carnet_core::fonts::{self, FontFamilyInfo};
 use carnet_core::photo::{self, Asset};
 use carnet_core::templates::{self, TemplateInfo};
-use carnet_core::{AssetMeta, Document, Page, ZoneKind, grid, native, odg, report};
+use carnet_core::{AssetMeta, Document, Page, PageSize, ZoneKind, grid, native, odg, report};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, State};
@@ -31,8 +31,9 @@ pub struct InstantiatedPage {
 }
 
 /// Importe en parallèle (4 fils au plus) en gardant l'ordre des fichiers.
-#[tauri::command]
-pub fn import_photos(state: State<'_, AppState>, paths: Vec<String>) -> Vec<ImportOutcome> {
+/// Exécutée hors du fil principal : la fenêtre reste réactive.
+#[tauri::command(async)]
+pub fn import_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Vec<ImportOutcome>, String> {
     let chunk = paths.len().div_ceil(IMPORT_THREADS).max(1);
     let results: Vec<(String, Result<Asset, photo::ImportError>)> = std::thread::scope(|s| {
         let handles: Vec<_> = paths
@@ -59,7 +60,7 @@ pub fn import_photos(state: State<'_, AppState>, paths: Vec<String>) -> Vec<Impo
         })
         .collect();
     log::info!("import_photos total={} failures={failures}", outcomes.len());
-    outcomes
+    Ok(outcomes)
 }
 
 #[tauri::command]
@@ -67,7 +68,8 @@ pub fn list_importable_in(dir: String) -> Vec<String> {
     photo::list_importable(Path::new(&dir)).into_iter().map(|p| p.to_string_lossy().into_owned()).collect()
 }
 
-#[tauri::command]
+/// Exécutée hors du fil principal : la fenêtre reste réactive.
+#[tauri::command(async)]
 pub fn save_document(state: State<'_, AppState>, path: String, doc: Document) -> Result<(), String> {
     let store = state.store.lock().unwrap();
     native::save_to_path(&doc, &store, Path::new(&path)).map_err(|e| {
@@ -78,7 +80,8 @@ pub fn save_document(state: State<'_, AppState>, path: String, doc: Document) ->
     Ok(())
 }
 
-#[tauri::command]
+/// Exécutée hors du fil principal : la fenêtre reste réactive.
+#[tauri::command(async)]
 pub fn open_document(state: State<'_, AppState>, path: String) -> Result<Document, String> {
     let (doc, assets) = native::load_from_path(Path::new(&path)).map_err(|e| {
         log::error!("open_document_failed kind={e:?}");
@@ -92,7 +95,8 @@ pub fn open_document(state: State<'_, AppState>, path: String) -> Result<Documen
     Ok(doc)
 }
 
-#[tauri::command]
+/// Exécutée hors du fil principal : la fenêtre reste réactive.
+#[tauri::command(async)]
 pub fn export_odg(state: State<'_, AppState>, path: String, doc: Document) -> Result<(), String> {
     let store = state.store.lock().unwrap();
     odg::export_odg_to_path(&doc, &store, Path::new(&path)).map_err(|e| {
@@ -127,18 +131,27 @@ pub fn grid_set_kind(mut page: Page, cell: String, kind: ZoneKind) -> Result<Pag
     Ok(page)
 }
 
+/// Portrait ou paysage : la grille éventuelle est recalculée pour la nouvelle taille.
+#[tauri::command]
+pub fn page_set_size(mut page: Page, width_mm: f64, height_mm: f64) -> Page {
+    grid::set_page_size(&mut page, PageSize { width_mm, height_mm });
+    page
+}
+
 #[tauri::command]
 pub fn grid_liberate(mut page: Page) -> Page {
     grid::liberate(&mut page);
     page
 }
 
-#[tauri::command]
-pub fn list_templates(state: State<'_, AppState>) -> Vec<TemplateInfo> {
-    state.library.list()
+/// Exécutée hors du fil principal : la fenêtre reste réactive.
+#[tauri::command(async)]
+pub fn list_templates(state: State<'_, AppState>) -> Result<Vec<TemplateInfo>, String> {
+    Ok(state.library.list())
 }
 
-#[tauri::command]
+/// Exécutée hors du fil principal : la fenêtre reste réactive.
+#[tauri::command(async)]
 pub fn instantiate_template(state: State<'_, AppState>, id: String) -> Result<InstantiatedPage, String> {
     let t = state.library.load(&id).ok_or("Ce modèle est introuvable ou abîmé.")?;
     let (page, assets) = templates::instantiate(&t);
@@ -150,7 +163,8 @@ pub fn instantiate_template(state: State<'_, AppState>, id: String) -> Result<In
     Ok(InstantiatedPage { page, assets: metas })
 }
 
-#[tauri::command]
+/// Exécutée hors du fil principal : la fenêtre reste réactive.
+#[tauri::command(async)]
 pub fn save_page_as_template(state: State<'_, AppState>, name: String, page: Page) -> Result<TemplateInfo, String> {
     let t = {
         let store = state.store.lock().unwrap();
@@ -175,7 +189,8 @@ fn log_path(app: &AppHandle) -> Option<PathBuf> {
     Some(app.path().app_log_dir().ok()?.join(format!("{LOG_FILE_NAME}.log")))
 }
 
-#[tauri::command]
+/// Exécutée hors du fil principal : la fenêtre reste réactive.
+#[tauri::command(async)]
 pub fn export_problem_report(app: AppHandle, path: String) -> Result<(), String> {
     let log = log_path(&app).and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_default();
     let now = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
@@ -226,6 +241,12 @@ mod tests {
         let (c, d) = (at(&page, 0, 0), at(&page, 1, 1));
         let err = grid_merge(page, c, d).unwrap_err();
         assert_eq!(err, grid::GridError::NotRectangular.message_fr());
+    }
+
+    #[test]
+    fn page_set_size_keeps_grid_cells_on_the_page() {
+        let page = page_set_size(grid_set(Page::new(A4_PORTRAIT), 2, 4), 297.0, 210.0);
+        assert!(page.elements.iter().all(|e| e.frame.y_mm + e.frame.h_mm <= 210.0));
     }
 
     #[test]

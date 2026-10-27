@@ -1,6 +1,6 @@
 import type { JSONContent } from "@tiptap/core";
 import { expect, test } from "vitest";
-import { richToTiptap, tiptapToRich } from "./richtext";
+import { richToTiptap, sanitizePlainText, tiptapToRich } from "./richtext";
 import type { RichText, TextStyle } from "./types";
 
 const style: TextStyle = { font: "Andika", size_pt: 14, color: "#222222", align: "Left" };
@@ -64,4 +64,26 @@ test("drops_unsupported_nodes_and_marks", () => {
   const rt = tiptapToRich(doc, style);
   expect(rt.paragraphs.map((p) => p.runs.map((r) => r.text).join(""))).toEqual(["Grand titre", "un", "deux", "ligne\nsuivante"]);
   expect(rt.paragraphs[2].runs[0]).toEqual({ ...plainRun, text: "deux", bold: true });
+});
+
+test("sanitizePlainText turns Word manual breaks into new lines and drops control characters", () => {
+  expect(sanitizePlainText("a\u000bb\fc\u0001d\r\ne\rf\tg")).toBe("a\nb\ncd\ne\nf\tg");
+});
+
+test("only embedded fonts and #rrggbb colours survive", () => {
+  const doc: JSONContent = {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "Word", marks: [{ type: "textStyle", attrs: { fontFamily: "Calibri, sans-serif", color: "rgb(255, 0, 0)", fontSize: "11pt" } }] },
+          { type: "text", text: "ok", marks: [{ type: "textStyle", attrs: { fontFamily: "OpenDyslexic", color: "#C0392B" } }] },
+        ],
+      },
+    ],
+  };
+  const runs = tiptapToRich(doc, style).paragraphs[0].runs;
+  expect(runs[0]).toEqual({ ...plainRun, text: "Word", size_pt: 11 });
+  expect(runs[1]).toEqual({ ...plainRun, text: "ok", font: "OpenDyslexic", color: "#C0392B" });
 });

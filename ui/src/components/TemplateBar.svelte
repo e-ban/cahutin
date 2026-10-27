@@ -43,7 +43,7 @@
     if (!name.trim()) return;
     try {
       await templates.saveCurrentPage(name.trim());
-      editor.notice = `Modèle « ${name.trim()} » enregistré.`;
+      editor.notice = `Modèle « ${name.trim()} » enregistré. Les zones sont vides ; seuls les éléments verrouillés et les formes sont gardés, pas les photos ni les textes libres.`;
       naming = false;
       name = "";
     } catch (e) {

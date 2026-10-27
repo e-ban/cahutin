@@ -43,3 +43,14 @@ test("dirty tracking", () => {
   h.undo();
   expect(h.isDirty).toBe(false);
 });
+
+test("markSaved with the snapshot actually written", () => {
+  const h = createHistory("init");
+  h.commit("a");
+  const written = h.current;
+  h.commit("b"); // modifié pendant l'enregistrement
+  h.markSaved(written);
+  expect(h.isDirty).toBe(true);
+  h.undo();
+  expect(h.isDirty).toBe(false);
+});

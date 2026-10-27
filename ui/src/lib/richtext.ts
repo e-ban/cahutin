@@ -1,6 +1,7 @@
 // Conversion entre le contenu TipTap et le texte riche du document. Seule la mise en forme que l'export
 // ODG sait représenter survit : tout le reste (titres, listes, liens, surlignage...) devient du texte simple.
 import type { JSONContent } from "@tiptap/core";
+import { EMBEDDED_FAMILIES } from "./fontNames";
 import type { Align, Paragraph, RichText, Run, TextStyle } from "./types";
 
 /** Marge intérieure des zones de texte, identique à l'export ODG (carnet_core::odg::TEXT_PADDING_MM). */
@@ -10,6 +11,18 @@ const ALIGN_TO_CSS: Record<Align, string> = { Left: "left", Center: "center", Ri
 const CSS_TO_ALIGN: Record<string, Align> = { left: "Left", center: "Center", right: "Right", justify: "Justify" };
 
 export const alignToCss = (a: Align) => ALIGN_TO_CSS[a];
+
+/**
+ * Texte brut collé ou déposé : les retours à la ligne manuels de Word (U+000B, U+000C) et les fins de ligne
+ * Windows deviennent des retours à la ligne ; les autres caractères de contrôle, interdits en XML, disparaissent.
+ */
+export function sanitizePlainText(text: string): string {
+  return text
+    .replace(/\r\n?|[\u000b\u000c]/g, "\n")
+    .replace(/[\u0000-\u0008\u000e-\u001f\u007f]/g, "");
+}
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 function parsePt(size: unknown): number | null {
   if (typeof size !== "string") return null;
@@ -25,8 +38,9 @@ function runFrom(node: JSONContent, style: TextStyle): Run {
     else if (mark.type === "underline") run.underline = true;
     else if (mark.type === "textStyle") {
       const a = mark.attrs ?? {};
-      if (typeof a.color === "string" && a.color && a.color.toLowerCase() !== style.color.toLowerCase()) run.color = a.color;
-      if (typeof a.fontFamily === "string" && a.fontFamily && a.fontFamily !== style.font) run.font = a.fontFamily;
+      // Seules les valeurs que l'export ODG représente fidèlement sont gardées.
+      if (typeof a.color === "string" && HEX_COLOR.test(a.color) && a.color.toLowerCase() !== style.color.toLowerCase()) run.color = a.color;
+      if (typeof a.fontFamily === "string" && EMBEDDED_FAMILIES.includes(a.fontFamily) && a.fontFamily !== style.font) run.font = a.fontFamily;
       const pt = parsePt(a.fontSize);
       if (pt !== null && pt !== style.size_pt) run.size_pt = pt;
     }

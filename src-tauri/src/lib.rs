@@ -1,6 +1,8 @@
 //! Application de bureau : expose le moteur `carnet-core` à l'interface.
 
 pub mod commands;
+#[cfg(windows)]
+mod pdf_windows;
 mod protocol;
 mod state;
 
@@ -47,6 +49,7 @@ pub fn run() {
             commands::list_fonts,
             commands::export_problem_report,
             commands::can_export_pdf,
+            commands::export_pdf,
         ])
         .run(tauri::generate_context!())
         .expect("échec du démarrage de l'application");

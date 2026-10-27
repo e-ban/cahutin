@@ -1,0 +1,49 @@
+/* Impression et export PDF : seules les pages, à taille réelle, sans rien de ce qui n'existe qu'à l'écran. */
+.print-root {
+  display: none;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@page paysage {
+  size: A4 landscape;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    background: white !important;
+  }
+  .app {
+    display: none !important;
+  }
+  .print-root {
+    display: block;
+  }
+  .print-page {
+    break-after: page;
+    page: auto;
+  }
+  .print-page.landscape {
+    page: paysage;
+  }
+  .print-page .page {
+    box-shadow: none !important;
+  }
+  .print-root .zone-empty,
+  .print-root .badge {
+    display: none !important;
+  }
+  .print-root .element,
+  .print-root .text.overflow {
+    outline: none !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

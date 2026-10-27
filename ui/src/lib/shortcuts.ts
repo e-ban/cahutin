@@ -1,4 +1,5 @@
 import { editor } from "./docStore.svelte";
+import { save } from "./fileActions";
 import { nudge, type ArrowKey } from "./geometry";
 
 function typing(ev: KeyboardEvent): boolean {
@@ -8,8 +9,17 @@ function typing(ev: KeyboardEvent): boolean {
 
 /** Raccourcis globaux : annuler, rétablir, supprimer, déplacer au clavier. */
 export function handleShortcut(ev: KeyboardEvent) {
-  if (typing(ev)) return;
   const ctrl = ev.ctrlKey || ev.metaKey;
+  if (ctrl && ev.key.toLowerCase() === "s") {
+    ev.preventDefault();
+    save();
+    return;
+  }
+  if (ctrl && ev.key.toLowerCase() === "p") {
+    ev.preventDefault();
+    return;
+  }
+  if (typing(ev)) return;
   if (ctrl && ev.key.toLowerCase() === "z" && !ev.shiftKey) {
     ev.preventDefault();
     editor.undo();

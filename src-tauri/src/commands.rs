@@ -192,6 +192,24 @@ pub fn can_export_pdf() -> bool {
     cfg!(windows)
 }
 
+/// PDF au rendu de l'écran, via WebView2 ; ailleurs, l'interface passe par « Imprimer ».
+#[tauri::command]
+pub async fn export_pdf(webview: tauri::Webview, path: String, landscape: bool) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let result = tauri::async_runtime::spawn_blocking(move || crate::pdf_windows::print_to_pdf(&webview, &path, landscape))
+            .await
+            .map_err(|e| e.to_string())?;
+        log::info!("export_pdf ok={}", result.is_ok());
+        result
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (webview, path, landscape);
+        Err("L'export PDF direct n'existe que sous Windows : utilisez Imprimer, puis Enregistrer en PDF.".into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -19,7 +19,7 @@ export const deleteTemplate = (id: string) => invoke<void>("delete_template", { 
 export const listFonts = () => invoke<FontFamilyInfo[]>("list_fonts");
 export const exportProblemReport = (path: string) => invoke<void>("export_problem_report", { path });
 export const canExportPdf = () => invoke<boolean>("can_export_pdf");
-export const exportPdf = (path: string) => invoke<void>("export_pdf", { path });
+export const exportPdf = (path: string, landscape: boolean) => invoke<void>("export_pdf", { path, landscape });
 
 /** URL d'une image importée, servie par le protocole `carnet-asset` (forme `http://<schéma>.localhost` sous Windows). */
 export function assetUrl(id: string, thumb = false): string {

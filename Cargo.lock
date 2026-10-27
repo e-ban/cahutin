@@ -313,6 +313,8 @@ dependencies = [
  "tauri-plugin-log",
  "time",
  "ts-rs",
+ "webview2-com",
+ "windows",
 ]
 
 [[package]]

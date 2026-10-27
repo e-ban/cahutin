@@ -1,5 +1,11 @@
 <script lang="ts">
   import "./fonts.css";
+  import "./print.css";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { onMount } from "svelte";
+  import Modal from "./components/Modal.svelte";
+  import PrintRoot from "./components/PrintRoot.svelte";
+  import { confirmLeave } from "./lib/fileActions";
   import LeftPanel from "./components/LeftPanel.svelte";
   import PageBar from "./components/PageBar.svelte";
   import PageView from "./components/PageView.svelte";
@@ -21,6 +27,25 @@
   fonts.load();
   templates.refresh();
   if (import.meta.env.DEV) (window as unknown as { __editor: typeof editor }).__editor = editor;
+
+  // Fermeture de la fenêtre : demander d'enregistrer s'il y a des modifications.
+  onMount(() => {
+    let unlisten: (() => void) | undefined;
+    try {
+      const win = getCurrentWindow();
+      win
+        .onCloseRequested(async (event) => {
+          if (!editor.dirty) return;
+          event.preventDefault();
+          if (await confirmLeave()) await win.destroy();
+        })
+        .then((u) => (unlisten = u))
+        .catch(() => {});
+    } catch {
+      // Hors de l'application (aperçu dans un navigateur) : rien à faire.
+    }
+    return () => unlisten?.();
+  });
 
   let stageWidth = $state(800);
   let pageEl = $state<HTMLElement>();
@@ -122,6 +147,7 @@
   </main>
   <RightPanel />
   <PageBar />
+  <Modal />
   {#if editor.notice}
     <div class="notice" role="alert">
       <pre>{editor.notice}</pre>
@@ -129,6 +155,7 @@
     </div>
   {/if}
 </div>
+<PrintRoot />
 
 <style>
   :global(:root) {

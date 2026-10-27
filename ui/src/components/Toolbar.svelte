@@ -1,12 +1,22 @@
 <script lang="ts">
   import { editor, type Zoom } from "../lib/docStore.svelte";
   import { fr } from "../lib/i18n/fr";
+  import * as files from "../lib/fileActions";
+  import { canExportPdf } from "../lib/api";
+
+  let pdf = $state(false);
+  canExportPdf().then((v) => (pdf = v)).catch(() => (pdf = false));
 
   const levels = [0.5, 0.75, 1, 1.25, 1.5, 2];
 </script>
 
 <header class="toolbar">
   <div class="brand">{fr.appName}</div>
+  <div class="group">
+    <button onclick={files.newDoc} title="Nouveau document">➕ Nouveau</button>
+    <button onclick={files.openDoc} title="Ouvrir un document">📂 Ouvrir</button>
+    <button onclick={files.save} title="Ctrl+S">💾 Enregistrer{editor.dirty ? " •" : ""}</button>
+  </div>
   <input
     class="title"
     value={editor.doc.title}
@@ -34,6 +44,12 @@
     ▦ {editor.templateMode ? "Terminer le modèle" : "Modifier le modèle"}
   </button>
   <div class="spacer"></div>
+  <div class="group">
+    <button onclick={files.exportOdg} title="Fichier modifiable dans LibreOffice Draw">Exporter pour LibreOffice</button>
+    <button onclick={files.print}>🖨 Imprimer</button>
+    {#if pdf}<button onclick={files.exportPdf}>Exporter en PDF</button>{/if}
+    <button onclick={files.problemReport} title="Exporter un rapport de problème">?</button>
+  </div>
 </header>
 
 <style>
@@ -51,7 +67,7 @@
     color: var(--accent-strong);
   }
   .title {
-    width: 260px;
+    width: 200px;
   }
   .group {
     display: flex;

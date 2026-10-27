@@ -122,3 +122,17 @@ class Editor {
 }
 
 export const editor = new Editor();
+
+export type DiscardChoice = "save" | "discard" | "cancel";
+
+/**
+ * Avant de quitter le document courant : rien à demander s'il est enregistré ; sinon « Enregistrer les
+ * modifications ? ». Renvoie vrai si l'on peut continuer.
+ */
+export async function confirmDiscardIfDirty(ask: () => Promise<DiscardChoice>, save?: () => Promise<boolean>): Promise<boolean> {
+  if (!editor.dirty) return true;
+  const choice = await ask();
+  if (choice === "cancel") return false;
+  if (choice === "save") return save ? await save() : false;
+  return true;
+}

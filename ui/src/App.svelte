@@ -5,13 +5,16 @@
   import PageView from "./components/PageView.svelte";
   import RightPanel from "./components/RightPanel.svelte";
   import Toolbar from "./components/Toolbar.svelte";
+  import Transformer from "./components/Transformer.svelte";
   import { editor } from "./lib/docStore.svelte";
   import { sampleDocument } from "./lib/sample";
+  import { handleShortcut } from "./lib/shortcuts";
   import { mmToPx } from "./lib/units";
 
   editor.reset(sampleDocument(), null);
 
   let stageWidth = $state(800);
+  let pageEl = $state<HTMLElement>();
   $effect(() => {
     editor.fitZoom = Math.max(0.2, (stageWidth - 64) / mmToPx(editor.page.size.width_mm, 1));
   });
@@ -19,15 +22,18 @@
   function select(id: string | null, add: boolean) {
     if (id === null) editor.selection = [];
     else if (add) editor.selection = editor.selection.includes(id) ? editor.selection.filter((s) => s !== id) : [...editor.selection, id];
-    else editor.selection = [id];
+    else if (editor.selection.length !== 1 || editor.selection[0] !== id) editor.selection = [id];
   }
 </script>
+
+<svelte:window onkeydown={handleShortcut} />
 
 <div class="app">
   <Toolbar />
   <LeftPanel />
   <main class="stage" bind:clientWidth={stageWidth}>
-    <PageView page={editor.page} doc={editor.doc} zoom={editor.effectiveZoom} selection={editor.selection} onselect={select} />
+    <PageView page={editor.page} doc={editor.doc} zoom={editor.effectiveZoom} selection={editor.selection} onselect={select} bind:pageEl />
+    <Transformer {pageEl} zoom={editor.effectiveZoom} />
   </main>
   <RightPanel />
   <PageBar />

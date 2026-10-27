@@ -1,0 +1,147 @@
+<script lang="ts">
+  // Poignées de déplacement, redimensionnement et rotation (Moveable) sur l'élément sélectionné.
+  // Pendant le geste, seul le DOM bouge ; le document n'est modifié qu'à la fin du geste.
+  // Une instance Moveable par cible : changer `target` d'une instance existante lui fait perdre
+  // le geste en cours.
+  import Moveable from "moveable";
+  import { onDestroy, tick } from "svelte";
+  import { editor } from "../lib/docStore.svelte";
+  import { GUIDE_MARGIN_MM, SNAP_MM, rectPxToFrame, type RectPx } from "../lib/geometry";
+  import { mmToPx } from "../lib/units";
+
+  let { pageEl, zoom }: { pageEl: HTMLElement | undefined; zoom: number } = $props();
+
+  let moveable: Moveable | null = null;
+  let movedId: string | null = null;
+  let live: RectPx | null = null;
+
+  const target = $derived.by(() => {
+    const e = editor.selected;
+    if (!e || e.locked) return null;
+    const inGrid = editor.page.grid?.cells.some((c) => c.element_id === e.id);
+    return inGrid ? null : e;
+  });
+
+  function start() {
+    const e = target;
+    if (!e) return;
+    live = {
+      left: mmToPx(e.frame.x_mm, zoom),
+      top: mmToPx(e.frame.y_mm, zoom),
+      width: mmToPx(e.frame.w_mm, zoom),
+      height: mmToPx(e.frame.h_mm, zoom),
+      rotation: e.frame.rotation_deg,
+    };
+  }
+
+  function commit() {
+    const e = target;
+    if (!e || !live) return;
+    const frame = rectPxToFrame(live, zoom);
+    live = null;
+    const f = e.frame;
+    if (frame.x_mm === f.x_mm && frame.y_mm === f.y_mm && frame.w_mm === f.w_mm && frame.h_mm === f.h_mm && frame.rotation_deg === f.rotation_deg) return;
+    editor.updateElement(e.id, (el) => ({ ...el, frame }));
+  }
+
+  function create(el: HTMLElement): Moveable {
+    const m = new Moveable(pageEl!, {
+      target: el,
+      draggable: true,
+      resizable: true,
+      rotatable: true,
+      snappable: true,
+      origin: false,
+      throttleDrag: 0,
+      throttleResize: 0,
+      throttleRotate: 1,
+      renderDirections: ["nw", "n", "ne", "w", "e", "sw", "s", "se"],
+      isDisplaySnapDigit: false,
+      snapThreshold: 6,
+    });
+    m.on("dragStart", start)
+      .on("drag", (ev) => {
+        if (!live) return;
+        live.left = ev.left;
+        live.top = ev.top;
+        ev.target.style.left = `${ev.left}px`;
+        ev.target.style.top = `${ev.top}px`;
+      })
+      .on("dragEnd", commit)
+      .on("resizeStart", (ev) => {
+        start();
+        ev.setOrigin(["%", "%"]);
+        if (live) ev.dragStart?.set([live.left, live.top]);
+      })
+      .on("resize", (ev) => {
+        if (!live) return;
+        live.width = ev.width;
+        live.height = ev.height;
+        live.left = ev.drag.beforeTranslate[0];
+        live.top = ev.drag.beforeTranslate[1];
+        ev.target.style.width = `${ev.width}px`;
+        ev.target.style.height = `${ev.height}px`;
+        ev.target.style.left = `${live.left}px`;
+        ev.target.style.top = `${live.top}px`;
+      })
+      .on("resizeEnd", commit)
+      .on("rotateStart", (ev) => {
+        start();
+        if (live) ev.set(live.rotation);
+      })
+      .on("rotate", (ev) => {
+        if (!live) return;
+        live.rotation = ev.beforeRotate;
+        ev.target.style.transform = ev.transform;
+      })
+      .on("rotateEnd", commit);
+    return m;
+  }
+
+  function onKey(ev: KeyboardEvent) {
+    if (moveable) moveable.keepRatio = ev.shiftKey;
+  }
+
+  // Après chaque changement du document, du zoom ou de la sélection : recaler (ou recréer) les poignées.
+  $effect(() => {
+    void editor.doc;
+    const z = zoom;
+    const t = target;
+    const container = pageEl;
+    tick().then(() => {
+      if (!container || live) return;
+      const el = t ? container.querySelector<HTMLElement>(`[data-id="${t.id}"]`) : null;
+      if (!el) {
+        moveable?.destroy();
+        moveable = null;
+        movedId = null;
+        return;
+      }
+      if (!moveable || movedId !== t!.id) {
+        moveable?.destroy();
+        moveable = create(el);
+        movedId = t!.id;
+      }
+      const w = mmToPx(editor.page.size.width_mm, z);
+      const h = mmToPx(editor.page.size.height_mm, z);
+      const m = mmToPx(GUIDE_MARGIN_MM, z);
+      moveable.snapGridWidth = mmToPx(SNAP_MM, z);
+      moveable.snapGridHeight = mmToPx(SNAP_MM, z);
+      moveable.elementGuidelines = [...container.querySelectorAll<HTMLElement>(".element")].filter((n) => n !== el);
+      moveable.verticalGuidelines = [0, m, w / 2, w - m, w];
+      moveable.horizontalGuidelines = [0, m, h / 2, h - m, h];
+      moveable.updateRect();
+    });
+  });
+
+  $effect(() => {
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKey);
+    };
+  });
+
+  onDestroy(() => moveable?.destroy());
+</script>

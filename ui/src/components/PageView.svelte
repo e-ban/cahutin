@@ -11,7 +11,15 @@
     zoom,
     selection = [],
     onselect,
-  }: { page: Page; doc: Document; zoom: number; selection?: string[]; onselect?: (id: string | null, add: boolean) => void } = $props();
+    pageEl = $bindable(),
+  }: {
+    page: Page;
+    doc: Document;
+    zoom: number;
+    selection?: string[];
+    onselect?: (id: string | null, add: boolean) => void;
+    pageEl?: HTMLElement;
+  } = $props();
 
   function frameStyle(e: Element): string {
     const f = e.frame;
@@ -21,6 +29,7 @@
 
 <div
   class="page"
+  bind:this={pageEl}
   role="presentation"
   style:width="{mmToPx(page.size.width_mm, zoom)}px"
   style:height="{mmToPx(page.size.height_mm, zoom)}px"

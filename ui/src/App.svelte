@@ -8,12 +8,14 @@
   import Transformer from "./components/Transformer.svelte";
   import { editor } from "./lib/docStore.svelte";
   import { sampleDocument } from "./lib/sample";
+  import { fonts } from "./lib/fonts.svelte";
   import { handleShortcut } from "./lib/shortcuts";
   import { newId } from "./lib/factory";
   import { mmToPx } from "./lib/units";
-  import type { Crop } from "./lib/types";
+  import type { Crop, RichText } from "./lib/types";
 
   editor.reset(sampleDocument(), null);
+  fonts.load();
   if (import.meta.env.DEV) (window as unknown as { __editor: typeof editor }).__editor = editor;
 
   let stageWidth = $state(800);
@@ -67,6 +69,14 @@
     editor.updateElement(id, (el) => (el.kind.type === "Photo" ? { ...el, kind: { ...el.kind, crop } } : el));
   }
 
+  function endTextEdit(id: string, content: RichText) {
+    editor.editingText = null;
+    const e = editor.page.elements.find((x) => x.id === id);
+    if (!e || e.kind.type !== "Text") return;
+    if (JSON.stringify(e.kind.content) === JSON.stringify(content)) return;
+    editor.updateElement(id, (el) => (el.kind.type === "Text" ? { ...el, kind: { ...el.kind, content } } : el));
+  }
+
   function select(id: string | null, add: boolean) {
     if (id === null) editor.selection = [];
     else if (add) editor.selection = editor.selection.includes(id) ? editor.selection.filter((s) => s !== id) : [...editor.selection, id];
@@ -86,6 +96,7 @@
       zoom={editor.effectiveZoom}
       selection={editor.selection}
       cropping={editor.cropping}
+      editingText={editor.editingText}
       onselect={select}
       ondropasset={dropAsset}
       oncropstart={(id) => {
@@ -93,6 +104,11 @@
         editor.cropping = id;
       }}
       oncropend={endCrop}
+      onedittext={(id) => {
+        editor.selection = [id];
+        editor.editingText = id;
+      }}
+      ontextdone={endTextEdit}
       bind:pageEl
     />
     <Transformer {pageEl} zoom={editor.effectiveZoom} />

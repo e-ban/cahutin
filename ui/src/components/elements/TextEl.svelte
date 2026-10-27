@@ -1,19 +1,28 @@
 <script lang="ts">
-  import { TEXT_PADDING_MM } from "../../lib/richtext";
-  import { mmToPx, ptToPx } from "../../lib/units";
-  import type { Align, Element, Run, TextProps } from "../../lib/types";
+  // Le texte est mis en page à sa taille réelle (mm et pt), puis mis à l'échelle du zoom :
+  // les retours à la ligne ne dépendent pas du zoom et correspondent à ceux de l'export.
+  import TextEditor from "../TextEditor.svelte";
+  import { TEXT_PADDING_MM, alignToCss } from "../../lib/richtext";
+  import type { Element, RichText, Run, TextProps } from "../../lib/types";
 
-  let { element, props, zoom }: { element: Element; props: TextProps; zoom: number } = $props();
+  let {
+    element,
+    props,
+    zoom,
+    editing = false,
+    ondone,
+  }: { element: Element; props: TextProps; zoom: number; editing?: boolean; ondone?: (content: RichText) => void } = $props();
+
+  let box: HTMLDivElement | undefined = $state();
+  let overflow = $state(false);
 
   const blank = $derived(props.content.paragraphs.every((p) => p.runs.every((r) => r.text.trim() === "")));
-  const cssAlign = (a: Align) => ({ Left: "left", Center: "center", Right: "right", Justify: "justify" })[a];
 
   function runStyle(r: Run): string {
-    const s = props.style;
     return [
-      `font-family: "${r.font ?? s.font}"`,
-      `font-size: ${ptToPx(r.size_pt ?? s.size_pt, zoom)}px`,
-      `color: ${r.color ?? s.color}`,
+      r.font ? `font-family: "${r.font}"` : "",
+      r.size_pt ? `font-size: ${r.size_pt}pt` : "",
+      r.color ? `color: ${r.color}` : "",
       r.bold ? "font-weight: 700" : "",
       r.italic ? "font-style: italic" : "",
       r.underline ? "text-decoration: underline" : "",
@@ -21,43 +30,81 @@
       .filter(Boolean)
       .join("; ");
   }
+
+  $effect(() => {
+    void props;
+    void editing;
+    void element.frame;
+    if (!box) return;
+    const el = box;
+    requestAnimationFrame(() => (overflow = el.scrollHeight > el.clientHeight + 1));
+  });
 </script>
 
 <div
   class="text"
-  style:padding="{mmToPx(TEXT_PADDING_MM, zoom)}px"
+  class:overflow
+  bind:this={box}
+  style:width="{element.frame.w_mm}mm"
+  style:height="{element.frame.h_mm}mm"
+  style:padding="{TEXT_PADDING_MM}mm"
+  style:transform="scale({zoom})"
   style:font-family={`"${props.style.font}"`}
-  style:font-size="{ptToPx(props.style.size_pt, zoom)}px"
+  style:font-size="{props.style.size_pt}pt"
   style:color={props.style.color}
+  style:text-align={alignToCss(props.style.align)}
 >
-  {#if blank}
+  {#if editing && ondone}
+    <TextEditor {props} {ondone} />
+  {:else if blank}
     {#if props.prompt}
-      <p class="prompt zone-empty" style:text-align={cssAlign(props.style.align)}>{props.prompt}</p>
+      <p class="prompt zone-empty">{props.prompt}</p>
     {/if}
   {:else}
     {#each props.content.paragraphs as p}
-      <p style:text-align={cssAlign(p.align ?? props.style.align)}>
+      <p style:text-align={p.align ? alignToCss(p.align) : null}>
         {#each p.runs as r}<span style={runStyle(r)}>{r.text}</span>{/each}{#if p.runs.every((r) => r.text === "")}<br />{/if}
       </p>
     {/each}
   {/if}
 </div>
+{#if overflow && !editing}
+  <span class="badge" style:transform="scale({Math.max(zoom, 0.6)})">Texte trop long</span>
+{/if}
 
 <style>
   .text {
     position: absolute;
-    inset: 0;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
     overflow: hidden;
     line-height: normal;
     white-space: pre-wrap;
     overflow-wrap: break-word;
     box-sizing: border-box;
   }
-  p {
+  .text :global(p) {
     margin: 0;
+  }
+  .text.overflow {
+    outline: 2px solid #e74c3c;
+    outline-offset: -2px;
   }
   .prompt {
     color: #9a9a9a;
     font-style: italic;
+  }
+  .badge {
+    position: absolute;
+    right: 0;
+    bottom: -22px;
+    transform-origin: right top;
+    background: #e74c3c;
+    color: white;
+    font: 600 11px var(--ui-font);
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
   }
 </style>

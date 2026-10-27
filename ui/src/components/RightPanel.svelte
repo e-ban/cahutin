@@ -2,7 +2,10 @@
   import ColorPicker from "./ColorPicker.svelte";
   import { editor } from "../lib/docStore.svelte";
   import { fr } from "../lib/i18n/fr";
-  import type { Element, PhotoProps, ShapeProps } from "../lib/types";
+  import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
+  import { alignToCss } from "../lib/richtext";
+  import { textEditing } from "../lib/textEditing.svelte";
+  import type { Align, Element, PhotoProps, Run, ShapeProps, TextProps, TextStyle } from "../lib/types";
 
   const selected = $derived(editor.selected);
 
@@ -12,6 +15,57 @@
 
   function updatePhoto(patch: Partial<PhotoProps>) {
     update((e) => (e.kind.type === "Photo" ? { ...e, kind: { ...e.kind, ...patch } } : e));
+  }
+
+  // Texte : pendant l'édition, la mise en forme s'applique à la sélection ; sinon à toute la zone.
+  const tip = $derived(selected && editor.editingText === selected.id ? textEditing.current : null);
+
+  function updateText(fn: (t: TextProps) => TextProps) {
+    update((e) => (e.kind.type === "Text" ? { ...e, kind: { type: "Text", ...fn(e.kind) } } : e));
+  }
+
+  function setStyle(patch: Partial<TextStyle>) {
+    updateText((t) => ({ ...t, style: { ...t.style, ...patch } }));
+  }
+
+  function setFont(font: string) {
+    if (tip) tip.chain().focus().setFontFamily(font).run();
+    else setStyle({ font });
+  }
+
+  function setSize(pt: number) {
+    if (tip) tip.chain().focus().setFontSize(`${pt}pt`).run();
+    else setStyle({ size_pt: pt });
+  }
+
+  function setColor(color: string | null) {
+    if (!color) return;
+    if (tip) tip.chain().focus().setColor(color).run();
+    else setStyle({ color });
+  }
+
+  function setAlign(align: Align) {
+    if (tip) tip.chain().focus().setTextAlign(alignToCss(align)).run();
+    else updateText((t) => ({ ...t, style: { ...t.style, align }, content: { paragraphs: t.content.paragraphs.map((p) => ({ ...p, align: null })) } }));
+  }
+
+  function toggle(mark: "bold" | "italic" | "underline") {
+    if (tip) {
+      tip.chain().focus().toggleMark(mark).run();
+      return;
+    }
+    updateText((t) => {
+      const all = t.content.paragraphs.flatMap((p) => p.runs);
+      const on = !all.every((r: Run) => r[mark]);
+      return { ...t, content: { paragraphs: t.content.paragraphs.map((p) => ({ ...p, runs: p.runs.map((r) => ({ ...r, [mark]: on })) })) } };
+    });
+  }
+
+  function isActive(mark: "bold" | "italic" | "underline", t: TextProps): boolean {
+    void textEditing.tick;
+    if (tip) return tip.isActive(mark);
+    const runs = t.content.paragraphs.flatMap((p) => p.runs);
+    return runs.length > 0 && runs.every((r) => r[mark]);
   }
 
   function updateShape(patch: Partial<ShapeProps>) {
@@ -64,6 +118,46 @@
       </div>
       {#if ph.asset}
         <button onclick={() => updatePhoto({ asset: null, crop: { scale: 1, center_x: 0.5, center_y: 0.5 } })}>Retirer la photo</button>
+      {/if}
+    {/if}
+
+    {#if selected.kind.type === "Text"}
+      {@const t = selected.kind}
+      {@const family = fonts.families.find((f) => f.name === t.style.font)}
+      {#if !tip}
+        <p class="hint">Double-cliquez pour écrire. Sans édition, les réglages s'appliquent à toute la zone.</p>
+      {/if}
+      <div class="field">
+        <span>Police</span>
+        <select value={t.style.font} onchange={(e) => setFont(e.currentTarget.value)}>
+          {#each fonts.families as f}<option value={f.name} style:font-family={`"${f.name}"`}>{f.name}</option>{/each}
+        </select>
+      </div>
+      <div class="field">
+        <span>Taille</span>
+        <select value={String(t.style.size_pt)} onchange={(e) => setSize(Number(e.currentTarget.value))}>
+          {#each FONT_SIZES as size}<option value={String(size)}>{size} pt</option>{/each}
+        </select>
+      </div>
+      <div class="row">
+        <button class:on={isActive("bold", t)} disabled={family && !family.has_bold} onpointerdown={(e) => e.preventDefault()} onclick={() => toggle("bold")}><b>G</b></button>
+        <button class:on={isActive("italic", t)} disabled={family && !family.has_italic} onpointerdown={(e) => e.preventDefault()} onclick={() => toggle("italic")}><i>I</i></button>
+        <button class:on={isActive("underline", t)} onpointerdown={(e) => e.preventDefault()} onclick={() => toggle("underline")}><u>S</u></button>
+      </div>
+      <div class="row">
+        {#each [["Left", "⯇"], ["Center", "≡"], ["Right", "⯈"], ["Justify", "☰"]] as [a, icon]}
+          <button title={a} class:on={t.style.align === a} onpointerdown={(e) => e.preventDefault()} onclick={() => setAlign(a as Align)}>{icon}</button>
+        {/each}
+      </div>
+      <div class="field">
+        <span>Couleur</span>
+        <ColorPicker value={t.style.color} onchange={setColor} />
+      </div>
+      {#if selected.zone}
+        <div class="field">
+          <span>Texte d'invite (visible seulement à l'écran)</span>
+          <input value={t.prompt ?? ""} onchange={(e) => updateText((x) => ({ ...x, prompt: e.currentTarget.value || null }))} />
+        </div>
       {/if}
     {/if}
 
@@ -123,6 +217,15 @@
     flex-direction: column;
     gap: 6px;
     margin-bottom: 14px;
+  }
+  .row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .on {
+    background: #e3effb;
+    border-color: var(--accent);
   }
   .check {
     display: flex;

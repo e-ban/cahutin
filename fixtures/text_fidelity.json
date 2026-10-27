@@ -1,8 +1,8 @@
 [
-  {"id": "andika-14-court", "font": "Andika", "size_pt": 14, "w_mm": 80, "h_mm": 20, "text": "Sortie à la ferme", "expected_lines": null},
-  {"id": "andika-14-long", "font": "Andika", "size_pt": 14, "w_mm": 120, "h_mm": 50, "text": "Ce matin, nous sommes partis en car jusqu'à la ferme de Monsieur Martin. Nous avons donné à manger aux chèvres et aux poules, puis nous avons vu un petit veau qui venait de naître. Tout le monde voulait le caresser !", "expected_lines": null},
-  {"id": "andika-20", "font": "Andika", "size_pt": 20, "w_mm": 150, "h_mm": 50, "text": "Aujourd'hui, nous avons planté des graines de haricots dans des pots. Il faudra les arroser chaque jour pour les voir pousser.", "expected_lines": null},
-  {"id": "playwrite-14", "font": "Playwrite FR Moderne", "size_pt": 14, "w_mm": 120, "h_mm": 40, "text": "Nous avons écouté une histoire de loup. Ensuite, chacun a dessiné son personnage préféré et l'a montré à la classe.", "expected_lines": null},
-  {"id": "playwrite-28", "font": "Playwrite FR Moderne", "size_pt": 28, "w_mm": 190, "h_mm": 45, "text": "Le carnaval de la classe des moyens", "expected_lines": null},
-  {"id": "andika-28-court", "font": "Andika", "size_pt": 28, "w_mm": 100, "h_mm": 20, "text": "Bravo à tous !", "expected_lines": null}
+  {"id": "andika-14-court", "font": "Andika", "size_pt": 14, "w_mm": 80, "h_mm": 20, "text": "Sortie à la ferme", "expected_lines": 1},
+  {"id": "andika-14-long", "font": "Andika", "size_pt": 14, "w_mm": 120, "h_mm": 50, "text": "Ce matin, nous sommes partis en car jusqu'à la ferme de Monsieur Martin. Nous avons donné à manger aux chèvres et aux poules, puis nous avons vu un petit veau qui venait de naître. Tout le monde voulait le caresser !", "expected_lines": 5},
+  {"id": "andika-20", "font": "Andika", "size_pt": 20, "w_mm": 150, "h_mm": 50, "text": "Aujourd'hui, nous avons planté des graines de haricots dans des pots. Il faudra les arroser chaque jour pour les voir pousser.", "expected_lines": 3},
+  {"id": "playwrite-14", "font": "Playwrite FR Moderne", "size_pt": 14, "w_mm": 120, "h_mm": 40, "text": "Nous avons écouté une histoire de loup. Ensuite, chacun a dessiné son personnage préféré et l'a montré à la classe.", "expected_lines": 3},
+  {"id": "playwrite-28", "font": "Playwrite FR Moderne", "size_pt": 28, "w_mm": 190, "h_mm": 45, "text": "Le carnaval de la classe des moyens", "expected_lines": 1},
+  {"id": "andika-28-court", "font": "Andika", "size_pt": 28, "w_mm": 100, "h_mm": 20, "text": "Bravo à tous !", "expected_lines": 1}
 ]

@@ -8,6 +8,6 @@ export default defineConfig({
   plugins: [svelte()],
   clearScreen: false,
   server: { port: 5173, strictPort: true },
-  build: { outDir: "dist", emptyOutDir: true, target: "chrome120" },
+  build: { outDir: "dist", emptyOutDir: true, target: "chrome120", chunkSizeWarningLimit: 2000 },
   test: { include: ["src/**/*.test.ts"] },
 });

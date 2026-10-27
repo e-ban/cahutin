@@ -12,6 +12,17 @@
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-dialog": "^2.8.3",
+    "@tiptap/core": "^3.32.0",
+    "@tiptap/extension-bold": "^3.32.0",
+    "@tiptap/extension-document": "^3.32.0",
+    "@tiptap/extension-italic": "^3.32.0",
+    "@tiptap/extension-paragraph": "^3.32.0",
+    "@tiptap/extension-text": "^3.32.0",
+    "@tiptap/extension-text-align": "^3.32.0",
+    "@tiptap/extension-text-style": "^3.32.0",
+    "@tiptap/extension-underline": "^3.32.0",
+    "@tiptap/extensions": "^3.32.0",
+    "@tiptap/pm": "^3.32.0",
     "moveable": "^0.53.0"
   },
   "devDependencies": {

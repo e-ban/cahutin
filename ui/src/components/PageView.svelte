@@ -5,7 +5,7 @@
   import { dragCrop, wheelCrop } from "../lib/crop";
   import { ASSET_MIME } from "../lib/dnd";
   import { PX_PER_MM, mmToPx } from "../lib/units";
-  import type { Crop, Document, Element, Page } from "../lib/types";
+  import type { Crop, Document, Element, Page, RichText } from "../lib/types";
 
   let {
     page,
@@ -13,10 +13,13 @@
     zoom,
     selection = [],
     cropping = null,
+    editingText = null,
     onselect,
     ondropasset,
     oncropstart,
     oncropend,
+    onedittext,
+    ontextdone,
     pageEl = $bindable(),
   }: {
     page: Page;
@@ -24,10 +27,13 @@
     zoom: number;
     selection?: string[];
     cropping?: string | null;
+    editingText?: string | null;
     onselect?: (id: string | null, add: boolean) => void;
     ondropasset?: (assetId: string, elementId: string | null, xMm: number, yMm: number) => void;
     oncropstart?: (id: string) => void;
     oncropend?: (id: string, crop: Crop) => void;
+    onedittext?: (id: string) => void;
+    ontextdone?: (id: string, content: RichText) => void;
     pageEl?: HTMLElement;
   } = $props();
 
@@ -122,6 +128,8 @@
         if (e.kind.type === "Photo" && e.kind.asset && !e.locked) {
           liveCrop = null;
           oncropstart?.(e.id);
+        } else if (e.kind.type === "Text" && !e.locked) {
+          onedittext?.(e.id);
         }
       }}
       ondragover={(ev) => {
@@ -142,7 +150,7 @@
           {zoom}
         />
       {:else if e.kind.type === "Text"}
-        <TextEl element={e} props={e.kind} {zoom} />
+        <TextEl element={e} props={e.kind} {zoom} editing={e.id === editingText} ondone={(content) => ontextdone?.(e.id, content)} />
       {:else}
         <ShapeEl props={e.kind} {zoom} />
       {/if}
@@ -164,6 +172,9 @@
   .element.selected {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
+  }
+  .element:has(.editor) {
+    z-index: 10;
   }
   .element.cropping {
     outline: 3px solid #f39c12;

@@ -7,6 +7,7 @@ pub mod model;
 pub mod native;
 pub mod odg;
 pub mod photo;
+pub mod templates;
 
 pub use crop::{SourceRect, source_rect};
 pub use model::*;

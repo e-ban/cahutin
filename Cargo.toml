@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/carnet-core"]
+members = ["crates/carnet-core", "src-tauri"]
 
 [workspace.package]
 edition = "2024"

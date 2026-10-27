@@ -67,7 +67,7 @@ fn has_transparency(img: &DynamicImage) -> bool {
     img.color().has_alpha() && img.to_rgba8().pixels().any(|p| p[3] < 255)
 }
 
-fn encode(img: &DynamicImage, mime: Mime) -> Result<Vec<u8>, ImportError> {
+pub(crate) fn encode(img: &DynamicImage, mime: Mime) -> Result<Vec<u8>, ImportError> {
     let mut out = Vec::new();
     match mime {
         Mime::Jpeg => img.to_rgb8().write_with_encoder(JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY)),

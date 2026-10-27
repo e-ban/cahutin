@@ -11,6 +11,7 @@ uuid = { version = "1", features = ["v4"] }
 ts-rs = "11"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 zip = { version = "6", default-features = false, features = ["deflate"] }
+quick-xml = "0.38"
 
 [dev-dependencies]
 ttf-parser = "0.25"

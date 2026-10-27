@@ -19,6 +19,8 @@ class Editor {
   editingText = $state<string | null>(null);
   /** Photo en cours de recadrage (double-clic). */
   cropping = $state<string | null>(null);
+  /** Choix d'un modèle au démarrage et pour un nouveau document. */
+  showPicker = $state(false);
   /** Message à afficher (erreurs d'import, d'enregistrement...). */
   notice = $state<string | null>(null);
   canUndo = $state(false);
@@ -86,6 +88,15 @@ class Editor {
   addPhotos(metas: AssetMeta[]) {
     const known = new Set(this.photos.map((p) => p.id));
     this.photos = [...this.photos, ...metas.filter((m) => !known.has(m.id))];
+  }
+
+  /** Images connues sans modification du document (aperçus de modèles). */
+  #extraAssets: Record<string, AssetMeta> = {};
+  registerAssets(metas: AssetMeta[]) {
+    for (const m of metas) this.#extraAssets[m.id] = m;
+  }
+  assetMeta(id: string): AssetMeta | undefined {
+    return this.doc.assets[id] ?? this.#extraAssets[id];
   }
 
   /** Met une photo dans un élément photo ; l'image rejoint les images du document. */

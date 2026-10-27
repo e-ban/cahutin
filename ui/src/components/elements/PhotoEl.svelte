@@ -29,8 +29,9 @@
     />
   </div>
 {:else}
-  <div class="zone-empty photo-zone" class:zone={element.zone}>
-    <span>{element.zone ? fr.dropPhotoHere : fr.photo}</span>
+  <div class="zone-empty photo-zone" class:zone={element.zone} style:border-width="{zoom < 0.5 ? 1 : 2}px">
+    <!-- Dans les miniatures, l'invite serait illisible : seule la zone en pointillés reste. -->
+    {#if zoom >= 0.5}<span>{element.zone ? fr.dropPhotoHere : fr.photo}</span>{/if}
   </div>
 {/if}
 

@@ -4,18 +4,22 @@
   import PageBar from "./components/PageBar.svelte";
   import PageView from "./components/PageView.svelte";
   import RightPanel from "./components/RightPanel.svelte";
+  import TemplateBar from "./components/TemplateBar.svelte";
+  import TemplatePicker from "./components/TemplatePicker.svelte";
   import Toolbar from "./components/Toolbar.svelte";
   import Transformer from "./components/Transformer.svelte";
   import { editor } from "./lib/docStore.svelte";
-  import { sampleDocument } from "./lib/sample";
   import { fonts } from "./lib/fonts.svelte";
   import { handleShortcut } from "./lib/shortcuts";
-  import { newId } from "./lib/factory";
+  import { newDocument, newId } from "./lib/factory";
+  import { templates } from "./lib/templates.svelte";
   import { mmToPx } from "./lib/units";
   import type { Crop, RichText } from "./lib/types";
 
-  editor.reset(sampleDocument(), null);
+  editor.reset(newDocument(), null);
+  editor.showPicker = true;
   fonts.load();
+  templates.refresh();
   if (import.meta.env.DEV) (window as unknown as { __editor: typeof editor }).__editor = editor;
 
   let stageWidth = $state(800);
@@ -88,6 +92,7 @@
 
 <div class="app">
   <Toolbar />
+  {#if editor.templateMode}<TemplateBar />{/if}
   <LeftPanel />
   <main class="stage" bind:clientWidth={stageWidth}>
     <PageView
@@ -97,6 +102,7 @@
       selection={editor.selection}
       cropping={editor.cropping}
       editingText={editor.editingText}
+      templateMode={editor.templateMode}
       onselect={select}
       ondropasset={dropAsset}
       oncropstart={(id) => {
@@ -112,6 +118,7 @@
       bind:pageEl
     />
     <Transformer {pageEl} zoom={editor.effectiveZoom} />
+    {#if editor.showPicker}<TemplatePicker />{/if}
   </main>
   <RightPanel />
   <PageBar />
@@ -172,8 +179,8 @@
     display: grid;
     height: 100vh;
     grid-template-columns: 260px 1fr 260px;
-    grid-template-rows: auto 1fr auto;
-    grid-template-areas: "top top top" "left stage right" "bottom bottom bottom";
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas: "top top top" "tbar tbar tbar" "left stage right" "bottom bottom bottom";
   }
   .notice {
     position: fixed;
@@ -204,5 +211,6 @@
     align-items: flex-start;
     padding: 32px;
     min-width: 0;
+    position: relative;
   }
 </style>

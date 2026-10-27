@@ -30,6 +30,9 @@
       {#each levels as l}<option value={String(l)}>{Math.round(l * 100)} %</option>{/each}
     </select>
   </label>
+  <button class:on={editor.templateMode} onclick={() => (editor.templateMode = !editor.templateMode)}>
+    ▦ {editor.templateMode ? "Terminer le modèle" : "Modifier le modèle"}
+  </button>
   <div class="spacer"></div>
 </header>
 
@@ -54,6 +57,10 @@
     display: flex;
     gap: 6px;
     align-items: center;
+  }
+  .on {
+    background: #fff7e8;
+    border-color: #e6a23c;
   }
   .spacer {
     flex: 1;

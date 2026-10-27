@@ -3,6 +3,7 @@
   import ShapeEl from "./elements/ShapeEl.svelte";
   import TextEl from "./elements/TextEl.svelte";
   import { dragCrop, wheelCrop } from "../lib/crop";
+  import { editor } from "../lib/docStore.svelte";
   import { ASSET_MIME } from "../lib/dnd";
   import { PX_PER_MM, mmToPx } from "../lib/units";
   import type { Crop, Document, Element, Page, RichText } from "../lib/types";
@@ -14,6 +15,7 @@
     selection = [],
     cropping = null,
     editingText = null,
+    templateMode = false,
     onselect,
     ondropasset,
     oncropstart,
@@ -28,6 +30,7 @@
     selection?: string[];
     cropping?: string | null;
     editingText?: string | null;
+    templateMode?: boolean;
     onselect?: (id: string | null, add: boolean) => void;
     ondropasset?: (assetId: string, elementId: string | null, xMm: number, yMm: number) => void;
     oncropstart?: (id: string) => void;
@@ -80,6 +83,7 @@
 
 <div
   class="page"
+  class:template={templateMode}
   bind:this={pageEl}
   role="presentation"
   style:width="{mmToPx(page.size.width_mm, zoom)}px"
@@ -99,6 +103,8 @@
       class:selected={selection.includes(e.id)}
       class:locked={e.locked}
       class:cropping={e.id === cropping}
+      class:zone-photo={e.zone && e.kind.type === "Photo"}
+      class:zone-text={e.zone && e.kind.type === "Text"}
       data-id={e.id}
       role="presentation"
       style={frameStyle(e)}
@@ -113,7 +119,7 @@
       }}
       onpointermove={(ev) => {
         if (e.id !== cropping || !dragFrom || e.kind.type !== "Photo" || !e.kind.asset) return;
-        const meta = doc.assets[e.kind.asset];
+        const meta = doc.assets[e.kind.asset] ?? editor.assetMeta(e.kind.asset);
         if (!meta) return;
         liveCrop = dragCrop(liveCrop ?? e.kind.crop, ev.clientX - dragFrom.x, ev.clientY - dragFrom.y, meta, e.frame, zoom);
         dragFrom = { x: ev.clientX, y: ev.clientY };
@@ -146,7 +152,7 @@
         <PhotoEl
           element={e}
           props={cropOf(e) ? { ...e.kind, crop: cropOf(e)! } : e.kind}
-          meta={e.kind.asset ? doc.assets[e.kind.asset] : undefined}
+          meta={e.kind.asset ? (doc.assets[e.kind.asset] ?? editor.assetMeta(e.kind.asset)) : undefined}
           {zoom}
         />
       {:else if e.kind.type === "Text"}
@@ -175,6 +181,17 @@
   }
   .element:has(.editor) {
     z-index: 10;
+  }
+  .page.template .element.zone-photo {
+    outline: 2px dashed var(--zone-photo);
+    outline-offset: -1px;
+  }
+  .page.template .element.zone-text {
+    outline: 2px dashed var(--zone-text);
+    outline-offset: -1px;
+  }
+  .page.template .element.selected {
+    outline: 3px solid var(--accent);
   }
   .element.cropping {
     outline: 3px solid #f39c12;

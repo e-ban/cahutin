@@ -6,6 +6,9 @@
   import { fr } from "../lib/i18n/fr";
   import { ASSET_MIME } from "../lib/dnd";
   import { summarizeImport } from "../lib/importSummary";
+  import { ask } from "../lib/ask";
+  import { templates } from "../lib/templates.svelte";
+  import PageView from "./PageView.svelte";
   import type { ShapeKind } from "../lib/types";
 
   const EXTENSIONS = ["jpg", "jpeg", "png", "webp", "heic", "heif", "JPG", "JPEG", "PNG", "WEBP", "HEIC", "HEIF"];
@@ -56,6 +59,30 @@
 </script>
 
 <aside class="left">
+  <section>
+    <h3>{fr.templates}</h3>
+    <div class="templates">
+      {#each templates.infos as t (t.id)}
+        <div class="tpl">
+          <button class="mini" title="Nouvelle page à partir de « {t.name} »" onclick={() => templates.addPage(t.id).catch((e) => (editor.notice = String(e)))}>
+            {#if templates.previews[t.id]}
+              <PageView page={templates.previews[t.id]} doc={editor.doc} zoom={0.13} />
+            {/if}
+          </button>
+          <span class="tpl-name">{t.name}</span>
+          {#if !t.builtin}
+            <button
+              class="del"
+              title="Supprimer ce modèle"
+              onclick={async () => {
+                if (await ask(`Supprimer le modèle « ${t.name} » ?`, "Supprimer")) templates.remove(t.id).catch((e) => (editor.notice = String(e)));
+              }}>×</button
+            >
+          {/if}
+        </div>
+      {/each}
+    </div>
+  </section>
   <section>
     <h3>{fr.photos}</h3>
     <div class="row">
@@ -110,6 +137,40 @@
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
+  }
+  .templates {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .tpl {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .tpl .mini {
+    padding: 4px;
+    width: 112px;
+    height: 154px;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+  }
+  .tpl .mini :global(.page) {
+    pointer-events: none;
+  }
+  .tpl-name {
+    font-size: 12px;
+    text-align: center;
+  }
+  .del {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 0 6px;
+    border-radius: 50%;
   }
   .thumbs {
     display: grid;

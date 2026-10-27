@@ -187,7 +187,7 @@ impl Writer<'_> {
                 "style:paragraph-properties",
                 vec![
                     ("fo:text-align", align(p.align.unwrap_or(t.style.align)).into()),
-                    ("fo:line-height", "120%".into()),
+                    ("fo:line-height", "100%".into()),
                     ("fo:margin-top", "0mm".into()),
                     ("fo:margin-bottom", "0mm".into()),
                 ],

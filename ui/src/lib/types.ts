@@ -1,0 +1,27 @@
+// Types du document, générés depuis le moteur Rust (ts-rs) dans ./gen.
+export type { Align } from "./gen/Align";
+export type { AssetMeta } from "./gen/AssetMeta";
+export type { Crop } from "./gen/Crop";
+export type { Document } from "./gen/Document";
+export type { Element } from "./gen/Element";
+export type { ElementKind } from "./gen/ElementKind";
+export type { FontFamilyInfo } from "./gen/FontFamilyInfo";
+export type { Frame } from "./gen/Frame";
+export type { GridCell } from "./gen/GridCell";
+export type { GridLayout } from "./gen/GridLayout";
+export type { ImportOutcome } from "./gen/ImportOutcome";
+export type { InstantiatedPage } from "./gen/InstantiatedPage";
+export type { Mime } from "./gen/Mime";
+export type { Page } from "./gen/Page";
+export type { PageSize } from "./gen/PageSize";
+export type { Paragraph } from "./gen/Paragraph";
+export type { PhotoProps } from "./gen/PhotoProps";
+export type { RichText } from "./gen/RichText";
+export type { Run } from "./gen/Run";
+export type { ShapeKind } from "./gen/ShapeKind";
+export type { ShapeProps } from "./gen/ShapeProps";
+export type { Stroke } from "./gen/Stroke";
+export type { TemplateInfo } from "./gen/TemplateInfo";
+export type { TextProps } from "./gen/TextProps";
+export type { TextStyle } from "./gen/TextStyle";
+export type { ZoneKind } from "./gen/ZoneKind";

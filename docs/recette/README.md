@@ -4,6 +4,10 @@
 
 ## 1. Construire l'installeur
 
+**Le plus simple :** à chaque envoi sur `main`, GitHub construit l'installeur (workflow « Windows »). Sur la page du dépôt, ouvrir « Actions », puis le dernier run réussi « Windows », et télécharger l'artefact `carnet-installeur-windows-…`. Il contient `Carnet_0.1.0_x64-setup.exe`. On peut aussi relancer la construction à la main avec « Run workflow ».
+
+**Sur le poste Windows lui-même :**
+
 1. Installer :
    - rustup, avec la chaîne `stable-x86_64-pc-windows-msvc` ;
    - Node 26 ;

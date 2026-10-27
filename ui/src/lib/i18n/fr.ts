@@ -12,6 +12,7 @@ export const fr = {
   addFolder: "Ajouter un dossier",
   images: "Images / pictos",
   text: "Texte",
+  addText: "Ajouter un texte",
   shapes: "Formes",
   rect: "Rectangle",
   ellipse: "Ellipse",

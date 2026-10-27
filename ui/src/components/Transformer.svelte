@@ -17,7 +17,7 @@
 
   const target = $derived.by(() => {
     const e = editor.selected;
-    if (!e || e.locked) return null;
+    if (!e || e.locked || editor.cropping === e.id || editor.editingText === e.id) return null;
     const inGrid = editor.page.grid?.cells.some((c) => c.element_id === e.id);
     return inGrid ? null : e;
   });

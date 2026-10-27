@@ -9,15 +9,63 @@
   import { editor } from "./lib/docStore.svelte";
   import { sampleDocument } from "./lib/sample";
   import { handleShortcut } from "./lib/shortcuts";
+  import { newId } from "./lib/factory";
   import { mmToPx } from "./lib/units";
+  import type { Crop } from "./lib/types";
 
   editor.reset(sampleDocument(), null);
+  if (import.meta.env.DEV) (window as unknown as { __editor: typeof editor }).__editor = editor;
 
   let stageWidth = $state(800);
   let pageEl = $state<HTMLElement>();
   $effect(() => {
     editor.fitZoom = Math.max(0.2, (stageWidth - 64) / mmToPx(editor.page.size.width_mm, 1));
   });
+
+  /** Photo déposée : dans une zone photo, elle la remplit ; ailleurs, une nouvelle photo de 80 mm de large. */
+  function dropAsset(assetId: string, elementId: string | null, xMm: number, yMm: number) {
+    const meta = editor.photos.find((p) => p.id === assetId) ?? editor.doc.assets[assetId];
+    if (!meta) return;
+    if (elementId) {
+      editor.placePhoto(elementId, meta);
+      editor.selection = [elementId];
+      return;
+    }
+    const w = 80;
+    const h = (w * meta.height_px) / meta.width_px;
+    const id = newId();
+    editor.commit({
+      ...editor.doc,
+      assets: { ...editor.doc.assets, [meta.id]: meta },
+      pages: editor.doc.pages.map((p, i) =>
+        i !== editor.pageIndex
+          ? p
+          : {
+              ...p,
+              elements: [
+                ...p.elements,
+                {
+                  id,
+                  frame: { x_mm: Math.round((xMm - w / 2) * 10) / 10, y_mm: Math.round((yMm - h / 2) * 10) / 10, w_mm: w, h_mm: Math.round(h * 10) / 10, rotation_deg: 0 },
+                  locked: false,
+                  zone: false,
+                  kind: { type: "Photo", asset: meta.id, crop: { scale: 1, center_x: 0.5, center_y: 0.5 }, corner_radius_mm: 0, border: null, shadow: false },
+                },
+              ],
+            },
+      ),
+    });
+    editor.selection = [id];
+  }
+
+  function endCrop(id: string, crop: Crop) {
+    editor.cropping = null;
+    const e = editor.page.elements.find((x) => x.id === id);
+    if (!e || e.kind.type !== "Photo") return;
+    const c = e.kind.crop;
+    if (c.scale === crop.scale && c.center_x === crop.center_x && c.center_y === crop.center_y) return;
+    editor.updateElement(id, (el) => (el.kind.type === "Photo" ? { ...el, kind: { ...el.kind, crop } } : el));
+  }
 
   function select(id: string | null, add: boolean) {
     if (id === null) editor.selection = [];
@@ -32,11 +80,31 @@
   <Toolbar />
   <LeftPanel />
   <main class="stage" bind:clientWidth={stageWidth}>
-    <PageView page={editor.page} doc={editor.doc} zoom={editor.effectiveZoom} selection={editor.selection} onselect={select} bind:pageEl />
+    <PageView
+      page={editor.page}
+      doc={editor.doc}
+      zoom={editor.effectiveZoom}
+      selection={editor.selection}
+      cropping={editor.cropping}
+      onselect={select}
+      ondropasset={dropAsset}
+      oncropstart={(id) => {
+        editor.selection = [id];
+        editor.cropping = id;
+      }}
+      oncropend={endCrop}
+      bind:pageEl
+    />
     <Transformer {pageEl} zoom={editor.effectiveZoom} />
   </main>
   <RightPanel />
   <PageBar />
+  {#if editor.notice}
+    <div class="notice" role="alert">
+      <pre>{editor.notice}</pre>
+      <button onclick={() => (editor.notice = null)}>OK</button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -90,6 +158,27 @@
     grid-template-columns: 260px 1fr 260px;
     grid-template-rows: auto 1fr auto;
     grid-template-areas: "top top top" "left stage right" "bottom bottom bottom";
+  }
+  .notice {
+    position: fixed;
+    left: 50%;
+    bottom: 70px;
+    transform: translateX(-50%);
+    max-width: 640px;
+    background: #fff4e5;
+    border: 1px solid #f0b86e;
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+    padding: 12px 16px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    z-index: 100;
+  }
+  .notice pre {
+    margin: 0;
+    font: inherit;
+    white-space: pre-wrap;
   }
   .stage {
     grid-area: stage;

@@ -1,7 +1,7 @@
 // État de l'éditeur : le document (immuable, avec historique), la page courante, la sélection, le zoom.
 import { createHistory, type History } from "./history";
 import { newDocument } from "./factory";
-import type { Document, Element, Page } from "./types";
+import type { AssetMeta, Document, Element, Page } from "./types";
 
 export type Zoom = number | "fit";
 
@@ -13,6 +13,14 @@ class Editor {
   zoom = $state<Zoom>("fit");
   fitZoom = $state(1);
   templateMode = $state(false);
+  /** Photos importées pendant la session (pas forcément utilisées dans le document). */
+  photos = $state.raw<AssetMeta[]>([]);
+  /** Texte en cours d'édition. */
+  editingText = $state<string | null>(null);
+  /** Photo en cours de recadrage (double-clic). */
+  cropping = $state<string | null>(null);
+  /** Message à afficher (erreurs d'import, d'enregistrement...). */
+  notice = $state<string | null>(null);
   canUndo = $state(false);
   canRedo = $state(false);
   dirty = $state(false);
@@ -73,6 +81,28 @@ class Editor {
   updatePage(fn: (p: Page) => Page) {
     const pages = this.doc.pages.map((p, i) => (i === this.pageIndex ? fn(p) : p));
     this.commit({ ...this.doc, pages });
+  }
+
+  addPhotos(metas: AssetMeta[]) {
+    const known = new Set(this.photos.map((p) => p.id));
+    this.photos = [...this.photos, ...metas.filter((m) => !known.has(m.id))];
+  }
+
+  /** Met une photo dans un élément photo ; l'image rejoint les images du document. */
+  placePhoto(elementId: string, meta: AssetMeta) {
+    const pages = this.doc.pages.map((p, i) =>
+      i !== this.pageIndex
+        ? p
+        : {
+            ...p,
+            elements: p.elements.map((e) =>
+              e.id === elementId && e.kind.type === "Photo"
+                ? { ...e, kind: { ...e.kind, asset: meta.id, crop: { scale: 1, center_x: 0.5, center_y: 0.5 } } }
+                : e,
+            ),
+          },
+    );
+    this.commit({ ...this.doc, pages, assets: { ...this.doc.assets, [meta.id]: meta } });
   }
 
   updateElement(id: string, fn: (e: Element) => Element) {

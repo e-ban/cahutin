@@ -6,8 +6,9 @@
   import Moveable from "moveable";
   import { onDestroy, tick } from "svelte";
   import { editor } from "../lib/docStore.svelte";
-  import { GUIDE_MARGIN_MM, SNAP_MM, rectPxToFrame, type RectPx } from "../lib/geometry";
-  import { mmToPx } from "../lib/units";
+  import { GUIDE_MARGIN_MM, SNAP_MM, rectPxToFrame, settleMove, settleResize, snapLines, type RectPx } from "../lib/geometry";
+  import { boundsOf } from "../lib/groups";
+  import { PX_PER_MM, mmToPx } from "../lib/units";
 
   let { pageEl, zoom }: { pageEl: HTMLElement | undefined; zoom: number } = $props();
 
@@ -35,14 +36,23 @@
     };
   }
 
-  function commit() {
+  function commit(gesture: "move" | "resize" | "rotate", keptRatio = false) {
     editor.gesture = false;
     const e = target;
     if (!e || !live) return;
-    const frame = rectPxToFrame(live, zoom);
+    let frame = rectPxToFrame(live, zoom);
     live = null;
     const f = e.frame;
+    // Un simple clic ne bouge rien, même pas d'une retouche d'accrochage.
     if (frame.x_mm === f.x_mm && frame.y_mm === f.y_mm && frame.w_mm === f.w_mm && frame.h_mm === f.h_mm && frame.rotation_deg === f.rotation_deg) return;
+    const lines = snapLines(
+      editor.page.size,
+      editor.page.elements.filter((o) => o.id !== e.id).map((o) => boundsOf([o.frame])),
+    );
+    const tol = 1 / (PX_PER_MM * zoom) + 0.05;
+    if (gesture === "move") frame = settleMove(frame, lines, tol);
+    // Proportions gardées (image, Maj) : pas de retouche bord par bord, qui déformerait.
+    else if (gesture === "resize" && !keptRatio) frame = settleResize(f, frame, lines, tol);
     editor.updateElement(e.id, (el) => ({ ...el, frame }));
   }
 
@@ -74,7 +84,7 @@
         ev.target.style.left = `${ev.left}px`;
         ev.target.style.top = `${ev.top}px`;
       })
-      .on("dragEnd", commit)
+      .on("dragEnd", () => commit("move"))
       .on("resizeStart", (ev) => {
         start();
         ev.setOrigin(["%", "%"]);
@@ -91,7 +101,7 @@
         ev.target.style.left = `${live.left}px`;
         ev.target.style.top = `${live.top}px`;
       })
-      .on("resizeEnd", commit)
+      .on("resizeEnd", () => commit("resize", !!moveable?.keepRatio))
       .on("rotateStart", (ev) => {
         start();
         if (live) ev.set(live.rotation);
@@ -101,7 +111,7 @@
         live.rotation = ev.beforeRotate;
         ev.target.style.transform = ev.transform;
       })
-      .on("rotateEnd", commit);
+      .on("rotateEnd", () => commit("rotate"));
     return m;
   }
 

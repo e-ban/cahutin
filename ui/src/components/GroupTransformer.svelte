@@ -6,8 +6,9 @@
   import { onDestroy, tick } from "svelte";
   import { editor } from "../lib/docStore.svelte";
   import { applyGroupTransform } from "../lib/editActions";
+  import { GUIDE_MARGIN_MM, SNAP_MM, settleMove, settleScale, snapLines } from "../lib/geometry";
   import { boundsOf, isLockedSelection } from "../lib/groups";
-  import { PX_PER_MM } from "../lib/units";
+  import { PX_PER_MM, mmToPx } from "../lib/units";
 
   let { pageEl, zoom, onpick }: { pageEl: HTMLElement | undefined; zoom: number; onpick: (id: string | null, add: boolean) => void } = $props();
 
@@ -41,10 +42,25 @@
     const { box } = g;
     const changed = g.dx !== 0 || g.dy !== 0 || Math.abs(g.factor - 1) > 0.001 || Math.abs(g.deg) > 0.05;
     if (!changed) return;
+    // Comme pour un bloc seul : poser exactement sur la ligne touchée à un pixel près.
+    const lines = snapLines(
+      editor.page.size,
+      editor.page.elements.filter((e) => !g.ids.includes(e.id)).map((e) => boundsOf([e.frame])),
+    );
+    const tol = 1 / k + 0.05;
+    let dx_mm = g.dx / k;
+    let dy_mm = g.dy / k;
+    let factor = g.factor;
+    if (Math.abs(g.deg) <= 0.05 && Math.abs(g.factor - 1) <= 0.001) {
+      const moved = { ...box, x_mm: box.x_mm + dx_mm, y_mm: box.y_mm + dy_mm, rotation_deg: 0 };
+      const settled = settleMove(moved, lines, tol);
+      dx_mm += settled.x_mm - moved.x_mm;
+      dy_mm += settled.y_mm - moved.y_mm;
+    } else if (Math.abs(g.deg) <= 0.05) factor = settleScale(box, factor, g.dir, lines, tol);
     applyGroupTransform(g.ids, {
-      dx_mm: g.dx / k,
-      dy_mm: g.dy / k,
-      factor: g.factor,
+      dx_mm,
+      dy_mm,
+      factor,
       // Agrandir depuis un coin : le coin opposé ne bouge pas.
       origin: { x_mm: g.dir[0] < 0 ? box.x_mm + box.w_mm : box.x_mm, y_mm: g.dir[1] < 0 ? box.y_mm + box.h_mm : box.y_mm },
       deg: Math.round(g.deg * 10) / 10,
@@ -60,6 +76,11 @@
       rotatable: true,
       keepRatio: true,
       renderDirections: ["nw", "ne", "sw", "se"],
+      snappable: true,
+      isDisplaySnapDigit: false,
+      snapThreshold: 6,
+      snapDirections: { left: true, top: true, right: true, bottom: true, center: true, middle: true },
+      elementSnapDirections: { left: true, top: true, right: true, bottom: true, center: true, middle: true },
       origin: false,
       // Le cadre du groupe reste droit : l'angle mesuré est celui du geste en cours.
       useDefaultGroupRotate: true,
@@ -126,6 +147,14 @@
         moveable = create(targets);
         key = nextKey;
       }
+      const w = mmToPx(editor.page.size.width_mm, zoom);
+      const h = mmToPx(editor.page.size.height_mm, zoom);
+      const m = mmToPx(GUIDE_MARGIN_MM, zoom);
+      moveable.snapGridWidth = mmToPx(SNAP_MM, zoom);
+      moveable.snapGridHeight = mmToPx(SNAP_MM, zoom);
+      moveable.elementGuidelines = [...container.querySelectorAll<HTMLElement>(".element")].filter((n) => !targets.includes(n));
+      moveable.verticalGuidelines = [0, m, w / 2, w - m, w];
+      moveable.horizontalGuidelines = [0, m, h / 2, h - m, h];
       moveable.updateRect();
     });
   });

@@ -7,7 +7,8 @@
 - Texte : alignement vertical (haut, milieu, bas), marge intérieure réglable, cadre (fond, bordure, coins arrondis) et image de fond, pour des étiquettes par exemple.
 - Bordures pleines, en tirets ou en pointillés pour les photos, les formes et les cadres de texte.
 - Icônes d'alignement à la manière des traitements de texte.
-- Un bloc déplacé s'accroche par son centre au milieu de la page et au centre des autres blocs, avec la ligne bleue de guidage.
+- Un bloc déplacé s'accroche par son centre au milieu de la page et au centre des autres blocs, avec la ligne bleue de guidage ; un bloc accroché se pose exactement sur la ligne (il restait à 0,1 mm).
+- Les groupes et les sélections de plusieurs blocs s'accrochent aussi aux lignes, aux autres blocs et à la grille.
 - Les menus de la barre flottante restent ouverts pendant un réglage.
 - Un document qui utilise ces nouveautés est refusé par Carnet 0.4 (« version plus récente ») au lieu de les perdre.
 

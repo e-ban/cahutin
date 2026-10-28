@@ -2,13 +2,28 @@
   // Écran d'accueil : trois grands choix et les documents récents. Le même écran sert à Fichier > Nouveau.
   import PageView from "../PageView.svelte";
   import { editor } from "../../lib/docStore.svelte";
-  import { openDoc, openPath } from "../../lib/fileActions";
+  import { listExamples, openExample } from "../../lib/api";
+  import { openDoc, openExampleDoc, openPath } from "../../lib/fileActions";
+  import type { Document, ExampleInfo } from "../../lib/types";
   import { fr } from "../../lib/i18n/fr";
   import { modal } from "../../lib/modal.svelte";
   import { templates } from "../../lib/templates.svelte";
 
   const MINI = 0.24;
-  let step = $state<"choices" | "layouts">("choices");
+  let step = $state<"choices" | "layouts" | "examples">("choices");
+  // Aperçus des exemples : chargés une fois, à la première visite de l'étape.
+  let examples = $state<{ info: ExampleInfo; doc: Document }[]>([]);
+
+  async function showExamples() {
+    step = "examples";
+    if (examples.length) return;
+    try {
+      const infos = await listExamples();
+      examples = await Promise.all(infos.map(async (info) => ({ info, doc: await openExample(info.id) })));
+    } catch {
+      examples = [];
+    }
+  }
 
   async function chooseLayout(id: string) {
     await templates.addPage(id, true);
@@ -23,7 +38,7 @@
   const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 </script>
 
-<svelte:window onkeydown={(e) => e.key === "Escape" && modal.message === null && (step === "layouts" ? (step = "choices") : close())} />
+<svelte:window onkeydown={(e) => e.key === "Escape" && modal.message === null && (step !== "choices" ? (step = "choices") : close())} />
 
 <div class="welcome">
   {#if step === "choices"}
@@ -34,6 +49,7 @@
       </button>
       <button class="choice" onclick={close}><b>📄</b><span>{fr.welcomeBlank}</span><small>{fr.welcomeBlankSub}</small></button>
       <button class="choice" onclick={() => openDoc()}><b>📂</b><span>{fr.welcomeResume}</span><small>{fr.welcomeResumeSub}</small></button>
+      <button class="choice" onclick={showExamples}><b>✨</b><span>{fr.welcomeExamples}</span><small>{fr.welcomeExamplesSub}</small></button>
     </div>
     <h2>{fr.recentDocs}</h2>
     {#if editor.recents.length === 0}
@@ -50,6 +66,19 @@
         {/each}
       </ul>
     {/if}
+  {:else if step === "examples"}
+    <div class="head">
+      <button class="back" onclick={() => (step = "choices")}>{fr.back}</button>
+      <h1>{fr.chooseExample}</h1>
+    </div>
+    <div class="grid">
+      {#each examples as ex (ex.info.id)}
+        <button class="card" onclick={() => openExampleDoc(ex.info.id)}>
+          <div class="mini"><PageView page={ex.doc.pages[0]} doc={ex.doc} zoom={MINI} /></div>
+          <span>{ex.info.name}</span>
+        </button>
+      {/each}
+    </div>
   {:else}
     <div class="head">
       <button class="back" onclick={() => (step = "choices")}>{fr.back}</button>
@@ -86,7 +115,7 @@
   }
   .choices {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
   }
   .choice {

@@ -83,6 +83,18 @@ export async function newDoc() {
   editor.showWelcome = true;
 }
 
+/** Ouvre une copie sans nom d'un exemple (rien n'écrase l'exemple ; on enregistre sous un nouveau nom). */
+export async function openExampleDoc(id: string) {
+  if (!(await confirmLeave())) return;
+  const doc = await guard(() => api.openExample(id));
+  if (!doc) return;
+  editor.reset(doc, null);
+  editor.carriedPending = [];
+  editor.templateMode = false;
+  if (editor.drawer === "grid") editor.drawer = null;
+  editor.showWelcome = false;
+}
+
 export async function openDoc() {
   if (!(await confirmLeave())) return;
   const picked = await open({ filters: [{ name: "Document Carnet", extensions: ["carnet"] }] });

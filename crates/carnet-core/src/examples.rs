@@ -39,6 +39,11 @@ pub fn document(id: &str) -> Option<Document> {
 
 const TITLE_FONT: &str = "Playwrite FR Moderne";
 
+/// Hauteur de cadre suffisante pour une ligne de cursive (interligne naturel de Playwrite et marges).
+fn cursive_height(size_pt: f64) -> f64 {
+    (size_pt * 0.85 + 4.0).ceil()
+}
+
 fn frame(x: f64, y: f64, w: f64, h: f64) -> Frame {
     Frame { x_mm: x, y_mm: y, w_mm: w, h_mm: h, rotation_deg: 0.0 }
 }
@@ -59,7 +64,7 @@ fn text_zone(f: Frame, prompt: &str, font: &str, size_pt: f64) -> Element {
 }
 
 fn title(content: &str, y: f64, size_pt: f64, color: &str) -> Element {
-    text(frame(15.0, y, 180.0, 18.0), content, TITLE_FONT, size_pt, color, Align::Center)
+    text(frame(15.0, y, 180.0, cursive_height(size_pt)), content, TITLE_FONT, size_pt, color, Align::Center)
 }
 
 fn picto(code: &str, x: f64, y: f64, size: f64) -> Element {
@@ -112,7 +117,7 @@ fn page(color: &str, pattern: Option<Pattern>, elements: Vec<Element>) -> Page {
 fn farm() -> Page {
     let mut els = vec![shape(ShapeKind::Rect, frame(6.0, 6.0, 198.0, 285.0), None, Some((1.0, "#7a5a2e")), 8.0)];
     els.extend(frieze(&["1F404", "1F416", "1F414", "1F410", "1F411", "1F69C"], 10.0, 14.0));
-    els.push(title("Notre sortie à la ferme", 30.0, 26.0, "#5b3b12"));
+    els.push(title("Notre sortie à la ferme", 27.0, 26.0, "#5b3b12"));
     els.extend(photo_with_caption(18.0, 56.0, 84.0, 62.0));
     els.extend(photo_with_caption(108.0, 56.0, 84.0, 62.0));
     els.extend(grouped(vec![
@@ -128,7 +133,7 @@ fn farm() -> Page {
 fn birthday() -> Page {
     let mut els = frieze(&["1F388", "1F389", "1F381"], 8.0, 16.0);
     els.extend(frieze(&["1F381", "1F388", "1F389"], 273.0, 16.0));
-    els.push(title("Joyeux anniversaire", 32.0, 30.0, "#c0392b"));
+    els.push(title("Joyeux anniversaire", 30.0, 30.0, "#c0392b"));
     els.extend(grouped(vec![
         picto("1F382", 70.0, 66.0, 70.0),
         picto("2B50", 40.0, 70.0, 22.0),
@@ -145,35 +150,35 @@ fn birthday() -> Page {
 
 /// Météo : petits carreaux, cinq jours (nom, image, légende groupés), une flèche « aujourd'hui ».
 fn weather() -> Page {
-    let mut els = vec![title("La météo de la semaine", 14.0, 26.0, "#1f5fa8")];
+    let mut els = vec![title("La météo de la semaine", 10.0, 26.0, "#1f5fa8")];
     let days = [("Lundi", "2600"), ("Mardi", "2601"), ("Mercredi", "1F327"), ("Jeudi", "2744"), ("Vendredi", "1F308")];
     for (i, (day, code)) in days.iter().enumerate() {
         let x = 10.0 + i as f64 * 38.5;
         els.extend(grouped(vec![
-            shape(ShapeKind::Rect, frame(x, 56.0, 36.0, 92.0), Some("#ffffff"), Some((0.5, "#1f5fa8")), 4.0),
-            text(frame(x, 60.0, 36.0, 10.0), day, "Andika", 13.0, "#1f5fa8", Align::Center),
-            picto(code, x + 4.0, 74.0, 28.0),
-            text_zone(frame(x + 2.0, 108.0, 32.0, 36.0), "Il fait…", "Andika", 11.0),
+            shape(ShapeKind::Rect, frame(x, 62.0, 36.0, 92.0), Some("#ffffff"), Some((0.5, "#1f5fa8")), 4.0),
+            text(frame(x, 66.0, 36.0, 10.0), day, "Andika", 13.0, "#1f5fa8", Align::Center),
+            picto(code, x + 4.0, 80.0, 28.0),
+            text_zone(frame(x + 2.0, 114.0, 32.0, 36.0), "Il fait…", "Andika", 11.0),
         ]));
     }
     els.extend(grouped(vec![
-        text(frame(10.0, 36.0, 40.0, 10.0), "Aujourd'hui", "Andika", 12.0, "#c0392b", Align::Center),
-        shape(ShapeKind::Arrow, Frame { rotation_deg: 90.0, ..frame(20.0, 46.0, 20.0, 6.0) }, None, Some((1.0, "#c0392b")), 0.0),
+        text(frame(8.0, 38.0, 40.0, 10.0), "Aujourd'hui", "Andika", 12.0, "#c0392b", Align::Center),
+        shape(ShapeKind::Arrow, Frame { rotation_deg: 90.0, ..frame(18.0, 50.0, 20.0, 6.0) }, None, Some((1.0, "#c0392b")), 0.0),
     ]));
-    els.push(picto("2614", 150.0, 165.0, 40.0));
-    els.push(text_zone(frame(15.0, 165.0, 130.0, 60.0), "Le temps qu'il a fait cette semaine…", "Andika", 14.0));
+    els.push(picto("2614", 150.0, 170.0, 40.0));
+    els.push(text_zone(frame(15.0, 170.0, 130.0, 60.0), "Le temps qu'il a fait cette semaine…", "Andika", 14.0));
     page("#ffffff", Some(Pattern::SmallSquares), els)
 }
 
 /// Écriture : Seyès, modèle de prénom en cursive à repasser, lignes pour écrire.
 fn first_name() -> Page {
-    let mut els = vec![text(frame(30.0, 10.0, 170.0, 16.0), "J'écris mon prénom", TITLE_FONT, 24.0, "#333333", Align::Left)];
+    let mut els = vec![text(frame(30.0, 6.0, 170.0, cursive_height(24.0)), "J'écris mon prénom", TITLE_FONT, 24.0, "#333333", Align::Left)];
     els.extend(grouped(vec![picto("1F9D2", 30.0, 34.0, 36.0), picto("270F", 70.0, 44.0, 20.0)]));
-    els.push(text(frame(100.0, 40.0, 100.0, 28.0), "Léa", TITLE_FONT, 48.0, "#a0a0a0", Align::Left));
+    els.push(text(frame(100.0, 34.0, 100.0, cursive_height(48.0)), "Léa", TITLE_FONT, 48.0, "#a0a0a0", Align::Left));
     for i in 0..4 {
-        els.push(text_zone(frame(30.0, 88.0 + i as f64 * 32.0, 170.0, 24.0), "J'écris ici…", TITLE_FONT, 32.0));
+        els.push(text_zone(frame(30.0, 90.0 + i as f64 * 34.0, 170.0, cursive_height(32.0)), "J'écris ici…", TITLE_FONT, 32.0));
     }
-    els.push(picto("2B50", 176.0, 228.0, 20.0));
+    els.push(picto("2B50", 176.0, 236.0, 20.0));
     page("#ffffff", Some(Pattern::Seyes), els)
 }
 
@@ -183,13 +188,13 @@ fn seasons() -> Page {
         shape(ShapeKind::Rect, frame(8.0, 8.0, 194.0, 281.0), None, Some((0.5, "#2e7d32")), 0.0),
         shape(ShapeKind::Rect, frame(11.0, 11.0, 188.0, 275.0), None, Some((1.5, "#2e7d32")), 0.0),
     ]);
-    els.push(title("Les saisons", 18.0, 28.0, "#2e7d32"));
+    els.push(title("Les saisons", 16.0, 28.0, "#2e7d32"));
     let seasons = [("Printemps", "1F337", 22.0, 50.0), ("Été", "1F3D6", 112.0, 50.0), ("Automne", "1F341", 22.0, 150.0), ("Hiver", "2603", 112.0, 150.0)];
     for (name, code, x, y) in seasons {
         els.extend(grouped(vec![
             picto(code, x + 18.0, y, 40.0),
-            text(frame(x, y + 42.0, 76.0, 12.0), name, TITLE_FONT, 18.0, "#2e7d32", Align::Center),
-            text_zone(frame(x, y + 56.0, 76.0, 30.0), "Ce que j'aime…", "Andika", 12.0),
+            text(frame(x, y + 42.0, 76.0, cursive_height(18.0)), name, TITLE_FONT, 18.0, "#2e7d32", Align::Center),
+            text_zone(frame(x, y + 64.0, 76.0, 26.0), "Ce que j'aime…", "Andika", 12.0),
         ]));
     }
     els.push(shape(ShapeKind::Cloud, frame(150.0, 252.0, 40.0, 24.0), Some("#e3f2fd"), Some((0.4, "#90a4ae")), 0.0));
@@ -250,5 +255,19 @@ mod tests {
         assert_ne!(a.pages[0].id, b.pages[0].id);
         assert_ne!(a.pages[0].elements[0].id, b.pages[0].elements[0].id);
         assert!(a.title.is_empty() || a.title == "Notre sortie à la ferme");
+    }
+
+    /// La cursive a une grande hauteur de ligne : un cadre trop bas affiche « Texte trop long ».
+    #[test]
+    fn cursive_texts_have_room_for_their_line() {
+        for d in all() {
+            for e in elements(&d) {
+                if let ElementKind::Text(t) = &e.kind
+                    && t.style.font == TITLE_FONT
+                {
+                    assert!(e.frame.h_mm >= cursive_height(t.style.size_pt), "{} : {:?} trop bas ({} mm)", d.title, t.content, e.frame.h_mm);
+                }
+            }
+        }
     }
 }

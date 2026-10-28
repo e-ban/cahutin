@@ -32,7 +32,7 @@ fn manifest(parts: &[Part]) -> String {
     x.finish()
 }
 
-pub(crate) fn meta_xml() -> String {
+pub(crate) fn meta_xml(openmoji: bool) -> String {
     let mut x = Xml::new();
     let mut root: Vec<(&str, &str)> = NS.to_vec();
     root.push(("office:version", "1.3"));
@@ -41,6 +41,11 @@ pub(crate) fn meta_xml() -> String {
     x.open("meta:generator", &[]);
     x.text(concat!("carnet/", env!("CARGO_PKG_VERSION")));
     x.close();
+    if openmoji {
+        x.open("meta:user-defined", &[("meta:name", "Crédits"), ("meta:value-type", "string")]);
+        x.text(super::OPENMOJI_CREDIT);
+        x.close();
+    }
     x.close();
     x.close();
     x.finish()

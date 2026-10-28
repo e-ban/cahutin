@@ -30,9 +30,15 @@ pub(crate) const NS: [(&str, &str); 11] = [
     ("xmlns:loext", "urn:org:documentfoundation:names:experimental:office:xmlns:loext:1.0"),
 ];
 
+/// Mention de licence des images OpenMoji (propriétés du fichier, écran À propos).
+pub const OPENMOJI_CREDIT: &str = "Pictogrammes : OpenMoji (openmoji.org), licence CC BY-SA 4.0";
+/// Mention écrite en bas de chaque page qui contient une image OpenMoji.
+pub const OPENMOJI_CREDIT_PAGE: &str = "Pictogrammes : OpenMoji, CC BY-SA 4.0";
+
 #[derive(Debug)]
 pub enum OdgError {
     MissingAsset(Id),
+    MissingPicture(String),
     Image,
     Io,
 }
@@ -41,6 +47,7 @@ impl OdgError {
     pub fn message_fr(&self) -> String {
         match self {
             OdgError::MissingAsset(_) => "Une photo du document est introuvable.",
+            OdgError::MissingPicture(_) => "Une image décorative du document est introuvable.",
             OdgError::Image => "Une photo du document n'a pas pu être préparée.",
             OdgError::Io => "Impossible d'écrire le fichier.",
         }
@@ -79,7 +86,7 @@ pub fn export_odg(doc: &Document, store: &AssetStore, fonts: &FontSet, out: impl
     let mut parts = vec![
         Part { path: "content.xml".into(), media_type: "text/xml", bytes: content.into_bytes(), compress: true },
         Part { path: "styles.xml".into(), media_type: "text/xml", bytes: reg.styles_xml().into_bytes(), compress: true },
-        Part { path: "meta.xml".into(), media_type: "text/xml", bytes: package::meta_xml().into_bytes(), compress: true },
+        Part { path: "meta.xml".into(), media_type: "text/xml", bytes: package::meta_xml(content::has_pictures(doc)).into_bytes(), compress: true },
         Part { path: "settings.xml".into(), media_type: "text/xml", bytes: package::settings_xml().into_bytes(), compress: true },
     ];
     for p in pictures {
@@ -449,5 +456,62 @@ mod tests {
         let content = e.xml("content.xml");
         assert!(content.contains(r#"svg:x1="40.000mm" svg:y1="-6.000mm" svg:x2="40.000mm" svg:y2="54.000mm""#), "{content}");
         assert!(!e.xml("styles.xml").contains("<draw:marker "));
+    }
+
+    fn picture_el(code: &str, group: Option<&str>) -> Element {
+        Element {
+            id: new_id(),
+            frame: frame(20.0, 20.0, 30.0, 30.0),
+            locked: false,
+            zone: false,
+            group: group.map(String::from),
+            kind: ElementKind::Image(ImageProps { code: code.into() }),
+        }
+    }
+
+    #[test]
+    fn picture_is_embedded_as_svg() {
+        let mut e = export(&doc_with(vec![picture_el("1F98A", None), picture_el("1F98A", None)]), &AssetStore::default());
+        let names = e.names();
+        assert_eq!(names.iter().filter(|n| *n == "Pictures/openmoji-1F98A.svg").count(), 1, "{names:?}");
+        assert_eq!(e.read("Pictures/openmoji-1F98A.svg"), crate::picto::svg("1F98A").unwrap());
+        let content = e.xml("content.xml");
+        assert_eq!(content.matches(r#"xlink:href="Pictures/openmoji-1F98A.svg""#).count(), 2);
+        assert!(e.xml("META-INF/manifest.xml").contains("image/svg+xml"));
+    }
+
+    #[test]
+    fn group_members_are_wrapped_in_draw_g() {
+        let d = doc_with(vec![picture_el("1F98A", Some("g")), shape_el(ShapeKind::Star, frame(60.0, 20.0, 20.0, 20.0)), picture_el("2600", None)]);
+        let mut grouped = d.clone();
+        grouped.pages[0].elements[1].group = Some("g".into());
+        let content = export(&grouped, &AssetStore::default()).xml("content.xml");
+        let g = content.split("<draw:g>").nth(1).expect("draw:g").split("</draw:g>").next().unwrap();
+        assert!(g.contains("openmoji-1F98A") && g.contains("draw:custom-shape") && !g.contains("openmoji-2600"));
+    }
+
+    #[test]
+    fn credit_line_only_on_pages_with_pictures() {
+        let mut d = doc_with(vec![picture_el("1F98A", None)]);
+        d.pages.push(Page::new(A4_PORTRAIT));
+        let content = export(&d, &AssetStore::default()).xml("content.xml");
+        let pages: Vec<&str> = content.split("<draw:page ").skip(1).collect();
+        assert_eq!(pages.len(), 2);
+        assert!(pages[0].contains(OPENMOJI_CREDIT_PAGE) && pages[0].contains(r#"draw:protect="position size""#));
+        assert!(!pages[1].contains(OPENMOJI_CREDIT_PAGE));
+    }
+
+    #[test]
+    fn meta_credits_only_when_pictures() {
+        assert!(export(&doc_with(vec![picture_el("1F98A", None)]), &AssetStore::default()).xml("meta.xml").contains(OPENMOJI_CREDIT));
+        assert!(!export(&doc_with(vec![]), &AssetStore::default()).xml("meta.xml").contains("OpenMoji"));
+    }
+
+    #[test]
+    fn unknown_picture_code_is_reported() {
+        let mut buf = Cursor::new(Vec::new());
+        let err = export_odg(&doc_with(vec![picture_el("ZZZZ", None)]), &AssetStore::default(), &FontSet::builtin(), &mut buf).err().unwrap();
+        assert!(matches!(err, OdgError::MissingPicture(_)));
+        assert_eq!(err.message_fr(), "Une image décorative du document est introuvable.");
     }
 }

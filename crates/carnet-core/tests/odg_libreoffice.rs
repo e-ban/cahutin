@@ -373,3 +373,48 @@ fn arrow_has_its_head() {
     assert!((0.6..1.6).contains(&shaft), "trait de {shaft:.2} mm");
     assert!(head > 1.5, "pointe de {head:.2} mm seulement");
 }
+
+fn picture_element(code: &str, x: f64, group: Option<&str>) -> Element {
+    Element {
+        id: new_id(),
+        frame: Frame { x_mm: x, y_mm: ORIGIN_MM, w_mm: 50.0, h_mm: 50.0, rotation_deg: 0.0 },
+        locked: false,
+        zone: false,
+        group: group.map(String::from),
+        kind: ElementKind::Image(ImageProps { code: code.into() }),
+    }
+}
+
+#[test]
+#[ignore]
+fn picture_is_rendered() {
+    const DPI: u32 = 72;
+    let mut doc = Document::new("image");
+    doc.pages[0].elements.push(picture_element("1F98A", ORIGIN_MM, None));
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    let (w, _, px) = gray_page(&pdf, 1, DPI);
+    let s = DPI as f64 / 25.4;
+    let (x0, x1, y0, y1) = ((ORIGIN_MM * s) as usize, ((ORIGIN_MM + 50.0) * s) as usize, (ORIGIN_MM * s) as usize, ((ORIGIN_MM + 50.0) * s) as usize);
+    let inked = (y0..y1).flat_map(|y| (x0..x1).map(move |x| (x, y))).filter(|&(x, y)| px[y * w + x] < 245).count();
+    let ratio = inked as f64 / ((x1 - x0) * (y1 - y0)) as f64;
+    assert!(ratio > 0.2, "image presque vide : {ratio:.2}");
+}
+
+#[test]
+#[ignore]
+fn groups_survive_a_libreoffice_round_trip() {
+    let mut doc = Document::new("groupe");
+    doc.pages[0].elements.push(picture_element("1F98A", ORIGIN_MM, Some("g")));
+    doc.pages[0].elements.push(picture_element("2600", ORIGIN_MM + 60.0, Some("g")));
+    let dir = tempfile::tempdir().unwrap();
+    let odg = dir.path().join("groupe.odg");
+    export_odg_to_path(&doc, &AssetStore::default(), &FontSet::builtin(), &odg).unwrap();
+    let out = dir.path().join("relu");
+    std::fs::create_dir(&out).unwrap();
+    let profile = format!("-env:UserInstallation=file://{}", dir.path().join("profil").display());
+    run(Command::new("soffice").arg(profile).args(["--headless", "--convert-to", "odg", "--outdir"]).arg(&out).arg(&odg));
+    let mut zip = zip::ZipArchive::new(std::fs::File::open(out.join("groupe.odg")).unwrap()).unwrap();
+    let mut content = String::new();
+    std::io::Read::read_to_string(&mut zip.by_name("content.xml").unwrap(), &mut content).unwrap();
+    assert!(content.contains("<draw:g"), "le groupe a disparu après LibreOffice");
+}

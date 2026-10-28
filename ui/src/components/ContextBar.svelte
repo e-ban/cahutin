@@ -209,7 +209,7 @@
         <button class:on={!!s.stroke} onclick={() => toggle("stroke")}>▢ {fr.stroke}</button>
         {#if pop === "stroke"}
           <div class="pop">
-            <span>{s.stroke ? `${s.stroke.width_mm} mm` : "—"}</span>
+            <span>{s.stroke ? `${s.stroke.width_mm} mm` : fr.noStroke}</span>
             <input
               type="range"
               min="0"

@@ -5,11 +5,24 @@ import { newId } from "./factory";
 import type { AssetMeta, Element } from "./types";
 
 let clipboard: Element[] = [];
+// Images des photos copiées : collées dans un autre document, elles doivent rejoindre ses images.
+let clipboardAssets: Record<string, AssetMeta> = {};
 
 export const hasClipboard = () => clipboard.length > 0;
 
+function assetsOf(elements: Element[]): Record<string, AssetMeta> {
+  const out: Record<string, AssetMeta> = {};
+  for (const e of elements) {
+    const meta = e.kind.type === "Photo" && e.kind.asset ? editor.assetMeta(e.kind.asset) : undefined;
+    if (meta) out[meta.id] = meta;
+  }
+  return out;
+}
+
 export function copySelection() {
-  if (editor.selection.length) clipboard = copyElements(editor.page, editor.selection);
+  if (editor.selection.length === 0) return;
+  clipboard = copyElements(editor.page, editor.selection);
+  clipboardAssets = assetsOf(clipboard);
 }
 
 export function cutSelection() {
@@ -20,7 +33,11 @@ export function cutSelection() {
 export function paste() {
   const { page, ids } = pasteElements(editor.page, clipboard);
   if (ids.length === 0) return;
-  editor.updatePage(() => page);
+  editor.commit({
+    ...editor.doc,
+    assets: { ...clipboardAssets, ...editor.doc.assets },
+    pages: editor.doc.pages.map((p, i) => (i === editor.pageIndex ? page : p)),
+  });
   editor.selection = ids;
   // Coller encore décale encore : chaque collage part du dernier.
   clipboard = copyElements(page, ids);

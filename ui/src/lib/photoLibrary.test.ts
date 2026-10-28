@@ -45,3 +45,9 @@ test("pendingPaths lists unused photos once", () => {
   const withDuplicate = [...photos, lp("e", "Ferme", "/photos/Ferme/b.jpg")];
   expect(pendingPaths(withDuplicate, doc([["a", "c"]]))).toEqual(["/photos/Ferme/b.jpg", "/photos/Ferme/d.jpg"]);
 });
+
+test("pendingPaths keeps the opened document's paths that are not re-imported yet", () => {
+  // Réimport en cours, ou clé USB absente : ces chemins ne doivent pas être oubliés au prochain enregistrement.
+  const carried = ["/usb/x.jpg", "/photos/Ferme/b.jpg", "/photos/Ferme/a.jpg"];
+  expect(pendingPaths(photos, doc([["a", "c"]]), carried)).toEqual(["/photos/Ferme/b.jpg", "/photos/Ferme/d.jpg", "/usb/x.jpg"]);
+});

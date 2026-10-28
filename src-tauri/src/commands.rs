@@ -44,11 +44,14 @@ fn folder_name(path: &str) -> String {
 pub fn import_photos(state: State<'_, AppState>, paths: Vec<String>, on_progress: Channel<ImportOutcome>) -> Result<(), String> {
     let files: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
     let failures = AtomicUsize::new(0);
+    let cache = state.store.lock().unwrap().cache_dir();
     photo::import_many(&files, IMPORT_THREADS, |i, r| {
         let path = paths[i].clone();
-        let r = r.and_then(|a| {
-            let meta = a.meta.clone();
-            state.store.lock().unwrap().insert(a).map(|()| meta)
+        // Écriture dans le cache hors du verrou : les vignettes restent servies pendant l'import.
+        let r = r.and_then(|a| photo::stage(cache.as_deref(), a)).map(|staged| {
+            let meta = staged.meta().clone();
+            state.store.lock().unwrap().commit(staged);
+            meta
         });
         let outcome = match r {
             Ok(asset) => ImportOutcome::Ok { folder: folder_name(&path), path, asset },

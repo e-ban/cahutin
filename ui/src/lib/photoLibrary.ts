@@ -33,10 +33,16 @@ export function folderChips(photos: LibraryPhoto[]): { folder: string; count: nu
   return [...counts].map(([folder, count]) => ({ folder, count }));
 }
 
-/** Chemins des photos importées mais pas placées, à retrouver à la réouverture du document. */
-export function pendingPaths(photos: LibraryPhoto[], doc: Document): string[] {
+/**
+ * Chemins des photos importées mais pas placées, à retrouver à la réouverture du document.
+ * `carried` : les chemins en attente du document ouvert ; ceux qui ne sont pas (encore) dans la
+ * photothèque sont gardés (réimport en cours, clé USB absente aujourd'hui).
+ */
+export function pendingPaths(photos: LibraryPhoto[], doc: Document, carried: string[] = []): string[] {
   const used = usedAssetIds(doc);
+  const inLibrary = new Set(photos.map((p) => p.path));
   const out: string[] = [];
   for (const p of photos) if (p.path && !used.has(p.meta.id) && !out.includes(p.path)) out.push(p.path);
+  for (const path of carried) if (!inLibrary.has(path) && !out.includes(path)) out.push(path);
   return out;
 }

@@ -25,15 +25,53 @@ pub struct Asset {
 }
 
 /// Où sont gardés les octets complets d'une image.
+#[derive(Clone)]
 enum Storage {
     Memory(Arc<Vec<u8>>),
     Disk(PathBuf),
 }
 
+#[derive(Clone)]
 struct Entry {
     meta: AssetMeta,
     thumb: Arc<Vec<u8>>,
     storage: Storage,
+}
+
+/// Image prête à entrer dans le magasin : déjà écrite dans le cache s'il y en a un.
+pub struct StagedAsset(Entry);
+
+impl StagedAsset {
+    pub fn meta(&self) -> &AssetMeta {
+        &self.0.meta
+    }
+}
+
+/// Où relire une image, sans garder le magasin (et son verrou) pendant la lecture du disque.
+pub struct AssetSource(Entry);
+
+impl AssetSource {
+    pub fn load(self) -> Option<Asset> {
+        let Entry { meta, thumb, storage } = self.0;
+        let bytes = match storage {
+            Storage::Memory(b) => b,
+            Storage::Disk(path) => Arc::new(std::fs::read(path).ok()?),
+        };
+        Some(Asset { meta, bytes, thumb })
+    }
+}
+
+/// Écrit l'image dans le dossier de cache (s'il y en a un) ; à faire hors du verrou du magasin.
+pub fn stage(cache_dir: Option<&Path>, a: Asset) -> Result<StagedAsset, ImportError> {
+    let storage = match cache_dir {
+        Some(dir) => {
+            let path = dir.join(format!("{}.{}", a.meta.id, extension(a.meta.mime)));
+            std::fs::write(&path, &*a.bytes).map_err(|_| ImportError::Storage)?;
+            Storage::Disk(path)
+        }
+        None => Storage::Memory(a.bytes),
+    };
+    Ok(StagedAsset(Entry { meta: a.meta, thumb: a.thumb, storage }))
 }
 
 /// Images de la session. Avec un dossier de cache, seules les vignettes restent en mémoire.
@@ -49,26 +87,26 @@ impl AssetStore {
         Ok(AssetStore { entries: HashMap::new(), cache_dir: Some(dir) })
     }
 
+    pub fn cache_dir(&self) -> Option<PathBuf> {
+        self.cache_dir.clone()
+    }
+
+    pub fn commit(&mut self, s: StagedAsset) {
+        self.entries.insert(s.0.meta.id.clone(), s.0);
+    }
+
     pub fn insert(&mut self, a: Asset) -> Result<(), ImportError> {
-        let storage = match &self.cache_dir {
-            Some(dir) => {
-                let path = dir.join(format!("{}.{}", a.meta.id, extension(a.meta.mime)));
-                std::fs::write(&path, &*a.bytes).map_err(|_| ImportError::Storage)?;
-                Storage::Disk(path)
-            }
-            None => Storage::Memory(a.bytes),
-        };
-        self.entries.insert(a.meta.id.clone(), Entry { meta: a.meta, thumb: a.thumb, storage });
+        let staged = stage(self.cache_dir.as_deref(), a)?;
+        self.commit(staged);
         Ok(())
     }
 
+    pub fn locate(&self, id: &str) -> Option<AssetSource> {
+        self.entries.get(id).cloned().map(AssetSource)
+    }
+
     pub fn get(&self, id: &str) -> Option<Asset> {
-        let e = self.entries.get(id)?;
-        let bytes = match &e.storage {
-            Storage::Memory(b) => b.clone(),
-            Storage::Disk(path) => Arc::new(std::fs::read(path).ok()?),
-        };
-        Some(Asset { meta: e.meta.clone(), bytes, thumb: e.thumb.clone() })
+        self.locate(id)?.load()
     }
 
     pub fn thumb(&self, id: &str) -> Option<(Arc<Vec<u8>>, Mime)> {
@@ -88,6 +126,57 @@ pub fn clear_cache_dir(dir: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     for e in entries.filter_map(|e| e.ok()) {
         let _ = std::fs::remove_file(e.path());
+    }
+}
+
+/// Dossier de cache d'une instance de l'application, sous `root` : `root/<id>/`, verrouillé par
+/// `root/<id>.lock` tant que l'instance vit. Une seconde instance ne touche jamais au dossier d'une autre.
+pub struct CacheDir {
+    path: PathBuf,
+    lock_path: PathBuf,
+    _lock: std::fs::File,
+}
+
+impl CacheDir {
+    /// Vide d'abord les dossiers des instances terminées (verrou libre) et les fichiers d'anciennes versions.
+    pub fn acquire(root: &Path) -> std::io::Result<CacheDir> {
+        std::fs::create_dir_all(root)?;
+        clear_stale(root);
+        let id = new_id();
+        let lock_path = root.join(format!("{id}.lock"));
+        let lock = std::fs::File::create(&lock_path)?;
+        lock.try_lock().map_err(std::io::Error::other)?;
+        let path = root.join(&id);
+        std::fs::create_dir_all(&path)?;
+        Ok(CacheDir { path, lock_path, _lock: lock })
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// À la fermeture : supprime les images et le dossier ; les erreurs sont ignorées.
+    pub fn clear(&self) {
+        clear_cache_dir(&self.path);
+        let _ = std::fs::remove_dir(&self.path);
+        let _ = std::fs::remove_file(&self.lock_path);
+    }
+}
+
+fn clear_stale(root: &Path) {
+    let Ok(entries) = std::fs::read_dir(root) else { return };
+    for p in entries.filter_map(|e| e.ok()).map(|e| e.path()) {
+        if p.extension().is_some_and(|e| e == "lock") {
+            let free = std::fs::OpenOptions::new().write(true).open(&p).is_ok_and(|f| f.try_lock().is_ok());
+            if free {
+                let dir = p.with_extension("");
+                clear_cache_dir(&dir);
+                let _ = std::fs::remove_dir(&dir);
+                let _ = std::fs::remove_file(&p);
+            }
+        } else if p.is_file() {
+            let _ = std::fs::remove_file(&p);
+        }
     }
 }
 
@@ -374,5 +463,49 @@ mod tests {
         seen.sort();
         assert_eq!(seen.iter().map(|s| s.0).collect::<Vec<_>>(), [0, 1, 2, 3, 4]);
         assert_eq!(seen.iter().filter(|s| s.1).count(), 3);
+    }
+
+    #[test]
+    fn second_instance_keeps_the_first_instance_cache() {
+        let root = tempfile::tempdir().unwrap();
+        let first = CacheDir::acquire(root.path()).unwrap();
+        let mut store = AssetStore::with_cache_dir(first.path().to_path_buf()).unwrap();
+        let a = import_bytes(&jpeg(10, 10)).unwrap();
+        let id = a.meta.id.clone();
+        store.insert(a).unwrap();
+        let second = CacheDir::acquire(root.path()).unwrap();
+        assert_ne!(first.path(), second.path());
+        assert!(store.get(&id).is_some(), "le cache de la première instance a été vidé");
+    }
+
+    #[test]
+    fn stale_cache_of_a_finished_instance_is_cleared() {
+        let root = tempfile::tempdir().unwrap();
+        let old = root.path().join("ancienne");
+        std::fs::create_dir(&old).unwrap();
+        std::fs::write(old.join("photo.jpg"), b"x").unwrap();
+        std::fs::write(root.path().join("ancienne.lock"), b"").unwrap();
+        std::fs::write(root.path().join("vieille-version.jpg"), b"x").unwrap();
+        let mine = CacheDir::acquire(root.path()).unwrap();
+        let left: Vec<String> = std::fs::read_dir(root.path()).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        assert_eq!(left.len(), 2, "{left:?}");
+        assert!(mine.path().is_dir());
+        mine.clear();
+        assert!(!mine.path().exists());
+    }
+
+    #[test]
+    fn staging_writes_the_file_before_the_store_knows_the_photo() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = AssetStore::with_cache_dir(dir.path().to_path_buf()).unwrap();
+        let a = import_bytes(&jpeg(12, 12)).unwrap();
+        let (id, bytes) = (a.meta.id.clone(), a.bytes.clone());
+        let staged = stage(store.cache_dir().as_deref(), a).unwrap();
+        assert!(dir.path().join(format!("{id}.jpg")).is_file());
+        assert!(store.get(&id).is_none());
+        store.commit(staged);
+        let source = store.locate(&id).unwrap();
+        drop(store);
+        assert_eq!(source.load().unwrap().bytes, bytes);
     }
 }

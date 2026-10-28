@@ -10,7 +10,8 @@ import { fr } from "./i18n/fr";
 import { summarizeImport } from "./importSummary";
 import { pendingPaths } from "./photoLibrary";
 import { addRecent, writeRecents } from "./recents";
-import type { ImportOutcome } from "./types";
+import { missingFamilies } from "./fontNames";
+import type { Document, ImportOutcome } from "./types";
 import { modal } from "./modal.svelte";
 
 const baseName = () => (editor.doc.title.trim() || "Sans titre").replace(/[\\/:*?"<>|]/g, "-");
@@ -39,7 +40,7 @@ async function write(path: string): Promise<boolean> {
   try {
     const snapshot = editor.doc;
     // Les photos importées mais non placées sont retrouvées à la réouverture (chemins seulement).
-    const written = { ...snapshot, pending_photos: pendingPaths(editor.photos, snapshot) };
+    const written = { ...snapshot, pending_photos: pendingPaths(editor.photos, snapshot, editor.carriedPending) };
     const ok = await guard(() => api.saveDocument(path, written));
     if (ok === undefined) return false;
     editor.markSaved(path, snapshot);
@@ -76,6 +77,7 @@ export const confirmLeave = () => confirmDiscardIfDirty(askToSave, save);
 export async function newDoc() {
   if (!(await confirmLeave())) return;
   editor.reset(newDocument(), null);
+  editor.carriedPending = [];
   editor.templateMode = false;
   if (editor.drawer === "grid") editor.drawer = null;
   editor.showWelcome = true;
@@ -99,8 +101,9 @@ export async function openPath(path: string, confirm = true) {
   const opened = await guard(() => api.openDocument(path));
   if (!opened) return;
   editor.reset(opened.doc, path);
+  editor.carriedPending = opened.doc.pending_photos;
   remember(path, opened.doc.title);
-  if (opened.offered_fonts.length) void offerDocumentFonts(opened.offered_fonts);
+  void checkDocumentFonts(opened.doc, opened.offered_fonts);
   editor.addPhotos(Object.values(opened.doc.assets).flatMap((meta) => (meta ? [{ meta, path: "", folder: "" }] : [])));
   editor.showWelcome = false;
   editor.templateMode = false;
@@ -208,14 +211,20 @@ export async function importPaths(paths: string[], opts: { fromFolder?: boolean;
   if (message && !opts.quiet) editor.notice = message;
 }
 
-/** « Ce document utilise la police X : l'ajouter ? » ; refusée, le texte s'affiche en Andika. */
-async function offerDocumentFonts(names: string[]) {
-  const choice = await modal.choose(fr.offerFonts(names), [
-    { value: "later", label: fr.later },
-    { value: "add", label: fr.addFontsNow, primary: true },
-  ]);
-  if (choice !== "add") return;
-  if ((await guard(() => api.acceptDocumentFonts())) !== undefined) await fonts.load();
+/**
+ * « Ce document utilise la police X : l'ajouter ? » pour les polices qu'il transporte ; puis, pour celles
+ * qui manquent encore (refusées, ou non intégrables), un avertissement : le texte s'affiche en Andika.
+ */
+async function checkDocumentFonts(doc: Document, offered: string[]) {
+  if (offered.length) {
+    const choice = await modal.choose(fr.offerFonts(offered), [
+      { value: "later", label: fr.later },
+      { value: "add", label: fr.addFontsNow, primary: true },
+    ]);
+    if (choice === "add" && (await guard(() => api.acceptDocumentFonts())) !== undefined) await fonts.load();
+  }
+  const missing = missingFamilies(doc);
+  if (missing.length) editor.notice = fr.missingFonts(missing);
 }
 
 export const LOGO_WIDTH_MM = 40;

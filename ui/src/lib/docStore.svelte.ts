@@ -19,6 +19,8 @@ class Editor {
   templateMode = $state(false);
   /** Photothèque de la session (pas forcément utilisées dans le document) ; gardée après « Nouveau ». */
   photos = $state.raw<LibraryPhoto[]>([]);
+  /** Chemins en attente du document ouvert, gardés à l'enregistrement tant qu'ils ne sont pas réimportés. */
+  carriedPending: string[] = [];
   /** Import en cours : photos traitées sur le total demandé. */
   importProgress = $state<{ done: number; total: number } | null>(null);
   /** Texte en cours d'édition. */

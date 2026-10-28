@@ -96,6 +96,7 @@ export const fr = {
   alignment: "Alignement",
   fill: "Remplissage",
   stroke: "Trait",
+  noStroke: "aucun",
   alignMenu: "Aligner",
   distribute: "Répartir",
   alignLeft: "À gauche",
@@ -134,6 +135,10 @@ export const fr = {
   offerFonts: (names: string[]) =>
     names.length === 1 ? `Ce document utilise la police ${names[0]} : l'ajouter ?` : `Ce document utilise les polices ${names.join(", ")} : les ajouter ?`,
   addFontsNow: "Ajouter",
+  missingFonts: (names: string[]) =>
+    names.length === 1
+      ? `Ce document utilise la police ${names[0]}, absente de ce poste : le texte s'affiche en Andika, et l'export l'écrira en Andika.`
+      : `Ce document utilise des polices absentes de ce poste (${names.join(", ")}) : le texte s'affiche en Andika, et l'export l'écrira en Andika.`,
   later: "Plus tard",
   // Mode modèle
   templateBanner: "Mode modèle : choisissez une grille, glissez d'une case à une autre pour les fusionner, puis enregistrez.",

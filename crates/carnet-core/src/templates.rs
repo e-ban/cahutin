@@ -1,5 +1,6 @@
-//! Modèles : trois modèles intégrés, et la bibliothèque des modèles de l'utilisateur.
+//! Modèles : les modèles intégrés, et la bibliothèque des modèles de l'utilisateur.
 
+use crate::examples as ex;
 use crate::fonts::FontSet;
 use crate::grid;
 use crate::model::*;
@@ -57,6 +58,104 @@ fn page_with_title() -> Page {
     page
 }
 
+/// Titre à compléter d'une page sans grille, comme celui des pages à grille.
+fn free_title(width_mm: f64) -> Element {
+    let mut t = ex::text_zone(ex::frame(15.0, 12.0, width_mm - 30.0, ex::cursive_height(24.0)), "Titre", ex::TITLE_FONT, 24.0);
+    if let ElementKind::Text(text) = &mut t.kind {
+        text.style = title_style();
+    }
+    t
+}
+
+/// Zone « Prénom » centrée dans son cadre.
+fn name_zone(f: Frame, size_pt: f64) -> Element {
+    let mut z = ex::text_zone(f, "Prénom", "Andika", size_pt);
+    if let ElementKind::Text(t) = &mut z.kind {
+        t.style.align = Align::Center;
+        t.style.valign = Some(VAlign::Middle);
+        t.style.color = "#1f3a5f".into();
+    }
+    z
+}
+
+const LABEL_BLUE: &str = "#2e86c1";
+const LABEL_FILL: &str = "#eaf2fb";
+
+/// Planche de 2 × 6 étiquettes encadrées (90 × 38 mm), à découper.
+fn labels() -> Page {
+    let (w, h, gap) = (90.0, 38.0, 8.0);
+    let y0 = (297.0 - (6.0 * h + 5.0 * gap)) / 2.0;
+    let mut page = Page::new(A4_PORTRAIT);
+    for row in 0..6 {
+        for x in [10.0, 110.0] {
+            let mut z = name_zone(ex::frame(x, y0 + row as f64 * (h + gap), w, h), 26.0);
+            if let ElementKind::Text(t) = &mut z.kind {
+                t.frame = Some(TextFrame {
+                    fill: Some(LABEL_FILL.into()),
+                    stroke: Some(Stroke { width_mm: 0.8, color: LABEL_BLUE.into(), style: None }),
+                    corner_radius_mm: 6.0,
+                    image: None,
+                });
+            }
+            page.elements.push(z);
+        }
+    }
+    page
+}
+
+/// Planche de 2 × 5 étiquettes (90 × 50 mm) : bordure, photo et prénom groupés.
+fn photo_labels() -> Page {
+    let (w, h, gap) = (90.0, 50.0, 6.0);
+    let y0 = (297.0 - (5.0 * h + 4.0 * gap)) / 2.0;
+    let mut page = Page::new(A4_PORTRAIT);
+    for row in 0..5 {
+        for x in [10.0, 110.0] {
+            let y = y0 + row as f64 * (h + gap);
+            page.elements.extend(ex::grouped(vec![
+                ex::shape(ShapeKind::Rect, ex::frame(x, y, w, h), Some(LABEL_FILL), Some((0.8, LABEL_BLUE)), 5.0),
+                ex::photo_zone(ex::frame(x + 4.0, y + 4.0, 36.0, h - 8.0)),
+                name_zone(ex::frame(x + 44.0, y + 4.0, w - 48.0, h - 8.0), 22.0),
+            ]));
+        }
+    }
+    page
+}
+
+/// Titre, puis trois rangées photo et texte, la photo changeant de côté à chaque rangée.
+fn photos_and_texts() -> Page {
+    let mut page = page_with_title();
+    let prompts = ["Ce que nous avons fait…", "Ce que nous avons vu…", "Ce que nous avons appris…"];
+    for (i, row) in [1, 3, 5].into_iter().enumerate() {
+        let (photo_col, text_col) = if i % 2 == 0 { (0, 1) } else { (1, 0) };
+        merge(&mut page, (photo_col, row), (photo_col, row + 1));
+        let text = merge(&mut page, (text_col, row), (text_col, row + 1));
+        text_zone(&mut page, &text, prompts[i], TextStyle::default_zone());
+    }
+    page
+}
+
+/// Titre et quatre photos, chacune avec sa légende.
+fn captioned_photos() -> Page {
+    let mut page = Page::new(A4_PORTRAIT);
+    page.elements.push(free_title(210.0));
+    for y in [45.0, 165.0] {
+        for x in [13.0, 110.0] {
+            page.elements.extend(ex::photo_with_caption(x, y, 87.0, 100.0));
+        }
+    }
+    page
+}
+
+/// Affiche en paysage : titre et trois photos légendées côte à côte.
+fn landscape_poster() -> Page {
+    let mut page = Page::new(PageSize { width_mm: 297.0, height_mm: 210.0 });
+    page.elements.push(free_title(297.0));
+    for i in 0..3 {
+        page.elements.extend(ex::photo_with_caption(13.0 + i as f64 * 93.0, 50.0, 85.0, 120.0));
+    }
+    page
+}
+
 fn builtin_info(id: &str, name: &str) -> TemplateInfo {
     TemplateInfo { id: id.into(), name: name.into(), builtin: true }
 }
@@ -107,6 +206,11 @@ pub fn builtin() -> Vec<Template> {
         Template { info: builtin_info("grille-photos", "Grille de photos"), page: photos, assets: vec![] },
         Template { info: builtin_info("recit", "Récit"), page: story, assets: vec![] },
         Template { info: builtin_info("page-a-completer", "Page à compléter"), page: completion, assets: vec![] },
+        Template { info: builtin_info("etiquettes", "Étiquettes"), page: labels(), assets: vec![] },
+        Template { info: builtin_info("etiquettes-photo", "Étiquettes photo"), page: photo_labels(), assets: vec![] },
+        Template { info: builtin_info("photos-et-textes", "Photos et textes"), page: photos_and_texts(), assets: vec![] },
+        Template { info: builtin_info("photos-legendees", "Photos légendées"), page: captioned_photos(), assets: vec![] },
+        Template { info: builtin_info("affiche-paysage", "Affiche paysage"), page: landscape_poster(), assets: vec![] },
     ]
 }
 
@@ -138,11 +242,15 @@ pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
     Template { info: TemplateInfo { id: String::new(), name: name.to_string(), builtin: false }, page, assets }
 }
 
-/// Nouvelle page à partir du modèle, avec de nouveaux identifiants partout.
+/// Nouvelle page à partir du modèle, avec de nouveaux identifiants partout (groupes compris).
 pub fn instantiate(t: &Template) -> (Page, Vec<Asset>) {
     let mut page = t.page.clone();
     page.id = new_id();
+    let mut groups = std::collections::HashMap::new();
     for e in &mut page.elements {
+        if let Some(g) = &mut e.group {
+            *g = groups.entry(g.clone()).or_insert_with(new_id).clone();
+        }
         let old = std::mem::replace(&mut e.id, new_id());
         if let Some(g) = &mut page.grid
             && let Some(c) = g.cells.iter_mut().find(|c| c.element_id == old)
@@ -287,10 +395,112 @@ mod tests {
     }
 
     #[test]
-    fn three_builtins_with_fixed_ids() {
+    fn eight_builtins_with_fixed_ids() {
         let ids: Vec<String> = builtin().into_iter().map(|t| t.info.id).collect();
-        assert_eq!(ids, ["grille-photos", "recit", "page-a-completer"]);
-        assert!(builtin().iter().all(|t| t.info.builtin && has_title(&t.page)));
+        assert_eq!(ids, ["grille-photos", "recit", "page-a-completer", "etiquettes", "etiquettes-photo", "photos-et-textes", "photos-legendees", "affiche-paysage"]);
+        assert!(builtin().iter().all(|t| t.info.builtin));
+        // Les planches d'étiquettes n'ont pas de titre : toute la page sert aux étiquettes.
+        assert!(builtin().iter().filter(|t| !t.info.id.starts_with("etiquettes")).all(|t| has_title(&t.page)));
+    }
+
+    fn by_id(id: &str) -> Template {
+        builtin().into_iter().find(|t| t.info.id == id).unwrap()
+    }
+
+    fn name_zones(p: &Page) -> Vec<&Element> {
+        p.elements.iter().filter(|e| e.zone && matches!(&e.kind, ElementKind::Text(t) if t.prompt.as_deref() == Some("Prénom"))).collect()
+    }
+
+    /// Tout reste à 8 mm au moins des bords, la marge des imprimantes.
+    #[test]
+    fn builtin_elements_stay_inside_the_printable_area() {
+        for t in builtin() {
+            let s = t.page.size;
+            for e in &t.page.elements {
+                let f = e.frame;
+                assert!(f.x_mm >= 8.0 && f.y_mm >= 8.0 && f.x_mm + f.w_mm <= s.width_mm - 8.0 && f.y_mm + f.h_mm <= s.height_mm - 8.0, "{} : {f:?}", t.info.id);
+            }
+        }
+    }
+
+    #[test]
+    fn labels_are_twelve_framed_name_zones_centred_in_their_frame() {
+        let t = by_id("etiquettes");
+        let names = name_zones(&t.page);
+        assert_eq!(names.len(), 12);
+        for e in names {
+            let ElementKind::Text(text) = &e.kind else { unreachable!() };
+            assert!(text.frame.as_ref().is_some_and(|f| f.stroke.is_some() && f.corner_radius_mm > 0.0));
+            assert_eq!((text.style.align, text.style.valign), (Align::Center, Some(VAlign::Middle)));
+        }
+    }
+
+    #[test]
+    fn photo_labels_group_a_border_a_photo_and_a_name() {
+        let t = by_id("etiquettes-photo");
+        assert_eq!(name_zones(&t.page).len(), 10);
+        assert_eq!(photo_zones(&t.page), 10);
+        let groups: HashSet<&String> = t.page.elements.iter().filter_map(|e| e.group.as_ref()).collect();
+        assert_eq!(groups.len(), 10);
+        for g in groups {
+            let kinds: Vec<&ElementKind> = t.page.elements.iter().filter(|e| e.group.as_ref() == Some(g)).map(|e| &e.kind).collect();
+            assert_eq!(kinds.len(), 3);
+            assert!(matches!(kinds[0], ElementKind::Shape(s) if s.shape == ShapeKind::Rect && s.stroke.is_some()));
+        }
+    }
+
+    #[test]
+    fn photos_and_texts_alternate_sides() {
+        let t = by_id("photos-et-textes");
+        assert!(t.page.grid.is_some());
+        let mut photos: Vec<&Element> = t.page.elements.iter().filter(|e| e.zone && matches!(e.kind, ElementKind::Photo(_))).collect();
+        photos.sort_by(|a, b| a.frame.y_mm.total_cmp(&b.frame.y_mm));
+        let lefts: Vec<bool> = photos.iter().map(|e| e.frame.x_mm < 100.0).collect();
+        assert_eq!(lefts, [true, false, true]);
+        let texts = t.page.elements.iter().filter(|e| e.zone && matches!(&e.kind, ElementKind::Text(x) if x.prompt.as_deref() != Some("Titre"))).count();
+        assert_eq!(texts, 3);
+    }
+
+    fn captions_under_photos(p: &Page) -> usize {
+        let photos = p.elements.iter().filter(|e| e.zone && matches!(e.kind, ElementKind::Photo(_)));
+        photos
+            .filter(|ph| {
+                p.elements.iter().any(|c| {
+                    c.group.is_some()
+                        && c.group == ph.group
+                        && c.frame.x_mm == ph.frame.x_mm
+                        && c.frame.w_mm == ph.frame.w_mm
+                        && c.frame.y_mm > ph.frame.y_mm + ph.frame.h_mm
+                        && matches!(&c.kind, ElementKind::Text(t) if t.prompt.as_deref() == Some("Légende…"))
+                })
+            })
+            .count()
+    }
+
+    #[test]
+    fn captioned_photos_have_four_photos_each_with_its_caption() {
+        let t = by_id("photos-legendees");
+        assert_eq!(photo_zones(&t.page), 4);
+        assert_eq!(captions_under_photos(&t.page), 4);
+    }
+
+    #[test]
+    fn landscape_poster_has_three_captioned_photos() {
+        let t = by_id("affiche-paysage");
+        assert_eq!((t.page.size.width_mm, t.page.size.height_mm), (297.0, 210.0));
+        assert_eq!(photo_zones(&t.page), 3);
+        assert_eq!(captions_under_photos(&t.page), 3);
+    }
+
+    #[test]
+    fn instantiate_renews_group_ids() {
+        let t = by_id("etiquettes-photo");
+        let (a, _) = instantiate(&t);
+        let (b, _) = instantiate(&t);
+        let groups = |p: &Page| p.elements.iter().filter_map(|e| e.group.clone()).collect::<HashSet<_>>();
+        assert_eq!(groups(&a).len(), 10);
+        assert!(groups(&a).is_disjoint(&groups(&t.page)));
+        assert!(groups(&a).is_disjoint(&groups(&b)));
     }
 
     #[test]
@@ -398,8 +608,8 @@ mod tests {
         let info = lib.save(&t).unwrap();
         assert!(info.id.starts_with("recit-de-la-semaine-"));
         let list = lib.list();
-        assert_eq!(list.len(), 4);
-        assert_eq!(list[3].name, "Récit de la semaine");
+        assert_eq!(list.len(), builtin().len() + 1);
+        assert_eq!(list[builtin().len()].name, "Récit de la semaine");
         let back = lib.load(&info.id).unwrap();
         assert_eq!(back.page, t.page);
         assert_eq!(back.info, info);
@@ -411,7 +621,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let lib = Library::open(dir.path().to_path_buf()).unwrap();
         std::fs::write(dir.path().join("abime.carnet-modele"), b"pas un zip").unwrap();
-        assert_eq!(lib.list().len(), 3);
+        assert_eq!(lib.list().len(), builtin().len());
         assert!(lib.load("abime").is_none());
     }
 
@@ -439,7 +649,7 @@ mod tests {
         let (page, _) = instantiate(&builtin()[0]);
         let info = lib.save(&from_page("À jeter", &page, &AssetStore::default())).unwrap();
         lib.delete(&info.id).unwrap();
-        assert_eq!(lib.list().len(), 3);
+        assert_eq!(lib.list().len(), builtin().len());
     }
 
     /// Modèle d'étiquettes : une zone de texte vidée garde son cadre et l'image de fond, qui part avec le modèle.

@@ -2,6 +2,7 @@
 
 ## Prochaine version
 
+- Cinq nouveaux modèles : Étiquettes (12 prénoms encadrés à découper), Étiquettes photo (photo et prénom), Photos et textes, Photos légendées, Affiche paysage.
 - Frises : « Choisir les images » compose une suite de motifs sans rien poser sur la page ; la frise répète la suite, tout autour en une boucle continue.
 - Frise autour d'une photo, d'une forme ou d'un texte, groupée avec lui.
 - Texte : alignement vertical (haut, milieu, bas), marge intérieure réglable, cadre (fond, bordure, coins arrondis) et image de fond, pour des étiquettes par exemple.

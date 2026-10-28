@@ -7,7 +7,7 @@ L'application fonctionne **entièrement hors ligne** sur Windows 11 et sous Linu
 ## Ce que Carnet sait faire
 
 - **Pages** A4 en portrait ou en paysage, plusieurs pages par document.
-- **Modèles** fournis (Grille de photos, Récit, Page à compléter) et modèles personnels à partager entre collègues.
+- **Modèles** fournis (Grille de photos, Récit, Page à compléter, Étiquettes, Étiquettes photo, Photos et textes, Photos légendées, Affiche paysage) et modèles personnels à partager entre collègues.
 - **Exemples** à découvrir depuis l'écran d'accueil : Sortie à la ferme, Joyeux anniversaire, La météo de la semaine, J'écris mon prénom, Les saisons.
 - **Photos** : import d'un dossier entier, photothèque du document, recadrage, coins arrondis, bordure, ombre, légende.
 - **Textes** : gras, italique, souligné, couleurs, alignement ; polices lisibles pour l'école fournies (Andika, Atkinson Hyperlegible, OpenDyslexic, Playwrite FR Moderne pour la cursive), polices ajoutées et polices installées sur l'ordinateur.

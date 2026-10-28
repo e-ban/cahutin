@@ -37,18 +37,18 @@ pub fn document(id: &str) -> Option<Document> {
     Some(doc)
 }
 
-const TITLE_FONT: &str = "Playwrite FR Moderne";
+pub(crate) const TITLE_FONT: &str = "Playwrite FR Moderne";
 
 /// Hauteur de cadre suffisante pour une ligne de cursive (interligne naturel de Playwrite et marges).
-fn cursive_height(size_pt: f64) -> f64 {
+pub(crate) fn cursive_height(size_pt: f64) -> f64 {
     (size_pt * 0.85 + 4.0).ceil()
 }
 
-fn frame(x: f64, y: f64, w: f64, h: f64) -> Frame {
+pub(crate) fn frame(x: f64, y: f64, w: f64, h: f64) -> Frame {
     Frame { x_mm: x, y_mm: y, w_mm: w, h_mm: h, rotation_deg: 0.0 }
 }
 
-fn el(f: Frame, kind: ElementKind) -> Element {
+pub(crate) fn el(f: Frame, kind: ElementKind) -> Element {
     Element { id: new_id(), frame: f, locked: false, zone: false, group: None, kind }
 }
 
@@ -58,7 +58,7 @@ fn text(f: Frame, content: &str, font: &str, size_pt: f64, color: &str, align: A
 }
 
 /// Zone de texte à remplir, avec son invite.
-fn text_zone(f: Frame, prompt: &str, font: &str, size_pt: f64) -> Element {
+pub(crate) fn text_zone(f: Frame, prompt: &str, font: &str, size_pt: f64) -> Element {
     let style = TextStyle { font: font.into(), size_pt, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None };
     Element { zone: true, ..el(f, ElementKind::Text(TextProps { content: RichText::default(), style, prompt: Some(prompt.into()), frame: None })) }
 }
@@ -71,7 +71,7 @@ fn picto(code: &str, x: f64, y: f64, size: f64) -> Element {
     el(frame(x, y, size, size), ElementKind::Image(ImageProps { code: code.into() }))
 }
 
-fn shape(kind: ShapeKind, f: Frame, fill: Option<&str>, stroke: Option<(f64, &str)>, corner_radius_mm: f64) -> Element {
+pub(crate) fn shape(kind: ShapeKind, f: Frame, fill: Option<&str>, stroke: Option<(f64, &str)>, corner_radius_mm: f64) -> Element {
     el(
         f,
         ElementKind::Shape(ShapeProps {
@@ -83,12 +83,12 @@ fn shape(kind: ShapeKind, f: Frame, fill: Option<&str>, stroke: Option<(f64, &st
     )
 }
 
-fn photo_zone(f: Frame) -> Element {
+pub(crate) fn photo_zone(f: Frame) -> Element {
     Element { zone: true, ..el(f, ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 3.0, border: None, shadow: false })) }
 }
 
 /// Même identifiant de groupe pour tous.
-fn grouped(mut els: Vec<Element>) -> Vec<Element> {
+pub(crate) fn grouped(mut els: Vec<Element>) -> Vec<Element> {
     let g = new_id();
     for e in &mut els {
         e.group = Some(g.clone());
@@ -97,7 +97,7 @@ fn grouped(mut els: Vec<Element>) -> Vec<Element> {
 }
 
 /// Photo à déposer et sa légende, groupées.
-fn photo_with_caption(x: f64, y: f64, w: f64, h: f64) -> Vec<Element> {
+pub(crate) fn photo_with_caption(x: f64, y: f64, w: f64, h: f64) -> Vec<Element> {
     let mut caption = text_zone(frame(x, y + h + 2.0, w, 10.0), "Légende…", "Andika", 12.0);
     if let ElementKind::Text(t) = &mut caption.kind {
         t.style.align = Align::Center;

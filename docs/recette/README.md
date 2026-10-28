@@ -31,7 +31,7 @@ Avec `npm run tauri dev` :
 1. Dans l'application lancée par `npm run tauri dev`, ouvrir la console de développement (clic droit, Inspecter), puis exécuter `location.href = "/fidelity.html"`.
 2. Comparer le résultat affiché aux valeurs `expected_lines` de `fixtures/text_fidelity.json`.
 3. S'ils diffèrent, mettre le fichier à jour et le noter dans le compte rendu.
-4. Avec LibreOffice et poppler pour Windows dans le `PATH`, lancer : `cargo test -p carnet-core --test odg_libreoffice -- --ignored --test-threads=1`. Résultat attendu : 5 tests réussis.
+4. Avec LibreOffice et poppler pour Windows dans le `PATH`, lancer : `cargo test -p carnet-core --test odg_libreoffice -- --ignored --test-threads=1`. Résultat attendu : 18 tests réussis.
 
 ## 4. Recette de l'installeur
 
@@ -60,3 +60,5 @@ Avec `npm run tauri dev` :
 23. **Bordures en tirets et pointillés** : une photo avec bordure en pointillés, une forme et un trait en tirets. Attendu : mêmes tirets à l'écran, à l'impression et dans LibreOffice.
 24. **Frise autour d'un bloc** : dans Décors, choisir deux images comme motifs ; sélectionner une photo, puis « Frise » dans la barre flottante. Attendu : la frise entoure la photo, à cheval sur son bord ; elle se déplace, s'agrandit et tourne avec la photo ; Ctrl+Maj+G la dissocie.
 25. **Image de fond d'une étiquette** : importer une image de cadre d'étiquette dans Photos ; sélectionner un texte, « Cadre », puis cette image sous « Image de fond ». Attendu : l'image couvre le cadre, sous le texte ; enregistrer comme modèle, puis créer une page depuis ce modèle : l'étiquette garde son image. Ouvrir ce document avec Carnet 0.4 : message « version plus récente » (et non perte du cadre).
+26. **Accrochage au centre** : déplacer une photo vers le milieu de la page, puis vers le centre d'un autre bloc. Attendu : une ligne bleue apparaît et le bloc s'arrête exactement au milieu (Réglages : X = 75,0 pour un bloc de 60 mm de large). Recommencer avec un groupe et avec deux blocs sélectionnés à la fois.
+27. **Nouveaux modèles** : créer une page depuis chacun des modèles « Étiquettes », « Étiquettes photo », « Photos et textes », « Photos légendées » et « Affiche paysage ». Écrire des prénoms et déposer des photos dans les étiquettes, puis imprimer la planche « Étiquettes ». Attendu : aucune étiquette n'est coupée par l'imprimante ; l'affiche est en paysage ; déplacer une étiquette photo déplace sa photo et son prénom.

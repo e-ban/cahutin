@@ -474,6 +474,32 @@ fn examples_render_in_libreoffice() {
     }
 }
 
+/// Chaque modèle intégré s'exporte et se rend ; fond des étiquettes au bon endroit, affiche en paysage.
+#[test]
+#[ignore]
+fn builtin_templates_render_in_libreoffice() {
+    const DPI: u32 = 254; // 10 pixels par millimètre
+    for t in carnet_core::templates::builtin() {
+        let (page, _) = carnet_core::templates::instantiate(&t);
+        let mut doc = Document::new("");
+        doc.pages = vec![page];
+        let (_dir, pdf) = render(&doc, &AssetStore::default());
+        let (pw, ph, px) = rgb_page(&pdf, 1, DPI);
+        let at = |x_mm: f64, y_mm: f64| {
+            let i = ((y_mm * 10.0) as usize * pw + (x_mm * 10.0) as usize) * 3;
+            (px[i], px[i + 1], px[i + 2])
+        };
+        let label_fill = (0xea, 0xf2, 0xfb);
+        match t.info.id.as_str() {
+            // Centre de la première étiquette, puis à droite de la photo de la première étiquette photo.
+            "etiquettes" => assert_eq!(at(55.0, 33.5), label_fill, "{}", t.info.id),
+            "etiquettes-photo" => assert_eq!(at(98.0, 36.5), label_fill, "{}", t.info.id),
+            "affiche-paysage" => assert!(pw > ph, "{} : {pw} × {ph}", t.info.id),
+            _ => assert!(ph > pw, "{} : {pw} × {ph}", t.info.id),
+        }
+    }
+}
+
 /// Marge de 5 mm et alignement vertical : le mot est en haut, au milieu ou en bas, à 5 mm des bords.
 #[test]
 #[ignore]

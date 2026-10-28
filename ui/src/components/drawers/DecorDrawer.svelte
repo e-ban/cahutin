@@ -5,6 +5,26 @@
   import { PICTO_MIME } from "../../lib/dnd";
   import { fr } from "../../lib/i18n/fr";
   import { PICTO_GROUPS, pictoElement, pictoUrl, pictos, replacePictos, searchPictos } from "../../lib/pictos.svelte";
+  import { frieze, pageFrame, type FrameStyle, type FriezeSide } from "../../lib/decor";
+  import type { Element } from "../../lib/types";
+
+  const frames: { style: FrameStyle; label: string }[] = [
+    { style: "thin", label: fr.frameThin },
+    { style: "thick", label: fr.frameThick },
+    { style: "rounded", label: fr.frameRounded },
+    { style: "double", label: fr.frameDouble },
+  ];
+  const sides: { side: FriezeSide; label: string }[] = [
+    { side: "top", label: fr.friezeTop },
+    { side: "bottom", label: fr.friezeBottom },
+    { side: "around", label: fr.friezeAround },
+  ];
+
+  /** Cadre : derrière tout le reste ; frise : devant. Les nouveaux éléments sont sélectionnés. */
+  function addDecor(els: Element[], behind: boolean) {
+    editor.updatePage((p) => ({ ...p, elements: behind ? [...els, ...p.elements] : [...p.elements, ...els] }));
+    editor.selection = els.map((e) => e.id);
+  }
 
   let query = $state("");
   let category = $state<string | null>(null);
@@ -63,6 +83,24 @@
     {/each}
   </div>
   <p class="hint">{fr.pictureHint}</p>
+
+  <h3>{fr.frames}</h3>
+  <div class="frames">
+    {#each frames as f (f.style)}
+      <button onclick={() => addDecor(pageFrame(editor.page, f.style), true)}><i class="mini {f.style}"></i>{f.label}</button>
+    {/each}
+  </div>
+
+  <h3>{fr.friezes}</h3>
+  <div class="motif">
+    <img src={pictoUrl(chosen)} alt="" />
+    <span>{fr.friezeMotif}</span>
+  </div>
+  <div class="sides">
+    {#each sides as s (s.side)}
+      <button onclick={() => addDecor(frieze(editor.page, chosen, s.side), false)}>{s.label}</button>
+    {/each}
+  </div>
 </Drawer>
 
 <style>
@@ -110,6 +148,57 @@
     width: 100%;
     height: 100%;
     display: block;
+  }
+  .frames {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+  .frames button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 2px;
+    font-size: 11px;
+  }
+  .mini {
+    display: block;
+    width: 26px;
+    height: 36px;
+    border: 1px solid #555;
+    box-sizing: border-box;
+  }
+  .mini.thick {
+    border-width: 3px;
+  }
+  .mini.rounded {
+    border-radius: 5px;
+    border-width: 2px;
+  }
+  .mini.double {
+    border-style: double;
+    border-width: 4px;
+  }
+  .motif {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .motif img {
+    width: 32px;
+    height: 32px;
+  }
+  .sides {
+    display: flex;
+    gap: 4px;
+  }
+  .sides button {
+    flex: 1;
+    padding: 6px 2px;
+    font-size: 12px;
   }
   .hint {
     color: var(--muted);

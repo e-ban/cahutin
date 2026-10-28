@@ -418,3 +418,39 @@ fn groups_survive_a_libreoffice_round_trip() {
     std::io::Read::read_to_string(&mut zip.by_name("content.xml").unwrap(), &mut content).unwrap();
     assert!(content.contains("<draw:g"), "le groupe a disparu après LibreOffice");
 }
+
+#[test]
+#[ignore]
+fn background_is_rendered() {
+    const DPI: u32 = 72;
+    let mut doc = Document::new("fond");
+    doc.pages[0].background = Some(Background { color: carnet_core::background::KRAFT.into(), pattern: Some(Pattern::Seyes) });
+    let (dir, pdf) = render(&doc, &AssetStore::default());
+    let prefix = dir.path().join("couleur");
+    run(Command::new("pdftoppm").args(["-r", &DPI.to_string(), "-singlefile"]).arg(&pdf).arg(&prefix));
+    let data = std::fs::read(prefix.with_extension("ppm")).unwrap();
+    // En-tête P6 : quatre champs puis les pixels RVB.
+    let mut fields = 0;
+    let mut pos = 0;
+    while fields < 4 {
+        while data[pos].is_ascii_whitespace() {
+            pos += 1;
+        }
+        while !data[pos].is_ascii_whitespace() {
+            pos += 1;
+        }
+        fields += 1;
+    }
+    let header = String::from_utf8_lossy(&data[..pos]).into_owned();
+    let w: usize = header.split_whitespace().nth(1).unwrap().parse().unwrap();
+    let px = &data[pos + 1..];
+    let k = DPI as f64 / 25.4;
+    let at = |x_mm: f64, y_mm: f64| {
+        let i = ((y_mm * k) as usize * w + (x_mm * k) as usize) * 3;
+        (px[i], px[i + 1], px[i + 2])
+    };
+    let (r, g, b) = at(5.0, 5.0);
+    assert!((r as i32 - 0xd8).abs() < 12 && (g as i32 - 0xbc).abs() < 12 && (b as i32 - 0x8a).abs() < 12, "coin : {r},{g},{b}");
+    let off_kraft = (0..(280.0 * k) as usize).filter(|&y| { let i = (y * w + (100.5 * k) as usize) * 3; (px[i] as i32 - 0xd8).abs() + (px[i + 1] as i32 - 0xbc).abs() + (px[i + 2] as i32 - 0x8a).abs() > 30 }).count();
+    assert!(off_kraft > 20, "lignes Seyès absentes : {off_kraft} pixels");
+}

@@ -369,7 +369,7 @@ fn write_run_text(x: &mut Xml, text: &str, at_start: &mut bool) {
 pub(crate) fn content_xml(doc: &Document, store: &AssetStore, reg: &mut Registry) -> Result<(String, Vec<Picture>), OdgError> {
     let mut w = Writer { reg, store, pictures: vec![], body: Xml::fragment(), protect_next: false };
     for (i, page) in doc.pages.iter().enumerate() {
-        let master = w.reg.master_page(page.size);
+        let master = w.reg.master_page(page.size, page.background.as_ref());
         w.body.open("draw:page", &[("draw:name", &format!("page{}", i + 1)), ("draw:master-page-name", &master)]);
         // Les membres consécutifs d'un même groupe sont écrits dans un groupe LibreOffice.
         let mut open_group: Option<&str> = None;

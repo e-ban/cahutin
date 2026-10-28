@@ -3,7 +3,8 @@
 use super::NS;
 use super::xml::Xml;
 use crate::fonts::{self, FontFace, FontSet};
-use crate::model::PageSize;
+use crate::background::{self, Mark};
+use crate::model::{Background, PageSize};
 
 pub(crate) type Props = Vec<(&'static str, Vec<(&'static str, String)>)>;
 
@@ -20,7 +21,8 @@ pub(crate) struct Registry {
     pub faces: Vec<FontFace>,
     /// (nom, chemin dans l'archive)
     pub fill_images: Vec<(String, String)>,
-    pub page_sizes: Vec<PageSize>,
+    /// Pages maîtresses : une par couple (taille, fond).
+    pub masters: Vec<(PageSize, Option<Background>)>,
     /// Une flèche est présente : la pointe (`draw:marker`) est déclarée dans `styles.xml`.
     pub arrow_marker: bool,
 }
@@ -34,7 +36,7 @@ pub(crate) fn mm(v: f64) -> String {
 
 impl Registry {
     pub fn new(fonts: &FontSet) -> Registry {
-        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], page_sizes: vec![], arrow_marker: false }
+        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], masters: vec![], arrow_marker: false }
     }
 
     /// Style automatique dédupliqué ; renvoie son nom.
@@ -75,13 +77,14 @@ impl Registry {
         self.fill_images.push((name, href));
     }
 
-    /// Nom de la page maîtresse pour cette taille de page.
-    pub fn master_page(&mut self, size: PageSize) -> String {
-        let i = match self.page_sizes.iter().position(|s| *s == size) {
+    /// Nom de la page maîtresse pour cette taille de page et ce fond.
+    pub fn master_page(&mut self, size: PageSize, background: Option<&Background>) -> String {
+        let key = (size, background.cloned());
+        let i = match self.masters.iter().position(|m| *m == key) {
             Some(i) => i,
             None => {
-                self.page_sizes.push(size);
-                self.page_sizes.len() - 1
+                self.masters.push(key);
+                self.masters.len() - 1
             }
         };
         format!("M{}", i + 1)
@@ -160,7 +163,7 @@ impl Registry {
         }
         x.close();
         x.open("office:automatic-styles", &[]);
-        for (i, size) in self.page_sizes.iter().enumerate() {
+        for (i, (size, _)) in self.masters.iter().enumerate() {
             let (w, h) = (mm(size.width_mm), mm(size.height_mm));
             let orientation = if size.width_mm > size.height_mm { "landscape" } else { "portrait" };
             x.open("style:page-layout", &[("style:name", &format!("PM{}", i + 1))]);
@@ -178,16 +181,54 @@ impl Registry {
             );
             x.close();
         }
-        x.open("style:style", &[("style:name", "dp1"), ("style:family", "drawing-page")]);
-        x.empty("style:drawing-page-properties", &[("draw:background-size", "border"), ("draw:fill", "none")]);
-        x.close();
+        // Fond de chaque page maîtresse : couleur de remplissage ; styles des traits et points du motif.
+        let mut mark_styles: Vec<(bool, String, String)> = Vec::new();
+        for (i, (_, bg)) in self.masters.iter().enumerate() {
+            x.open("style:style", &[("style:name", &format!("dp{}", i + 1)), ("style:family", "drawing-page")]);
+            match bg {
+                Some(b) => x.empty("style:drawing-page-properties", &[("draw:background-size", "border"), ("draw:fill", "solid"), ("draw:fill-color", &b.color)]),
+                None => x.empty("style:drawing-page-properties", &[("draw:background-size", "border"), ("draw:fill", "none")]),
+            }
+            x.close();
+            for m in bg.iter().filter_map(|b| b.pattern).flat_map(|p| background::marks(self.masters[i].0, p)) {
+                let key = match m {
+                    Mark::Line { width_mm, color, .. } => (true, mm(width_mm), color.to_string()),
+                    Mark::Dot { color, .. } => (false, String::new(), color.to_string()),
+                };
+                if !mark_styles.contains(&key) {
+                    mark_styles.push(key);
+                }
+            }
+        }
+        for (n, (line, width, color)) in mark_styles.iter().enumerate() {
+            x.open("style:style", &[("style:name", &format!("bg{}", n + 1)), ("style:family", "graphic")]);
+            if *line {
+                x.empty("style:graphic-properties", &[("draw:stroke", "solid"), ("svg:stroke-width", width), ("svg:stroke-color", color), ("draw:fill", "none")]);
+            } else {
+                x.empty("style:graphic-properties", &[("draw:stroke", "none"), ("draw:fill", "solid"), ("draw:fill-color", color)]);
+            }
+            x.close();
+        }
         x.close();
         x.open("office:master-styles", &[]);
-        for i in 1..=self.page_sizes.len() {
-            x.empty(
-                "style:master-page",
-                &[("style:name", &format!("M{i}")), ("style:page-layout-name", &format!("PM{i}")), ("draw:style-name", "dp1")],
-            );
+        for (i, (size, bg)) in self.masters.iter().enumerate() {
+            let n = i + 1;
+            x.open("style:master-page", &[("style:name", &format!("M{n}")), ("style:page-layout-name", &format!("PM{n}")), ("draw:style-name", &format!("dp{n}"))]);
+            // Motif d'école : dessiné sur la page maîtresse, derrière tout et non sélectionnable.
+            for m in bg.iter().filter_map(|b| b.pattern).flat_map(|p| background::marks(*size, p)) {
+                match m {
+                    Mark::Line { x1, y1, x2, y2, width_mm, color } => {
+                        let style = format!("bg{}", mark_styles.iter().position(|k| *k == (true, mm(width_mm), color.to_string())).unwrap() + 1);
+                        x.empty("draw:line", &[("draw:style-name", &style), ("draw:layer", "backgroundobjects"), ("svg:x1", &mm(x1)), ("svg:y1", &mm(y1)), ("svg:x2", &mm(x2)), ("svg:y2", &mm(y2))]);
+                    }
+                    Mark::Dot { x: cx, y: cy, d_mm, color } => {
+                        let style = format!("bg{}", mark_styles.iter().position(|k| *k == (false, String::new(), color.to_string())).unwrap() + 1);
+                        let r = d_mm / 2.0;
+                        x.empty("draw:ellipse", &[("draw:style-name", &style), ("draw:layer", "backgroundobjects"), ("svg:x", &mm(cx - r)), ("svg:y", &mm(cy - r)), ("svg:width", &mm(d_mm)), ("svg:height", &mm(d_mm))]);
+                    }
+                }
+            }
+            x.close();
         }
         x.close();
         x.close();

@@ -530,4 +530,37 @@ mod tests {
         assert_eq!(OdgError::MissingPicture("code venu du document".into()).kind(), "MissingPicture");
         assert_eq!(OdgError::MissingAsset("id".into()).kind(), "MissingAsset");
     }
+
+    fn with_background(mut d: Document, color: &str, pattern: Option<Pattern>) -> Document {
+        d.pages[0].background = Some(Background { color: color.into(), pattern });
+        d
+    }
+
+    #[test]
+    fn background_color_fills_the_page() {
+        let mut e = export(&with_background(doc_with(vec![]), crate::background::KRAFT, None), &AssetStore::default());
+        let styles = e.xml("styles.xml");
+        assert!(styles.contains(r#"draw:fill="solid""#) && styles.contains(r##"draw:fill-color="#d8bc8a""##), "{styles}");
+    }
+
+    #[test]
+    fn pattern_is_drawn_on_the_master_page() {
+        let mut e = export(&with_background(doc_with(vec![]), "#ffffff", Some(Pattern::Seyes)), &AssetStore::default());
+        let styles = e.xml("styles.xml");
+        let master = styles.split("<style:master-page").nth(1).unwrap();
+        assert_eq!(master.matches("<draw:line").count(), 148 + 26 + 1);
+        assert!(!e.xml("content.xml").contains("<draw:line"));
+    }
+
+    #[test]
+    fn pages_with_different_backgrounds_get_their_own_master() {
+        let mut d = with_background(doc_with(vec![]), "#ffffff", Some(Pattern::Lines));
+        d.pages.push(Page { background: Some(Background { color: "#ffeecc".into(), pattern: None }), ..Page::new(A4_PORTRAIT) });
+        d.pages.push(Page::new(A4_PORTRAIT));
+        let mut e = export(&d, &AssetStore::default());
+        let content = e.xml("content.xml");
+        let masters: Vec<&str> = content.split(r#"draw:master-page-name=""#).skip(1).map(|s| s.split('"').next().unwrap()).collect();
+        assert_eq!(masters.len(), 3);
+        assert!(masters[0] != masters[1] && masters[1] != masters[2] && masters[0] != masters[2], "{masters:?}");
+    }
 }

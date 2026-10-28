@@ -2,6 +2,7 @@
 
 pub mod background;
 pub mod crop;
+pub mod examples;
 pub mod fonts;
 mod fsutil;
 pub mod grid;

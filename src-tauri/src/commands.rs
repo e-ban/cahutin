@@ -5,7 +5,7 @@ use crate::state::AppState;
 use carnet_core::fonts::{self, FontFamilyInfo};
 use carnet_core::photo;
 use carnet_core::templates::{self, TemplateInfo};
-use carnet_core::{AssetMeta, Document, Page, PageSize, ZoneKind, grid, native, odg, report};
+use carnet_core::{AssetMeta, Document, Page, PageSize, ZoneKind, examples, grid, native, odg, report};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -178,6 +178,17 @@ pub fn grid_set_kind(mut page: Page, cell: String, kind: ZoneKind) -> Result<Pag
 pub fn page_set_size(mut page: Page, width_mm: f64, height_mm: f64) -> Page {
     grid::set_page_size(&mut page, PageSize { width_mm, height_mm });
     page
+}
+
+#[tauri::command]
+pub fn list_examples() -> Vec<examples::ExampleInfo> {
+    examples::list()
+}
+
+/// Copie neuve de l'exemple, sans titre ni chemin.
+#[tauri::command]
+pub fn open_example(id: String) -> Result<Document, String> {
+    examples::document(&id).ok_or_else(|| "Cet exemple est introuvable.".to_string())
 }
 
 #[tauri::command]

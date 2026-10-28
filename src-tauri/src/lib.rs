@@ -72,6 +72,8 @@ pub fn run() {
             commands::grid_set_kind,
             commands::grid_liberate,
             commands::grid_preset,
+            commands::list_examples,
+            commands::open_example,
             commands::page_set_size,
             commands::list_templates,
             commands::instantiate_template,

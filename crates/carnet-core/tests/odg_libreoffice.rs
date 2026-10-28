@@ -454,3 +454,22 @@ fn background_is_rendered() {
     let off_kraft = (0..(280.0 * k) as usize).filter(|&y| { let i = (y * w + (100.5 * k) as usize) * 3; (px[i] as i32 - 0xd8).abs() + (px[i + 1] as i32 - 0xbc).abs() + (px[i + 2] as i32 - 0x8a).abs() > 30 }).count();
     assert!(off_kraft > 20, "lignes Seyès absentes : {off_kraft} pixels");
 }
+
+#[test]
+#[ignore]
+fn examples_render_in_libreoffice() {
+    for info in carnet_core::examples::list() {
+        let doc = carnet_core::examples::document(&info.id).unwrap();
+        let (_dir, pdf) = render(&doc, &AssetStore::default());
+        let text: String = run(Command::new("pdftotext").arg(&pdf).arg("-")).split_whitespace().collect();
+        let first_title_word = match info.id.as_str() {
+            "ferme" => "Notre",
+            "anniversaire" => "Joyeux",
+            "meteo" => "météo",
+            "prenom" => "J'écris",
+            _ => "saisons",
+        };
+        assert!(text.contains(first_title_word), "{} : {text}", info.id);
+        assert!(text.contains("OpenMoji"), "{} : mention absente", info.id);
+    }
+}

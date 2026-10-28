@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { Document, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
+import type { Document, ExampleInfo, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -24,6 +24,8 @@ export const listTemplates = () => invoke<TemplateInfo[]>("list_templates");
 export const instantiateTemplate = (id: string) => invoke<InstantiatedPage>("instantiate_template", { id });
 export const savePageAsTemplate = (name: string, page: Page) => invoke<TemplateInfo>("save_page_as_template", { name, page });
 export const deleteTemplate = (id: string) => invoke<void>("delete_template", { id });
+export const listExamples = () => invoke<ExampleInfo[]>("list_examples");
+export const openExample = (id: string) => invoke<Document>("open_example", { id });
 export const listFonts = () => invoke<FontFamilyInfo[]>("list_fonts");
 export const addFont = (path: string) => invoke<FontFamilyInfo>("add_font", { path });
 export const removeFont = (family: string) => invoke<void>("remove_font", { family });

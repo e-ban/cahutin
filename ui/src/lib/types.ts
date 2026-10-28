@@ -4,6 +4,7 @@ export type { AssetMeta } from "./gen/AssetMeta";
 export type { Crop } from "./gen/Crop";
 export type { Document } from "./gen/Document";
 export type { Element } from "./gen/Element";
+export type { ExampleInfo } from "./gen/ExampleInfo";
 export type { ElementKind } from "./gen/ElementKind";
 export type { FontFamilyInfo } from "./gen/FontFamilyInfo";
 export type { FontFileInfo } from "./gen/FontFileInfo";

@@ -1,5 +1,6 @@
 // Décors de page : mention de licence OpenMoji (même cadre que l'export ODG), cadres et frises.
 import { newId } from "./factory";
+import { rotateElements } from "./groups";
 import { pictoElement } from "./pictos.svelte";
 import type { Element, Frame, Page, PageSize } from "./types";
 
@@ -95,4 +96,23 @@ export function frieze(page: Page, codes: string[], side: FriezeSide, size_mm = 
 /** Motifs d'une frise : un clic ajoute l'image à la fin de la suite, ou l'en retire. */
 export function toggleMotif(codes: string[], code: string): string[] {
   return codes.includes(code) ? codes.filter((c) => c !== code) : [...codes, code];
+}
+
+/**
+ * Frise tout autour d'un bloc (photo, forme, texte) : motifs centrés sur ses bords, du quart de son plus petit
+ * côté (6 à 15 mm), tournés avec lui et groupés avec lui (dans son groupe s'il en a un). `null` pour une case
+ * de grille, jamais groupée, ou sans motif.
+ */
+export function blockFrieze(page: Page, id: string, codes: string[]): Page | null {
+  const target = page.elements.find((e) => e.id === id);
+  if (!target || codes.length === 0 || page.grid?.cells.some((c) => c.element_id === id)) return null;
+  const f = target.frame;
+  const size = round(Math.min(15, Math.max(6, Math.min(f.w_mm, f.h_mm) / 4)));
+  const rect = { x_mm: f.x_mm - size / 2, y_mm: f.y_mm - size / 2, w_mm: f.w_mm + size, h_mm: f.h_mm + size };
+  const group = target.group ?? newId();
+  let pics: Element[] = friezeInRect(page, rect, codes, "around", size).map((e) => ({ ...e, group }));
+  if (f.rotation_deg) pics = rotateElements(pics, f.rotation_deg, { x_mm: f.x_mm + f.w_mm / 2, y_mm: f.y_mm + f.h_mm / 2 });
+  const at = page.elements.indexOf(target);
+  const elements = [...page.elements.slice(0, at), { ...target, group }, ...pics, ...page.elements.slice(at + 1)];
+  return { ...page, elements };
 }

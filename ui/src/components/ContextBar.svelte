@@ -16,7 +16,9 @@
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
   import { isStrokeOnly } from "../lib/shapePaths";
-  import { alignableIds, isLockedSelection } from "../lib/groups";
+  import { alignableIds, expandSelection, isLockedSelection } from "../lib/groups";
+  import { blockFrieze } from "../lib/decor";
+  import { friezeMotifs } from "../lib/friezeMotifs.svelte";
   import { ALIGNS, VALIGNS, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
   import type { Frame } from "../lib/types";
 
@@ -122,6 +124,26 @@
     ["vmiddle", fr.alignVMiddle],
     ["bottom", fr.alignBottom],
   ];
+
+  /** Bloc seul et libre (ni case de grille, ni verrouillé, ni trait) : une frise peut l'entourer. */
+  const canFrieze = $derived.by(() => {
+    const e = selected;
+    if (many || !e || e.locked || inGrid(e.id)) return false;
+    const k = e.kind;
+    return k.type === "Text" || (k.type === "Photo" && !!k.asset) || (k.type === "Shape" && !isStrokeOnly(k.shape));
+  });
+
+  function addBlockFrieze() {
+    const id = selected?.id;
+    if (!id) return;
+    if (friezeMotifs.codes.length === 0) {
+      editor.drawer = "decor";
+      return;
+    }
+    editor.updatePage((p) => blockFrieze(p, id, friezeMotifs.codes) ?? p);
+    editor.focusedMember = null;
+    editor.selection = expandSelection(editor.page, [id]);
+  }
 
   function openPhotos() {
     editor.drawer = "photos";
@@ -314,6 +336,9 @@
         </div>
       {/if}
       {#if !selected.locked}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
+    {/if}
+    {#if canFrieze}
+      <button title={fr.blockFriezeHint} onclick={addBlockFrieze}>❀ {fr.blockFrieze}</button>
     {/if}
     {#if !many}
       <span class="sep"></span>

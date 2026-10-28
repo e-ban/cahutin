@@ -245,6 +245,8 @@ export const fr = {
   friezePickHint: "Cliquez les images à répéter, dans l'ordre ; un nouveau clic retire une image.",
   friezeNoMotif: "Choisissez au moins une image.",
   removeMotif: "Retirer ce motif",
+  blockFrieze: "Frise",
+  blockFriezeHint: "Frise tout autour, avec les motifs choisis dans le tiroir Décors",
   friezeTop: "En haut",
   friezeBottom: "En bas",
   friezeAround: "Tout autour",

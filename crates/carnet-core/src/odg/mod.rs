@@ -5,6 +5,7 @@ mod package;
 mod styles;
 mod xml;
 
+use crate::fonts::FontSet;
 use crate::model::{Document, Frame, Id};
 use crate::photo::AssetStore;
 use package::Part;
@@ -72,8 +73,8 @@ pub(crate) fn odf_transform(f: &Frame) -> Option<String> {
     Some(format!("rotate({:.6}) translate({} {})", -t, mm(x), mm(y)))
 }
 
-pub fn export_odg(doc: &Document, store: &AssetStore, out: impl Write + Seek) -> Result<(), OdgError> {
-    let mut reg = Registry::default();
+pub fn export_odg(doc: &Document, store: &AssetStore, fonts: &FontSet, out: impl Write + Seek) -> Result<(), OdgError> {
+    let mut reg = Registry::new(fonts);
     let (content, pictures) = content::content_xml(doc, store, &mut reg)?;
     let mut parts = vec![
         Part { path: "content.xml".into(), media_type: "text/xml", bytes: content.into_bytes(), compress: true },
@@ -84,7 +85,7 @@ pub fn export_odg(doc: &Document, store: &AssetStore, out: impl Write + Seek) ->
     for p in pictures {
         parts.push(Part { path: p.path, media_type: p.media_type, bytes: p.bytes, compress: false });
     }
-    for f in &reg.faces {
+    for f in reg.faces.iter().filter(|f| f.embeddable) {
         let media_type = if f.format == "opentype" { "application/x-font-otf" } else { "application/x-font-ttf" };
         parts.push(Part { path: format!("Fonts/{}", f.file_name), media_type, bytes: f.bytes.to_vec(), compress: true });
     }
@@ -92,14 +93,15 @@ pub fn export_odg(doc: &Document, store: &AssetStore, out: impl Write + Seek) ->
 }
 
 /// Écriture sûre : un export qui échoue n'écrase pas un export précédent du même nom.
-pub fn export_odg_to_path(doc: &Document, store: &AssetStore, path: &Path) -> Result<(), OdgError> {
-    crate::fsutil::write_atomically(path, |f| export_odg(doc, store, f))
+pub fn export_odg_to_path(doc: &Document, store: &AssetStore, fonts: &FontSet, path: &Path) -> Result<(), OdgError> {
+    crate::fsutil::write_atomically(path, |f| export_odg(doc, store, fonts, f))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::*;
+    use crate::fonts::FontSet;
     use crate::photo::{Asset, AssetStore};
     use image::{ImageFormat, Rgb, RgbImage};
     use std::io::{Cursor, Read};
@@ -162,8 +164,12 @@ mod tests {
     }
 
     fn export(doc: &Document, store: &AssetStore) -> Exported {
+        export_with(doc, store, &FontSet::builtin())
+    }
+
+    fn export_with(doc: &Document, store: &AssetStore, fonts: &FontSet) -> Exported {
         let mut buf = Cursor::new(Vec::new());
-        export_odg(doc, store, &mut buf).unwrap();
+        export_odg(doc, store, fonts, &mut buf).unwrap();
         Exported { zip: ZipArchive::new(Cursor::new(buf.into_inner())).unwrap() }
     }
 
@@ -321,7 +327,7 @@ mod tests {
     fn missing_asset_is_an_error() {
         let d = doc_with(vec![photo(Some("absent"), frame(10.0, 10.0, 50.0, 50.0), 0.0)]);
         let mut buf = Cursor::new(Vec::new());
-        assert!(matches!(export_odg(&d, &AssetStore::default(), &mut buf), Err(OdgError::MissingAsset(_))));
+        assert!(matches!(export_odg(&d, &AssetStore::default(), &FontSet::builtin(), &mut buf), Err(OdgError::MissingAsset(_))));
     }
 
     #[test]
@@ -330,7 +336,7 @@ mod tests {
         let path = dir.path().join("cahier.odg");
         std::fs::write(&path, b"export precedent").unwrap();
         let d = doc_with(vec![photo(Some("absent"), frame(10.0, 10.0, 50.0, 50.0), 0.0)]);
-        assert!(export_odg_to_path(&d, &AssetStore::default(), &path).is_err());
+        assert!(export_odg_to_path(&d, &AssetStore::default(), &FontSet::builtin(), &path).is_err());
         assert_eq!(std::fs::read(&path).unwrap(), b"export precedent");
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
     }
@@ -347,5 +353,30 @@ mod tests {
         for part in ["content.xml", "styles.xml", "meta.xml", "settings.xml", "META-INF/manifest.xml"] {
             roxmltree::Document::parse(&e.xml(part)).unwrap_or_else(|err| panic!("{part}: {err}"));
         }
+    }
+
+    #[test]
+    fn restricted_user_font_is_declared_but_not_embedded() {
+        let dir = tempfile::tempdir().unwrap();
+        let fixtures = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+        for f in ["CarnetTest-Regular.ttf", "CarnetTestRestricted-Regular.ttf"] {
+            crate::fonts::add_user_font(dir.path(), &std::path::Path::new(fixtures).join(f)).unwrap();
+        }
+        let fonts = FontSet::with_user_dir(dir.path());
+        let mut free = text(RichText::plain("libre"), None);
+        let mut restricted = text(RichText::plain("restreinte"), None);
+        if let ElementKind::Text(t) = &mut free.kind {
+            t.style.font = "Carnet Test".into();
+        }
+        if let ElementKind::Text(t) = &mut restricted.kind {
+            t.style.font = "Carnet Test Restricted".into();
+        }
+        let mut e = export_with(&doc_with(vec![free, restricted]), &AssetStore::default(), &fonts);
+        let names = e.names();
+        assert!(names.contains(&"Fonts/CarnetTest-Regular.ttf".to_string()), "{names:?}");
+        assert!(!names.iter().any(|n| n.starts_with("Fonts/CarnetTestRestricted")), "{names:?}");
+        let content = e.xml("content.xml");
+        assert!(content.contains(r#"style:font-face style:name="Carnet Test Restricted""#), "{content}");
+        assert!(content.contains(r#"style:font-name="Carnet Test Restricted""#));
     }
 }

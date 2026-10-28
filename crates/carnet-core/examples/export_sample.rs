@@ -75,6 +75,6 @@ fn main() {
             corner_radius_mm: 0.0,
         }),
     ));
-    export_odg_to_path(&doc, &store, std::path::Path::new(&out)).unwrap();
+    export_odg_to_path(&doc, &store, &carnet_core::fonts::FontSet::builtin(), std::path::Path::new(&out)).unwrap();
     println!("écrit : {out}");
 }

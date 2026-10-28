@@ -143,7 +143,7 @@ impl Writer<'_> {
         vec![(
             "style:text-properties",
             vec![
-                ("style:font-name", font_name.to_string()),
+                ("style:font-name", font_name),
                 ("fo:font-size", format!("{}pt", run.size_pt.unwrap_or(style.size_pt))),
                 ("fo:font-weight", if run.bold { "bold" } else { "normal" }.into()),
                 ("fo:font-style", if run.italic { "italic" } else { "normal" }.into()),

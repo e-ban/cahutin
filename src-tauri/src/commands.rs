@@ -2,7 +2,7 @@
 //! Journal : uniquement des noms d'événements et des compteurs, jamais de chemin ni de contenu.
 
 use crate::state::AppState;
-use carnet_core::fonts::{self, FontFamilyInfo};
+use carnet_core::fonts::{FontFamilyInfo, FontSet};
 use carnet_core::photo;
 use carnet_core::templates::{self, TemplateInfo};
 use carnet_core::{AssetMeta, Document, Page, PageSize, ZoneKind, grid, native, odg, report};
@@ -79,7 +79,7 @@ pub fn list_importable_in(dir: String) -> Vec<String> {
 #[tauri::command(async)]
 pub fn save_document(state: State<'_, AppState>, path: String, doc: Document) -> Result<(), String> {
     let store = state.store.lock().unwrap();
-    native::save_to_path(&doc, &store, Path::new(&path)).map_err(|e| {
+    native::save_to_path(&doc, &store, &FontSet::builtin(), Path::new(&path)).map_err(|e| {
         log::error!("save_document_failed kind={e:?}");
         e.message_fr()
     })?;
@@ -90,7 +90,7 @@ pub fn save_document(state: State<'_, AppState>, path: String, doc: Document) ->
 /// Exécutée hors du fil principal : la fenêtre reste réactive.
 #[tauri::command(async)]
 pub fn open_document(state: State<'_, AppState>, path: String) -> Result<Document, String> {
-    let (doc, assets) = native::load_from_path(Path::new(&path)).map_err(|e| {
+    let native::LoadedDocument { doc, assets, .. } = native::load_from_path(Path::new(&path)).map_err(|e| {
         log::error!("open_document_failed kind={e:?}");
         e.message_fr()
     })?;
@@ -106,7 +106,7 @@ pub fn open_document(state: State<'_, AppState>, path: String) -> Result<Documen
 #[tauri::command(async)]
 pub fn export_odg(state: State<'_, AppState>, path: String, doc: Document) -> Result<(), String> {
     let store = state.store.lock().unwrap();
-    odg::export_odg_to_path(&doc, &store, Path::new(&path)).map_err(|e| {
+    odg::export_odg_to_path(&doc, &store, &FontSet::builtin(), Path::new(&path)).map_err(|e| {
         log::error!("export_odg_failed kind={e:?}");
         e.message_fr()
     })?;
@@ -189,7 +189,7 @@ pub fn delete_template(state: State<'_, AppState>, id: String) -> Result<(), Str
 
 #[tauri::command]
 pub fn list_fonts() -> Vec<FontFamilyInfo> {
-    fonts::families()
+    FontSet::builtin().families()
 }
 
 fn log_path(app: &AppHandle) -> Option<PathBuf> {

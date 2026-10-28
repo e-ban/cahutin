@@ -2,7 +2,7 @@
 
 use super::NS;
 use super::xml::Xml;
-use crate::fonts::{self, FontFace};
+use crate::fonts::{self, FontFace, FontSet};
 use crate::model::PageSize;
 
 pub(crate) type Props = Vec<(&'static str, Vec<(&'static str, String)>)>;
@@ -13,11 +13,11 @@ pub(crate) struct AutoStyle {
     pub props: Props,
 }
 
-#[derive(Default)]
 pub(crate) struct Registry {
+    fonts: FontSet,
     pub styles: Vec<AutoStyle>,
     /// Fichiers de police réellement utilisés, dans l'ordre d'apparition.
-    pub faces: Vec<&'static FontFace>,
+    pub faces: Vec<FontFace>,
     /// (nom, chemin dans l'archive)
     pub fill_images: Vec<(String, String)>,
     pub page_sizes: Vec<PageSize>,
@@ -28,6 +28,10 @@ pub(crate) fn mm(v: f64) -> String {
 }
 
 impl Registry {
+    pub fn new(fonts: &FontSet) -> Registry {
+        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], page_sizes: vec![] }
+    }
+
     /// Style automatique dédupliqué ; renvoie son nom.
     pub fn style(&mut self, family: &'static str, prefix: &str, props: Props) -> String {
         if let Some(s) = self.styles.iter().find(|s| s.family == family && s.props == props) {
@@ -40,14 +44,18 @@ impl Registry {
     }
 
     /// Enregistre la police à intégrer ; renvoie le nom de famille à écrire dans `style:font-name`.
-    pub fn font(&mut self, family: &str, bold: bool, italic: bool) -> &'static str {
-        let face = fonts::face(family, bold, italic)
-            .or_else(|| fonts::face(fonts::DEFAULT_FAMILY, bold, italic))
-            .expect("la police par défaut est embarquée");
-        if !self.faces.iter().any(|f| std::ptr::eq(*f, face)) {
+    pub fn font(&mut self, family: &str, bold: bool, italic: bool) -> String {
+        let face = self
+            .fonts
+            .face(family, bold, italic)
+            .or_else(|| self.fonts.face(fonts::DEFAULT_FAMILY, bold, italic))
+            .expect("la police par défaut est embarquée")
+            .clone();
+        let name = face.family.clone();
+        if !self.faces.iter().any(|f| f.file_name == face.file_name) {
             self.faces.push(face);
         }
-        face.family
+        name
     }
 
     pub fn fill_image(&mut self, name: String, href: String) {
@@ -68,14 +76,19 @@ impl Registry {
 
     pub fn write_font_decls(&self, x: &mut Xml) {
         x.open("office:font-face-decls", &[]);
-        let mut families: Vec<&str> = self.faces.iter().map(|f| f.family).collect();
-        families.dedup();
+        let mut families: Vec<&str> = self.faces.iter().map(|f| f.family.as_str()).collect();
         families.sort();
         families.dedup();
         for family in families {
             x.open("style:font-face", &[("style:name", family), ("svg:font-family", family)]);
+            // Licence restreinte : la police est déclarée sans fichier, LibreOffice prendra celle du poste.
+            let embedded: Vec<&FontFace> = self.faces.iter().filter(|f| f.family == family && f.embeddable).collect();
+            if embedded.is_empty() {
+                x.close();
+                continue;
+            }
             x.open("svg:font-face-src", &[]);
-            for f in self.faces.iter().filter(|f| f.family == family) {
+            for f in embedded {
                 let href = format!("Fonts/{}", f.file_name);
                 x.open(
                     "svg:font-face-uri",

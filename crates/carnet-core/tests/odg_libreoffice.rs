@@ -2,6 +2,7 @@
 //! Lancer avec `cargo test -p carnet-core --test odg_libreoffice -- --ignored` (soffice, pdftotext, pdffonts,
 //! pdfinfo et pdfimages doivent être dans le PATH).
 
+use carnet_core::fonts::{FontSet, add_user_font};
 use carnet_core::odg::export_odg_to_path;
 use carnet_core::photo::{AssetStore, import_bytes};
 use carnet_core::*;
@@ -63,9 +64,13 @@ fn run(cmd: &mut Command) -> String {
 
 /// Exporte, puis convertit en PDF avec un profil LibreOffice jetable.
 fn render(doc: &Document, store: &AssetStore) -> (tempfile::TempDir, PathBuf) {
+    render_with(doc, store, &FontSet::builtin())
+}
+
+fn render_with(doc: &Document, store: &AssetStore, fonts: &FontSet) -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let odg = dir.path().join("banc.odg");
-    export_odg_to_path(doc, store, &odg).unwrap();
+    export_odg_to_path(doc, store, fonts, &odg).unwrap();
     let profile = format!("-env:UserInstallation=file://{}", dir.path().join("profil").display());
     run(Command::new("soffice")
         .arg(profile)
@@ -192,6 +197,28 @@ fn fonts_are_embedded_in_rendering() {
     let fonts = run(Command::new("pdffonts").arg(&pdf));
     assert!(fonts.contains("Andika"), "{fonts}");
     assert!(fonts.contains("Playwrite"), "{fonts}");
+}
+
+/// « Carnet Test » n'est installée nulle part : LibreOffice ne peut l'avoir que par l'ODG.
+#[test]
+#[ignore]
+fn user_font_is_embedded_in_rendering() {
+    let fonts_dir = tempfile::tempdir().unwrap();
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/CarnetTest-Regular.ttf");
+    add_user_font(fonts_dir.path(), &fixture).unwrap();
+    let mut doc = Document::new("police");
+    let mut style = TextStyle::default_zone();
+    style.font = "Carnet Test".into();
+    doc.pages[0].elements.push(Element {
+        id: new_id(),
+        frame: Frame { x_mm: ORIGIN_MM, y_mm: ORIGIN_MM, w_mm: 120.0, h_mm: 20.0, rotation_deg: 0.0 },
+        locked: false,
+        zone: false,
+        kind: ElementKind::Text(TextProps { content: RichText::plain("Police ajoutée"), style, prompt: None }),
+    });
+    let (_dir, pdf) = render_with(&doc, &AssetStore::default(), &FontSet::with_user_dir(fonts_dir.path()));
+    let fonts = run(Command::new("pdffonts").arg(&pdf));
+    assert!(fonts.contains("CarnetTest"), "{fonts}");
 }
 
 #[test]

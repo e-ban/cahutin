@@ -1,5 +1,6 @@
 //! Modèles : trois modèles intégrés, et la bibliothèque des modèles de l'utilisateur.
 
+use crate::fonts::FontSet;
 use crate::grid;
 use crate::model::*;
 use crate::native::{self, NativeError, TEMPLATE_EXT};
@@ -207,7 +208,7 @@ impl Library {
         if !Self::valid_id(id) {
             return None;
         }
-        let (doc, assets) = native::load_from_path(&self.path(id)).ok()?;
+        let native::LoadedDocument { doc, assets, .. } = native::load_from_path(&self.path(id)).ok()?;
         let page = doc.pages.into_iter().next()?;
         Some(Template { info: TemplateInfo { id: id.to_string(), name: doc.title, builtin: false }, page, assets })
     }
@@ -241,7 +242,8 @@ impl Library {
             doc.assets.insert(a.meta.id.clone(), a.meta.clone());
             store.insert(a.clone()).map_err(|_| NativeError::Io)?;
         }
-        native::save_to_path(&doc, &store, &self.path(&id))?;
+        // Les modèles ne transportent pas de police utilisateur.
+        native::save_to_path(&doc, &store, &FontSet::builtin(), &self.path(&id))?;
         Ok(TemplateInfo { id, name: t.info.name.clone(), builtin: false })
     }
 

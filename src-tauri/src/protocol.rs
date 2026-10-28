@@ -1,6 +1,7 @@
 //! Protocole `carnet-asset` : sert les images importées à l'interface.
 //! `/<id>` donne l'image (relue depuis le cache), `/<id>/thumb` sa vignette (en mémoire),
-//! `/font/<fichier>` une police ajoutée par l'utilisateur, `/sysfont/<indice>` une police du poste.
+//! `/font/<fichier>` une police ajoutée par l'utilisateur, `/sysfont/<indice>` une police du poste,
+//! `/picto/<code>.svg` une image de la banque OpenMoji.
 
 use crate::state::AppState;
 use carnet_core::{Mime, fonts};
@@ -15,6 +16,9 @@ pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>
     let path = request.uri().path().trim_start_matches('/');
     if let Some(file) = path.strip_prefix("font/") {
         return font_response(&ctx.app_handle().state::<AppState>().fonts_dir, file);
+    }
+    if let Some(file) = path.strip_prefix("picto/") {
+        return picto_response(file);
     }
     if let Some(index) = path.strip_prefix("sysfont/") {
         return system_font_response(&ctx.app_handle().state::<AppState>(), index);
@@ -66,6 +70,18 @@ fn system_font_response(state: &AppState, index: &str) -> Response<Cow<'static, 
     }
 }
 
+fn picto_response(file: &str) -> Response<Cow<'static, [u8]>> {
+    let code = file.strip_suffix(".svg").filter(|c| !c.is_empty() && c.chars().all(|ch| ch.is_ascii_digit() || ch.is_ascii_uppercase() || ch == '-'));
+    match code.and_then(carnet_core::picto::svg) {
+        Some(bytes) => Response::builder()
+            .header(header::CONTENT_TYPE, "image/svg+xml")
+            .header(header::CACHE_CONTROL, "max-age=31536000, immutable")
+            .body(Cow::Borrowed(bytes))
+            .unwrap(),
+        None => not_found(),
+    }
+}
+
 fn font_file_response(path: &Path) -> Response<Cow<'static, [u8]>> {
     let Ok(bytes) = std::fs::read(path) else { return not_found() };
     let mime = if bytes.starts_with(b"OTTO") { "font/otf" } else { "font/ttf" };
@@ -106,5 +122,15 @@ mod tests {
         assert_eq!(r.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN], "*");
         assert_eq!(system_font_response(&state, "1").status(), StatusCode::NOT_FOUND);
         assert_eq!(system_font_response(&state, "../x").status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn picto_route_serves_svg_and_refuses_paths() {
+        let r = picto_response("1F98A.svg");
+        assert_eq!(r.status(), StatusCode::OK);
+        assert_eq!(r.headers()[header::CONTENT_TYPE], "image/svg+xml");
+        assert_eq!(picto_response("1f98a.svg").status(), StatusCode::NOT_FOUND);
+        assert_eq!(picto_response("../1F98A.svg").status(), StatusCode::NOT_FOUND);
+        assert_eq!(picto_response("1F98A").status(), StatusCode::NOT_FOUND);
     }
 }

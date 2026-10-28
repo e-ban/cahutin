@@ -1,6 +1,7 @@
 import { editor } from "./docStore.svelte";
 import { copySelection, cutSelection, deleteSelection, duplicateSelection, groupSelection, paste, ungroupSelection } from "./editActions";
 import { newDoc, openDoc, print, save } from "./fileActions";
+import { groupOf, isLockedSelection } from "./groups";
 import { modal } from "./modal.svelte";
 import { nudge, type ArrowKey } from "./geometry";
 
@@ -61,11 +62,16 @@ export function handleShortcut(ev: KeyboardEvent) {
     if (editor.selection.length === 0) return;
     ev.preventDefault();
     deleteSelection();
+  } else if (ev.key === "Escape" && editor.focusedMember) {
+    // Retour au groupe de l'élément modifié seul.
+    const id = editor.focusedMember;
+    editor.focusedMember = null;
+    editor.selection = groupOf(editor.page, id);
   } else if (ev.key.startsWith("Arrow")) {
-    const e = editor.selected;
-    const inGrid = e && editor.page.grid?.cells.some((c) => c.element_id === e.id);
-    if (!e || e.locked || inGrid) return;
+    const ids = editor.selection;
+    const inGrid = ids.some((id) => editor.page.grid?.cells.some((c) => c.element_id === id));
+    if (ids.length === 0 || inGrid || isLockedSelection(editor.page, ids)) return;
     ev.preventDefault();
-    editor.updateElement(e.id, (el) => ({ ...el, frame: nudge(el.frame, ev.key as ArrowKey, ev.shiftKey) }));
+    editor.updatePage((p) => ({ ...p, elements: p.elements.map((el) => (ids.includes(el.id) ? { ...el, frame: nudge(el.frame, ev.key as ArrowKey, ev.shiftKey) } : el)) }));
   }
 }

@@ -60,6 +60,8 @@
       renderDirections: ["nw", "n", "ne", "w", "e", "sw", "s", "se"],
       isDisplaySnapDigit: false,
       snapThreshold: 6,
+      // Les images de la banque sont carrées : jamais déformées.
+      keepRatio: target?.kind.type === "Image",
     });
     m.on("dragStart", start)
       .on("drag", (ev) => {
@@ -101,7 +103,7 @@
   }
 
   function onKey(ev: KeyboardEvent) {
-    if (moveable) moveable.keepRatio = ev.shiftKey;
+    if (moveable) moveable.keepRatio = ev.shiftKey || target?.kind.type === "Image";
   }
 
   // Après chaque changement du document, du zoom ou de la sélection : recaler (ou recréer) les poignées.

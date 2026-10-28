@@ -1,7 +1,7 @@
 // Actions d'édition sur la sélection, communes aux raccourcis, au clic droit et à la barre flottante.
 import { copyElements, duplicateElements, pasteElements, removeElements, reorder } from "./clipboard";
 import { editor } from "./docStore.svelte";
-import { expandSelection, groupElements, ungroup } from "./groups";
+import { expandSelection, groupElements, rotateElements, scaleElements, ungroup } from "./groups";
 import { newId } from "./factory";
 import type { AssetMeta, Element } from "./types";
 
@@ -84,6 +84,32 @@ export function ungroupSelection() {
   const ids = selected();
   editor.updatePage((p) => ungroup(p, ids));
   editor.selection = ids;
+}
+
+export interface GroupTransform {
+  dx_mm: number;
+  dy_mm: number;
+  /** Agrandissement proportionnel depuis `origin`. */
+  factor: number;
+  origin: { x_mm: number; y_mm: number };
+  /** Rotation autour de `center` (sens horaire). */
+  deg: number;
+  center?: { x_mm: number; y_mm: number };
+}
+
+/** Fin d'un geste sur plusieurs éléments (groupe ou sélection) : un seul pas d'annulation. */
+export function applyGroupTransform(ids: string[], t: GroupTransform) {
+  editor.updatePage((p) => {
+    let moved = p.elements.filter((e) => ids.includes(e.id));
+    if (t.factor !== 1) moved = scaleElements(moved, t.factor, t.origin);
+    if (t.deg !== 0 && t.center) moved = rotateElements(moved, t.deg, t.center);
+    if (t.dx_mm !== 0 || t.dy_mm !== 0) {
+      const r = (v: number) => Math.round(v * 10) / 10;
+      moved = moved.map((e) => ({ ...e, frame: { ...e.frame, x_mm: r(e.frame.x_mm + t.dx_mm), y_mm: r(e.frame.y_mm + t.dy_mm) } }));
+    }
+    const byId = new Map(moved.map((e) => [e.id, e]));
+    return { ...p, elements: p.elements.map((e) => byId.get(e.id) ?? e) };
+  });
 }
 
 export const NEW_PHOTO_WIDTH_MM = 80;

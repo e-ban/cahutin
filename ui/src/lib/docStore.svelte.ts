@@ -27,6 +27,8 @@ class Editor {
   editingText = $state<string | null>(null);
   /** Fusion en glissant (mode modèle) : cases couvertes, et si la fusion est possible. */
   mergePreview = $state<{ ids: string[]; ok: boolean } | null>(null);
+  /** Élément d'un groupe modifié seul après un double-clic (Échap ou un clic ailleurs revient au groupe). */
+  focusedMember = $state<string | null>(null);
   /** Déplacement, redimensionnement ou rotation à la souris en cours (Moveable). */
   gesture = $state(false);
   /** Photo en cours de recadrage (double-clic). */

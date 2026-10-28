@@ -43,3 +43,21 @@ test("groupSelection then ungroupSelection restores ungrouped elements in one un
   editor.undo();
   expect(editor.page.elements.every((e) => !e.group)).toBe(true);
 });
+
+test("a resize gesture on a group commits one history step", async () => {
+  const { applyGroupTransform } = await import("./editActions");
+  const { textElement } = await import("./factory");
+  const doc = newDocument("t");
+  const a = textElement({ x_mm: 10, y_mm: 10, w_mm: 20, h_mm: 10, rotation_deg: 0 });
+  const b = textElement({ x_mm: 40, y_mm: 10, w_mm: 20, h_mm: 10, rotation_deg: 0 });
+  doc.pages[0].elements.push({ ...a, group: "g" }, { ...b, group: "g" });
+  editor.reset(doc, null);
+  applyGroupTransform([a.id, b.id], { factor: 2, origin: { x_mm: 10, y_mm: 10 }, deg: 0, dx_mm: 0, dy_mm: 0 });
+  const [ea, eb] = editor.page.elements;
+  expect(ea.frame).toMatchObject({ x_mm: 10, w_mm: 40 });
+  expect(eb.frame).toMatchObject({ x_mm: 70, w_mm: 40 });
+  expect(ea.kind.type === "Text" && ea.kind.style.size_pt).toBe(28);
+  editor.undo();
+  expect(editor.page.elements[1].frame.x_mm).toBe(40);
+  expect(editor.canUndo).toBe(false);
+});

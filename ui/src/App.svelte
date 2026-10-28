@@ -7,6 +7,7 @@
   import Modal from "./components/Modal.svelte";
   import PrintRoot from "./components/PrintRoot.svelte";
   import { confirmLeave, importPaths, openPath, save } from "./lib/fileActions";
+  import BoxSelect from "./components/BoxSelect.svelte";
   import ContextBar from "./components/ContextBar.svelte";
   import ContextMenu, { type ContextTarget } from "./components/layout/ContextMenu.svelte";
   import PageView from "./components/PageView.svelte";
@@ -17,6 +18,7 @@
   import Hint from "./components/layout/Hint.svelte";
   import Welcome from "./components/layout/Welcome.svelte";
   import Transformer from "./components/Transformer.svelte";
+  import GroupTransformer from "./components/GroupTransformer.svelte";
   import BottomBar from "./components/layout/BottomBar.svelte";
   import Inspector from "./components/layout/Inspector.svelte";
   import Rail from "./components/layout/Rail.svelte";
@@ -29,6 +31,7 @@
   import { editor } from "./lib/docStore.svelte";
   import { fonts } from "./lib/fonts.svelte";
   import { addPhotoAt } from "./lib/editActions";
+  import { expandSelection, groupOf } from "./lib/groups";
   import { handleShortcut } from "./lib/shortcuts";
   import { newDocument, newId } from "./lib/factory";
   import { templates } from "./lib/templates.svelte";
@@ -115,10 +118,27 @@
     editor.updateElement(id, (el) => (el.kind.type === "Text" ? { ...el, kind: { ...el.kind, content } } : el));
   }
 
+  // Un clic sélectionne tout le groupe de l'élément ; l'élément modifié seul (double-clic) reste seul.
   function select(id: string | null, add: boolean) {
-    if (id === null) editor.selection = [];
-    else if (add) editor.selection = editor.selection.includes(id) ? editor.selection.filter((s) => s !== id) : [...editor.selection, id];
-    else if (editor.selection.length !== 1 || editor.selection[0] !== id) editor.selection = [id];
+    if (id === null) {
+      editor.selection = [];
+      editor.focusedMember = null;
+      return;
+    }
+    if (editor.focusedMember === id) return;
+    editor.focusedMember = null;
+    const members = groupOf(editor.page, id);
+    if (add) {
+      const all = members.every((m) => editor.selection.includes(m));
+      editor.selection = all ? editor.selection.filter((s) => !members.includes(s)) : expandSelection(editor.page, [...editor.selection, ...members]);
+    } else if (editor.selection.length !== members.length || !members.every((m) => editor.selection.includes(m))) {
+      editor.selection = members;
+    }
+  }
+
+  function focusMember(id: string) {
+    editor.focusedMember = id;
+    editor.selection = [id];
   }
 </script>
 
@@ -157,10 +177,13 @@
       }}
       ontextdone={endTextEdit}
       oncontext={openContextMenu}
+      onfocusmember={focusMember}
       bind:pageEl
     />
     <Transformer {pageEl} zoom={editor.effectiveZoom} />
+    <GroupTransformer {pageEl} zoom={editor.effectiveZoom} />
     <ContextBar {pageEl} {stageEl} />
+    <BoxSelect {pageEl} zoom={editor.effectiveZoom} />
     <CellBar {pageEl} {stageEl} />
     <GridDragMerge {pageEl} />
     {#if contextTarget}<ContextMenu target={contextTarget} onclose={() => (contextTarget = null)} />{/if}

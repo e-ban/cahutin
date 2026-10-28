@@ -12,6 +12,7 @@
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
   import { isStrokeOnly } from "../lib/shapePaths";
+  import { isLockedSelection } from "../lib/groups";
   import { ALIGNS, isMarkActive, setAlign, setColor, setFont, setSize, toggleMark } from "../lib/textFormat.svelte";
   import type { Frame } from "../lib/types";
 
@@ -57,7 +58,9 @@
     const s = stageEl.getBoundingClientRect();
     // La poignée de rotation (Moveable) dépasse au-dessus d'un élément libre sélectionné seul.
     const e = selected;
-    const handles = !!e && !e.locked && !inGrid(e.id) && editor.editingText !== e.id;
+    const handles = many
+      ? !editor.selection.some(inGrid) && !isLockedSelection(editor.page, editor.selection)
+      : !!e && !e.locked && !inGrid(e.id) && editor.editingText !== e.id;
     pos = placeContextBar(
       box,
       { width: barEl.offsetWidth, height: barEl.offsetHeight },

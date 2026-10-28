@@ -23,6 +23,7 @@
     onedittext,
     ontextdone,
     oncontext,
+    onfocusmember,
     pageEl = $bindable(),
   }: {
     page: Page;
@@ -40,6 +41,8 @@
     ontextdone?: (id: string, content: RichText) => void;
     /** Clic droit sur un élément (id) ou sur la page (null), avec la position en mm sur la page. */
     oncontext?: (id: string | null, xMm: number, yMm: number, clientX: number, clientY: number) => void;
+    /** Double-clic sur un élément groupé : il est modifié seul. */
+    onfocusmember?: (id: string) => void;
     pageEl?: HTMLElement;
   } = $props();
 
@@ -110,7 +113,9 @@
     if (!oncontext || !pageEl || (ev.target as HTMLElement).isContentEditable) return;
     ev.preventDefault();
     const r = pageEl.getBoundingClientRect();
-    const id = (ev.target as HTMLElement).closest<HTMLElement>(".element")?.dataset.id ?? null;
+    // Sous la zone des poignées d'un groupe, l'élément est celui qui se trouve sous le pointeur.
+    const under = document.elementsFromPoint(ev.clientX, ev.clientY).map((n) => n.closest<HTMLElement>(".element")).find((n) => n && pageEl!.contains(n));
+    const id = under?.dataset.id ?? null;
     oncontext(id, (ev.clientX - r.left) / (PX_PER_MM * zoom), (ev.clientY - r.top) / (PX_PER_MM * zoom), ev.clientX, ev.clientY);
   }}
 >
@@ -150,6 +155,7 @@
         liveCrop = wheelCrop(liveCrop ?? e.kind.crop, ev.deltaY);
       }}
       ondblclick={() => {
+        if (e.group) onfocusmember?.(e.id);
         if (e.kind.type === "Photo" && e.kind.asset && !e.locked) {
           liveCrop = null;
           oncropstart?.(e.id);

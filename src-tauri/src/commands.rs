@@ -278,4 +278,18 @@ mod tests {
         let kept = kept.to_string_lossy().into_owned();
         assert_eq!(existing_paths(vec![kept.clone(), gone]), vec![kept]);
     }
+
+    #[test]
+    fn pending_paths_keep_only_existing_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let kept = dir.path().join("gardée.jpg");
+        std::fs::write(&kept, b"x").unwrap();
+        let removed = dir.path().join("supprimée.jpg");
+        std::fs::write(&removed, b"x").unwrap();
+        std::fs::remove_file(&removed).unwrap();
+        let folder = dir.path().join("devenu un dossier.jpg");
+        std::fs::create_dir(&folder).unwrap();
+        let s = |p: &std::path::Path| p.to_string_lossy().into_owned();
+        assert_eq!(existing_paths(vec![s(&kept), s(&removed), s(&folder)]), vec![s(&kept)]);
+    }
 }

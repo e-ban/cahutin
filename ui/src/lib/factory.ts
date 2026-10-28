@@ -9,7 +9,7 @@ export function newPage(): Page {
 }
 
 export function newDocument(title = ""): Document {
-  return { format_version: 1, title, pages: [newPage()], assets: {} };
+  return { format_version: 1, title, pages: [newPage()], assets: {}, pending_photos: [] };
 }
 
 export function defaultTextStyle(): TextStyle {

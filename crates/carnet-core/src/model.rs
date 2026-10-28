@@ -20,6 +20,9 @@ pub struct Document {
     pub title: String,
     pub pages: Vec<Page>,
     pub assets: BTreeMap<Id, AssetMeta>,
+    /// Chemins des photos importées mais non utilisées, pour retrouver la photothèque à la réouverture.
+    #[serde(default)]
+    pub pending_photos: Vec<String>,
 }
 
 impl Document {
@@ -29,6 +32,7 @@ impl Document {
             title: title.to_string(),
             pages: vec![Page::new(A4_PORTRAIT)],
             assets: BTreeMap::new(),
+            pending_photos: Vec::new(),
         }
     }
 }
@@ -353,5 +357,12 @@ mod tests {
         assert!(RichText { paragraphs: vec![] }.is_blank());
         assert!(RichText::plain("  \n ").is_blank());
         assert!(!RichText::plain("Bonjour").is_blank());
+    }
+
+    #[test]
+    fn document_without_pending_photos_still_loads() {
+        let json = r#"{"format_version":1,"title":"Ancien","pages":[],"assets":{}}"#;
+        let d: Document = serde_json::from_str(json).unwrap();
+        assert!(d.pending_photos.is_empty());
     }
 }

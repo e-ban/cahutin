@@ -2,4 +2,8 @@
 import type { AssetMeta } from "./AssetMeta";
 import type { Page } from "./Page";
 
-export type Document = { format_version: number, title: string, pages: Array<Page>, assets: { [key in string]?: AssetMeta }, };
+export type Document = { format_version: number, title: string, pages: Array<Page>, assets: { [key in string]?: AssetMeta }, 
+/**
+ * Chemins des photos importées mais non utilisées, pour retrouver la photothèque à la réouverture.
+ */
+pending_photos: Array<string>, };

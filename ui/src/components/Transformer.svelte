@@ -60,6 +60,9 @@
       renderDirections: ["nw", "n", "ne", "w", "e", "sw", "s", "se"],
       isDisplaySnapDigit: false,
       snapThreshold: 6,
+      // Le centre du bloc s'accroche aussi : milieux de la page et centres des autres blocs.
+      snapDirections: { left: true, top: true, right: true, bottom: true, center: true, middle: true },
+      elementSnapDirections: { left: true, top: true, right: true, bottom: true, center: true, middle: true },
       // Les images de la banque sont carrées : jamais déformées.
       keepRatio: target?.kind.type === "Image",
     });

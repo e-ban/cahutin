@@ -240,6 +240,7 @@ export const fr = {
   aboutCldr: "Mots-clés français des images : Unicode CLDR, licence Unicode.",
   aboutFonts: "Polices fournies : Andika, Atkinson Hyperlegible, OpenDyslexic, Playwrite FR Moderne (licence SIL Open Font License).",
   close: "Fermer",
+  caption: "Légende",
   // Fond de page
   background: "Fond de la page",
   backgroundButton: "Fond",

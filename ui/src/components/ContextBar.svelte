@@ -7,7 +7,7 @@
   import { alignFrames, distributeFrames, type AlignMode } from "../lib/align";
   import { placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
-  import { deleteSelection, groupSelection, toggleLockSelection, ungroupSelection } from "../lib/editActions";
+  import { addCaption, deleteSelection, groupSelection, toggleLockSelection, ungroupSelection } from "../lib/editActions";
   import { endPreview, previewPhoto, previewShape, updatePhoto, updateShape } from "../lib/elementEdit";
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
@@ -166,6 +166,7 @@
       {@const ph = selected.kind}
       {#if !ph.asset}
         <button class="main" onclick={openPhotos}>🖼 {fr.choosePhoto}</button>
+        <button onclick={() => addCaption(selected.id)}>✎ {fr.caption}</button>
       {:else}
         <button onclick={() => (editor.cropping = selected.id)}>✂ {fr.crop}</button>
         <div class="wrap">
@@ -193,6 +194,7 @@
         </div>
         <button class:on={ph.shadow} aria-pressed={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}>◩ {fr.shadow}</button>
         <button onclick={openPhotos}>⇄ {fr.replace}</button>
+        <button onclick={() => addCaption(selected.id)}>✎ {fr.caption}</button>
         {#if !selected.locked}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
       {/if}
     {:else if selected?.kind.type === "Text"}

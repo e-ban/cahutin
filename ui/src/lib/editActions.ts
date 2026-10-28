@@ -130,6 +130,53 @@ export function setBackground(bg: Background | null, allPages: boolean) {
   });
 }
 
+export const CAPTION_GAP_MM = 2;
+export const CAPTION_HEIGHT_MM = 10;
+
+/** Texte du même groupe posé juste sous la photo : sa légende. */
+function captionOf(photo: Element): Element | undefined {
+  if (!photo.group) return undefined;
+  const bottom = photo.frame.y_mm + photo.frame.h_mm;
+  return editor.page.elements.find(
+    (e) => e.group === photo.group && e.kind.type === "Text" && Math.abs(e.frame.y_mm - bottom - CAPTION_GAP_MM) < 1 && Math.abs(e.frame.x_mm - photo.frame.x_mm) < 1,
+  );
+}
+
+/**
+ * Légende d'une photo : un texte sous la photo, groupé avec elle (dans son groupe s'il existe), ouvert
+ * à l'écriture. S'il y en a déjà une, elle est sélectionnée. Une case de grille n'est jamais groupée.
+ */
+export function addCaption(photoId: string) {
+  const photo = editor.page.elements.find((e) => e.id === photoId);
+  if (!photo || photo.kind.type !== "Photo") return;
+  const existing = captionOf(photo);
+  if (existing) {
+    editor.focusedMember = existing.id;
+    editor.selection = [existing.id];
+    return;
+  }
+  const inGrid = !!editor.page.grid?.cells.some((c) => c.element_id === photo.id);
+  const group = inGrid ? null : (photo.group ?? newId());
+  const f = photo.frame;
+  const caption: Element = {
+    id: newId(),
+    frame: { x_mm: f.x_mm, y_mm: Math.round((f.y_mm + f.h_mm + CAPTION_GAP_MM) * 10) / 10, w_mm: f.w_mm, h_mm: CAPTION_HEIGHT_MM, rotation_deg: 0 },
+    locked: false,
+    zone: false,
+    group,
+    kind: { type: "Text", content: { paragraphs: [] }, style: { font: "Andika", size_pt: 12, color: "#333333", align: "Center" }, prompt: "Légende…" },
+  };
+  editor.updatePage((p) => {
+    const i = p.elements.findIndex((e) => e.id === photo.id);
+    const elements = p.elements.map((e) => (e.id === photo.id && group ? { ...e, group } : e));
+    elements.splice(i + 1, 0, caption);
+    return { ...p, elements };
+  });
+  editor.focusedMember = group ? caption.id : null;
+  editor.selection = [caption.id];
+  editor.editingText = caption.id;
+}
+
 export const NEW_PHOTO_WIDTH_MM = 80;
 
 /** Nouvelle photo libre centrée sur (x, y), de 80 mm de large ; l'image rejoint celles du document. */

@@ -114,3 +114,66 @@ test("apply to all pages is one undo step", async () => {
   expect(editor.doc.pages.every((p) => !p.background)).toBe(true);
   expect(editor.canUndo).toBe(false);
 });
+
+function photoDoc(extra: Record<string, unknown> = {}) {
+  const doc = newDocument("c");
+  const photo = {
+    id: "ph",
+    frame: { x_mm: 20, y_mm: 30, w_mm: 80, h_mm: 60, rotation_deg: 0 },
+    locked: false,
+    zone: false,
+    kind: { type: "Photo" as const, asset: null, crop: { scale: 1, center_x: 0.5, center_y: 0.5 }, corner_radius_mm: 0, border: null, shadow: false },
+    ...extra,
+  };
+  doc.pages[0].elements.push(photo);
+  editor.reset(doc, null);
+  return photo;
+}
+
+test("caption is grouped below the photo", async () => {
+  const { addCaption } = await import("./editActions");
+  photoDoc();
+  addCaption("ph");
+  const [p, c] = editor.page.elements;
+  expect(c.frame).toEqual({ x_mm: 20, y_mm: 92, w_mm: 80, h_mm: 10, rotation_deg: 0 });
+  expect(c.kind.type === "Text" && [c.kind.style.font, c.kind.style.size_pt, c.kind.style.align, c.kind.prompt]).toEqual(["Andika", 12, "Center", "Légende…"]);
+  expect(p.group).toBeTruthy();
+  expect(c.group).toBe(p.group);
+  expect(editor.selection).toEqual([c.id]);
+  expect(editor.editingText).toBe(c.id);
+  editor.editingText = null;
+  editor.focusedMember = null;
+});
+
+test("caption joins the photo's existing group", async () => {
+  const { addCaption } = await import("./editActions");
+  photoDoc({ group: "g" });
+  addCaption("ph");
+  expect(editor.page.elements.map((e) => e.group)).toEqual(["g", "g"]);
+  editor.editingText = null;
+  editor.focusedMember = null;
+});
+
+test("a second click selects the existing caption", async () => {
+  const { addCaption } = await import("./editActions");
+  photoDoc();
+  addCaption("ph");
+  const id = editor.page.elements[1].id;
+  editor.editingText = null;
+  editor.selection = ["ph"];
+  addCaption("ph");
+  expect(editor.page.elements).toHaveLength(2);
+  expect(editor.selection).toEqual([id]);
+  editor.editingText = null;
+  editor.focusedMember = null;
+});
+
+test("grid cell caption is not grouped", async () => {
+  const { addCaption } = await import("./editActions");
+  photoDoc({ zone: true });
+  editor.commit({ ...editor.doc, pages: [{ ...editor.page, grid: { cols: 1, rows: 1, margin_mm: 10, gap_mm: 4, cells: [{ element_id: "ph", col: 0, row: 0, col_span: 1, row_span: 1 }] } }] });
+  addCaption("ph");
+  expect(editor.page.elements.every((e) => !e.group)).toBe(true);
+  expect(editor.page.elements).toHaveLength(2);
+  editor.editingText = null;
+});

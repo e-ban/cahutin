@@ -5,7 +5,7 @@
   import { onMount } from "svelte";
   import Modal from "./components/Modal.svelte";
   import PrintRoot from "./components/PrintRoot.svelte";
-  import { confirmLeave, importPaths } from "./lib/fileActions";
+  import { confirmLeave, importPaths, openPath, save } from "./lib/fileActions";
   import ContextBar from "./components/ContextBar.svelte";
   import ContextMenu, { type ContextTarget } from "./components/layout/ContextMenu.svelte";
   import PageView from "./components/PageView.svelte";
@@ -39,7 +39,7 @@
   fonts.load();
   templates.refresh();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
-  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts } });
+  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath } });
 
   // Fermeture de la fenêtre : demander d'enregistrer s'il y a des modifications.
   onMount(() => {

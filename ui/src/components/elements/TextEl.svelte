@@ -20,7 +20,7 @@
 
   function runStyle(r: Run): string {
     return [
-      r.font ? `font-family: "${r.font}"` : "",
+      r.font ? `font-family: "${r.font}", "Andika"` : "",
       r.size_pt ? `font-size: ${r.size_pt}pt` : "",
       r.color ? `color: ${r.color}` : "",
       r.bold ? "font-weight: 700" : "",
@@ -49,7 +49,7 @@
   style:height="{element.frame.h_mm}mm"
   style:padding="{TEXT_PADDING_MM}mm"
   style:transform="scale({zoom})"
-  style:font-family={`"${props.style.font}"`}
+  style:font-family={`"${props.style.font}", "Andika"`}
   style:font-size="{props.style.size_pt}pt"
   style:color={props.style.color}
   style:text-align={alignToCss(props.style.align)}

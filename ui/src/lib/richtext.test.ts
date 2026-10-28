@@ -1,5 +1,6 @@
 import type { JSONContent } from "@tiptap/core";
 import { expect, test } from "vitest";
+import { setKnownFamilies } from "./fontNames";
 import { richToTiptap, sanitizePlainText, tiptapToRich } from "./richtext";
 import type { RichText, TextStyle } from "./types";
 
@@ -86,4 +87,14 @@ test("only embedded fonts and #rrggbb colours survive", () => {
   const runs = tiptapToRich(doc, style).paragraphs[0].runs;
   expect(runs[0]).toEqual({ ...plainRun, text: "Word", size_pt: 11 });
   expect(runs[1]).toEqual({ ...plainRun, text: "ok", font: "OpenDyslexic", color: "#C0392B" });
+});
+
+test("a user font added at runtime survives tiptapToRich", () => {
+  setKnownFamilies(["Andika", "Carnet Test"]);
+  const doc = (fontFamily: string): JSONContent => ({
+    type: "doc",
+    content: [{ type: "paragraph", content: [{ type: "text", text: "Bonjour", marks: [{ type: "textStyle", attrs: { fontFamily } }] }] }],
+  });
+  expect(tiptapToRich(doc("Carnet Test"), style).paragraphs[0].runs[0].font).toBe("Carnet Test");
+  expect(tiptapToRich(doc("Comic Sans MS"), style).paragraphs[0].runs[0].font).toBeNull();
 });

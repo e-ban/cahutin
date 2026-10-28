@@ -1,23 +1,33 @@
-import { listFonts } from "./api";
+import { fontFiles, listFonts } from "./api";
+import { EMBEDDED_FAMILIES, setKnownFamilies } from "./fontNames";
+import { registerUserFonts } from "./userFonts.svelte";
 import type { FontFamilyInfo } from "./types";
 
+const KINDS: Record<string, string> = { Andika: "scripte", "Atkinson Hyperlegible": "lisible", OpenDyslexic: "dyslexie", "Playwrite FR Moderne": "cursive" };
+
 /** Même catalogue que carnet_core::fonts, utilisé si le moteur ne répond pas (aperçu dans un navigateur). */
-const FALLBACK: FontFamilyInfo[] = [
-  { name: "Andika", has_bold: true, has_italic: true },
-  { name: "Atkinson Hyperlegible", has_bold: true, has_italic: true },
-  { name: "OpenDyslexic", has_bold: true, has_italic: true },
-  { name: "Playwrite FR Moderne", has_bold: false, has_italic: false },
-];
+const FALLBACK: FontFamilyInfo[] = EMBEDDED_FAMILIES.map((name) => ({
+  name,
+  has_bold: name !== "Playwrite FR Moderne",
+  has_italic: name !== "Playwrite FR Moderne",
+  user: false,
+  embeddable: true,
+  kind: KINDS[name],
+}));
 
 class Fonts {
   families = $state.raw<FontFamilyInfo[]>(FALLBACK);
 
+  /** Relit la liste du moteur et charge les fichiers des polices ajoutées. */
   async load() {
     try {
-      this.families = await listFonts();
+      const [families, files] = await Promise.all([listFonts(), fontFiles()]);
+      await registerUserFonts(files);
+      this.families = families;
     } catch {
       this.families = FALLBACK;
     }
+    setKnownFamilies(this.families.map((f) => f.name));
   }
 }
 

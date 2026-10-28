@@ -1,7 +1,7 @@
 // Conversion entre le contenu TipTap et le texte riche du document. Seule la mise en forme que l'export
 // ODG sait représenter survit : tout le reste (titres, listes, liens, surlignage...) devient du texte simple.
 import type { JSONContent } from "@tiptap/core";
-import { EMBEDDED_FAMILIES } from "./fontNames";
+import { isKnownFamily } from "./fontNames";
 import type { Align, Paragraph, RichText, Run, TextStyle } from "./types";
 
 /** Marge intérieure des zones de texte, identique à l'export ODG (carnet_core::odg::TEXT_PADDING_MM). */
@@ -40,7 +40,7 @@ function runFrom(node: JSONContent, style: TextStyle): Run {
       const a = mark.attrs ?? {};
       // Seules les valeurs que l'export ODG représente fidèlement sont gardées.
       if (typeof a.color === "string" && HEX_COLOR.test(a.color) && a.color.toLowerCase() !== style.color.toLowerCase()) run.color = a.color;
-      if (typeof a.fontFamily === "string" && EMBEDDED_FAMILIES.includes(a.fontFamily) && a.fontFamily !== style.font) run.font = a.fontFamily;
+      if (typeof a.fontFamily === "string" && isKnownFamily(a.fontFamily) && a.fontFamily !== style.font) run.font = a.fontFamily;
       const pt = parsePt(a.fontSize);
       if (pt !== null && pt !== style.size_pt) run.size_pt = pt;
     }

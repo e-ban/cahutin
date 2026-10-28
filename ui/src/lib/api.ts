@@ -32,8 +32,13 @@ export const exportProblemReport = (path: string) => invoke<void>("export_proble
 export const canExportPdf = () => invoke<boolean>("can_export_pdf");
 export const exportPdf = (path: string, landscape: boolean) => invoke<void>("export_pdf", { path, landscape });
 
-/** URL d'une image importée, servie par le protocole `carnet-asset` (forme `http://<schéma>.localhost` sous Windows). */
+// Protocole `carnet-asset` (forme `http://<schéma>.localhost` sous Windows).
+const assetBase = () => (navigator.userAgent.includes("Windows") ? "http://carnet-asset.localhost" : "carnet-asset://localhost");
+
+/** URL d'une image importée. */
 export function assetUrl(id: string, thumb = false): string {
-  const base = navigator.userAgent.includes("Windows") ? "http://carnet-asset.localhost/" : "carnet-asset://localhost/";
-  return base + id + (thumb ? "/thumb" : "");
+  return `${assetBase()}/${id}${thumb ? "/thumb" : ""}`;
 }
+
+/** URL d'une police ajoutée, à partir de son `url_path` (`/font/<fichier>`). */
+export const fontUrl = (urlPath: string) => assetBase() + urlPath;

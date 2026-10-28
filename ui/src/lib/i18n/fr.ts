@@ -119,6 +119,22 @@ export const fr = {
   usedInDocument: "Déjà dans le document",
   photoClickHint: "Cliquez une photo pour la mettre dans la zone sélectionnée, ou glissez-la sur la page.",
   noPhotosYet: "Ajoutez les photos de la sortie : elles restent ici, prêtes à être glissées sur les pages.",
+  // Polices
+  addFont: "＋ Ajouter une police (.ttf, .otf)",
+  builtinFonts: "Fournies",
+  userFonts: "Ajoutées par vous",
+  noUserFonts: "Aucune pour l'instant.",
+  exportWarning: "⚠ export",
+  restrictedFontExplain:
+    "La licence de cette police interdit de l'intégrer à un fichier : elle s'affiche dans Carnet, mais l'export pour LibreOffice ne l'emporte pas et LibreOffice la remplacera sur un poste où elle n'est pas installée.",
+  removeFont: "Supprimer cette police",
+  confirmRemoveFont: (name: string) => `Supprimer la police « ${name} » ? Les textes qui l'utilisent s'afficheront en Andika.`,
+  fontAdded: (name: string) => `Police ajoutée : ${name}`,
+  applyFontHint: "Cliquez une police pour l'appliquer au texte sélectionné.",
+  offerFonts: (names: string[]) =>
+    names.length === 1 ? `Ce document utilise la police ${names[0]} : l'ajouter ?` : `Ce document utilise les polices ${names.join(", ")} : les ajouter ?`,
+  addFontsNow: "Ajouter",
+  later: "Plus tard",
   // Clic droit
   cut: "Couper",
   copy: "Copier",

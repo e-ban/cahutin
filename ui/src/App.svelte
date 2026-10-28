@@ -35,7 +35,7 @@
   fonts.load();
   templates.refresh();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
-  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths } });
+  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts } });
 
   // Fermeture de la fenêtre : demander d'enregistrer s'il y a des modifications.
   onMount(() => {

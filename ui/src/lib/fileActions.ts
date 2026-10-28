@@ -5,6 +5,8 @@ import * as api from "./api";
 import { ask } from "./ask";
 import { confirmDiscardIfDirty, editor, type DiscardChoice } from "./docStore.svelte";
 import { newDocument } from "./factory";
+import { fonts } from "./fonts.svelte";
+import { fr } from "./i18n/fr";
 import { summarizeImport } from "./importSummary";
 import { pendingPaths } from "./photoLibrary";
 import type { ImportOutcome } from "./types";
@@ -83,6 +85,7 @@ export async function openDoc() {
   const opened = await guard(() => api.openDocument(picked));
   if (!opened) return;
   editor.reset(opened.doc, picked);
+  if (opened.offered_fonts.length) void offerDocumentFonts(opened.offered_fonts);
   editor.addPhotos(Object.values(opened.doc.assets).flatMap((meta) => (meta ? [{ meta, path: "", folder: "" }] : [])));
   // Photos en attente : celles qui existent encore sont réimportées, sans message pour les autres.
   const pending = await api.existingPaths(opened.doc.pending_photos).catch(() => []);
@@ -182,4 +185,14 @@ export async function importPaths(paths: string[], opts: { fromFolder?: boolean;
   }
   const { message } = summarizeImport(outcomes);
   if (message && !opts.quiet) editor.notice = message;
+}
+
+/** « Ce document utilise la police X : l'ajouter ? » ; refusée, le texte s'affiche en Andika. */
+async function offerDocumentFonts(names: string[]) {
+  const choice = await modal.choose(fr.offerFonts(names), [
+    { value: "later", label: fr.later },
+    { value: "add", label: fr.addFontsNow, primary: true },
+  ]);
+  if (choice !== "add") return;
+  if ((await guard(() => api.acceptDocumentFonts())) !== undefined) await fonts.load();
 }

@@ -94,6 +94,7 @@ pub fn builtin() -> Vec<Template> {
         frame: Frame { x_mm: f.x_mm + 3.0, y_mm: f.y_mm + 2.0, w_mm: 60.0, h_mm: 10.0, rotation_deg: 0.0 },
         locked: true,
         zone: false,
+        group: None,
         kind: ElementKind::Text(TextProps {
             content: RichText::plain("Mon dessin"),
             style: TextStyle { font: "Andika".into(), size_pt: 12.0, color: "#999999".into(), align: Align::Left },
@@ -120,7 +121,8 @@ fn photo_asset(e: &Element) -> Option<&Id> {
 /// ou le nommer : il ne part pas dans un modèle destiné à être partagé.
 pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
     let mut page = page.clone();
-    page.elements.retain(|e| e.zone || e.locked || matches!(e.kind, ElementKind::Shape(_)));
+    page.elements.retain(|e| e.zone || e.locked || matches!(e.kind, ElementKind::Shape(_) | ElementKind::Image(_)));
+    crate::groups::dissolve_small_groups(&mut page);
     for e in page.elements.iter_mut().filter(|e| e.zone) {
         match &mut e.kind {
             ElementKind::Photo(p) => {
@@ -128,7 +130,7 @@ pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
                 p.crop = Crop::COVER;
             }
             ElementKind::Text(t) => t.content = RichText::default(),
-            ElementKind::Shape(_) => {}
+            ElementKind::Shape(_) | ElementKind::Image(_) => {}
         }
     }
     let mut assets: Vec<Asset> = Vec::new();
@@ -351,6 +353,7 @@ mod tests {
             frame: Frame { x_mm: 180.0, y_mm: 5.0, w_mm: 20.0, h_mm: 20.0, rotation_deg: 0.0 },
             locked: true,
             zone: false,
+            group: None,
             kind: ElementKind::Photo(PhotoProps { asset: Some(logo_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false }),
         });
         let t = from_page("Mon modèle", &page, &store);
@@ -380,6 +383,7 @@ mod tests {
             frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 50.0, h_mm: 50.0, rotation_deg: 0.0 },
             locked: false,
             zone: false,
+            group: None,
             kind,
         };
         page.elements.push(free(ElementKind::Photo(PhotoProps { asset: Some(child_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false })));
@@ -442,5 +446,24 @@ mod tests {
         let info = lib.save(&from_page("À jeter", &page, &AssetStore::default())).unwrap();
         lib.delete(&info.id).unwrap();
         assert_eq!(lib.list().len(), 3);
+    }
+
+    #[test]
+    fn from_page_keeps_images_and_dissolves_orphans() {
+        let mut page = Page::new(A4_PORTRAIT);
+        let base = |kind: ElementKind| Element {
+            id: new_id(),
+            frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 20.0, h_mm: 20.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: Some("g".into()),
+            kind,
+        };
+        page.elements.push(base(ElementKind::Image(ImageProps { code: "1F98A".into() })));
+        page.elements.push(base(ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false })));
+        let t = from_page("m", &page, &AssetStore::default());
+        assert_eq!(t.page.elements.len(), 1);
+        assert!(matches!(t.page.elements[0].kind, ElementKind::Image(_)));
+        assert_eq!(t.page.elements[0].group, None);
     }
 }

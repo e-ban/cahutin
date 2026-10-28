@@ -94,6 +94,8 @@ impl Writer<'_> {
                 self.shape(e, s);
                 Ok(())
             }
+            // Écrite à la tâche 3 du plan (images OpenMoji).
+            ElementKind::Image(_) => Ok(()),
         }
     }
 

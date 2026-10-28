@@ -126,6 +126,7 @@ mod tests {
             frame: f,
             locked: false,
             zone: true,
+            group: None,
             kind: ElementKind::Photo(PhotoProps {
                 asset: asset.map(String::from),
                 crop: Crop::COVER,
@@ -142,6 +143,7 @@ mod tests {
             frame: frame(10.0, 200.0, 190.0, 40.0),
             locked: false,
             zone: true,
+            group: None,
             kind: ElementKind::Text(TextProps { content, style: TextStyle::default_zone(), prompt: prompt.map(String::from) }),
         }
     }
@@ -409,6 +411,7 @@ mod tests {
             frame: f,
             locked: false,
             zone: false,
+            group: None,
             kind: ElementKind::Shape(ShapeProps {
                 shape: kind,
                 fill: Some("#f1c40f".into()),

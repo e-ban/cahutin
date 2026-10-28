@@ -34,6 +34,7 @@ fn empty_photo_zone() -> Element {
         frame: Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 0.0, h_mm: 0.0, rotation_deg: 0.0 },
         locked: false,
         zone: true,
+        group: None,
         kind: ElementKind::Photo(PhotoProps {
             asset: None,
             crop: Crop::COVER,
@@ -61,6 +62,7 @@ fn emptied_copy(e: &Element) -> Element {
         ElementKind::Photo(p) => ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, ..p.clone() }),
         ElementKind::Text(t) => ElementKind::Text(TextProps { content: RichText::default(), ..t.clone() }),
         ElementKind::Shape(s) => ElementKind::Shape(s.clone()),
+        ElementKind::Image(i) => ElementKind::Image(i.clone()),
     };
     Element { id: new_id(), kind, ..e.clone() }
 }
@@ -267,6 +269,7 @@ mod tests {
             frame: Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 210.0, h_mm: 20.0, rotation_deg: 0.0 },
             locked: true,
             zone: false,
+            group: None,
             kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0 }),
         };
         p.elements.push(band);

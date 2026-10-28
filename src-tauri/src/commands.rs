@@ -457,6 +457,7 @@ mod tests {
             frame: carnet_core::Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 50.0, h_mm: 20.0, rotation_deg: 0.0 },
             locked: false,
             zone: false,
+            group: None,
             kind: carnet_core::ElementKind::Text(carnet_core::TextProps {
                 content: carnet_core::RichText::plain("bonjour"),
                 style,

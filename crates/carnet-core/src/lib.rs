@@ -4,6 +4,7 @@ pub mod crop;
 pub mod fonts;
 mod fsutil;
 pub mod grid;
+pub mod groups;
 pub mod model;
 pub mod native;
 pub mod odg;

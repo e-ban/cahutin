@@ -1,6 +1,9 @@
 // Mise en forme du texte sélectionné, partagée par la barre flottante et le panneau de droite.
 // Pendant l'écriture, elle s'applique à la sélection TipTap ; sinon à toute la zone.
 import type { Editor } from "@tiptap/core";
+// Déclarations des commandes de mise en forme (setFontFamily, setColor, setTextAlign…) ajoutées par ces extensions.
+import type {} from "@tiptap/extension-text-align";
+import type {} from "@tiptap/extension-text-style";
 import { editor } from "./docStore.svelte";
 import { alignToCss } from "./richtext";
 import { textEditing } from "./textEditing.svelte";

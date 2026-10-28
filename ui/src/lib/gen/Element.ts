@@ -6,4 +6,8 @@ export type Element = { id: string, frame: Frame, locked: boolean,
 /**
  * Zone à remplir, issue d'un modèle.
  */
-zone: boolean, kind: ElementKind, };
+zone: boolean, 
+/**
+ * Groupe : les éléments d'une page qui partagent cet identifiant se manient ensemble.
+ */
+group?: string | null, kind: ElementKind, };

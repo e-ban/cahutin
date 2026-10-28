@@ -79,6 +79,12 @@ fn used_assets(doc: &Document) -> BTreeSet<String> {
         .collect()
 }
 
+/// 2 si le document contient une image (un Carnet plus ancien affiche alors « version plus récente »), sinon 1.
+pub fn written_version(doc: &Document) -> u32 {
+    let has_image = doc.pages.iter().flat_map(|p| &p.elements).any(|e| matches!(e.kind, ElementKind::Image(_)));
+    if has_image { 2 } else { 1 }
+}
+
 fn used_families(doc: &Document) -> BTreeSet<&str> {
     let mut out = BTreeSet::new();
     for e in doc.pages.iter().flat_map(|p| &p.elements) {
@@ -96,6 +102,7 @@ pub fn save(doc: &Document, store: &AssetStore, fonts: &FontSet, out: impl Write
     let used = used_assets(doc);
     let mut doc = doc.clone();
     doc.assets.retain(|id, _| used.contains(id));
+    doc.format_version = written_version(&doc);
 
     let mut zip = ZipWriter::new(out);
     let deflated = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
@@ -189,6 +196,7 @@ mod tests {
             frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 50.0, h_mm: 40.0, rotation_deg: 0.0 },
             locked: false,
             zone: true,
+            group: None,
             kind: ElementKind::Photo(PhotoProps {
                 asset: Some(asset.into()),
                 crop: Crop::COVER,
@@ -248,18 +256,6 @@ mod tests {
     }
 
     #[test]
-    fn newer_version_is_refused() {
-        let mut doc = Document::new("futur");
-        doc.format_version = 2;
-        let mut buf = Cursor::new(Vec::new());
-        save(&doc, &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
-        buf.set_position(0);
-        let err = load(buf).err().unwrap();
-        assert_eq!(err, NativeError::NewerVersion(2));
-        assert!(err.message_fr().contains("plus récente"));
-    }
-
-    #[test]
     fn missing_image_is_reported_as_such() {
         let (doc, _, _) = sample();
         let mut buf = Cursor::new(Vec::new());
@@ -306,6 +302,7 @@ mod tests {
                 frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 80.0, h_mm: 20.0, rotation_deg: 0.0 },
                 locked: false,
                 zone: false,
+                group: None,
                 kind: ElementKind::Text(TextProps { content: RichText::plain("bonjour"), style, prompt: None }),
             });
         }
@@ -331,6 +328,7 @@ mod tests {
             frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 80.0, h_mm: 20.0, rotation_deg: 0.0 },
             locked: false,
             zone: false,
+            group: None,
             kind: ElementKind::Text(TextProps { content: RichText::plain("bonjour"), style, prompt: None }),
         });
         let mut buf = Cursor::new(Vec::new());
@@ -359,6 +357,7 @@ mod tests {
                 frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 80.0, h_mm: 20.0, rotation_deg: 0.0 },
                 locked: false,
                 zone: false,
+                group: None,
                 kind: ElementKind::Text(TextProps { content: RichText::plain("x"), style, prompt: None }),
             });
         }
@@ -367,5 +366,46 @@ mod tests {
         buf.set_position(0);
         let families: Vec<String> = load(buf).unwrap().fonts.iter().filter_map(|(_, b)| crate::fonts::family_of(b)).collect();
         assert_eq!(families.len(), 2, "{families:?}");
+    }
+
+    fn picture(group: Option<&str>) -> Element {
+        Element {
+            id: new_id(),
+            frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 20.0, h_mm: 20.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: group.map(String::from),
+            kind: ElementKind::Image(ImageProps { code: "1F98A".into() }),
+        }
+    }
+
+    #[test]
+    fn written_version_is_2_only_with_images() {
+        let mut doc = Document::new("v");
+        assert_eq!(written_version(&doc), 1);
+        doc.pages[0].elements.push(picture(None));
+        assert_eq!(written_version(&doc), 2);
+        let mut buf = Cursor::new(Vec::new());
+        save(&doc, &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
+        buf.set_position(0);
+        assert_eq!(load(buf).unwrap().doc.format_version, 2);
+    }
+
+    #[test]
+    fn newer_than_2_is_refused() {
+        let mut doc = Document::new("futur");
+        doc.format_version = 3;
+        let json = serde_json::to_vec(&doc).unwrap();
+        let mut buf = Cursor::new(Vec::new());
+        {
+            let mut zip = ZipWriter::new(&mut buf);
+            zip.start_file(DOCUMENT_ENTRY, SimpleFileOptions::default()).unwrap();
+            zip.write_all(&json).unwrap();
+            zip.finish().unwrap();
+        }
+        buf.set_position(0);
+        let err = load(buf).err().unwrap();
+        assert_eq!(err, NativeError::NewerVersion(3));
+        assert!(err.message_fr().contains("plus récente"));
     }
 }

@@ -10,7 +10,8 @@ pub fn new_id() -> Id {
     uuid::Uuid::new_v4().to_string()
 }
 
-pub const FORMAT_VERSION: u32 = 1;
+/// Version la plus récente que cette application sait lire (2 : élément image).
+pub const FORMAT_VERSION: u32 = 2;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -28,7 +29,7 @@ pub struct Document {
 impl Document {
     pub fn new(title: &str) -> Document {
         Document {
-            format_version: FORMAT_VERSION,
+            format_version: 1,
             title: title.to_string(),
             pages: vec![Page::new(A4_PORTRAIT)],
             assets: BTreeMap::new(),
@@ -93,6 +94,10 @@ pub struct Element {
     pub locked: bool,
     /// Zone à remplir, issue d'un modèle.
     pub zone: bool,
+    /// Groupe : les éléments d'une page qui partagent cet identifiant se manient ensemble.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub group: Option<Id>,
     pub kind: ElementKind,
 }
 
@@ -103,6 +108,14 @@ pub enum ElementKind {
     Photo(PhotoProps),
     Text(TextProps),
     Shape(ShapeProps),
+    Image(ImageProps),
+}
+
+/// Image de la banque OpenMoji embarquée, désignée par son code (par exemple `1F98A`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export)]
+pub struct ImageProps {
+    pub code: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -284,6 +297,7 @@ mod tests {
             frame: Frame { x_mm: 10.0, y_mm: 20.0, w_mm: 80.0, h_mm: 60.0, rotation_deg: 0.0 },
             locked: false,
             zone: true,
+            group: None,
             kind: ElementKind::Photo(PhotoProps {
                 asset: Some("a1".into()),
                 crop: Crop::COVER,
@@ -297,6 +311,7 @@ mod tests {
             frame: Frame { x_mm: 10.0, y_mm: 90.0, w_mm: 190.0, h_mm: 30.0, rotation_deg: 5.0 },
             locked: false,
             zone: true,
+            group: None,
             kind: ElementKind::Text(TextProps {
                 content: RichText {
                     paragraphs: vec![Paragraph {
@@ -321,6 +336,7 @@ mod tests {
             frame: Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 210.0, h_mm: 15.0, rotation_deg: 0.0 },
             locked: true,
             zone: false,
+            group: None,
             kind: ElementKind::Shape(ShapeProps {
                 shape: ShapeKind::Rect,
                 fill: Some("#ffeecc".into()),
@@ -370,5 +386,13 @@ mod tests {
         let json = r#"{"format_version":1,"title":"Ancien","pages":[],"assets":{}}"#;
         let d: Document = serde_json::from_str(json).unwrap();
         assert!(d.pending_photos.is_empty());
+    }
+
+    #[test]
+    fn old_documents_load_without_group() {
+        let json = r#"{"id":"e","frame":{"x_mm":0,"y_mm":0,"w_mm":1,"h_mm":1,"rotation_deg":0},"locked":false,"zone":false,"kind":{"type":"Image","code":"1F98A"}}"#;
+        let e: Element = serde_json::from_str(json).unwrap();
+        assert_eq!(e.group, None);
+        assert_eq!(e.kind, ElementKind::Image(ImageProps { code: "1F98A".into() }));
     }
 }

@@ -41,6 +41,7 @@ fn text_element(c: &Case) -> Element {
         frame: Frame { x_mm: ORIGIN_MM, y_mm: ORIGIN_MM, w_mm: c.w_mm, h_mm: c.h_mm, rotation_deg: 0.0 },
         locked: false,
         zone: true,
+        group: None,
         kind: ElementKind::Text(TextProps { content: RichText::plain(&c.text), style, prompt: None }),
     }
 }
@@ -124,6 +125,7 @@ fn photo_document(store: &mut AssetStore, n: usize) -> Document {
             frame: Frame { x_mm: 20.0, y_mm: 20.0 + 90.0 * i as f64, w_mm: 120.0, h_mm: 80.0, rotation_deg: 0.0 },
             locked: false,
             zone: true,
+            group: None,
             kind: ElementKind::Photo(PhotoProps {
                 asset: Some(a.meta.id.clone()),
                 crop: Crop::COVER,
@@ -215,6 +217,7 @@ fn user_font_is_embedded_in_rendering() {
         frame: Frame { x_mm: ORIGIN_MM, y_mm: ORIGIN_MM, w_mm: 120.0, h_mm: 20.0, rotation_deg: 0.0 },
         locked: false,
         zone: false,
+        group: None,
         kind: ElementKind::Text(TextProps { content: RichText::plain("Police ajoutée"), style, prompt: None }),
     });
     let (_dir, pdf) = render_with(&doc, &AssetStore::default(), &FontSet::with_user_dir(fonts_dir.path()));
@@ -238,6 +241,7 @@ fn system_font_is_embedded_in_rendering() {
         frame: Frame { x_mm: ORIGIN_MM, y_mm: ORIGIN_MM, w_mm: 120.0, h_mm: 20.0, rotation_deg: 0.0 },
         locked: false,
         zone: false,
+        group: None,
         kind: ElementKind::Text(TextProps { content: RichText::plain("Police du poste"), style, prompt: None }),
     });
     let (_dir, pdf) = render_with(&doc, &AssetStore::default(), &fonts);
@@ -323,6 +327,7 @@ fn drawn_shapes_keep_their_geometry() {
             frame: Frame { x_mm: ORIGIN_MM, y_mm: ORIGIN_MM, w_mm: SIDE_MM, h_mm: SIDE_MM, rotation_deg: 0.0 },
             locked: false,
             zone: false,
+            group: None,
             kind: ElementKind::Shape(ShapeProps { shape: kind, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0 }),
         });
         doc.pages.push(page);
@@ -348,6 +353,7 @@ fn arrow_has_its_head() {
         frame: Frame { x_mm: ORIGIN_MM, y_mm: ORIGIN_MM, w_mm: 100.0, h_mm: 10.0, rotation_deg: 0.0 },
         locked: false,
         zone: false,
+        group: None,
         kind: ElementKind::Shape(ShapeProps {
             shape: ShapeKind::Arrow,
             fill: None,

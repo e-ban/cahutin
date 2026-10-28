@@ -1,18 +1,18 @@
 <script lang="ts">
-  // Sélection au cadre : glisser sur la page vide sélectionne les éléments entièrement couverts
+  // Sélection au cadre : glisser sur la page vide ou la vue autour sélectionne les éléments entièrement couverts
   // (un élément groupé sélectionne tout son groupe) ; Maj ajoute à la sélection.
   import { editor } from "../lib/docStore.svelte";
   import { elementsInRect, expandSelection } from "../lib/groups";
   import { PX_PER_MM } from "../lib/units";
 
-  let { pageEl, zoom }: { pageEl: HTMLElement | undefined; zoom: number } = $props();
+  let { pageEl, stageEl, zoom }: { pageEl: HTMLElement | undefined; stageEl: HTMLElement | undefined; zoom: number } = $props();
 
   const THRESHOLD_PX = 4;
   let start: { x: number; y: number; add: boolean } | null = null;
   let box = $state<{ left: number; top: number; width: number; height: number } | null>(null);
 
   function onDown(ev: PointerEvent) {
-    if (ev.button !== 0 || ev.target !== pageEl || editor.cropping || editor.editingText) return;
+    if (ev.button !== 0 || (ev.target !== pageEl && ev.target !== stageEl) || editor.cropping || editor.editingText) return;
     start = { x: ev.clientX, y: ev.clientY, add: ev.shiftKey };
   }
 
@@ -37,10 +37,9 @@
   }
 
   $effect(() => {
-    const el = pageEl;
-    if (!el) return;
-    el.addEventListener("pointerdown", onDown);
-    return () => el.removeEventListener("pointerdown", onDown);
+    const els = [pageEl, stageEl].filter((e): e is HTMLElement => !!e);
+    for (const el of els) el.addEventListener("pointerdown", onDown);
+    return () => els.forEach((el) => el.removeEventListener("pointerdown", onDown));
   });
 </script>
 

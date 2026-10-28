@@ -160,7 +160,16 @@
   {:else if editor.drawer === "grid"}<GridDrawer />
   {:else if editor.drawer === "decor"}<DecorDrawer />
   {/if}
-  <main class="stage" bind:this={stageEl} bind:clientWidth={stageWidth} bind:clientHeight={stageHeight}>
+  <main
+    class="stage"
+    bind:this={stageEl}
+    bind:clientWidth={stageWidth}
+    bind:clientHeight={stageHeight}
+    onpointerdown={(ev) => {
+      // Clic dans la vue, hors de la page : comme un clic sur la page vide.
+      if (ev.target === ev.currentTarget && !ev.shiftKey && !editor.cropping) select(null, false);
+    }}
+  >
     <PageView
       page={editor.page}
       doc={editor.doc}
@@ -193,7 +202,7 @@
     <Transformer {pageEl} zoom={editor.effectiveZoom} />
     <GroupTransformer {pageEl} zoom={editor.effectiveZoom} onpick={select} />
     <ContextBar {pageEl} {stageEl} />
-    <BoxSelect {pageEl} zoom={editor.effectiveZoom} />
+    <BoxSelect {pageEl} {stageEl} zoom={editor.effectiveZoom} />
     <CellBar {pageEl} {stageEl} />
     <GridDragMerge {pageEl} />
     {#if contextTarget}<ContextMenu target={contextTarget} onclose={() => (contextTarget = null)} />{/if}

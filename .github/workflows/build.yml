@@ -136,6 +136,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=${GITHUB_REF_NAME#v}
-          files=("dist/Carnet_${version}_x64-setup.exe" "dist/Carnet_${version}_amd64.AppImage" "dist/Carnet_${version}_amd64.deb")
-          for f in "${files[@]}"; do test -f "$f" || { echo "::error::$f introuvable"; ls dist; exit 1; }; done
-          gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --title "Carnet $version" --notes-file dist/notes.md --prerelease
+          # Les paquets Linux arrivent dans des sous-dossiers (appimage/, deb/) : on les cherche par leur nom.
+          files=()
+          for name in "Carnet_${version}_x64-setup.exe" "Carnet_${version}_amd64.AppImage" "Carnet_${version}_amd64.deb"; do
+            f=$(find dist -type f -name "$name" | head -1)
+            test -n "$f" || { echo "::error::$name introuvable"; find dist -type f; exit 1; }
+            files+=("$f")
+          done
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --title "Carnet $version" --notes-file "$(find dist -type f -name notes.md | head -1)" --prerelease

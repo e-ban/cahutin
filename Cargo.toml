@@ -7,6 +7,31 @@ edition = "2024"
 version = "0.1.0"
 license = "MPL-2.0"
 
-# Le traitement d'images est très lent sans optimisation, y compris en développement.
-[profile.dev.package."*"]
+# Le traitement d'images est très lent sans optimisation : seules ces bibliothèques sont optimisées
+# en développement (optimiser toutes les dépendances rendait la compilation très longue).
+[profile.dev.package.image]
+opt-level = 3
+
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+
+[profile.dev.package.zune-core]
+opt-level = 3
+
+[profile.dev.package.png]
+opt-level = 3
+
+[profile.dev.package.fdeflate]
+opt-level = 3
+
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+
+[profile.dev.package.image-webp]
+opt-level = 3
+
+[profile.dev.package.simd-adler32]
+opt-level = 3
+
+[profile.dev.package.crc32fast]
 opt-level = 3

@@ -32,8 +32,9 @@ jobs:
       - name: Tests de l'interface
         run: npm test
 
+      # En release : l'installeur réutilise ensuite la plupart des dépendances compilées ici.
       - name: Tests du moteur et de l'application
-        run: cargo test --workspace
+        run: cargo test --workspace --release
 
       - name: Installeur
         run: npm run tauri build

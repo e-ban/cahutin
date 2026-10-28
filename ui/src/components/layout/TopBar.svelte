@@ -3,6 +3,12 @@
   import OutputMenu from "./OutputMenu.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
+
+  function toggleTemplateMode() {
+    editor.templateMode = !editor.templateMode;
+    editor.drawer = editor.templateMode ? "grid" : null;
+    editor.selection = [];
+  }
 </script>
 
 <header class="top">
@@ -19,7 +25,7 @@
   <button class="ghost" onclick={() => editor.undo()} disabled={!editor.canUndo} title="{fr.undo} (Ctrl+Z)" aria-label={fr.undo}>↶</button>
   <button class="ghost" onclick={() => editor.redo()} disabled={!editor.canRedo} title="{fr.redo} (Ctrl+Y)" aria-label={fr.redo}>↷</button>
   <span class="spacer"></span>
-  <button class="ghost" class:tpl-on={editor.templateMode} onclick={() => (editor.templateMode = !editor.templateMode)}>▦ {fr.template}</button>
+  <button class="ghost" class:tpl-on={editor.templateMode} onclick={toggleTemplateMode}>▦ {fr.template}</button>
   <OutputMenu />
 </header>
 

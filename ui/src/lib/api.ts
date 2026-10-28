@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { Document, FontFamilyInfo, FontFileInfo, ImportOutcome, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
+import type { Document, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -19,6 +19,7 @@ export const gridSplit = (page: Page, cell: string) => invoke<Page>("grid_split"
 export const gridSetKind = (page: Page, cell: string, kind: ZoneKind) => invoke<Page>("grid_set_kind", { page, cell, kind });
 export const pageSetSize = (page: Page, widthMm: number, heightMm: number) => invoke<Page>("page_set_size", { page, widthMm, heightMm });
 export const gridLiberate = (page: Page) => invoke<Page>("grid_liberate", { page });
+export const gridPreset = (page: Page, preset: GridPreset) => invoke<Page>("grid_preset", { page, preset });
 export const listTemplates = () => invoke<TemplateInfo[]>("list_templates");
 export const instantiateTemplate = (id: string) => invoke<InstantiatedPage>("instantiate_template", { id });
 export const savePageAsTemplate = (name: string, page: Page) => invoke<TemplateInfo>("save_page_as_template", { name, page });

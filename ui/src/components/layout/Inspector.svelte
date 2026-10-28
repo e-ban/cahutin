@@ -5,6 +5,7 @@
   import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
   import { ALIGNS, activeTip, isMarkActive, setAlign, setColor, setFont, setSize, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
   import { endPreview, previewPhoto, previewShape, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
+  import { deleteSelection } from "../../lib/editActions";
   import type { Frame } from "../../lib/types";
 
   const selected = $derived(editor.selected);
@@ -170,11 +171,19 @@
     {/if}
 
     <div class="actions">
-      <button onclick={() => update((e) => ({ ...e, locked: !e.locked }))}>{selected.locked ? `🔓 ${fr.unlock}` : `🔒 ${fr.lock}`}</button>
+      <button onclick={() => update((e) => ({ ...e, locked: !e.locked }))}>
+        {#if editor.templateMode}📌 {selected.locked ? fr.unfixCell : fr.fixCell}{:else}{selected.locked ? `🔓 ${fr.unlock}` : `🔒 ${fr.lock}`}{/if}
+      </button>
       {#if !selected.locked}
-        <button onclick={() => editor.updatePage((p) => ({ ...p, elements: p.elements.filter((e) => e.id !== selected.id) }))}>🗑 {fr.delete}</button>
+        <button onclick={deleteSelection}>🗑 {fr.delete}</button>
       {/if}
     </div>
+    {#if editor.templateMode && selected.kind.type !== "Shape"}
+      <label class="check">
+        <input type="checkbox" checked={selected.zone} onchange={(e) => update((el) => ({ ...el, zone: e.currentTarget.checked }))} />
+        {fr.isZone}
+      </label>
+    {/if}
   {/if}
 </aside>
 {/if}

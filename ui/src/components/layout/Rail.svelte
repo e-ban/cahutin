@@ -1,14 +1,21 @@
 <script lang="ts">
   import { editor, type DrawerId } from "../../lib/docStore.svelte";
+  import { pickLogo } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
 
-  const items: { id: DrawerId; icon: string; label: string }[] = [
+  const normal: { id: DrawerId; icon: string; label: string }[] = [
     { id: "templates", icon: "▦", label: fr.templates },
     { id: "photos", icon: "🖼", label: fr.photos },
     { id: "text", icon: "T", label: fr.text },
     { id: "shapes", icon: "◯", label: fr.shapes },
     { id: "fonts", icon: "Aa", label: fr.fonts },
   ];
+  const template: { id: DrawerId; icon: string; label: string }[] = [
+    { id: "grid", icon: "▦", label: fr.grid },
+    { id: "text", icon: "T", label: fr.text },
+    { id: "shapes", icon: "◯", label: fr.shapes },
+  ];
+  const items = $derived(editor.templateMode ? template : normal);
 </script>
 
 <nav class="rail" aria-label="Outils">
@@ -17,6 +24,9 @@
       <b>{item.icon}</b>{item.label}
     </button>
   {/each}
+  {#if editor.templateMode}
+    <button class="item" onclick={pickLogo}><b>⭐</b>{fr.logo}</button>
+  {/if}
 </nav>
 
 <style>

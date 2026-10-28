@@ -22,6 +22,8 @@ class Editor {
   importProgress = $state<{ done: number; total: number } | null>(null);
   /** Texte en cours d'édition. */
   editingText = $state<string | null>(null);
+  /** Fusion en glissant (mode modèle) : cases couvertes, et si la fusion est possible. */
+  mergePreview = $state<{ ids: string[]; ok: boolean } | null>(null);
   /** Déplacement, redimensionnement ou rotation à la souris en cours (Moveable). */
   gesture = $state(false);
   /** Photo en cours de recadrage (double-clic). */

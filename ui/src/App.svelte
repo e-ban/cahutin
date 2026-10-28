@@ -9,7 +9,10 @@
   import ContextBar from "./components/ContextBar.svelte";
   import ContextMenu, { type ContextTarget } from "./components/layout/ContextMenu.svelte";
   import PageView from "./components/PageView.svelte";
-  import TemplateBar from "./components/TemplateBar.svelte";
+  import CellBar from "./components/CellBar.svelte";
+  import GridDragMerge from "./components/GridDragMerge.svelte";
+  import TemplateBanner from "./components/layout/TemplateBanner.svelte";
+  import GridDrawer from "./components/drawers/GridDrawer.svelte";
   import TemplatePicker from "./components/TemplatePicker.svelte";
   import Transformer from "./components/Transformer.svelte";
   import BottomBar from "./components/layout/BottomBar.svelte";
@@ -116,13 +119,14 @@
 
 <div class="app">
   <TopBar />
-  {#if editor.templateMode}<TemplateBar />{/if}
+  {#if editor.templateMode}<TemplateBanner />{/if}
   <Rail />
   {#if editor.drawer === "templates"}<TemplatesDrawer />
   {:else if editor.drawer === "photos"}<PhotosDrawer />
   {:else if editor.drawer === "text"}<TextDrawer />
   {:else if editor.drawer === "shapes"}<ShapesDrawer />
   {:else if editor.drawer === "fonts"}<FontsDrawer />
+  {:else if editor.drawer === "grid"}<GridDrawer />
   {/if}
   <main class="stage" bind:this={stageEl} bind:clientWidth={stageWidth} bind:clientHeight={stageHeight}>
     <PageView
@@ -150,6 +154,8 @@
     />
     <Transformer {pageEl} zoom={editor.effectiveZoom} />
     <ContextBar {pageEl} {stageEl} />
+    <CellBar {pageEl} {stageEl} />
+    <GridDragMerge {pageEl} />
     {#if contextTarget}<ContextMenu target={contextTarget} onclose={() => (contextTarget = null)} />{/if}
     {#if editor.showPicker}<TemplatePicker />{/if}
   </main>

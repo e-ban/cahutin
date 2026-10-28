@@ -122,6 +122,8 @@
       class:cropping={e.id === cropping}
       class:zone-photo={e.zone && e.kind.type === "Photo"}
       class:zone-text={e.zone && e.kind.type === "Text"}
+      class:merge-ok={templateMode && editor.mergePreview?.ok && editor.mergePreview.ids.includes(e.id)}
+      class:merge-bad={templateMode && editor.mergePreview && !editor.mergePreview.ok && editor.mergePreview.ids.includes(e.id)}
       data-id={e.id}
       role="presentation"
       style={frameStyle(e)}
@@ -191,6 +193,14 @@
   .element {
     position: absolute;
     transform-origin: center;
+  }
+  .element.merge-ok {
+    outline: 3px solid var(--accent);
+    background: rgba(46, 134, 222, 0.18);
+  }
+  .element.merge-bad {
+    outline: 3px solid var(--accent-strong);
+    background: rgba(192, 57, 43, 0.15);
   }
   .element.selected {
     outline: 2px solid var(--accent);

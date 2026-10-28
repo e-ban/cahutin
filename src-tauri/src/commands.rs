@@ -178,6 +178,12 @@ pub fn page_set_size(mut page: Page, width_mm: f64, height_mm: f64) -> Page {
 }
 
 #[tauri::command]
+pub fn grid_preset(mut page: Page, preset: grid::GridPreset) -> Page {
+    grid::apply_preset(&mut page, preset);
+    page
+}
+
+#[tauri::command]
 pub fn grid_liberate(mut page: Page) -> Page {
     grid::liberate(&mut page);
     page

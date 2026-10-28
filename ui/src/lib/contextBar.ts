@@ -17,3 +17,14 @@ export function placeContextBar(target: Box, bar: { width: number; height: numbe
   const maxLeft = Math.max(minLeft, viewport.left + viewport.width - gap - bar.width);
   return { left: Math.min(maxLeft, Math.max(minLeft, centered)), top };
 }
+
+/** Boîte englobante (à l'écran) des éléments désignés de la page ; null si aucun n'est affiché. */
+export function selectionBox(pageEl: HTMLElement, ids: string[]): Box | null {
+  const rects = ids
+    .map((id) => pageEl.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`)?.getBoundingClientRect())
+    .filter((r): r is DOMRect => !!r);
+  if (rects.length === 0) return null;
+  const left = Math.min(...rects.map((r) => r.left));
+  const top = Math.min(...rects.map((r) => r.top));
+  return { left, top, width: Math.max(...rects.map((r) => r.right)) - left, height: Math.max(...rects.map((r) => r.bottom)) - top };
+}

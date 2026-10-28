@@ -10,6 +10,7 @@ export type { FontFileInfo } from "./gen/FontFileInfo";
 export type { Frame } from "./gen/Frame";
 export type { GridCell } from "./gen/GridCell";
 export type { GridLayout } from "./gen/GridLayout";
+export type { GridPreset } from "./gen/GridPreset";
 export type { ImportOutcome } from "./gen/ImportOutcome";
 export type { InstantiatedPage } from "./gen/InstantiatedPage";
 export type { Mime } from "./gen/Mime";

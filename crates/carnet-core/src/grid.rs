@@ -1,6 +1,8 @@
 //! Grille du mode modèle : poser, fusionner, scinder, typer et libérer des cases.
 
 use crate::model::*;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 pub const GRID_MARGIN_MM: f64 = 10.0;
 pub const GRID_GAP_MM: f64 = 4.0;
@@ -104,6 +106,39 @@ pub fn set_grid(page: &mut Page, cols: u8, rows: u8) {
     }
     page.grid = Some(GridLayout { cols, rows, margin_mm: GRID_MARGIN_MM, gap_mm: GRID_GAP_MM, cells });
     layout(page);
+}
+
+/// Grilles toutes prêtes du mode modèle.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export)]
+pub enum GridPreset {
+    One,
+    TwoByTwo,
+    TwoByThree,
+    OnePlusTwo,
+    OnePlusTwoSide,
+    ThreeByThree,
+}
+
+/// Pose la grille (remplace l'actuelle), puis fait les fusions du modèle choisi.
+pub fn apply_preset(page: &mut Page, preset: GridPreset) {
+    let (cols, rows, merge) = match preset {
+        GridPreset::One => (1, 1, None),
+        GridPreset::TwoByTwo => (2, 2, None),
+        GridPreset::TwoByThree => (2, 3, None),
+        GridPreset::OnePlusTwo => (2, 2, Some(((0, 0), (1, 0)))),
+        GridPreset::OnePlusTwoSide => (2, 2, Some(((0, 0), (0, 1)))),
+        GridPreset::ThreeByThree => (3, 3, None),
+    };
+    set_grid(page, cols, rows);
+    if let Some(((c0, r0), (c1, r1))) = merge {
+        let id_at = |p: &Page, col: u8, row: u8| {
+            p.grid.as_ref().and_then(|g| g.cells.iter().find(|c| c.col == col && c.row == row)).map(|c| c.element_id.clone())
+        };
+        if let (Some(a), Some(b)) = (id_at(page, c0, r0), id_at(page, c1, r1)) {
+            merge_cells(page, &a, &b).expect("fusion d'une grille toute prête");
+        }
+    }
 }
 
 /// Fusionne `a` et `b` en leur rectangle englobant ; la case `a` garde son type.
@@ -352,5 +387,26 @@ mod tests {
         let mut p = a4();
         set_grid(&mut p, 2, 3);
         assert_eq!(split_cell(&mut p, "inconnue"), Err(GridError::UnknownCell));
+    }
+
+    #[test]
+    fn presets_have_expected_cells() {
+        let spans = |preset: GridPreset| {
+            let mut p = a4();
+            apply_preset(&mut p, preset);
+            let g = p.grid.unwrap();
+            assert_eq!(p.elements.len(), g.cells.len());
+            g.cells.iter().map(|c| (c.col_span, c.row_span)).collect::<Vec<_>>()
+        };
+        assert_eq!(spans(GridPreset::One), [(1, 1)]);
+        assert_eq!(spans(GridPreset::TwoByTwo).len(), 4);
+        assert_eq!(spans(GridPreset::TwoByThree).len(), 6);
+        let one_plus_two = spans(GridPreset::OnePlusTwo);
+        assert_eq!(one_plus_two.len(), 3);
+        assert!(one_plus_two.contains(&(2, 1)));
+        let side = spans(GridPreset::OnePlusTwoSide);
+        assert_eq!(side.len(), 3);
+        assert!(side.contains(&(1, 2)));
+        assert_eq!(spans(GridPreset::ThreeByThree).len(), 9);
     }
 }

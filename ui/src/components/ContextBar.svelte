@@ -4,7 +4,7 @@
   import { tick } from "svelte";
   import ColorPicker from "./ColorPicker.svelte";
   import { alignFrames, distributeFrames, type AlignMode } from "../lib/align";
-  import { placeContextBar } from "../lib/contextBar";
+  import { placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
   import { deleteSelection } from "../lib/editActions";
   import { endPreview, previewPhoto, previewShape, updatePhoto, updateShape } from "../lib/elementEdit";
@@ -22,11 +22,12 @@
   let barEl = $state<HTMLElement>();
   let pos = $state<{ left: number; top: number } | null>(null);
 
+  const inGrid = (id: string) => !!editor.page.grid?.cells.some((c) => c.element_id === id);
   const selected = $derived(editor.selected);
   const many = $derived(editor.selection.length > 1);
-  const visible = $derived(editor.selection.length > 0 && !editor.gesture && !editor.cropping && !editor.templateMode && !editor.printing);
-
-  const inGrid = (id: string) => !!editor.page.grid?.cells.some((c) => c.element_id === id);
+  // En mode modèle, une case de grille a sa propre barre (CellBar).
+  const cellInTemplate = $derived(editor.templateMode && editor.selection.some((id) => inGrid(id)));
+  const visible = $derived(editor.selection.length > 0 && !editor.gesture && !editor.cropping && !cellInTemplate && !editor.printing);
 
   $effect(() => {
     void editor.selection;
@@ -39,23 +40,17 @@
       pos = null;
       return;
     }
-    const rects = editor.selection
-      .map((id) => pageEl!.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`)?.getBoundingClientRect())
-      .filter((r): r is DOMRect => !!r);
-    if (rects.length === 0) {
+    const box = selectionBox(pageEl, editor.selection);
+    if (!box) {
       pos = null;
       return;
     }
-    const left = Math.min(...rects.map((r) => r.left));
-    const top = Math.min(...rects.map((r) => r.top));
-    const right = Math.max(...rects.map((r) => r.right));
-    const bottom = Math.max(...rects.map((r) => r.bottom));
     const s = stageEl.getBoundingClientRect();
     // La poignée de rotation (Moveable) dépasse au-dessus d'un élément libre sélectionné seul.
     const e = selected;
     const handles = !!e && !e.locked && !inGrid(e.id) && editor.editingText !== e.id;
     pos = placeContextBar(
-      { left, top, width: right - left, height: bottom - top },
+      box,
       { width: barEl.offsetWidth, height: barEl.offsetHeight },
       { left: s.left, top: s.top, width: s.width, height: s.height },
       handles ? ROTATION_HANDLE_GAP : undefined,

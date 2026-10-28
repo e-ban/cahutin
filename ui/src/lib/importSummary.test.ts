@@ -28,3 +28,8 @@ test("summarizeImport singular", () => {
   const r = summarizeImport([{ status: "Err", path: "x.heic", message: "m" }]);
   expect(r.message).toBe("1 photo n'a pas pu être importée :\nx.heic : m");
 });
+
+test("an empty folder says so", () => {
+  expect(summarizeImport([], { fromFolder: true }).message).toBe("Aucune photo trouvée dans ce dossier (JPEG, PNG ou WebP attendus).");
+  expect(summarizeImport([]).message).toBeNull();
+});

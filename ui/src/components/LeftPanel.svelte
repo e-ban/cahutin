@@ -15,11 +15,12 @@
 
   let busy = $state(false);
 
-  async function importPaths(paths: string[]) {
-    if (paths.length === 0) return;
+  async function importPaths(paths: string[], fromFolder = false) {
+    if (paths.length === 0 && !fromFolder) return;
     busy = true;
     try {
-      const { imported, message } = summarizeImport(await importPhotos(paths));
+      const outcomes = paths.length ? await importPhotos(paths) : [];
+      const { imported, message } = summarizeImport(outcomes, { fromFolder });
       editor.addPhotos(imported);
       if (message) editor.notice = message;
     } finally {
@@ -34,7 +35,7 @@
 
   async function pickFolder() {
     const dir = await open({ directory: true });
-    if (typeof dir === "string") await importPaths(await listImportableIn(dir));
+    if (typeof dir === "string") await importPaths(await listImportableIn(dir), true);
   }
 
   function addShape(shape: ShapeKind) {

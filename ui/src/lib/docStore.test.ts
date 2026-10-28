@@ -43,3 +43,24 @@ test("markSaved records the written snapshot", () => {
   editor.markSaved("/tmp/x.carnet", written);
   expect(editor.dirty).toBe(true);
 });
+
+test("updatePageById changes the page it names, whatever the current page", () => {
+  const second = { ...editor.page, id: "p2" };
+  editor.commit({ ...editor.doc, pages: [editor.page, second] });
+  editor.pageIndex = 0;
+  editor.updatePageById("p2", (p) => ({ ...p, size: { width_mm: 297, height_mm: 210 } }));
+  expect(editor.doc.pages[1].size.width_mm).toBe(297);
+  expect(editor.doc.pages[0].size.width_mm).toBe(210);
+});
+
+test("a slider preview ends in a single undo step", () => {
+  const before = editor.doc;
+  editor.preview({ ...editor.doc, title: "1" });
+  editor.preview({ ...editor.doc, title: "12" });
+  expect(editor.doc.title).toBe("12");
+  editor.endPreview();
+  expect(editor.doc.title).toBe("12");
+  editor.undo();
+  expect(editor.doc).toBe(before);
+  expect(editor.canUndo).toBe(false);
+});

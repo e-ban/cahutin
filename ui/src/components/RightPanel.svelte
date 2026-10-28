@@ -13,6 +13,27 @@
     if (selected) editor.updateElement(selected.id, fn);
   }
 
+  // Curseurs : aperçu en direct pendant le glissement, un seul pas d'annulation au relâchement.
+  function previewElement(fn: (e: Element) => Element) {
+    if (!selected) return;
+    const id = selected.id;
+    const doc = editor.doc;
+    editor.preview({
+      ...doc,
+      pages: doc.pages.map((p, i) => (i === editor.pageIndex ? { ...p, elements: p.elements.map((e) => (e.id === id ? fn(e) : e)) } : p)),
+    });
+  }
+
+  function previewPhoto(patch: Partial<PhotoProps>) {
+    previewElement((e) => (e.kind.type === "Photo" ? { ...e, kind: { ...e.kind, ...patch } } : e));
+  }
+
+  function previewShape(patch: Partial<ShapeProps>) {
+    previewElement((e) => (e.kind.type === "Shape" ? { ...e, kind: { ...e.kind, ...patch } } : e));
+  }
+
+  const endPreview = () => editor.endPreview();
+
   function updatePhoto(patch: Partial<PhotoProps>) {
     update((e) => (e.kind.type === "Photo" ? { ...e, kind: { ...e.kind, ...patch } } : e));
   }
@@ -86,7 +107,7 @@
       {/if}
       <div class="field">
         <span>Coins arrondis : {ph.corner_radius_mm} mm</span>
-        <input type="range" min="0" max="20" step="1" value={ph.corner_radius_mm} oninput={(e) => updatePhoto({ corner_radius_mm: Number(e.currentTarget.value) })} />
+        <input type="range" min="0" max="20" step="1" value={ph.corner_radius_mm} oninput={(e) => previewPhoto({ corner_radius_mm: Number(e.currentTarget.value) })} onchange={endPreview} />
       </div>
       <div class="field">
         <label class="check">
@@ -105,7 +126,8 @@
             max="3"
             step="0.5"
             value={ph.border.width_mm}
-            oninput={(e) => updatePhoto({ border: { width_mm: Number(e.currentTarget.value), color: ph.border!.color } })}
+            oninput={(e) => previewPhoto({ border: { width_mm: Number(e.currentTarget.value), color: ph.border!.color } })}
+            onchange={endPreview}
           />
           <ColorPicker value={ph.border.color} onchange={(c) => updatePhoto({ border: { width_mm: ph.border!.width_mm, color: c ?? "#ffffff" } })} />
         {/if}
@@ -177,8 +199,9 @@
           value={s.stroke?.width_mm ?? 0}
           oninput={(e) => {
             const w = Number(e.currentTarget.value);
-            updateShape({ stroke: w === 0 ? null : { width_mm: w, color: s.stroke?.color ?? "#999999" } });
+            previewShape({ stroke: w === 0 ? null : { width_mm: w, color: s.stroke?.color ?? "#999999" } });
           }}
+          onchange={endPreview}
         />
         {#if s.stroke}
           <ColorPicker value={s.stroke.color} onchange={(c) => updateShape({ stroke: { width_mm: s.stroke!.width_mm, color: c ?? "#999999" } })} />
@@ -187,7 +210,7 @@
       {#if s.shape === "Rect"}
         <div class="field">
           <span>Coins arrondis : {s.corner_radius_mm} mm</span>
-          <input type="range" min="0" max="20" step="1" value={s.corner_radius_mm} oninput={(e) => updateShape({ corner_radius_mm: Number(e.currentTarget.value) })} />
+          <input type="range" min="0" max="20" step="1" value={s.corner_radius_mm} oninput={(e) => previewShape({ corner_radius_mm: Number(e.currentTarget.value) })} onchange={endPreview} />
         </div>
       {/if}
     {/if}

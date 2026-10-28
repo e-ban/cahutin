@@ -33,7 +33,7 @@
     const p = editor.page;
     try {
       const page = await pageSetSize(p, p.size.height_mm, p.size.width_mm);
-      editor.updatePage(() => page);
+      editor.updatePageById(p.id, () => page);
     } catch (e) {
       editor.notice = String(e);
     }

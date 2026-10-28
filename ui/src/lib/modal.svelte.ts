@@ -10,7 +10,9 @@ class Modal {
   choices = $state.raw<Choice<string>[]>([]);
   #resolve: ((v: string) => void) | null = null;
 
+  /** Une nouvelle question remplace la précédente, qui reçoit sa première réponse (en principe « Annuler »). */
   choose<T extends string>(message: string, choices: Choice<T>[]): Promise<T> {
+    if (this.#resolve && this.choices.length) this.#resolve(this.choices[0].value);
     this.message = message;
     this.choices = choices;
     return new Promise<T>((resolve) => (this.#resolve = resolve as (v: string) => void));

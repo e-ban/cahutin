@@ -20,9 +20,10 @@
   const selected = $derived(editor.selected);
 
   async function run(op: () => Promise<Page>) {
+    const id = editor.page.id;
     try {
       const page = await op();
-      editor.updatePage(() => page);
+      editor.updatePageById(id, () => page);
     } catch (e) {
       editor.notice = String(e);
     }

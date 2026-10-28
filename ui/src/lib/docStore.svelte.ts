@@ -19,6 +19,8 @@ class Editor {
   editingText = $state<string | null>(null);
   /** Photo en cours de recadrage (double-clic). */
   cropping = $state<string | null>(null);
+  /** Pages d'impression rendues seulement pendant une impression ou un export PDF. */
+  printing = $state(false);
   /** Choix d'un modèle au démarrage et pour un nouveau document. */
   showPicker = $state(false);
   /** Message à afficher (erreurs d'import, d'enregistrement...). */
@@ -91,6 +93,30 @@ class Editor {
     this.pageIndex = 0;
     this.selection = [];
     this.#sync();
+  }
+
+  /** Modifie la page désignée, même si la page courante a changé entre-temps (après une attente). */
+  updatePageById(id: string, fn: (p: Page) => Page) {
+    if (!this.doc.pages.some((p) => p.id === id)) return;
+    this.commit({ ...this.doc, pages: this.doc.pages.map((p) => (p.id === id ? fn(p) : p)) });
+  }
+
+  // Aperçu en direct (curseur que l'on fait glisser) : affiché tout de suite, mais un seul pas
+  // d'annulation, enregistré quand on relâche.
+  #previewBase: Document | null = null;
+
+  preview(next: Document) {
+    if (!this.#previewBase) this.#previewBase = this.#history.current;
+    this.doc = next;
+  }
+
+  endPreview() {
+    const base = this.#previewBase;
+    if (!base) return;
+    this.#previewBase = null;
+    const final = this.doc;
+    this.doc = base;
+    if (final !== base) this.commit(final);
   }
 
   updatePage(fn: (p: Page) => Page) {

@@ -1,5 +1,6 @@
 // Actions sur les fichiers : nouveau, ouvrir, enregistrer, exporter, imprimer, rapport de problème.
 import { open, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { tick } from "svelte";
 import * as api from "./api";
 import { ask } from "./ask";
 import { confirmDiscardIfDirty, editor, type DiscardChoice } from "./docStore.svelte";
@@ -89,23 +90,42 @@ export async function exportOdg() {
   if ((await guard(() => api.exportOdg(path, editor.doc))) !== undefined) editor.notice = `Exporté pour LibreOffice : ${fileName(path)}`;
 }
 
-export function print() {
+/** Rend les pages d'impression, attend qu'elles soient affichées (polices, images), puis lance `action`. */
+async function withPrintPages<T>(action: () => T | Promise<T>): Promise<T> {
   editor.flushPending();
   editor.selection = [];
   editor.cropping = null;
   editor.editingText = null;
-  // Laisser l'interface se mettre à jour avant d'ouvrir la boîte d'impression.
-  requestAnimationFrame(() => window.print());
+  editor.printing = true;
+  await tick();
+  await document.fonts.ready;
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  try {
+    return await action();
+  } finally {
+    editor.printing = false;
+  }
+}
+
+export async function print() {
+  // Selon le moteur, window.print() bloque ou rend la main tout de suite : on garde les pages
+  // jusqu'à la fin de l'impression.
+  await withPrintPages(
+    () =>
+      new Promise<void>((done) => {
+        window.addEventListener("afterprint", () => done(), { once: true });
+        window.print();
+      }),
+  );
 }
 
 export async function exportPdf() {
-  editor.flushPending();
   const picked = await saveDialog({ defaultPath: `${baseName()}.pdf`, filters: [{ name: "PDF", extensions: ["pdf"] }] });
   if (!picked) return;
   const path = withExt(picked, "pdf");
-  editor.selection = [];
   const first = editor.doc.pages[0].size;
-  if ((await guard(() => api.exportPdf(path, first.width_mm > first.height_mm))) !== undefined) editor.notice = `PDF enregistré : ${fileName(path)}`;
+  const done = await withPrintPages(() => guard(() => api.exportPdf(path, first.width_mm > first.height_mm)));
+  if (done !== undefined) editor.notice = `PDF enregistré : ${fileName(path)}`;
 }
 
 export async function problemReport() {

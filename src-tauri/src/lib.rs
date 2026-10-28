@@ -20,6 +20,9 @@ pub fn run() {
                 .clear_targets()
                 .target(Target::new(TargetKind::LogDir { file_name: Some(commands::LOG_FILE_NAME.into()) }))
                 .level(log::LevelFilter::Info)
+                // Seuls les messages de l'application (noms d'événements, compteurs) : une dépendance
+                // pourrait un jour journaliser un chemin de fichier.
+                .filter(|meta| meta.target().starts_with("carnet_app"))
                 .max_file_size(1_000_000)
                 .rotation_strategy(RotationStrategy::KeepOne)
                 .build(),

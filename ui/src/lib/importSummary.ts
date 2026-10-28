@@ -3,7 +3,8 @@ import type { AssetMeta, ImportOutcome } from "./types";
 const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 
 /** Photos importées, et un message listant les échecs par nom de fichier (sans le dossier). */
-export function summarizeImport(outcomes: ImportOutcome[]): { imported: AssetMeta[]; message: string | null } {
+export function summarizeImport(outcomes: ImportOutcome[], opts: { fromFolder?: boolean } = {}): { imported: AssetMeta[]; message: string | null } {
+  if (outcomes.length === 0 && opts.fromFolder) return { imported: [], message: "Aucune photo trouvée dans ce dossier (JPEG, PNG ou WebP attendus)." };
   const imported: AssetMeta[] = [];
   const failures: string[] = [];
   for (const o of outcomes) {

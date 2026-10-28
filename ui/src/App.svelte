@@ -156,7 +156,7 @@
     </div>
   {/if}
 </div>
-<PrintRoot />
+{#if editor.printing}<PrintRoot />{/if}
 
 <style>
   :global(:root) {

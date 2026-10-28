@@ -25,6 +25,7 @@
   function start() {
     const e = target;
     if (!e) return;
+    editor.gesture = true;
     live = {
       left: mmToPx(e.frame.x_mm, zoom),
       top: mmToPx(e.frame.y_mm, zoom),
@@ -35,6 +36,7 @@
   }
 
   function commit() {
+    editor.gesture = false;
     const e = target;
     if (!e || !live) return;
     const frame = rectPxToFrame(live, zoom);

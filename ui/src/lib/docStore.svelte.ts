@@ -19,6 +19,8 @@ class Editor {
   photos = $state.raw<AssetMeta[]>([]);
   /** Texte en cours d'édition. */
   editingText = $state<string | null>(null);
+  /** Déplacement, redimensionnement ou rotation à la souris en cours (Moveable). */
+  gesture = $state(false);
   /** Photo en cours de recadrage (double-clic). */
   cropping = $state<string | null>(null);
   /** Pages d'impression rendues seulement pendant une impression ou un export PDF. */

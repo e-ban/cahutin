@@ -6,6 +6,7 @@
   import Modal from "./components/Modal.svelte";
   import PrintRoot from "./components/PrintRoot.svelte";
   import { confirmLeave } from "./lib/fileActions";
+  import ContextBar from "./components/ContextBar.svelte";
   import PageView from "./components/PageView.svelte";
   import TemplateBar from "./components/TemplateBar.svelte";
   import TemplatePicker from "./components/TemplatePicker.svelte";
@@ -56,6 +57,7 @@
   let stageWidth = $state(800);
   let stageHeight = $state(600);
   let pageEl = $state<HTMLElement>();
+  let stageEl = $state<HTMLElement>();
   // « Ajuster » : la page entière est visible, marges de la scène comprises.
   $effect(() => {
     const byWidth = (stageWidth - 64) / mmToPx(editor.page.size.width_mm, 1);
@@ -135,7 +137,7 @@
   {:else if editor.drawer === "shapes"}<ShapesDrawer />
   {:else if editor.drawer === "fonts"}<FontsDrawer />
   {/if}
-  <main class="stage" bind:clientWidth={stageWidth} bind:clientHeight={stageHeight}>
+  <main class="stage" bind:this={stageEl} bind:clientWidth={stageWidth} bind:clientHeight={stageHeight}>
     <PageView
       page={editor.page}
       doc={editor.doc}
@@ -159,6 +161,7 @@
       bind:pageEl
     />
     <Transformer {pageEl} zoom={editor.effectiveZoom} />
+    <ContextBar {pageEl} {stageEl} />
     {#if editor.showPicker}<TemplatePicker />{/if}
   </main>
   <Inspector />

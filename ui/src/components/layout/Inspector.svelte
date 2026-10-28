@@ -3,91 +3,15 @@
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
-  import { alignToCss } from "../../lib/richtext";
-  import { textEditing } from "../../lib/textEditing.svelte";
-  import type { Align, Element, Frame, PhotoProps, Run, ShapeProps, TextProps, TextStyle } from "../../lib/types";
+  import { ALIGNS, activeTip, isMarkActive, setAlign, setColor, setFont, setSize, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
+  import { endPreview, previewPhoto, previewShape, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
+  import type { Frame } from "../../lib/types";
 
   const selected = $derived(editor.selected);
 
-  function update(fn: (e: Element) => Element) {
-    if (selected) editor.updateElement(selected.id, fn);
-  }
+  const update = updateSelected;
 
-  // Curseurs : aperçu en direct pendant le glissement, un seul pas d'annulation au relâchement.
-  function previewElement(fn: (e: Element) => Element) {
-    if (!selected) return;
-    const id = selected.id;
-    const doc = editor.doc;
-    editor.preview({
-      ...doc,
-      pages: doc.pages.map((p, i) => (i === editor.pageIndex ? { ...p, elements: p.elements.map((e) => (e.id === id ? fn(e) : e)) } : p)),
-    });
-  }
-
-  function previewPhoto(patch: Partial<PhotoProps>) {
-    previewElement((e) => (e.kind.type === "Photo" ? { ...e, kind: { ...e.kind, ...patch } } : e));
-  }
-
-  function previewShape(patch: Partial<ShapeProps>) {
-    previewElement((e) => (e.kind.type === "Shape" ? { ...e, kind: { ...e.kind, ...patch } } : e));
-  }
-
-  const endPreview = () => editor.endPreview();
-
-  function updatePhoto(patch: Partial<PhotoProps>) {
-    update((e) => (e.kind.type === "Photo" ? { ...e, kind: { ...e.kind, ...patch } } : e));
-  }
-
-  // Texte : pendant l'édition, la mise en forme s'applique à la sélection ; sinon à toute la zone.
-  const tip = $derived(selected && editor.editingText === selected.id ? textEditing.current : null);
-
-  function updateText(fn: (t: TextProps) => TextProps) {
-    update((e) => (e.kind.type === "Text" ? { ...e, kind: { type: "Text", ...fn(e.kind) } } : e));
-  }
-
-  function setStyle(patch: Partial<TextStyle>) {
-    updateText((t) => ({ ...t, style: { ...t.style, ...patch } }));
-  }
-
-  function setFont(font: string) {
-    if (tip) tip.chain().focus().setFontFamily(font).run();
-    else setStyle({ font });
-  }
-
-  function setSize(pt: number) {
-    if (tip) tip.chain().focus().setFontSize(`${pt}pt`).run();
-    else setStyle({ size_pt: pt });
-  }
-
-  function setColor(color: string | null) {
-    if (!color) return;
-    if (tip) tip.chain().focus().setColor(color).run();
-    else setStyle({ color });
-  }
-
-  function setAlign(align: Align) {
-    if (tip) tip.chain().focus().setTextAlign(alignToCss(align)).run();
-    else updateText((t) => ({ ...t, style: { ...t.style, align }, content: { paragraphs: t.content.paragraphs.map((p) => ({ ...p, align: null })) } }));
-  }
-
-  function toggle(mark: "bold" | "italic" | "underline") {
-    if (tip) {
-      tip.chain().focus().toggleMark(mark).run();
-      return;
-    }
-    updateText((t) => {
-      const all = t.content.paragraphs.flatMap((p) => p.runs);
-      const on = !all.every((r: Run) => r[mark]);
-      return { ...t, content: { paragraphs: t.content.paragraphs.map((p) => ({ ...p, runs: p.runs.map((r) => ({ ...r, [mark]: on })) })) } };
-    });
-  }
-
-  function isActive(mark: "bold" | "italic" | "underline", t: TextProps): boolean {
-    void textEditing.tick;
-    if (tip) return tip.isActive(mark);
-    const runs = t.content.paragraphs.flatMap((p) => p.runs);
-    return runs.length > 0 && runs.every((r) => r[mark]);
-  }
+  const tip = $derived(selected ? activeTip() : null);
 
   // Position et taille exactes : une case de grille se règle en mode modèle, un élément verrouillé ne bouge pas.
   const frameFixed = $derived(!!selected && (selected.locked || !!editor.page.grid?.cells.some((c) => c.element_id === selected.id)));
@@ -97,10 +21,6 @@
     if (!Number.isFinite(v)) return;
     const min = key === "w_mm" || key === "h_mm" ? 1 : -10000;
     update((e) => ({ ...e, frame: { ...e.frame, [key]: Math.max(min, Math.round(v * 10) / 10) } }));
-  }
-
-  function updateShape(patch: Partial<ShapeProps>) {
-    update((e) => (e.kind.type === "Shape" ? { ...e, kind: { ...e.kind, ...patch } } : e));
   }
 </script>
 
@@ -196,13 +116,13 @@
         </select>
       </div>
       <div class="row">
-        <button class:on={isActive("bold", t)} disabled={family && !family.has_bold} onpointerdown={(e) => e.preventDefault()} onclick={() => toggle("bold")}><b>G</b></button>
-        <button class:on={isActive("italic", t)} disabled={family && !family.has_italic} onpointerdown={(e) => e.preventDefault()} onclick={() => toggle("italic")}><i>I</i></button>
-        <button class:on={isActive("underline", t)} onpointerdown={(e) => e.preventDefault()} onclick={() => toggle("underline")}><u>S</u></button>
+        <button class:on={isMarkActive("bold", t)} disabled={family && !family.has_bold} onpointerdown={(e) => e.preventDefault()} onclick={() => toggleMark("bold")}><b>G</b></button>
+        <button class:on={isMarkActive("italic", t)} disabled={family && !family.has_italic} onpointerdown={(e) => e.preventDefault()} onclick={() => toggleMark("italic")}><i>I</i></button>
+        <button class:on={isMarkActive("underline", t)} onpointerdown={(e) => e.preventDefault()} onclick={() => toggleMark("underline")}><u>S</u></button>
       </div>
       <div class="row">
-        {#each [["Left", "⯇"], ["Center", "≡"], ["Right", "⯈"], ["Justify", "☰"]] as [a, icon]}
-          <button title={a} class:on={t.style.align === a} onpointerdown={(e) => e.preventDefault()} onclick={() => setAlign(a as Align)}>{icon}</button>
+        {#each ALIGNS as [a, icon]}
+          <button title={a} class:on={t.style.align === a} onpointerdown={(e) => e.preventDefault()} onclick={() => setAlign(a)}>{icon}</button>
         {/each}
       </div>
       <div class="field">
@@ -212,7 +132,7 @@
       {#if selected.zone}
         <div class="field">
           <span>Texte d'invite (visible seulement à l'écran)</span>
-          <input value={t.prompt ?? ""} onchange={(e) => updateText((x) => ({ ...x, prompt: e.currentTarget.value || null }))} />
+          <input value={t.prompt ?? ""} onchange={(e) => updatePrompt(e.currentTarget.value || null)} />
         </div>
       {/if}
     {/if}

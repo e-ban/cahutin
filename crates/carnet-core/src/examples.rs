@@ -98,7 +98,11 @@ fn grouped(mut els: Vec<Element>) -> Vec<Element> {
 
 /// Photo à déposer et sa légende, groupées.
 fn photo_with_caption(x: f64, y: f64, w: f64, h: f64) -> Vec<Element> {
-    grouped(vec![photo_zone(frame(x, y, w, h)), text_zone(frame(x, y + h + 2.0, w, 10.0), "Légende…", "Andika", 12.0)])
+    let mut caption = text_zone(frame(x, y + h + 2.0, w, 10.0), "Légende…", "Andika", 12.0);
+    if let ElementKind::Text(t) = &mut caption.kind {
+        t.style.align = Align::Center;
+    }
+    grouped(vec![photo_zone(frame(x, y, w, h)), caption])
 }
 
 /// Frise d'images en haut (ou en bas) de la page, codes en alternance, groupée.
@@ -269,5 +273,16 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn example_captions_are_centred_like_new_ones() {
+        let d = document("ferme").unwrap();
+        let captions: Vec<&TextProps> = elements(&d).filter_map(|e| match &e.kind {
+            ElementKind::Text(t) if t.prompt.as_deref() == Some("Légende…") => Some(t),
+            _ => None,
+        }).collect();
+        assert_eq!(captions.len(), 2);
+        assert!(captions.iter().all(|t| t.style.align == Align::Center));
     }
 }

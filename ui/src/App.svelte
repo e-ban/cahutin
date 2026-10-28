@@ -7,6 +7,7 @@
   import PrintRoot from "./components/PrintRoot.svelte";
   import { confirmLeave } from "./lib/fileActions";
   import ContextBar from "./components/ContextBar.svelte";
+  import ContextMenu, { type ContextTarget } from "./components/layout/ContextMenu.svelte";
   import PageView from "./components/PageView.svelte";
   import TemplateBar from "./components/TemplateBar.svelte";
   import TemplatePicker from "./components/TemplatePicker.svelte";
@@ -58,6 +59,14 @@
   let stageHeight = $state(600);
   let pageEl = $state<HTMLElement>();
   let stageEl = $state<HTMLElement>();
+  let contextTarget = $state<ContextTarget | null>(null);
+
+  function openContextMenu(id: string | null, xMm: number, yMm: number, clientX: number, clientY: number) {
+    if (editor.templateMode) return;
+    if (id && !editor.selection.includes(id)) editor.selection = [id];
+    if (!id) editor.selection = [];
+    contextTarget = { id, xMm, yMm, clientX, clientY };
+  }
   // « Ajuster » : la page entière est visible, marges de la scène comprises.
   $effect(() => {
     const byWidth = (stageWidth - 64) / mmToPx(editor.page.size.width_mm, 1);
@@ -158,10 +167,12 @@
         editor.editingText = id;
       }}
       ontextdone={endTextEdit}
+      oncontext={openContextMenu}
       bind:pageEl
     />
     <Transformer {pageEl} zoom={editor.effectiveZoom} />
     <ContextBar {pageEl} {stageEl} />
+    {#if contextTarget}<ContextMenu target={contextTarget} onclose={() => (contextTarget = null)} />{/if}
     {#if editor.showPicker}<TemplatePicker />{/if}
   </main>
   <Inspector />

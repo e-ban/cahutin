@@ -6,6 +6,7 @@
   import { alignFrames, distributeFrames, type AlignMode } from "../lib/align";
   import { placeContextBar } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
+  import { deleteSelection } from "../lib/editActions";
   import { endPreview, previewPhoto, previewShape, updatePhoto, updateShape } from "../lib/elementEdit";
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
@@ -85,11 +86,7 @@
     if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement)) e.preventDefault();
   };
 
-  function removeSelected() {
-    const ids = editor.selection.filter((id) => !editor.page.elements.find((e) => e.id === id)?.locked);
-    if (ids.length === 0) return;
-    editor.updatePage((p) => ({ ...p, elements: p.elements.filter((e) => !ids.includes(e.id)) }));
-  }
+  const removeSelected = deleteSelection;
 
   /** Éléments libres de la sélection (ni verrouillés, ni cases de grille). */
   function movable() {
@@ -265,7 +262,7 @@
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
     padding: 3px;
     white-space: nowrap;
-    z-index: 40;
+    z-index: 3500; /* au-dessus des poignées Moveable (3000), sous les menus */
   }
   .ctx > button,
   .wrap > button {

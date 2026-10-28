@@ -22,6 +22,7 @@
     oncropend,
     onedittext,
     ontextdone,
+    oncontext,
     pageEl = $bindable(),
   }: {
     page: Page;
@@ -37,6 +38,8 @@
     oncropend?: (id: string, crop: Crop) => void;
     onedittext?: (id: string) => void;
     ontextdone?: (id: string, content: RichText) => void;
+    /** Clic droit sur un élément (id) ou sur la page (null), avec la position en mm sur la page. */
+    oncontext?: (id: string | null, xMm: number, yMm: number, clientX: number, clientY: number) => void;
     pageEl?: HTMLElement;
   } = $props();
 
@@ -102,6 +105,14 @@
     if (acceptsAsset(ev)) ev.preventDefault();
   }}
   ondrop={(ev) => drop(ev, null)}
+  oncontextmenu={(ev) => {
+    // Pendant l'écriture, le menu du système reste (correcteur orthographique).
+    if (!oncontext || !pageEl || (ev.target as HTMLElement).isContentEditable) return;
+    ev.preventDefault();
+    const r = pageEl.getBoundingClientRect();
+    const id = (ev.target as HTMLElement).closest<HTMLElement>(".element")?.dataset.id ?? null;
+    oncontext(id, (ev.clientX - r.left) / (PX_PER_MM * zoom), (ev.clientY - r.top) / (PX_PER_MM * zoom), ev.clientX, ev.clientY);
+  }}
 >
   {#each page.elements as e (e.id)}
     <div

@@ -73,7 +73,7 @@
     border-radius: 8px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
     padding: 4px;
-    z-index: 50;
+    z-index: 4000; /* au-dessus des poignées Moveable (3000) */
   }
   .list.right {
     left: auto;

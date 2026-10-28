@@ -1,4 +1,5 @@
 import { editor } from "./docStore.svelte";
+import { copySelection, cutSelection, deleteSelection, duplicateSelection, paste } from "./editActions";
 import { newDoc, openDoc, print, save } from "./fileActions";
 import { nudge, type ArrowKey } from "./geometry";
 
@@ -7,7 +8,7 @@ function typing(ev: KeyboardEvent): boolean {
   return !!t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
 }
 
-export type ShortcutAction = "new" | "open" | "save" | "print" | "duplicate" | "undo" | "redo";
+export type ShortcutAction = "new" | "open" | "save" | "print" | "duplicate" | "undo" | "redo" | "copy" | "cut" | "paste";
 
 type KeyInfo = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "repeat">;
 
@@ -18,7 +19,7 @@ export function shortcutAction(ev: KeyInfo): ShortcutAction | null {
   if (k === "z") return ev.shiftKey ? "redo" : "undo";
   if (k === "y") return "redo";
   if (ev.repeat) return null;
-  const actions: Record<string, ShortcutAction> = { n: "new", o: "open", s: "save", p: "print", d: "duplicate" };
+  const actions: Record<string, ShortcutAction> = { n: "new", o: "open", s: "save", p: "print", d: "duplicate", c: "copy", x: "cut", v: "paste" };
   return actions[k] ?? null;
 }
 
@@ -38,17 +39,21 @@ export function handleShortcut(ev: KeyboardEvent) {
     return;
   }
   if (typing(ev)) return;
-  if (action === "undo") {
+  const editActions: Partial<Record<ShortcutAction, () => void>> = {
+    undo: () => editor.undo(),
+    redo: () => editor.redo(),
+    duplicate: duplicateSelection,
+    copy: copySelection,
+    cut: cutSelection,
+    paste,
+  };
+  if (action && editActions[action]) {
     ev.preventDefault();
-    editor.undo();
-  } else if (action === "redo") {
-    ev.preventDefault();
-    editor.redo();
+    editActions[action]!();
   } else if (ev.key === "Delete" || ev.key === "Backspace") {
-    const ids = editor.selection.filter((id) => !editor.page.elements.find((e) => e.id === id)?.locked);
-    if (ids.length === 0) return;
+    if (editor.selection.length === 0) return;
     ev.preventDefault();
-    editor.updatePage((p) => ({ ...p, elements: p.elements.filter((e) => !ids.includes(e.id)) }));
+    deleteSelection();
   } else if (ev.key.startsWith("Arrow")) {
     const e = editor.selected;
     const inGrid = e && editor.page.grid?.cells.some((c) => c.element_id === e.id);

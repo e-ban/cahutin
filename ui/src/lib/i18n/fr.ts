@@ -106,4 +106,13 @@ export const fr = {
   alignBottom: "En bas",
   distributeH: "Horizontalement",
   distributeV: "Verticalement",
+  // Clic droit
+  cut: "Couper",
+  copy: "Copier",
+  paste: "Coller",
+  duplicate: "Dupliquer",
+  bringFront: "Mettre devant",
+  sendBack: "Mettre derrière",
+  addTextHere: "Ajouter un texte ici",
+  addShapeHere: "Ajouter une forme ici",
 } as const;

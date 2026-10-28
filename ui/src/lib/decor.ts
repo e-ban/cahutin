@@ -55,24 +55,44 @@ function spread(start: number, length: number, size: number): number[] {
   return Array.from({ length: n }, (_, i) => round(start + i * step));
 }
 
-/** Copies régulièrement espacées d'une image le long des marges, groupées en une frise. */
-export function frieze(page: Page, code: string, side: FriezeSide, size_mm = 15): Element[] {
-  const { width_mm: w, height_mm: h } = page.size;
-  const xs = spread(MARGIN_MM, w - 2 * MARGIN_MM, size_mm);
-  const top = MARGIN_MM;
-  const bottom = round(h - MARGIN_MM - size_mm);
-  const positions: [number, number][] = [];
-  if (side !== "bottom") positions.push(...xs.map((x): [number, number] => [x, top]));
-  if (side !== "top") positions.push(...xs.map((x): [number, number] => [x, bottom]));
-  if (side === "around") {
-    // Côtés : sans les coins, déjà posés par les lignes du haut et du bas.
-    const ys = spread(MARGIN_MM, h - 2 * MARGIN_MM, size_mm).slice(1, -1);
-    const right = round(w - MARGIN_MM - size_mm);
-    for (const y of ys) positions.push([MARGIN_MM, y], [right, y]);
-  }
+type Rect = { x_mm: number; y_mm: number; w_mm: number; h_mm: number };
+
+/**
+ * Positions des copies le long d'un rectangle. Tout autour : une seule boucle dans le sens horaire
+ * (haut, droite, bas, gauche), sans doublon aux coins, pour que la suite des motifs ne s'interrompe pas.
+ */
+function friezePositions(r: Rect, side: FriezeSide, size: number): [number, number][] {
+  const xs = spread(r.x_mm, r.w_mm, size);
+  const top = r.y_mm;
+  const bottom = round(r.y_mm + r.h_mm - size);
+  if (side === "top") return xs.map((x) => [x, top]);
+  if (side === "bottom") return xs.map((x) => [x, bottom]);
+  const ys = spread(r.y_mm, r.h_mm, size).slice(1, -1);
+  const right = round(r.x_mm + r.w_mm - size);
+  return [
+    ...xs.map((x): [number, number] => [x, top]),
+    ...ys.map((y): [number, number] => [right, y]),
+    ...[...xs].reverse().map((x): [number, number] => [x, bottom]),
+    ...[...ys].reverse().map((y): [number, number] => [r.x_mm, y]),
+  ];
+}
+
+/** Copies régulièrement espacées des motifs, répétés dans l'ordre, groupées en une frise. */
+export function friezeInRect(page: Page, r: Rect, codes: string[], side: FriezeSide, size_mm = 15): Element[] {
   const group = newId();
-  return positions.map(([x, y]) => {
-    const e = pictoElement(page, code, undefined, size_mm);
+  return friezePositions(r, side, size_mm).map(([x, y], i) => {
+    const e = pictoElement(page, codes[i % codes.length], undefined, size_mm);
     return { ...e, frame: { ...e.frame, x_mm: x, y_mm: y }, group };
   });
+}
+
+/** Frise le long des marges de la page. */
+export function frieze(page: Page, codes: string[], side: FriezeSide, size_mm = 15): Element[] {
+  const { width_mm: w, height_mm: h } = page.size;
+  return friezeInRect(page, { x_mm: MARGIN_MM, y_mm: MARGIN_MM, w_mm: w - 2 * MARGIN_MM, h_mm: h - 2 * MARGIN_MM }, codes, side, size_mm);
+}
+
+/** Motifs d'une frise : un clic ajoute l'image à la fin de la suite, ou l'en retire. */
+export function toggleMotif(codes: string[], code: string): string[] {
+  return codes.includes(code) ? codes.filter((c) => c !== code) : [...codes, code];
 }

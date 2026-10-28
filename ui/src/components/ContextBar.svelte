@@ -2,6 +2,7 @@
   // Barre flottante au-dessus de l'élément sélectionné : seulement ce qui le concerne.
   // Cachée pendant un geste à la souris, un recadrage et en mode modèle.
   import { tick } from "svelte";
+  import AlignIcon from "./AlignIcon.svelte";
   import ColorPicker from "./ColorPicker.svelte";
   import FontPicker from "./FontPicker.svelte";
   import { alignFrames, distributeFrames, type AlignMode } from "../lib/align";
@@ -213,10 +214,12 @@
         {#if pop === "color"}<div class="pop"><ColorPicker value={t.style.color} onchange={(c) => (setColor(c), (pop = null))} /></div>{/if}
       </div>
       <div class="wrap">
-        <button title={fr.alignment} onclick={() => toggle("align")}>{ALIGNS.find(([a]) => a === t.style.align)?.[1] ?? "≡"} ▾</button>
+        <button class="iconbtn" title={fr.alignment} aria-label={fr.alignment} onclick={() => toggle("align")}><AlignIcon align={t.style.align} /> ▾</button>
         {#if pop === "align"}
           <div class="pop row">
-            {#each ALIGNS as [a, icon] (a)}<button class:on={t.style.align === a} onclick={() => (setAlign(a), (pop = null))}>{icon}</button>{/each}
+            {#each ALIGNS as a (a)}
+              <button class:on={t.style.align === a} title={fr.textAlign[a]} aria-label={fr.textAlign[a]} onclick={() => (setAlign(a), (pop = null))}><AlignIcon align={a} /></button>
+            {/each}
           </div>
         {/if}
       </div>
@@ -299,6 +302,11 @@
   .on {
     background: #e8f1fb !important;
     color: var(--accent);
+  }
+  .iconbtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
   .main {
     color: var(--accent);

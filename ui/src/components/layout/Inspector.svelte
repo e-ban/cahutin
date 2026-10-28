@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AlignIcon from "../AlignIcon.svelte";
   import ColorPicker from "../ColorPicker.svelte";
   import FontPicker from "../FontPicker.svelte";
   import { editor } from "../../lib/docStore.svelte";
@@ -155,8 +156,8 @@
         <button class:on={isMarkActive("underline", t)} onpointerdown={(e) => e.preventDefault()} onclick={() => toggleMark("underline")}><u>S</u></button>
       </div>
       <div class="row">
-        {#each ALIGNS as [a, icon]}
-          <button title={a} class:on={t.style.align === a} onpointerdown={(e) => e.preventDefault()} onclick={() => setAlign(a)}>{icon}</button>
+        {#each ALIGNS as a (a)}
+          <button title={fr.textAlign[a]} aria-label={fr.textAlign[a]} class:on={t.style.align === a} onpointerdown={(e) => e.preventDefault()} onclick={() => setAlign(a)}><AlignIcon align={a} /></button>
         {/each}
       </div>
       <div class="field">

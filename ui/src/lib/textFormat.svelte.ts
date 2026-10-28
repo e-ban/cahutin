@@ -76,9 +76,4 @@ export function updatePrompt(prompt: string | null) {
   updateText((t) => ({ ...t, prompt }));
 }
 
-export const ALIGNS: [Align, string][] = [
-  ["Left", "⯇"],
-  ["Center", "≡"],
-  ["Right", "⯈"],
-  ["Justify", "☰"],
-];
+export const ALIGNS: Align[] = ["Left", "Center", "Right", "Justify"];

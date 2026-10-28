@@ -473,3 +473,44 @@ fn examples_render_in_libreoffice() {
         assert!(text.contains("OpenMoji"), "{} : mention absente", info.id);
     }
 }
+
+/// Marge de 5 mm et alignement vertical : le mot est en haut, au milieu ou en bas, à 5 mm des bords.
+#[test]
+#[ignore]
+fn vertical_alignment_and_padding_are_rendered() {
+    let mut doc = Document::new("banc");
+    doc.pages.clear();
+    let (w, h, pad) = (100.0, 40.0, 5.0);
+    for valign in [VAlign::Top, VAlign::Middle, VAlign::Bottom] {
+        let mut style = TextStyle::default_zone();
+        style.size_pt = 14.0;
+        style.valign = Some(valign);
+        style.padding_mm = Some(pad);
+        let mut page = Page::new(A4_PORTRAIT);
+        page.elements.push(Element {
+            id: new_id(),
+            frame: Frame { x_mm: ORIGIN_MM, y_mm: ORIGIN_MM, w_mm: w, h_mm: h, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Text(TextProps { content: RichText::plain("Milieu"), style, prompt: None, frame: None }),
+        });
+        doc.pages.push(page);
+    }
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    let words = words(&pdf);
+    let pt = |v_mm: f64| v_mm * PT_PER_MM;
+    for (page, valign) in [VAlign::Top, VAlign::Middle, VAlign::Bottom].into_iter().enumerate() {
+        let w0 = words.iter().find(|w| w.page == page).expect("mot rendu");
+        assert!((w0.x_min - pt(ORIGIN_MM + pad)).abs() < 1.5, "{valign:?} : marge gauche {:.1}", w0.x_min);
+        let (top, bottom) = (pt(ORIGIN_MM + pad), pt(ORIGIN_MM + h - pad));
+        match valign {
+            VAlign::Top => assert!(w0.y_min >= top - 1.0 && w0.y_min < top + 6.0, "haut : {:.1} pour {top:.1}", w0.y_min),
+            VAlign::Middle => {
+                let mid = (w0.y_min + w0.y_max) / 2.0;
+                assert!((mid - pt(ORIGIN_MM + h / 2.0)).abs() < 3.0, "milieu : {mid:.1}");
+            }
+            VAlign::Bottom => assert!(w0.y_max <= bottom + 1.0 && w0.y_max > bottom - 8.0, "bas : {:.1} pour {bottom:.1}", w0.y_max),
+        }
+    }
+}

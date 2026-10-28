@@ -31,3 +31,6 @@ export type { TemplateInfo } from "./gen/TemplateInfo";
 export type { TextProps } from "./gen/TextProps";
 export type { TextStyle } from "./gen/TextStyle";
 export type { ZoneKind } from "./gen/ZoneKind";
+export type { StrokeStyle } from "./gen/StrokeStyle";
+export type { TextFrame } from "./gen/TextFrame";
+export type { VAlign } from "./gen/VAlign";

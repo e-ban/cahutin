@@ -108,7 +108,9 @@ export function scaleElements(els: Element[], factor: number, origin: Point): El
           frame,
           kind: {
             ...k,
-            style: { ...k.style, size_pt: halfPt(k.style.size_pt * factor) },
+            // Une marge par défaut reste celle par défaut : le document ne passe pas pour autant au format 3.
+            style: { ...k.style, size_pt: halfPt(k.style.size_pt * factor), padding_mm: k.style.padding_mm == null ? k.style.padding_mm : round(k.style.padding_mm * factor) },
+            frame: k.frame && { ...k.frame, corner_radius_mm: round(k.frame.corner_radius_mm * factor), stroke: k.frame.stroke && { ...k.frame.stroke, width_mm: round(k.frame.stroke.width_mm * factor) } },
             content: { paragraphs: k.content.paragraphs.map((p) => ({ ...p, runs: p.runs.map((r) => ({ ...r, size_pt: r.size_pt === null ? null : halfPt(r.size_pt * factor) })) })) },
           },
         };

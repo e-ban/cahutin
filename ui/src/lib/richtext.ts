@@ -4,8 +4,11 @@ import type { JSONContent } from "@tiptap/core";
 import { isKnownFamily } from "./fontNames";
 import type { Align, Paragraph, RichText, Run, TextStyle } from "./types";
 
-/** Marge intérieure des zones de texte, identique à l'export ODG (carnet_core::odg::TEXT_PADDING_MM). */
+/** Marge intérieure des zones de texte sans réglage, identique à l'export ODG (carnet_core::TEXT_PADDING_MM). */
 export const TEXT_PADDING_MM = 1.5;
+
+/** Marge intérieure d'un texte : son réglage, sinon la marge par défaut. */
+export const textPadding = (style: TextStyle) => style.padding_mm ?? TEXT_PADDING_MM;
 
 const ALIGN_TO_CSS: Record<Align, string> = { Left: "left", Center: "center", Right: "right", Justify: "justify" };
 const CSS_TO_ALIGN: Record<string, Align> = { left: "Left", center: "Center", right: "Right", justify: "Justify" };

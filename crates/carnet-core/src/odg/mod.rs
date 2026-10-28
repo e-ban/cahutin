@@ -292,6 +292,22 @@ mod tests {
     }
 
     #[test]
+    fn vertical_alignment_and_padding_are_exported() {
+        let mut t = text(RichText::plain("milieu"), None);
+        if let ElementKind::Text(p) = &mut t.kind {
+            p.style.valign = Some(VAlign::Bottom);
+            p.style.padding_mm = Some(5.0);
+        }
+        let mut e = export(&doc_with(vec![t, text(RichText::plain("haut"), None)]), &AssetStore::default());
+        let content = e.xml("content.xml");
+        assert!(content.contains(r#"draw:textarea-vertical-align="bottom""#), "{content}");
+        assert!(content.contains(&format!(r#"fo:padding-left="{}""#, mm(5.0))));
+        // Un texte sans réglage garde le haut et la marge par défaut.
+        assert!(content.contains(r#"draw:textarea-vertical-align="top""#));
+        assert!(content.contains(&format!(r#"fo:padding-left="{}""#, mm(TEXT_PADDING_MM))));
+    }
+
+    #[test]
     fn repeated_spaces_are_kept() {
         let d = doc_with(vec![text(RichText::plain("a   b"), None)]);
         let mut e = export(&d, &AssetStore::default());

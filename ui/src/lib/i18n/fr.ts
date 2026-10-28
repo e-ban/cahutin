@@ -100,6 +100,8 @@ export const fr = {
   underline: "Souligné",
   color: "Couleur",
   alignment: "Alignement",
+  padding: "Marge intérieure",
+  textVAlign: { Top: "En haut du cadre", Middle: "Au milieu du cadre", Bottom: "En bas du cadre" } as Record<string, string>,
   textAlign: { Left: "Aligner à gauche", Center: "Centrer", Right: "Aligner à droite", Justify: "Justifier" } as Record<string, string>,
   fill: "Remplissage",
   stroke: "Trait",

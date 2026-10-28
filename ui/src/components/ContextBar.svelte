@@ -4,6 +4,7 @@
   import { tick } from "svelte";
   import AlignIcon from "./AlignIcon.svelte";
   import ColorPicker from "./ColorPicker.svelte";
+  import VAlignIcon from "./VAlignIcon.svelte";
   import FontPicker from "./FontPicker.svelte";
   import { alignFrames, distributeFrames, type AlignMode } from "../lib/align";
   import { placeContextBar, selectionBox } from "../lib/contextBar";
@@ -14,7 +15,7 @@
   import { fr } from "../lib/i18n/fr";
   import { isStrokeOnly } from "../lib/shapePaths";
   import { alignableIds, isLockedSelection } from "../lib/groups";
-  import { ALIGNS, isMarkActive, setAlign, setColor, setFont, setSize, toggleMark } from "../lib/textFormat.svelte";
+  import { ALIGNS, VALIGNS, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
   import type { Frame } from "../lib/types";
 
   let { pageEl, stageEl }: { pageEl: HTMLElement | undefined; stageEl: HTMLElement | undefined } = $props();
@@ -216,10 +217,17 @@
       <div class="wrap">
         <button class="iconbtn" title={fr.alignment} aria-label={fr.alignment} onclick={() => toggle("align")}><AlignIcon align={t.style.align} /> ▾</button>
         {#if pop === "align"}
-          <div class="pop row">
-            {#each ALIGNS as a (a)}
-              <button class:on={t.style.align === a} title={fr.textAlign[a]} aria-label={fr.textAlign[a]} onclick={() => (setAlign(a), (pop = null))}><AlignIcon align={a} /></button>
-            {/each}
+          <div class="pop grid">
+            <div class="row">
+              {#each ALIGNS as a (a)}
+                <button class:on={t.style.align === a} title={fr.textAlign[a]} aria-label={fr.textAlign[a]} onclick={() => setAlign(a)}><AlignIcon align={a} /></button>
+              {/each}
+            </div>
+            <div class="row">
+              {#each VALIGNS as v (v)}
+                <button class:on={(t.style.valign ?? "Top") === v} title={fr.textVAlign[v]} aria-label={fr.textVAlign[v]} onclick={() => setVAlign(v)}><VAlignIcon valign={v} /></button>
+              {/each}
+            </div>
           </div>
         {/if}
       </div>
@@ -347,9 +355,12 @@
     min-width: 180px;
     white-space: normal;
   }
-  .pop.row {
-    flex-direction: row;
+  .pop.grid {
     min-width: 0;
+  }
+  .pop .row {
+    display: flex;
+    gap: 2px;
   }
   .pop.list {
     padding: 4px;

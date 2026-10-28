@@ -7,7 +7,7 @@ import type {} from "@tiptap/extension-text-style";
 import { editor } from "./docStore.svelte";
 import { alignToCss } from "./richtext";
 import { textEditing } from "./textEditing.svelte";
-import type { Align, Element, Run, TextProps, TextStyle } from "./types";
+import type { Align, Element, Run, TextProps, TextStyle, VAlign } from "./types";
 
 export type Mark = "bold" | "italic" | "underline";
 
@@ -51,6 +51,11 @@ export function setAlign(align: Align) {
   else updateText((t) => ({ ...t, style: { ...t.style, align }, content: { paragraphs: t.content.paragraphs.map((p) => ({ ...p, align: null })) } }));
 }
 
+/** Position du texte dans son cadre : réglage du cadre entier, même pendant l'écriture. */
+export function setVAlign(valign: VAlign) {
+  setStyle({ valign: valign === "Top" ? null : valign });
+}
+
 export function toggleMark(mark: Mark) {
   const tip = activeTip();
   if (tip) {
@@ -77,3 +82,4 @@ export function updatePrompt(prompt: string | null) {
 }
 
 export const ALIGNS: Align[] = ["Left", "Center", "Right", "Justify"];
+export const VALIGNS: VAlign[] = ["Top", "Middle", "Bottom"];

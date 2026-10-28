@@ -1,16 +1,18 @@
 <script lang="ts">
   import AlignIcon from "../AlignIcon.svelte";
+  import VAlignIcon from "../VAlignIcon.svelte";
   import ColorPicker from "../ColorPicker.svelte";
   import FontPicker from "../FontPicker.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { isStrokeOnly } from "../../lib/shapePaths";
   import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
-  import { ALIGNS, activeTip, isMarkActive, setAlign, setColor, setFont, setSize, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
-  import { endPreview, previewPhoto, previewShape, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
+  import { ALIGNS, VALIGNS, activeTip, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
+  import { endPreview, previewPhoto, previewShape, previewTextStyle, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
   import { deleteSelection, setSelectedFrame, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
   import { boundsOf, isLockedSelection } from "../../lib/groups";
   import type { Frame } from "../../lib/types";
+  import { textPadding } from "../../lib/richtext";
 
   const selected = $derived(editor.selected);
 
@@ -159,6 +161,15 @@
         {#each ALIGNS as a (a)}
           <button title={fr.textAlign[a]} aria-label={fr.textAlign[a]} class:on={t.style.align === a} onpointerdown={(e) => e.preventDefault()} onclick={() => setAlign(a)}><AlignIcon align={a} /></button>
         {/each}
+      </div>
+      <div class="row">
+        {#each VALIGNS as v (v)}
+          <button title={fr.textVAlign[v]} aria-label={fr.textVAlign[v]} class:on={(t.style.valign ?? "Top") === v} onpointerdown={(e) => e.preventDefault()} onclick={() => setVAlign(v)}><VAlignIcon valign={v} /></button>
+        {/each}
+      </div>
+      <div class="field">
+        <span>{fr.padding} : {textPadding(t.style)} mm</span>
+        <input type="range" min="0" max="10" step="0.5" value={textPadding(t.style)} oninput={(e) => previewTextStyle({ padding_mm: Number(e.currentTarget.value) })} onchange={endPreview} />
       </div>
       <div class="field">
         <span>Couleur</span>

@@ -2,7 +2,7 @@
 
 use super::styles::{ARROW_MARKER, Props, Registry, mm};
 use super::xml::Xml;
-use super::{NS, OPENMOJI_CREDIT_PAGE, OdgError, TEXT_PADDING_MM, odf_transform};
+use super::{NS, OPENMOJI_CREDIT_PAGE, OdgError, odf_transform};
 use crate::crop::source_rect;
 use crate::model::*;
 use crate::photo::{self, AssetStore, MAX_LONG_EDGE_PX};
@@ -224,7 +224,12 @@ impl Writer<'_> {
         if t.content.is_blank() {
             return;
         }
-        let pad = mm(TEXT_PADDING_MM);
+        let pad = mm(t.style.padding());
+        let valign = match t.style.valign.unwrap_or_default() {
+            VAlign::Top => "top",
+            VAlign::Middle => "middle",
+            VAlign::Bottom => "bottom",
+        };
         let style = self.reg.style(
             "graphic",
             "gr",
@@ -239,7 +244,7 @@ impl Writer<'_> {
                     ("fo:padding-right", pad),
                     ("draw:auto-grow-height", "false".into()),
                     ("draw:auto-grow-width", "false".into()),
-                    ("draw:textarea-vertical-align", "top".into()),
+                    ("draw:textarea-vertical-align", valign.into()),
                     ("draw:textarea-horizontal-align", "justify".into()),
                     ("fo:wrap-option", "wrap".into()),
                 ],

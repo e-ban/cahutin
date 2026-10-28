@@ -2,7 +2,7 @@
   // Le texte est mis en page à sa taille réelle (mm et pt), puis mis à l'échelle du zoom :
   // les retours à la ligne ne dépendent pas du zoom et correspondent à ceux de l'export.
   import TextEditor from "../TextEditor.svelte";
-  import { TEXT_PADDING_MM, alignToCss } from "../../lib/richtext";
+  import { alignToCss, textPadding } from "../../lib/richtext";
   import type { Element, RichText, Run, TextProps } from "../../lib/types";
 
   let {
@@ -47,26 +47,29 @@
   bind:this={box}
   style:width="{element.frame.w_mm}mm"
   style:height="{element.frame.h_mm}mm"
-  style:padding="{TEXT_PADDING_MM}mm"
+  style:padding="{textPadding(props.style)}mm"
   style:transform="scale({zoom})"
   style:font-family={`"${props.style.font}", "Andika"`}
   style:font-size="{props.style.size_pt}pt"
   style:color={props.style.color}
   style:text-align={alignToCss(props.style.align)}
 >
-  {#if editing && ondone}
-    <TextEditor {props} {ondone} />
-  {:else if blank}
-    {#if props.prompt}
-      <p class="prompt zone-empty">{props.prompt}</p>
+  <!-- Alignement vertical par marges automatiques : un texte trop long part du haut, sans déborder vers le haut. -->
+  <div class="flow" class:middle={props.style.valign === "Middle"} class:bottom={props.style.valign === "Bottom"}>
+    {#if editing && ondone}
+      <TextEditor {props} {ondone} />
+    {:else if blank}
+      {#if props.prompt}
+        <p class="prompt zone-empty">{props.prompt}</p>
+      {/if}
+    {:else}
+      {#each props.content.paragraphs as p}
+        <p style:text-align={p.align ? alignToCss(p.align) : null}>
+          {#each p.runs as r}<span style={runStyle(r)}>{r.text}</span>{/each}{#if p.runs.every((r) => r.text === "")}<br />{/if}
+        </p>
+      {/each}
     {/if}
-  {:else}
-    {#each props.content.paragraphs as p}
-      <p style:text-align={p.align ? alignToCss(p.align) : null}>
-        {#each p.runs as r}<span style={runStyle(r)}>{r.text}</span>{/each}{#if p.runs.every((r) => r.text === "")}<br />{/if}
-      </p>
-    {/each}
-  {/if}
+  </div>
 </div>
 {#if overflow && !editing}
   <span class="badge" style:transform="scale({Math.max(zoom, 0.6)})">Texte trop long</span>
@@ -83,6 +86,20 @@
     white-space: pre-wrap;
     overflow-wrap: break-word;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  /* En haut, la zone d'écriture occupe tout le cadre (un clic sous le texte y place le curseur). */
+  .flow {
+    flex: 1 0 auto;
+  }
+  .flow.middle {
+    flex: none;
+    margin-block: auto;
+  }
+  .flow.bottom {
+    flex: none;
+    margin-top: auto;
   }
   .text :global(p) {
     margin: 0;

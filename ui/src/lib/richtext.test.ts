@@ -1,7 +1,7 @@
 import type { JSONContent } from "@tiptap/core";
 import { expect, test } from "vitest";
 import { setKnownFamilies } from "./fontNames";
-import { richToTiptap, sanitizePlainText, tiptapToRich } from "./richtext";
+import { richToTiptap, sanitizePlainText, textPadding, tiptapToRich } from "./richtext";
 import type { RichText, TextStyle } from "./types";
 
 const style: TextStyle = { font: "Andika", size_pt: 14, color: "#222222", align: "Left" };
@@ -97,4 +97,12 @@ test("a user font added at runtime survives tiptapToRich", () => {
   });
   expect(tiptapToRich(doc("Carnet Test"), style).paragraphs[0].runs[0].font).toBe("Carnet Test");
   expect(tiptapToRich(doc("Comic Sans MS"), style).paragraphs[0].runs[0].font).toBeNull();
+});
+
+test("text padding defaults to the engine's 1.5 mm and follows the setting", () => {
+  const style = { font: "Andika", size_pt: 14, color: "#222222", align: "Left" as const };
+  expect(textPadding(style)).toBe(1.5);
+  expect(textPadding({ ...style, padding_mm: null })).toBe(1.5);
+  expect(textPadding({ ...style, padding_mm: 0 })).toBe(0);
+  expect(textPadding({ ...style, padding_mm: 6 })).toBe(6);
 });

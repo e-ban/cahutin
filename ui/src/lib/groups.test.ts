@@ -71,6 +71,19 @@ test("scaleElements doubles frames and text sizes from the origin", () => {
   expect(t2.kind.type === "Text" && t2.kind.style.size_pt).toBe(14.5);
 });
 
+test("scaleElements scales a set padding and the text frame, not the default padding", () => {
+  const base = text("t", 14);
+  if (base.kind.type !== "Text") throw new Error();
+  const framed: Element = {
+    ...base,
+    kind: { ...base.kind, style: { ...base.kind.style, padding_mm: 4 }, frame: { fill: "#ffeeaa", stroke: { width_mm: 1, color: "#333333", style: "Dashed" }, corner_radius_mm: 3, image: null } },
+  };
+  const [t] = scaleElements([framed], 2, { x_mm: 0, y_mm: 0 });
+  expect(t.kind.type === "Text" && [t.kind.style.padding_mm, t.kind.frame?.stroke?.width_mm, t.kind.frame?.corner_radius_mm, t.kind.frame?.stroke?.style]).toEqual([8, 2, 6, "Dashed"]);
+  const [plain] = scaleElements([base], 2, { x_mm: 0, y_mm: 0 });
+  expect(plain.kind.type === "Text" && (plain.kind.style.padding_mm ?? null)).toBeNull();
+});
+
 test("rotateElements turns positions around the centre and adds to rotation", () => {
   const [r] = rotateElements([shape("a", 20)], 90, { x_mm: 15, y_mm: 15 });
   // Centre (25, 15) tourné de 90° (sens horaire, y vers le bas) autour de (15, 15) : (15, 25).

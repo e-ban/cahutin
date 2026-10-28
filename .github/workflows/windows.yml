@@ -6,9 +6,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Un run à la fois : un nouvel envoi attend la fin du run en cours au lieu de l'annuler (le cache
+# Rust n'est enregistré qu'à la fin d'un run réussi). GitHub ne garde que le dernier run en attente.
 concurrency:
   group: windows-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:

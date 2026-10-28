@@ -123,6 +123,18 @@ pub struct Element {
     pub kind: ElementKind,
 }
 
+impl Element {
+    /// Images de la photothèque utilisées par l'élément : la photo, ou l'image de fond d'un cadre de texte.
+    pub fn asset_ids(&self) -> impl Iterator<Item = &Id> {
+        let (photo, frame) = match &self.kind {
+            ElementKind::Photo(p) => (p.asset.as_ref(), None),
+            ElementKind::Text(t) => (None, t.frame.as_ref().and_then(|f| f.image.as_ref())),
+            _ => (None, None),
+        };
+        photo.into_iter().chain(frame)
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
 #[serde(tag = "type")]
 #[ts(export)]

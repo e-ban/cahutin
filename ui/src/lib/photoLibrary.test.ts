@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { filterPhotos, folderChips, pendingPaths, usedAssetIds, type LibraryPhoto } from "./photoLibrary";
+import { elementAssets, filterPhotos, folderChips, pendingPaths, usedAssetIds, type LibraryPhoto } from "./photoLibrary";
 import type { Document, Element } from "./types";
 
 const meta = (id: string) => ({ id, width_px: 40, height_px: 30, mime: "Jpeg" as const });
@@ -25,6 +25,19 @@ const photos = [lp("a", "Ferme"), lp("b", "Ferme"), lp("c", "Piscine"), lp("d", 
 
 test("usedAssetIds collects photos placed on every page", () => {
   expect([...usedAssetIds(doc([["a", null], ["c"]]))].sort()).toEqual(["a", "c"]);
+});
+
+test("a text frame's background image counts as a used photo", () => {
+  const d = doc([["a"]]);
+  d.pages[0].elements.push({
+    id: "t",
+    frame: { x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 },
+    locked: false,
+    zone: false,
+    kind: { type: "Text", content: { paragraphs: [] }, style: { font: "Andika", size_pt: 14, color: "#222222", align: "Left" }, prompt: null, frame: { fill: null, stroke: null, corner_radius_mm: 0, image: "b" } },
+  });
+  expect([...usedAssetIds(d)].sort()).toEqual(["a", "b"]);
+  expect(elementAssets(d.pages[0].elements[1])).toEqual(["b"]);
 });
 
 test("filterPhotos all, unused and folder", () => {

@@ -278,6 +278,27 @@ mod tests {
     }
 
     #[test]
+    fn text_frame_image_is_a_cover_cropped_bitmap_fill() {
+        let mut store = AssetStore::default();
+        let a = raw_asset(400, 300);
+        let mut t = text(RichText::plain("Léa"), None);
+        t.frame = frame(10.0, 10.0, 60.0, 20.0);
+        if let ElementKind::Text(p) = &mut t.kind {
+            p.frame = Some(TextFrame { fill: Some("#ff0000".into()), stroke: None, corner_radius_mm: 3.0, image: Some(a.meta.id.clone()) });
+        }
+        store.insert(a).unwrap();
+        let mut e = export(&doc_with(vec![t]), &store);
+        let content = e.xml("content.xml");
+        // L'image remplace la couleur de fond.
+        assert!(content.contains(r#"draw:fill="bitmap""#) && !content.contains("#ff0000"), "{content}");
+        assert!(e.xml("styles.xml").contains("<draw:fill-image "));
+        let pic = e.names().into_iter().find(|n| n.starts_with("Pictures/")).expect("image");
+        let img = image::load_from_memory(&e.read(&pic)).unwrap();
+        // Recadrée aux proportions du cadre (3 pour 1) : 400 × 133 pixels.
+        assert_eq!((img.width(), img.height()), (400, 133));
+    }
+
+    #[test]
     fn rotation_matches_formula() {
         let f = Frame { x_mm: 50.0, y_mm: 50.0, w_mm: 40.0, h_mm: 20.0, rotation_deg: 90.0 };
         assert_eq!(odf_transform(&f).unwrap(), "rotate(-1.570796) translate(80.000mm 40.000mm)");

@@ -113,10 +113,7 @@ impl Writer<'_> {
     fn element(&mut self, e: &Element) -> Result<(), OdgError> {
         match &e.kind {
             ElementKind::Photo(p) => self.photo(e, p),
-            ElementKind::Text(t) => {
-                self.text(e, t);
-                Ok(())
-            }
+            ElementKind::Text(t) => self.text(e, t),
             ElementKind::Shape(s) => {
                 self.shape(e, s);
                 Ok(())
@@ -151,15 +148,16 @@ impl Writer<'_> {
         let t = TextProps { content: RichText::plain(OPENMOJI_CREDIT_PAGE), style, prompt: None, frame: None };
         let e = Element { id: String::new(), frame: f, locked: true, zone: false, group: None, kind: ElementKind::Text(t.clone()) };
         self.protect_next = true;
-        self.text(&e, &t);
+        // Sans image de fond, l'écriture du texte ne peut pas échouer.
+        let _ = self.text(&e, &t);
     }
 
-    /// L'image est prérecadrée : LibreOffice reçoit exactement les pixels visibles.
-    fn photo(&mut self, e: &Element, p: &PhotoProps) -> Result<(), OdgError> {
-        let Some(asset_id) = &p.asset else { return Ok(()) };
+    /// Image de la photothèque prérecadrée pour le cadre : LibreOffice reçoit exactement les pixels visibles.
+    /// Renvoie son chemin dans l'archive.
+    fn cropped_picture(&mut self, asset_id: &Id, f: &Frame, crop: &Crop, name: &str) -> Result<String, OdgError> {
         let asset = self.store.get(asset_id).ok_or_else(|| OdgError::MissingAsset(asset_id.clone()))?;
         let img = image::load_from_memory(&asset.bytes).map_err(|_| OdgError::Image)?;
-        let r = source_rect(img.width(), img.height(), e.frame.w_mm, e.frame.h_mm, &p.crop);
+        let r = source_rect(img.width(), img.height(), f.w_mm, f.h_mm, crop);
         let (x, y) = (r.x.round() as u32, r.y.round() as u32);
         let w = (r.w.round() as u32).clamp(1, img.width() - x);
         let h = (r.h.round() as u32).clamp(1, img.height() - y);
@@ -172,10 +170,15 @@ impl Writer<'_> {
             Mime::Jpeg => ("jpg", "image/jpeg"),
             Mime::Png => ("png", "image/png"),
         };
-        let path = format!("Pictures/{}.{ext}", e.id);
+        let path = format!("Pictures/{name}.{ext}");
         let bytes = photo::encode(&cropped, mime).map_err(|_| OdgError::Image)?;
         self.pictures.push(Picture { path: path.clone(), media_type, bytes });
+        Ok(path)
+    }
 
+    fn photo(&mut self, e: &Element, p: &PhotoProps) -> Result<(), OdgError> {
+        let Some(asset_id) = &p.asset else { return Ok(()) };
+        let path = self.cropped_picture(asset_id, &e.frame, &p.crop, &e.id)?;
         let geo = geometry(&e.frame);
         let decorated = p.corner_radius_mm > 0.0 || p.border.is_some() || p.shadow;
         if !decorated {
@@ -227,11 +230,11 @@ impl Writer<'_> {
         )]
     }
 
-    fn text(&mut self, e: &Element, t: &TextProps) {
+    fn text(&mut self, e: &Element, t: &TextProps) -> Result<(), OdgError> {
         // Un texte vide disparaît, sauf s'il a un cadre (une étiquette à remplir) ; l'invite n'est jamais exportée.
         let blank = t.content.is_blank();
         if blank && t.frame.is_none() {
-            return;
+            return Ok(());
         }
         let pad = mm(t.style.padding());
         let valign = match t.style.valign.unwrap_or_default() {
@@ -240,10 +243,17 @@ impl Writer<'_> {
             VAlign::Bottom => "bottom",
         };
         // Cadre : fond et bordure natifs du cadre de texte (le texte reste modifiable d'un clic dans LibreOffice).
+        // Une image de fond couvre le cadre (recadrée au centre) et remplace la couleur.
         let frame = t.frame.as_ref();
-        let mut props: Vec<(&'static str, String)> = match frame.and_then(|f| f.fill.clone()) {
-            Some(c) => vec![("draw:fill", "solid".into()), ("draw:fill-color", c)],
-            None => vec![("draw:fill", "none".into())],
+        let mut props: Vec<(&'static str, String)> = match (frame.and_then(|f| f.image.as_ref()), frame.and_then(|f| f.fill.clone())) {
+            (Some(image), _) => {
+                let path = self.cropped_picture(image, &e.frame, &Crop::COVER, &format!("{}-fond", e.id))?;
+                let fill_name = format!("img_{}_fond", e.id);
+                self.reg.fill_image(fill_name.clone(), path);
+                vec![("draw:fill", "bitmap".into()), ("draw:fill-image-name", fill_name), ("style:repeat", "stretch".into())]
+            }
+            (None, Some(c)) => vec![("draw:fill", "solid".into()), ("draw:fill-color", c)],
+            (None, None) => vec![("draw:fill", "none".into())],
         };
         props.extend(stroke(self.reg, frame.and_then(|f| f.stroke.as_ref())));
         let style = self.reg.style(
@@ -303,6 +313,7 @@ impl Writer<'_> {
         }
         self.body.close();
         self.body.close();
+        Ok(())
     }
 
     fn shape(&mut self, e: &Element, s: &ShapeProps) {

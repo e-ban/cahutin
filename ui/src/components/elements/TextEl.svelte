@@ -2,6 +2,7 @@
   // Le texte est mis en page à sa taille réelle (mm et pt), puis mis à l'échelle du zoom :
   // les retours à la ligne ne dépendent pas du zoom et correspondent à ceux de l'export.
   import TextEditor from "../TextEditor.svelte";
+  import { assetUrl } from "../../lib/api";
   import { alignToCss, textPadding } from "../../lib/richtext";
   import { dashArray } from "../../lib/strokes";
   import type { Element, RichText, Run, TextProps } from "../../lib/types";
@@ -48,11 +49,16 @@
   {@const w = element.frame.w_mm}
   {@const h = element.frame.h_mm}
   <svg class="deco" viewBox="0 0 {w} {h}" style:width="{w}mm" style:height="{h}mm" style:transform="scale({zoom})" aria-hidden="true">
+    {#if f.image}
+      <!-- Image de fond : couvre le cadre, recadrée au centre (comme l'export), aux coins du cadre. -->
+      <clipPath id="frame-clip-{element.id}"><rect width={w} height={h} rx={f.corner_radius_mm} /></clipPath>
+      <image href={assetUrl(f.image)} width={w} height={h} preserveAspectRatio="xMidYMid slice" clip-path="url(#frame-clip-{element.id})" />
+    {/if}
     <rect
       width={w}
       height={h}
       rx={f.corner_radius_mm}
-      fill={f.fill ?? "none"}
+      fill={f.image ? "none" : (f.fill ?? "none")}
       stroke={f.stroke?.color ?? "none"}
       stroke-width={f.stroke?.width_mm ?? 0}
       stroke-dasharray={dashArray(f.stroke, f.stroke?.width_mm ?? 0)}

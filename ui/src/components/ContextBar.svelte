@@ -10,7 +10,8 @@
   import { alignFrames, distributeFrames, type AlignMode } from "../lib/align";
   import { placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
-  import { addCaption, deleteSelection, groupSelection, toggleLockSelection, ungroupSelection } from "../lib/editActions";
+  import { addCaption, deleteSelection, groupSelection, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
+  import { assetUrl } from "../lib/api";
   import { endPreview, previewPhoto, previewShape, previewTextFrame, previewTextStyle, updatePhoto, updateShape, updateTextFrame } from "../lib/elementEdit";
   import { textPadding } from "../lib/richtext";
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
@@ -286,6 +287,17 @@
             {/if}
             <span>{fr.padding} : {textPadding(t.style)} mm</span>
             <input type="range" min="0" max="10" step="0.5" value={textPadding(t.style)} oninput={(e) => previewTextStyle({ padding_mm: Number(e.currentTarget.value) })} onchange={endPreview} />
+            <span>{fr.frameImage}</span>
+            {#if editor.photos.length === 0 && !f?.image}
+              <button class="link" onclick={openPhotos}>{fr.frameImageHint}</button>
+            {:else}
+              <div class="frame-images">
+                <button class="none" class:on={!f?.image} onclick={() => setFrameImage(null)}>{fr.frameImageNone}</button>
+                {#each editor.photos as p (p.meta.id)}
+                  <button class:on={f?.image === p.meta.id} onclick={() => setFrameImage(p.meta)}><img src={assetUrl(p.meta.id, true)} alt="" draggable="false" /></button>
+                {/each}
+              </div>
+            {/if}
           </div>
         {/if}
       </div>
@@ -426,6 +438,35 @@
   .pop.frame > span {
     font-size: 12px;
     color: var(--muted);
+  }
+  .frame-images {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    max-height: 132px;
+    overflow-y: auto;
+  }
+  .frame-images button {
+    padding: 2px;
+    aspect-ratio: 1;
+  }
+  .frame-images img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .frame-images .none {
+    font-size: 11px;
+  }
+  .link {
+    border: 0;
+    background: none;
+    color: var(--accent);
+    text-align: left;
+    padding: 0;
+    white-space: normal;
+    font-size: 12px;
   }
   .pop.grid {
     min-width: 0;

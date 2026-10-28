@@ -224,3 +224,24 @@ test("caption is still found after photo and caption are enlarged together", asy
   expect(editor.selection).toEqual([ids[1]]);
   editor.focusedMember = null;
 });
+
+test("setFrameImage puts a library photo behind the selected text, in one undo step", async () => {
+  const { setFrameImage } = await import("./editActions");
+  const { textElement } = await import("./factory");
+  const meta = { id: "lbl", width_px: 300, height_px: 100, mime: "Png" as const };
+  const doc = newDocument("étiquettes");
+  const t = textElement({ x_mm: 0, y_mm: 0, w_mm: 60, h_mm: 20, rotation_deg: 0 });
+  doc.pages[0].elements.push(t);
+  editor.reset(doc, null);
+  editor.selection = [t.id];
+  setFrameImage(meta);
+  const k = editor.page.elements[0].kind;
+  expect(k.type === "Text" && k.frame?.image).toBe("lbl");
+  expect(editor.doc.assets.lbl).toEqual(meta);
+  setFrameImage(null);
+  const k2 = editor.page.elements[0].kind;
+  expect(k2.type === "Text" && k2.frame).toBeNull();
+  editor.undo();
+  const k3 = editor.page.elements[0].kind;
+  expect(k3.type === "Text" && k3.frame?.image).toBe("lbl");
+});

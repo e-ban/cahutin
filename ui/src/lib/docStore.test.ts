@@ -74,3 +74,17 @@ test("re-importing the same file does not duplicate it in the library", () => {
   editor.replaceLibrary([{ meta: meta("d"), path: "", folder: "" }]);
   expect(editor.photos.map((p) => p.meta.id)).toEqual(["d"]);
 });
+
+test("a change that keeps the selected elements keeps the selection itself (open menus stay open)", async () => {
+  const { textElement, newDocument } = await import("./factory");
+  const doc = newDocument("s");
+  const t = textElement({ x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 });
+  doc.pages[0].elements.push(t);
+  editor.reset(doc, null);
+  editor.selection = [t.id];
+  const before = editor.selection;
+  editor.updateElement(t.id, (e) => ({ ...e, frame: { ...e.frame, x_mm: 5 } }));
+  expect(editor.selection).toBe(before);
+  editor.updatePage((p) => ({ ...p, elements: [] }));
+  expect(editor.selection).toEqual([]);
+});

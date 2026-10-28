@@ -86,8 +86,9 @@ class Editor {
     this.canRedo = this.#history.canRedo;
     this.dirty = this.#history.isDirty;
     if (this.pageIndex >= this.doc.pages.length) this.pageIndex = this.doc.pages.length - 1;
+    // Sélection réaffectée seulement si un élément a disparu : un menu ouvert de la barre flottante reste ouvert.
     const ids = new Set(this.page.elements.map((e) => e.id));
-    this.selection = this.selection.filter((id) => ids.has(id));
+    if (this.selection.some((id) => !ids.has(id))) this.selection = this.selection.filter((id) => ids.has(id));
   }
 
   commit(next: Document) {

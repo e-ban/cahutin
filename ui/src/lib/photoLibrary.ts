@@ -1,5 +1,5 @@
 // Photothèque de la session : filtres, pastilles par dossier, photos utilisées, chemins à mémoriser.
-import type { AssetMeta, Document } from "./types";
+import type { AssetMeta, Document, Element } from "./types";
 
 export interface LibraryPhoto {
   meta: AssetMeta;
@@ -10,10 +10,16 @@ export interface LibraryPhoto {
 
 export type PhotoFilter = { kind: "all" } | { kind: "unused" } | { kind: "folder"; folder: string };
 
+/** Images de la photothèque utilisées par un élément : la photo, ou l'image de fond d'un cadre de texte. */
+export function elementAssets(e: Element): string[] {
+  const k = e.kind;
+  if (k.type === "Photo") return k.asset ? [k.asset] : [];
+  if (k.type === "Text") return k.frame?.image ? [k.frame.image] : [];
+  return [];
+}
+
 export function usedAssetIds(doc: Document): Set<string> {
-  const ids = new Set<string>();
-  for (const p of doc.pages) for (const e of p.elements) if (e.kind.type === "Photo" && e.kind.asset) ids.add(e.kind.asset);
-  return ids;
+  return new Set(doc.pages.flatMap((p) => p.elements.flatMap(elementAssets)));
 }
 
 export function filterPhotos(photos: LibraryPhoto[], filter: PhotoFilter, used: Set<string>): LibraryPhoto[] {

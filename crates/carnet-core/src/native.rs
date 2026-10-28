@@ -69,14 +69,7 @@ fn extension(mime: Mime) -> &'static str {
 }
 
 fn used_assets(doc: &Document) -> BTreeSet<String> {
-    doc.pages
-        .iter()
-        .flat_map(|p| &p.elements)
-        .filter_map(|e| match &e.kind {
-            ElementKind::Photo(p) => p.asset.clone(),
-            _ => None,
-        })
-        .collect()
+    doc.pages.iter().flat_map(|p| &p.elements).flat_map(Element::asset_ids).cloned().collect()
 }
 
 /// 2 si le document contient une image (un Carnet plus ancien affiche alors « version plus récente »), sinon 1.
@@ -435,6 +428,23 @@ mod tests {
             group: None,
             kind: ElementKind::Text(TextProps { content: RichText::plain("x"), style, prompt: None, frame }),
         }
+    }
+
+    #[test]
+    fn text_frame_image_is_saved_with_the_document() {
+        let mut doc = Document::new("étiquettes");
+        let mut store = AssetStore::default();
+        let a = photo_asset();
+        let id = a.meta.id.clone();
+        doc.assets.insert(id.clone(), a.meta.clone());
+        store.insert(a).unwrap();
+        doc.pages[0].elements.push(text_el(TextStyle::default_zone(), Some(TextFrame { image: Some(id.clone()), ..TextFrame::default() })));
+        let mut buf = Cursor::new(Vec::new());
+        save(&doc, &store, &FontSet::builtin(), &mut buf).unwrap();
+        buf.set_position(0);
+        let loaded = load(buf).unwrap();
+        assert!(loaded.doc.assets.contains_key(&id));
+        assert_eq!(loaded.assets.len(), 1);
     }
 
     /// Chaque réglage de la version 3 l'impose : la 0.4 le perdrait en silence (champs inconnus ignorés).

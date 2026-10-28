@@ -110,13 +110,6 @@ pub fn builtin() -> Vec<Template> {
     ]
 }
 
-fn photo_asset(e: &Element) -> Option<&Id> {
-    match &e.kind {
-        ElementKind::Photo(p) => p.asset.as_ref(),
-        _ => None,
-    }
-}
-
 /// Modèle tiré d'une page : les zones sont vidées ; parmi les autres éléments, seuls les formes et les
 /// éléments verrouillés (bandeau, logo) sont gardés. Une photo ou un texte libre peut montrer un enfant
 /// ou le nommer : il ne part pas dans un modèle destiné à être partagé.
@@ -135,7 +128,7 @@ pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
         }
     }
     let mut assets: Vec<Asset> = Vec::new();
-    for id in page.elements.iter().filter_map(photo_asset) {
+    for id in page.elements.iter().flat_map(Element::asset_ids) {
         if let Some(a) = store.get(id)
             && !assets.iter().any(|x| x.meta.id == *id)
         {
@@ -447,6 +440,34 @@ mod tests {
         let info = lib.save(&from_page("À jeter", &page, &AssetStore::default())).unwrap();
         lib.delete(&info.id).unwrap();
         assert_eq!(lib.list().len(), 3);
+    }
+
+    /// Modèle d'étiquettes : une zone de texte vidée garde son cadre et l'image de fond, qui part avec le modèle.
+    #[test]
+    fn from_page_keeps_text_frame_images() {
+        let mut page = Page::new(A4_PORTRAIT);
+        let label = logo_asset();
+        let id = label.meta.id.clone();
+        let mut store = AssetStore::default();
+        store.insert(label).unwrap();
+        page.elements.push(Element {
+            id: new_id(),
+            frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 60.0, h_mm: 25.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: true,
+            group: None,
+            kind: ElementKind::Text(TextProps {
+                content: RichText::plain("Léa"),
+                style: TextStyle::default_zone(),
+                prompt: Some("Prénom".into()),
+                frame: Some(TextFrame { image: Some(id.clone()), ..TextFrame::default() }),
+            }),
+        });
+        let t = from_page("étiquettes", &page, &store);
+        let ElementKind::Text(text) = &t.page.elements[0].kind else { panic!() };
+        assert!(text.content.is_blank());
+        assert_eq!(text.frame.as_ref().and_then(|f| f.image.clone()), Some(id.clone()));
+        assert_eq!(t.assets.iter().map(|a| a.meta.id.clone()).collect::<Vec<_>>(), vec![id]);
     }
 
     #[test]

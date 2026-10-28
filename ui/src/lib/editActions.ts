@@ -3,6 +3,8 @@ import { copyElements, duplicateElements, pasteElements, removeElements, reorder
 import { editor } from "./docStore.svelte";
 import { expandSelection, groupElements, rotateElements, scaleElements, ungroup } from "./groups";
 import { newId } from "./factory";
+import { elementAssets } from "./photoLibrary";
+import { textFrame } from "./elementEdit";
 import type { AssetMeta, Background, Element, Frame } from "./types";
 
 let clipboard: Element[] = [];
@@ -13,8 +15,8 @@ export const hasClipboard = () => clipboard.length > 0;
 
 function assetsOf(elements: Element[]): Record<string, AssetMeta> {
   const out: Record<string, AssetMeta> = {};
-  for (const e of elements) {
-    const meta = e.kind.type === "Photo" && e.kind.asset ? editor.assetMeta(e.kind.asset) : undefined;
+  for (const id of elements.flatMap(elementAssets)) {
+    const meta = editor.assetMeta(id);
     if (meta) out[meta.id] = meta;
   }
   return out;
@@ -214,6 +216,15 @@ export function addPhotoAt(meta: AssetMeta, xMm: number, yMm: number) {
 }
 
 /** Clic sur une vignette : remplit (ou remplace) la photo sélectionnée, sinon pose la photo au centre de la page. */
+/** Image de fond du cadre du texte sélectionné (une photo de la photothèque), ou aucune. */
+export function setFrameImage(meta: AssetMeta | null) {
+  const e = editor.selected;
+  if (!e || e.kind.type !== "Text") return;
+  const page = { ...editor.page, elements: editor.page.elements.map((x) => (x.id === e.id ? textFrame({ image: meta?.id ?? null })(x) : x)) };
+  const pages = editor.doc.pages.map((p, i) => (i === editor.pageIndex ? page : p));
+  editor.commit({ ...editor.doc, pages, assets: meta ? { ...editor.doc.assets, [meta.id]: meta } : editor.doc.assets });
+}
+
 export function usePhoto(meta: AssetMeta) {
   const e = editor.selected;
   if (e && e.kind.type === "Photo" && !e.locked) {

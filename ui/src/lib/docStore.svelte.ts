@@ -7,7 +7,7 @@ import { readPref, writePref } from "./prefs";
 import type { AssetMeta, Document, Element, Page } from "./types";
 
 export type Zoom = number | "fit";
-export type DrawerId = "templates" | "photos" | "text" | "shapes" | "fonts" | "grid";
+export type DrawerId = "templates" | "photos" | "text" | "shapes" | "fonts" | "grid" | "decor";
 
 class Editor {
   doc = $state.raw<Document>(newDocument());
@@ -35,6 +35,8 @@ class Editor {
   cropping = $state<string | null>(null);
   /** Pages d'impression rendues seulement pendant une impression ou un export PDF. */
   printing = $state(false);
+  /** Écran À propos (menu Fichier). */
+  showAbout = $state(false);
   /** Écran d'accueil : au démarrage et pour un nouveau document. */
   showWelcome = $state(false);
   /** Documents récents (sur le poste seulement). */

@@ -15,6 +15,8 @@
   import GridDragMerge from "./components/GridDragMerge.svelte";
   import TemplateBanner from "./components/layout/TemplateBanner.svelte";
   import GridDrawer from "./components/drawers/GridDrawer.svelte";
+  import DecorDrawer from "./components/drawers/DecorDrawer.svelte";
+  import About from "./components/layout/About.svelte";
   import Hint from "./components/layout/Hint.svelte";
   import Welcome from "./components/layout/Welcome.svelte";
   import Transformer from "./components/Transformer.svelte";
@@ -32,6 +34,7 @@
   import { fonts } from "./lib/fonts.svelte";
   import { addPhotoAt } from "./lib/editActions";
   import { expandSelection, groupOf } from "./lib/groups";
+  import { pictoElement } from "./lib/pictos.svelte";
   import { handleShortcut } from "./lib/shortcuts";
   import { newDocument, newId } from "./lib/factory";
   import { templates } from "./lib/templates.svelte";
@@ -154,6 +157,7 @@
   {:else if editor.drawer === "shapes"}<ShapesDrawer />
   {:else if editor.drawer === "fonts"}<FontsDrawer />
   {:else if editor.drawer === "grid"}<GridDrawer />
+  {:else if editor.drawer === "decor"}<DecorDrawer />
   {/if}
   <main class="stage" bind:this={stageEl} bind:clientWidth={stageWidth} bind:clientHeight={stageHeight}>
     <PageView
@@ -178,6 +182,11 @@
       ontextdone={endTextEdit}
       oncontext={openContextMenu}
       onfocusmember={focusMember}
+      ondroppicto={(code, x, y) => {
+        const el = pictoElement(editor.page, code, { x_mm: x, y_mm: y });
+        editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+        editor.selection = [el.id];
+      }}
       bind:pageEl
     />
     <Transformer {pageEl} zoom={editor.effectiveZoom} />
@@ -192,6 +201,7 @@
   <Inspector />
   <BottomBar />
   {#if editor.showWelcome}<Welcome />{/if}
+  {#if editor.showAbout}<About />{/if}
   <Modal />
   {#if editor.notice}
     <div class="notice" role="alert">

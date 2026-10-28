@@ -16,6 +16,7 @@
         ]
       : []),
     { label: fr.reportProblem, action: files.problemReport, separator: true },
+    { label: fr.about, action: () => (editor.showAbout = true) },
   ]);
 </script>
 

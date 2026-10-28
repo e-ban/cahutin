@@ -73,7 +73,7 @@
   {:else if !selected}
     <p class="hint">{fr.noSelection}</p>
   {:else}
-    <h3>{selected.kind.type === "Photo" ? fr.photo : selected.kind.type === "Text" ? fr.text : fr.shape}</h3>
+    <h3>{selected.kind.type === "Photo" ? fr.photo : selected.kind.type === "Text" ? fr.text : selected.kind.type === "Image" ? fr.picture : fr.shape}</h3>
 
     <div class="field">
       <span>{fr.position}</span>

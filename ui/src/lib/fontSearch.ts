@@ -1,7 +1,8 @@
 // Recherche et groupes du sélecteur de police (fournies, ajoutées, sur cet ordinateur).
 import type { FontFamilyInfo } from "./types";
 
-const normalize = (s: string) =>
+/** Minuscules, sans accents ni espaces autour : pour comparer ce que l'on tape à des noms. */
+export const normalize = (s: string) =>
   s
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")

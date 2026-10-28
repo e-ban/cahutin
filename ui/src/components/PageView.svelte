@@ -4,9 +4,14 @@
   import TextEl from "./elements/TextEl.svelte";
   import { dragCrop, wheelCrop } from "../lib/crop";
   import { editor } from "../lib/docStore.svelte";
-  import { ASSET_MIME } from "../lib/dnd";
-  import { PX_PER_MM, mmToPx } from "../lib/units";
-  import type { Crop, Document, Element, Page, RichText } from "../lib/types";
+  import { ASSET_MIME, PICTO_MIME } from "../lib/dnd";
+  import { fr } from "../lib/i18n/fr";
+  import { pageHasPictos } from "../lib/pictos.svelte";
+  import { TEXT_PADDING_MM } from "../lib/richtext";
+  import PictoEl from "./elements/PictoEl.svelte";
+  import { CREDIT_SIZE_PT, creditFrame } from "../lib/decor";
+  import { PX_PER_MM, mmToPx, ptToPx } from "../lib/units";
+  import type { Crop, Document, Element, Frame, Page, RichText } from "../lib/types";
 
   let {
     page,
@@ -24,6 +29,7 @@
     ontextdone,
     oncontext,
     onfocusmember,
+    ondroppicto,
     pageEl = $bindable(),
   }: {
     page: Page;
@@ -43,6 +49,8 @@
     oncontext?: (id: string | null, xMm: number, yMm: number, clientX: number, clientY: number) => void;
     /** Double-clic sur un élément groupé : il est modifié seul. */
     onfocusmember?: (id: string) => void;
+    /** Image de la banque lâchée sur la page, au point (mm). */
+    ondroppicto?: (code: string, xMm: number, yMm: number) => void;
     pageEl?: HTMLElement;
   } = $props();
 
@@ -50,21 +58,29 @@
   let dragFrom: { x: number; y: number } | null = null;
 
   function frameStyle(e: Element): string {
-    const f = e.frame;
+    return rectStyle(e.frame);
+  }
+
+  function rectStyle(f: Frame): string {
     return `left:${mmToPx(f.x_mm, zoom)}px;top:${mmToPx(f.y_mm, zoom)}px;width:${mmToPx(f.w_mm, zoom)}px;height:${mmToPx(f.h_mm, zoom)}px;transform:rotate(${f.rotation_deg}deg)`;
   }
 
   function acceptsAsset(ev: DragEvent): boolean {
-    return !!ev.dataTransfer?.types.includes(ASSET_MIME);
+    return !!ev.dataTransfer?.types.includes(ASSET_MIME) || !!ev.dataTransfer?.types.includes(PICTO_MIME);
   }
 
   function drop(ev: DragEvent, elementId: string | null) {
     if (!acceptsAsset(ev) || !pageEl) return;
     ev.preventDefault();
     ev.stopPropagation();
-    const id = ev.dataTransfer!.getData(ASSET_MIME);
     const r = pageEl.getBoundingClientRect();
-    ondropasset?.(id, elementId, (ev.clientX - r.left) / (PX_PER_MM * zoom), (ev.clientY - r.top) / (PX_PER_MM * zoom));
+    const [xMm, yMm] = [(ev.clientX - r.left) / (PX_PER_MM * zoom), (ev.clientY - r.top) / (PX_PER_MM * zoom)];
+    const picto = ev.dataTransfer!.getData(PICTO_MIME);
+    if (picto) {
+      ondroppicto?.(picto, xMm, yMm);
+      return;
+    }
+    ondropasset?.(ev.dataTransfer!.getData(ASSET_MIME), elementId, xMm, yMm);
   }
 
   const croppedElement = $derived(cropping ? page.elements.find((e) => e.id === cropping) : undefined);
@@ -182,11 +198,20 @@
         />
       {:else if e.kind.type === "Text"}
         <TextEl element={e} props={e.kind} {zoom} editing={e.id === editingText} ondone={(content) => ontextdone?.(e.id, content)} />
+      {:else if e.kind.type === "Image"}
+        <PictoEl code={e.kind.code} />
       {:else}
         <ShapeEl props={e.kind} frame={e.frame} {zoom} />
       {/if}
     </div>
   {/each}
+  {#if pageHasPictos(page)}
+    {@const f = creditFrame(page.size)}
+    <!-- Mention de licence OpenMoji : même cadre et même police que dans l'ODG, aussi à l'impression. -->
+    <div class="credit" aria-hidden="true" style={rectStyle(f)} style:font-size="{ptToPx(CREDIT_SIZE_PT, zoom)}px" style:padding="{mmToPx(TEXT_PADDING_MM, zoom)}px">
+      {fr.openmojiCreditPage}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -195,6 +220,16 @@
     background: white;
     box-shadow: 0 2px 14px rgba(60, 40, 20, 0.18);
     flex: none;
+  }
+  .credit {
+    position: absolute;
+    box-sizing: border-box;
+    font-family: "Andika";
+    color: #888888;
+    text-align: center;
+    line-height: normal;
+    pointer-events: none;
+    user-select: none;
   }
   .element {
     position: absolute;

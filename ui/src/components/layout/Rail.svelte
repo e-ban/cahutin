@@ -9,11 +9,13 @@
     { id: "text", icon: "T", label: fr.text },
     { id: "shapes", icon: "◯", label: fr.shapes },
     { id: "fonts", icon: "Aa", label: fr.fonts },
+    { id: "decor", icon: "✿", label: fr.decor },
   ];
   const template: { id: DrawerId; icon: string; label: string }[] = [
     { id: "grid", icon: "▦", label: fr.grid },
     { id: "text", icon: "T", label: fr.text },
     { id: "shapes", icon: "◯", label: fr.shapes },
+    { id: "decor", icon: "✿", label: fr.decor },
   ];
   const items = $derived(editor.templateMode ? template : normal);
 </script>

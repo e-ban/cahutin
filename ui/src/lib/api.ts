@@ -41,5 +41,6 @@ export function assetUrl(id: string, thumb = false): string {
   return `${assetBase()}/${id}${thumb ? "/thumb" : ""}`;
 }
 
-/** URL d'une police ajoutée, à partir de son `url_path` (`/font/<fichier>`). */
-export const fontUrl = (urlPath: string) => assetBase() + urlPath;
+/** URL servie par le protocole `carnet-asset`, à partir d'un chemin (`/font/<fichier>`, `/picto/<code>.svg`). */
+export const protocolUrl = (path: string) => assetBase() + path;
+export const fontUrl = protocolUrl;

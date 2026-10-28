@@ -216,6 +216,9 @@
           </div>
         {/if}
       </div>
+    {:else if selected?.kind.type === "Image"}
+      <button onclick={() => (editor.drawer = "decor")}>⇄ {fr.replace}</button>
+      {#if !selected.locked}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
     {:else if selected?.kind.type === "Shape"}
       {@const s = selected.kind}
       {#if !isStrokeOnly(s.shape)}

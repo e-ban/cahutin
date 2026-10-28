@@ -49,8 +49,14 @@ pub fn import_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<V
         .map(|(path, r)| match r {
             Ok(a) => {
                 let meta = a.meta.clone();
-                store.insert(a);
-                ImportOutcome::Ok { path, asset: meta }
+                match store.insert(a) {
+                    Ok(()) => ImportOutcome::Ok { path, asset: meta },
+                    Err(e) => {
+                        failures += 1;
+                        log::warn!("import_photo_failed kind={e:?}");
+                        ImportOutcome::Err { path, message: e.message_fr() }
+                    }
+                }
             }
             Err(e) => {
                 failures += 1;
@@ -89,7 +95,7 @@ pub fn open_document(state: State<'_, AppState>, path: String) -> Result<Documen
     })?;
     let mut store = state.store.lock().unwrap();
     for a in assets {
-        store.insert(a);
+        store.insert(a).map_err(|e| e.message_fr())?;
     }
     log::info!("open_document pages={}", doc.pages.len());
     Ok(doc)
@@ -158,7 +164,7 @@ pub fn instantiate_template(state: State<'_, AppState>, id: String) -> Result<In
     let mut store = state.store.lock().unwrap();
     let metas = assets.iter().map(|a| a.meta.clone()).collect();
     for a in assets {
-        store.insert(a);
+        store.insert(a).map_err(|e| e.message_fr())?;
     }
     Ok(InstantiatedPage { page, assets: metas })
 }

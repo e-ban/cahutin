@@ -193,7 +193,7 @@ mod tests {
         let mut store = AssetStore::default();
         let a = raw_asset(400, 300);
         let d = doc_with(vec![photo(Some(&a.meta.id), frame(10.0, 10.0, 50.0, 50.0), 0.0), text(RichText::plain("Bonjour"), None)]);
-        store.insert(a);
+        store.insert(a).unwrap();
         let mut e = export(&d, &store);
         let manifest = e.xml("META-INF/manifest.xml");
         for name in e.names() {
@@ -230,7 +230,7 @@ mod tests {
         let a = raw_asset(4000, 3000);
         let el = photo(Some(&a.meta.id), frame(10.0, 10.0, 100.0, 100.0), 0.0);
         let id = el.id.clone();
-        store.insert(a);
+        store.insert(a).unwrap();
         let mut e = export(&doc_with(vec![el]), &store);
         let pic = image::load_from_memory(&e.read(&format!("Pictures/{id}.jpg"))).unwrap();
         assert_eq!((pic.width(), pic.height()), (3000, 3000));
@@ -242,7 +242,7 @@ mod tests {
         let mut store = AssetStore::default();
         let a = raw_asset(400, 300);
         let d = doc_with(vec![photo(Some(&a.meta.id), frame(10.0, 10.0, 50.0, 50.0), 3.0)]);
-        store.insert(a);
+        store.insert(a).unwrap();
         let mut e = export(&d, &store);
         let content = e.xml("content.xml");
         assert!(content.contains("<draw:rect "));
@@ -342,7 +342,7 @@ mod tests {
         let mut rounded = photo(Some(&a.meta.id), frame(10.0, 10.0, 50.0, 50.0), 2.0);
         rounded.frame.rotation_deg = 15.0;
         let d = doc_with(vec![rounded, text(RichText::plain("Bonjour"), None)]);
-        store.insert(a);
+        store.insert(a).unwrap();
         let mut e = export(&d, &store);
         for part in ["content.xml", "styles.xml", "meta.xml", "settings.xml", "META-INF/manifest.xml"] {
             roxmltree::Document::parse(&e.xml(part)).unwrap_or_else(|err| panic!("{part}: {err}"));

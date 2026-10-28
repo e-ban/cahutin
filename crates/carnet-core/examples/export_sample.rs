@@ -30,7 +30,7 @@ fn main() {
         let a = import_bytes(&gradient_photo(w, h)).unwrap();
         doc.assets.insert(a.meta.id.clone(), a.meta.clone());
         photos.push(a.meta.id.clone());
-        store.insert(a);
+        store.insert(a).unwrap();
     }
     let page = &mut doc.pages[0];
     page.elements.push(element(

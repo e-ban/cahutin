@@ -172,7 +172,7 @@ mod tests {
                 unused = a.meta.id.clone();
             }
             doc.assets.insert(a.meta.id.clone(), a.meta.clone());
-            store.insert(a);
+            store.insert(a).unwrap();
         }
         (doc, store, unused)
     }

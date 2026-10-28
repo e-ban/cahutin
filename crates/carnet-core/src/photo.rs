@@ -24,19 +24,87 @@ pub struct Asset {
     pub thumb: Arc<Vec<u8>>,
 }
 
+/// Où sont gardés les octets complets d'une image.
+enum Storage {
+    Memory(Arc<Vec<u8>>),
+    Disk(PathBuf),
+}
+
+struct Entry {
+    meta: AssetMeta,
+    thumb: Arc<Vec<u8>>,
+    storage: Storage,
+}
+
+/// Images de la session. Avec un dossier de cache, seules les vignettes restent en mémoire.
 #[derive(Default)]
 pub struct AssetStore {
-    assets: HashMap<Id, Asset>,
+    entries: HashMap<Id, Entry>,
+    cache_dir: Option<PathBuf>,
 }
 
 impl AssetStore {
-    pub fn insert(&mut self, a: Asset) {
-        self.assets.insert(a.meta.id.clone(), a);
+    pub fn with_cache_dir(dir: PathBuf) -> std::io::Result<AssetStore> {
+        std::fs::create_dir_all(&dir)?;
+        Ok(AssetStore { entries: HashMap::new(), cache_dir: Some(dir) })
     }
 
-    pub fn get(&self, id: &str) -> Option<&Asset> {
-        self.assets.get(id)
+    pub fn insert(&mut self, a: Asset) -> Result<(), ImportError> {
+        let storage = match &self.cache_dir {
+            Some(dir) => {
+                let path = dir.join(format!("{}.{}", a.meta.id, extension(a.meta.mime)));
+                std::fs::write(&path, &*a.bytes).map_err(|_| ImportError::Storage)?;
+                Storage::Disk(path)
+            }
+            None => Storage::Memory(a.bytes),
+        };
+        self.entries.insert(a.meta.id.clone(), Entry { meta: a.meta, thumb: a.thumb, storage });
+        Ok(())
     }
+
+    pub fn get(&self, id: &str) -> Option<Asset> {
+        let e = self.entries.get(id)?;
+        let bytes = match &e.storage {
+            Storage::Memory(b) => b.clone(),
+            Storage::Disk(path) => Arc::new(std::fs::read(path).ok()?),
+        };
+        Some(Asset { meta: e.meta.clone(), bytes, thumb: e.thumb.clone() })
+    }
+
+    pub fn thumb(&self, id: &str) -> Option<(Arc<Vec<u8>>, Mime)> {
+        self.entries.get(id).map(|e| (e.thumb.clone(), e.meta.mime))
+    }
+}
+
+fn extension(mime: Mime) -> &'static str {
+    match mime {
+        Mime::Jpeg => "jpg",
+        Mime::Png => "png",
+    }
+}
+
+/// Supprime les fichiers du dossier de cache ; les erreurs sont ignorées.
+pub fn clear_cache_dir(dir: &Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for e in entries.filter_map(|e| e.ok()) {
+        let _ = std::fs::remove_file(e.path());
+    }
+}
+
+/// Importe les fichiers sur `threads` fils ; `on_each` est appelé une fois par fichier, avec son indice, dès qu'il est prêt.
+pub fn import_many(paths: &[PathBuf], threads: usize, on_each: impl Fn(usize, Result<Asset, ImportError>) + Sync) {
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    std::thread::scope(|s| {
+        for _ in 0..threads.max(1).min(paths.len()) {
+            s.spawn(|| {
+                loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let Some(p) = paths.get(i) else { break };
+                    on_each(i, import_path(p));
+                }
+            });
+        }
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,6 +113,8 @@ pub enum ImportError {
     Unsupported,
     Decode,
     Io,
+    /// L'image n'a pas pu être écrite dans le cache.
+    Storage,
 }
 
 impl ImportError {
@@ -54,6 +124,7 @@ impl ImportError {
             ImportError::Unsupported => "format d'image non pris en charge (JPEG, PNG ou WebP attendu)",
             ImportError::Decode => "fichier illisible ou abîmé",
             ImportError::Io => "impossible de lire le fichier",
+            ImportError::Storage => "impossible d'enregistrer la photo sur le disque (disque plein ?)",
         }
         .to_string()
     }
@@ -239,8 +310,69 @@ mod tests {
         let a = import_bytes(&jpeg(10, 10)).unwrap();
         let id = a.meta.id.clone();
         let mut store = AssetStore::default();
-        store.insert(a);
+        store.insert(a).unwrap();
         assert_eq!(store.get(&id).unwrap().meta.width_px, 10);
         assert!(store.get("autre").is_none());
+    }
+
+    #[test]
+    fn cached_store_keeps_only_thumbnails_in_memory() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("images");
+        let mut store = AssetStore::with_cache_dir(cache.clone()).unwrap();
+        let a = import_bytes(&jpeg(40, 30)).unwrap();
+        let (id, bytes, thumb) = (a.meta.id.clone(), a.bytes.clone(), a.thumb.clone());
+        store.insert(a).unwrap();
+        assert!(cache.join(format!("{id}.jpg")).is_file());
+        let back = store.get(&id).unwrap();
+        assert_eq!(back.bytes, bytes);
+        assert_eq!(store.thumb(&id).unwrap(), (thumb, Mime::Jpeg));
+    }
+
+    #[test]
+    fn clear_cache_dir_empties_the_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = AssetStore::with_cache_dir(dir.path().to_path_buf()).unwrap();
+        store.insert(import_bytes(&jpeg(10, 10)).unwrap()).unwrap();
+        clear_cache_dir(dir.path());
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn cache_write_failure_is_an_import_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("images");
+        let mut store = AssetStore::with_cache_dir(cache.clone()).unwrap();
+        std::fs::remove_dir(&cache).unwrap();
+        let err = store.insert(import_bytes(&jpeg(10, 10)).unwrap()).err().unwrap();
+        assert_eq!(err, ImportError::Storage);
+        assert!(err.message_fr().contains("disque"));
+    }
+
+    #[test]
+    fn import_many_reports_every_file_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut paths = Vec::new();
+        for i in 0..3 {
+            let p = dir.path().join(format!("p{i}.jpg"));
+            std::fs::write(&p, jpeg(20, 20)).unwrap();
+            paths.push(p);
+        }
+        let txt = dir.path().join("texte.jpg");
+        std::fs::write(&txt, b"pas une image").unwrap();
+        paths.push(txt);
+        let heic = dir.path().join("iphone.jpg");
+        let mut data = vec![0, 0, 0, 24];
+        data.extend_from_slice(b"ftypheic");
+        data.extend_from_slice(&[0; 32]);
+        std::fs::write(&heic, data).unwrap();
+        paths.push(heic);
+
+        let seen = std::sync::Mutex::new(Vec::new());
+        import_many(&paths, 2, |i, r| seen.lock().unwrap().push((i, r.is_ok())));
+        let mut seen = seen.into_inner().unwrap();
+        seen.sort();
+        assert_eq!(seen.iter().map(|s| s.0).collect::<Vec<_>>(), [0, 1, 2, 3, 4]);
+        assert_eq!(seen.iter().filter(|s| s.1).count(), 3);
     }
 }

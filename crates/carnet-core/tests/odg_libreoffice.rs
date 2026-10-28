@@ -127,7 +127,7 @@ fn photo_document(store: &mut AssetStore, n: usize) -> Document {
             }),
         });
         doc.assets.insert(a.meta.id.clone(), a.meta.clone());
-        store.insert(a);
+        store.insert(a).unwrap();
     }
     doc
 }

@@ -1,5 +1,5 @@
-//! Protocole `carnet-asset` : sert les images importées à l'interface, sans passer par le disque.
-//! `/<id>` donne l'image, `/<id>/thumb` sa vignette.
+//! Protocole `carnet-asset` : sert les images importées à l'interface.
+//! `/<id>` donne l'image (relue depuis le cache), `/<id>/thumb` sa vignette (en mémoire).
 
 use crate::state::AppState;
 use carnet_core::Mime;
@@ -17,11 +17,12 @@ pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>
     };
     let state = ctx.app_handle().state::<AppState>();
     let store = state.store.lock().unwrap();
-    let Some(asset) = store.get(id) else {
+    let found = if thumb { store.thumb(id) } else { store.get(id).map(|a| (a.bytes, a.meta.mime)) };
+    drop(store);
+    let Some((bytes, mime)) = found else {
         return Response::builder().status(StatusCode::NOT_FOUND).body(Cow::Borrowed(&[][..])).unwrap();
     };
-    let bytes = if thumb { asset.thumb.clone() } else { asset.bytes.clone() };
-    let mime = match asset.meta.mime {
+    let mime = match mime {
         Mime::Jpeg => "image/jpeg",
         Mime::Png => "image/png",
     };

@@ -135,7 +135,7 @@ pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
         if let Some(a) = store.get(id)
             && !assets.iter().any(|x| x.meta.id == *id)
         {
-            assets.push(a.clone());
+            assets.push(a);
         }
     }
     Template { info: TemplateInfo { id: String::new(), name: name.to_string(), builtin: false }, page, assets }
@@ -239,7 +239,7 @@ impl Library {
         let mut store = AssetStore::default();
         for a in &t.assets {
             doc.assets.insert(a.meta.id.clone(), a.meta.clone());
-            store.insert(a.clone());
+            store.insert(a.clone()).map_err(|_| NativeError::Io)?;
         }
         native::save_to_path(&doc, &store, &self.path(&id))?;
         Ok(TemplateInfo { id, name: t.info.name.clone(), builtin: false })
@@ -334,8 +334,8 @@ mod tests {
         let photo = logo_asset();
         let logo = logo_asset();
         let (photo_id, logo_id) = (photo.meta.id.clone(), logo.meta.id.clone());
-        store.insert(photo);
-        store.insert(logo);
+        store.insert(photo).unwrap();
+        store.insert(logo).unwrap();
         let (mut page, _) = instantiate(&builtin()[0]);
         for e in page.elements.iter_mut().filter(|e| e.zone) {
             match &mut e.kind {
@@ -371,7 +371,7 @@ mod tests {
         let mut store = AssetStore::default();
         let child = logo_asset();
         let child_id = child.meta.id.clone();
-        store.insert(child);
+        store.insert(child).unwrap();
         let mut page = Page::new(A4_PORTRAIT);
         let free = |kind| Element {
             id: new_id(),

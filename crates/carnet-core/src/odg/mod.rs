@@ -14,7 +14,7 @@ use std::path::Path;
 use styles::{Registry, mm};
 
 /// Marge intérieure des zones de texte, identique à l'écran (CSS `padding`).
-pub const TEXT_PADDING_MM: f64 = 1.5;
+pub use crate::model::TEXT_PADDING_MM;
 
 pub(crate) const NS: [(&str, &str); 11] = [
     ("xmlns:office", "urn:oasis:names:tc:opendocument:xmlns:office:1.0"),
@@ -161,7 +161,7 @@ mod tests {
             locked: false,
             zone: true,
             group: None,
-            kind: ElementKind::Text(TextProps { content, style: TextStyle::default_zone(), prompt: prompt.map(String::from) }),
+            kind: ElementKind::Text(TextProps { content, style: TextStyle::default_zone(), prompt: prompt.map(String::from), frame: None }),
         }
     }
 
@@ -432,7 +432,7 @@ mod tests {
             kind: ElementKind::Shape(ShapeProps {
                 shape: kind,
                 fill: Some("#f1c40f".into()),
-                stroke: Some(Stroke { width_mm: 1.0, color: "#333333".into() }),
+                stroke: Some(Stroke { width_mm: 1.0, color: "#333333".into(), style: None }),
                 corner_radius_mm: 0.0,
             }),
         }

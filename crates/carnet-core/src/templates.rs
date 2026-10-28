@@ -45,7 +45,7 @@ fn text_zone(page: &mut Page, id: &str, prompt: &str, style: TextStyle) {
 }
 
 fn title_style() -> TextStyle {
-    TextStyle { font: "Playwrite FR Moderne".into(), size_pt: 24.0, color: "#c0392b".into(), align: Align::Center }
+    TextStyle { font: "Playwrite FR Moderne".into(), size_pt: 24.0, color: "#c0392b".into(), align: Align::Center, valign: None, padding_mm: None }
 }
 
 /// Grille 2 × 7 : une ligne de titre, puis des cases de deux lignes pour garder des photos bien proportionnées.
@@ -85,7 +85,7 @@ pub fn builtin() -> Vec<Template> {
     e.kind = ElementKind::Shape(ShapeProps {
         shape: ShapeKind::Rect,
         fill: None,
-        stroke: Some(Stroke { width_mm: 0.5, color: "#999999".into() }),
+        stroke: Some(Stroke { width_mm: 0.5, color: "#999999".into(), style: None }),
         corner_radius_mm: 0.0,
     });
     let f = e.frame;
@@ -97,8 +97,9 @@ pub fn builtin() -> Vec<Template> {
         group: None,
         kind: ElementKind::Text(TextProps {
             content: RichText::plain("Mon dessin"),
-            style: TextStyle { font: "Andika".into(), size_pt: 12.0, color: "#999999".into(), align: Align::Left },
+            style: TextStyle { font: "Andika".into(), size_pt: 12.0, color: "#999999".into(), align: Align::Left, valign: None, padding_mm: None },
             prompt: None,
+            frame: None,
         }),
     });
 
@@ -387,7 +388,7 @@ mod tests {
             kind,
         };
         page.elements.push(free(ElementKind::Photo(PhotoProps { asset: Some(child_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false })));
-        page.elements.push(free(ElementKind::Text(TextProps { content: RichText::plain("Léa a ri"), style: TextStyle::default_zone(), prompt: None })));
+        page.elements.push(free(ElementKind::Text(TextProps { content: RichText::plain("Léa a ri"), style: TextStyle::default_zone(), prompt: None, frame: None })));
         page.elements.push(free(ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0 })));
         let t = from_page("Partagé", &page, &store);
         assert_eq!(t.page.elements.len(), 1);

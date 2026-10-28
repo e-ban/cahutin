@@ -44,7 +44,7 @@ fn main() {
     title.color = "#c0392b".into();
     page.elements.push(element(
         frame(10.0, 5.0, 190.0, 18.0, 0.0),
-        ElementKind::Text(TextProps { content: RichText::plain("La sortie à la ferme"), style: title, prompt: None }),
+        ElementKind::Text(TextProps { content: RichText::plain("La sortie à la ferme"), style: title, prompt: None, frame: None }),
     ));
     page.elements.push(element(
         frame(10.0, 35.0, 110.0, 80.0, 0.0),
@@ -56,7 +56,7 @@ fn main() {
             asset: Some(photos[1].clone()),
             crop: Crop { scale: 1.5, center_x: 0.3, center_y: 0.6 },
             corner_radius_mm: 4.0,
-            border: Some(Stroke { width_mm: 1.0, color: "#2e86de".into() }),
+            border: Some(Stroke { width_mm: 1.0, color: "#2e86de".into(), style: None }),
             shadow: true,
         }),
     ));
@@ -64,14 +64,14 @@ fn main() {
     story.paragraphs[1].runs[0].bold = true;
     page.elements.push(element(
         frame(10.0, 125.0, 190.0, 30.0, 0.0),
-        ElementKind::Text(TextProps { content: story, style: TextStyle::default_zone(), prompt: None }),
+        ElementKind::Text(TextProps { content: story, style: TextStyle::default_zone(), prompt: None, frame: None }),
     ));
     page.elements.push(element(
         frame(10.0, 165.0, 90.0, 60.0, 0.0),
         ElementKind::Shape(ShapeProps {
             shape: ShapeKind::Ellipse,
             fill: None,
-            stroke: Some(Stroke { width_mm: 0.5, color: "#999999".into() }),
+            stroke: Some(Stroke { width_mm: 0.5, color: "#999999".into(), style: None }),
             corner_radius_mm: 0.0,
         }),
     ));

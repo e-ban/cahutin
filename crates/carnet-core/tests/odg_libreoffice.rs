@@ -42,7 +42,7 @@ fn text_element(c: &Case) -> Element {
         locked: false,
         zone: true,
         group: None,
-        kind: ElementKind::Text(TextProps { content: RichText::plain(&c.text), style, prompt: None }),
+        kind: ElementKind::Text(TextProps { content: RichText::plain(&c.text), style, prompt: None, frame: None }),
     }
 }
 
@@ -218,7 +218,7 @@ fn user_font_is_embedded_in_rendering() {
         locked: false,
         zone: false,
         group: None,
-        kind: ElementKind::Text(TextProps { content: RichText::plain("Police ajoutée"), style, prompt: None }),
+        kind: ElementKind::Text(TextProps { content: RichText::plain("Police ajoutée"), style, prompt: None, frame: None }),
     });
     let (_dir, pdf) = render_with(&doc, &AssetStore::default(), &FontSet::with_user_dir(fonts_dir.path()));
     let fonts = run(Command::new("pdffonts").arg(&pdf));
@@ -242,7 +242,7 @@ fn system_font_is_embedded_in_rendering() {
         locked: false,
         zone: false,
         group: None,
-        kind: ElementKind::Text(TextProps { content: RichText::plain("Police du poste"), style, prompt: None }),
+        kind: ElementKind::Text(TextProps { content: RichText::plain("Police du poste"), style, prompt: None, frame: None }),
     });
     let (_dir, pdf) = render_with(&doc, &AssetStore::default(), &fonts);
     let out = run(Command::new("pdffonts").arg(&pdf));
@@ -357,7 +357,7 @@ fn arrow_has_its_head() {
         kind: ElementKind::Shape(ShapeProps {
             shape: ShapeKind::Arrow,
             fill: None,
-            stroke: Some(Stroke { width_mm: 1.0, color: "#000000".into() }),
+            stroke: Some(Stroke { width_mm: 1.0, color: "#000000".into(), style: None }),
             corner_radius_mm: 0.0,
         }),
     });

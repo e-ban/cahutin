@@ -3,7 +3,7 @@
 
 pub use crate::model::FORMAT_VERSION;
 use crate::fonts::FontSet;
-use crate::model::{Document, ElementKind, Mime};
+use crate::model::{Document, Element, ElementKind, Mime, Stroke, VAlign};
 use crate::photo::{Asset, AssetStore};
 use std::collections::BTreeSet;
 use std::io::{Read, Seek, Write};
@@ -81,8 +81,25 @@ fn used_assets(doc: &Document) -> BTreeSet<String> {
 
 /// 2 si le document contient une image (un Carnet plus ancien affiche alors « version plus récente »), sinon 1.
 pub fn written_version(doc: &Document) -> u32 {
-    let has_image = doc.pages.iter().flat_map(|p| &p.elements).any(|e| matches!(e.kind, ElementKind::Image(_)));
-    if has_image { 2 } else { 1 }
+    let elements = || doc.pages.iter().flat_map(|p| &p.elements);
+    if elements().any(uses_version_3) {
+        3
+    } else if elements().any(|e| matches!(e.kind, ElementKind::Image(_))) {
+        2
+    } else {
+        1
+    }
+}
+
+/// Réglages inconnus de la version 2 : alignement vertical, marge, cadre de texte, bordure non pleine.
+fn uses_version_3(e: &Element) -> bool {
+    let dashed = |s: &Option<Stroke>| s.as_ref().is_some_and(|s| !s.is_solid());
+    match &e.kind {
+        ElementKind::Text(t) => t.style.valign.unwrap_or_default() != VAlign::Top || t.style.padding_mm.is_some() || t.frame.is_some(),
+        ElementKind::Shape(s) => dashed(&s.stroke),
+        ElementKind::Photo(p) => dashed(&p.border),
+        ElementKind::Image(_) => false,
+    }
 }
 
 fn used_families(doc: &Document) -> BTreeSet<&str> {
@@ -303,7 +320,7 @@ mod tests {
                 locked: false,
                 zone: false,
                 group: None,
-                kind: ElementKind::Text(TextProps { content: RichText::plain("bonjour"), style, prompt: None }),
+                kind: ElementKind::Text(TextProps { content: RichText::plain("bonjour"), style, prompt: None, frame: None }),
             });
         }
         let mut buf = Cursor::new(Vec::new());
@@ -329,7 +346,7 @@ mod tests {
             locked: false,
             zone: false,
             group: None,
-            kind: ElementKind::Text(TextProps { content: RichText::plain("bonjour"), style, prompt: None }),
+            kind: ElementKind::Text(TextProps { content: RichText::plain("bonjour"), style, prompt: None, frame: None }),
         });
         let mut buf = Cursor::new(Vec::new());
         save(&doc, &AssetStore::default(), &fonts, &mut buf).unwrap();
@@ -358,7 +375,7 @@ mod tests {
                 locked: false,
                 zone: false,
                 group: None,
-                kind: ElementKind::Text(TextProps { content: RichText::plain("x"), style, prompt: None }),
+                kind: ElementKind::Text(TextProps { content: RichText::plain("x"), style, prompt: None, frame: None }),
             });
         }
         let mut buf = Cursor::new(Vec::new());
@@ -392,9 +409,9 @@ mod tests {
     }
 
     #[test]
-    fn newer_than_2_is_refused() {
+    fn newer_than_3_is_refused() {
         let mut doc = Document::new("futur");
-        doc.format_version = 3;
+        doc.format_version = 4;
         let json = serde_json::to_vec(&doc).unwrap();
         let mut buf = Cursor::new(Vec::new());
         {
@@ -405,7 +422,48 @@ mod tests {
         }
         buf.set_position(0);
         let err = load(buf).err().unwrap();
-        assert_eq!(err, NativeError::NewerVersion(3));
+        assert_eq!(err, NativeError::NewerVersion(4));
         assert!(err.message_fr().contains("plus récente"));
+    }
+
+    fn text_el(style: TextStyle, frame: Option<TextFrame>) -> Element {
+        Element {
+            id: new_id(),
+            frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 80.0, h_mm: 20.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Text(TextProps { content: RichText::plain("x"), style, prompt: None, frame }),
+        }
+    }
+
+    /// Chaque réglage de la version 3 l'impose : la 0.4 le perdrait en silence (champs inconnus ignorés).
+    #[test]
+    fn written_version_is_3_with_any_frame_or_border_setting() {
+        let with = |e: Element| {
+            let mut doc = Document::new("v3");
+            doc.pages[0].elements.push(picture(None));
+            doc.pages[0].elements.push(e);
+            written_version(&doc)
+        };
+        let plain = TextStyle::default_zone();
+        assert_eq!(with(text_el(plain.clone(), None)), 2);
+        assert_eq!(with(text_el(TextStyle { valign: Some(VAlign::Top), padding_mm: None, ..plain.clone() }, None)), 2);
+        assert_eq!(with(text_el(TextStyle { valign: Some(VAlign::Middle), ..plain.clone() }, None)), 3);
+        assert_eq!(with(text_el(TextStyle { padding_mm: Some(4.0), ..plain.clone() }, None)), 3);
+        let frame = TextFrame { fill: Some("#ffeeaa".into()), ..TextFrame::default() };
+        assert_eq!(with(text_el(plain.clone(), Some(frame))), 3);
+        let dashed = Stroke { width_mm: 1.0, color: "#000000".into(), style: Some(StrokeStyle::Dashed) };
+        let mut shape = picture(None);
+        shape.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: Some(dashed.clone()), corner_radius_mm: 0.0 });
+        assert_eq!(with(shape.clone()), 3);
+        shape.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: Some(Stroke { style: Some(StrokeStyle::Solid), ..dashed.clone() }), corner_radius_mm: 0.0 });
+        assert_eq!(with(shape), 2);
+        let mut photo = picture(None);
+        photo.kind = ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: Some(dashed), shadow: false });
+        assert_eq!(with(photo), 3);
+        let mut doc = Document::new("v3");
+        doc.pages[0].elements.push(text_el(TextStyle { valign: Some(VAlign::Bottom), ..plain }, None));
+        assert_eq!(written_version(&doc), 3);
     }
 }

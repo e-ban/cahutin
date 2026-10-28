@@ -53,14 +53,14 @@ fn el(f: Frame, kind: ElementKind) -> Element {
 }
 
 fn text(f: Frame, content: &str, font: &str, size_pt: f64, color: &str, align: Align) -> Element {
-    let style = TextStyle { font: font.into(), size_pt, color: color.into(), align };
-    el(f, ElementKind::Text(TextProps { content: RichText::plain(content), style, prompt: None }))
+    let style = TextStyle { font: font.into(), size_pt, color: color.into(), align, valign: None, padding_mm: None };
+    el(f, ElementKind::Text(TextProps { content: RichText::plain(content), style, prompt: None, frame: None }))
 }
 
 /// Zone de texte à remplir, avec son invite.
 fn text_zone(f: Frame, prompt: &str, font: &str, size_pt: f64) -> Element {
-    let style = TextStyle { font: font.into(), size_pt, color: "#222222".into(), align: Align::Left };
-    Element { zone: true, ..el(f, ElementKind::Text(TextProps { content: RichText::default(), style, prompt: Some(prompt.into()) })) }
+    let style = TextStyle { font: font.into(), size_pt, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None };
+    Element { zone: true, ..el(f, ElementKind::Text(TextProps { content: RichText::default(), style, prompt: Some(prompt.into()), frame: None })) }
 }
 
 fn title(content: &str, y: f64, size_pt: f64, color: &str) -> Element {
@@ -77,7 +77,7 @@ fn shape(kind: ShapeKind, f: Frame, fill: Option<&str>, stroke: Option<(f64, &st
         ElementKind::Shape(ShapeProps {
             shape: kind,
             fill: fill.map(String::from),
-            stroke: stroke.map(|(width_mm, color)| Stroke { width_mm, color: color.into() }),
+            stroke: stroke.map(|(width_mm, color)| Stroke { width_mm, color: color.into(), style: None }),
             corner_radius_mm,
         }),
     )

@@ -52,6 +52,7 @@ fn empty_kind(kind: ZoneKind) -> ElementKind {
             content: RichText::default(),
             style: TextStyle::default_zone(),
             prompt: Some("Texte".into()),
+            frame: None,
         }),
     }
 }

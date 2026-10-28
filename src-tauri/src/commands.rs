@@ -473,6 +473,7 @@ mod tests {
                 content: carnet_core::RichText::plain("bonjour"),
                 style,
                 prompt: None,
+                frame: None,
             }),
         });
         let path = dir.path().join("partagé.carnet");

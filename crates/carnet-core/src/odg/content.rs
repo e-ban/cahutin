@@ -141,7 +141,7 @@ impl Writer<'_> {
         style.size_pt = CREDIT_SIZE_PT;
         style.color = CREDIT_COLOR.into();
         style.align = Align::Center;
-        let t = TextProps { content: RichText::plain(OPENMOJI_CREDIT_PAGE), style, prompt: None };
+        let t = TextProps { content: RichText::plain(OPENMOJI_CREDIT_PAGE), style, prompt: None, frame: None };
         let e = Element { id: String::new(), frame: f, locked: true, zone: false, group: None, kind: ElementKind::Text(t.clone()) };
         self.protect_next = true;
         self.text(&e, &t);

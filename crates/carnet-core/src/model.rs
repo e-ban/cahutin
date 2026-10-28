@@ -10,8 +10,9 @@ pub fn new_id() -> Id {
     uuid::Uuid::new_v4().to_string()
 }
 
-/// Version la plus récente que cette application sait lire (2 : élément image).
-pub const FORMAT_VERSION: u32 = 2;
+/// Version la plus récente que cette application sait lire (2 : élément image ; 3 : cadre de texte,
+/// alignement vertical, marge et bordures en tirets ou pointillés).
+pub const FORMAT_VERSION: u32 = 3;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -168,6 +169,26 @@ pub struct Stroke {
     pub width_mm: f64,
     /// "#rrggbb"
     pub color: String,
+    /// Absent : trait plein (documents antérieurs).
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub style: Option<StrokeStyle>,
+}
+
+/// Tirets de 3 épaisseurs séparés de 2 ; pointillés d'une épaisseur séparés d'une (écran et ODG).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
+#[ts(export)]
+pub enum StrokeStyle {
+    #[default]
+    Solid,
+    Dashed,
+    Dotted,
+}
+
+impl Stroke {
+    pub fn is_solid(&self) -> bool {
+        self.style.unwrap_or_default() == StrokeStyle::Solid
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -176,6 +197,28 @@ pub struct TextProps {
     pub content: RichText,
     pub style: TextStyle,
     pub prompt: Option<String>,
+    /// Fond, bordure, coins et image de fond du cadre ; absent : texte sans cadre.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub frame: Option<TextFrame>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default, TS)]
+#[ts(export)]
+pub struct TextFrame {
+    pub fill: Option<String>,
+    pub stroke: Option<Stroke>,
+    pub corner_radius_mm: f64,
+    /// Image de la photothèque qui couvre le cadre, sous le fond.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub image: Option<Id>,
+}
+
+impl TextFrame {
+    pub fn is_empty(&self) -> bool {
+        self.fill.is_none() && self.stroke.is_none() && self.image.is_none()
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -185,11 +228,35 @@ pub struct TextStyle {
     pub size_pt: f64,
     pub color: String,
     pub align: Align,
+    /// Absent : en haut.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub valign: Option<VAlign>,
+    /// Marge intérieure ; absente : `TEXT_PADDING_MM`.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub padding_mm: Option<f64>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
+#[ts(export)]
+pub enum VAlign {
+    #[default]
+    Top,
+    Middle,
+    Bottom,
+}
+
+/// Marge intérieure des textes sans réglage, identique à l'écran et dans l'ODG.
+pub const TEXT_PADDING_MM: f64 = 1.5;
+
 impl TextStyle {
+    pub fn padding(&self) -> f64 {
+        self.padding_mm.unwrap_or(TEXT_PADDING_MM)
+    }
+
     pub fn default_zone() -> TextStyle {
-        TextStyle { font: "Andika".into(), size_pt: 14.0, color: "#222222".into(), align: Align::Left }
+        TextStyle { font: "Andika".into(), size_pt: 14.0, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None }
     }
 }
 
@@ -323,7 +390,7 @@ mod tests {
                 asset: Some("a1".into()),
                 crop: Crop::COVER,
                 corner_radius_mm: 3.0,
-                border: Some(Stroke { width_mm: 0.5, color: "#336699".into() }),
+                border: Some(Stroke { width_mm: 0.5, color: "#336699".into(), style: None }),
                 shadow: true,
             }),
         });
@@ -350,6 +417,7 @@ mod tests {
                 },
                 style: TextStyle::default_zone(),
                 prompt: Some("Titre".into()),
+                frame: None,
             }),
         });
         page.elements.push(Element {

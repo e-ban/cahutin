@@ -2,6 +2,7 @@
   import AlignIcon from "../AlignIcon.svelte";
   import VAlignIcon from "../VAlignIcon.svelte";
   import ColorPicker from "../ColorPicker.svelte";
+  import StrokeStylePicker from "../StrokeStylePicker.svelte";
   import FontPicker from "../FontPicker.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
@@ -119,10 +120,11 @@
             max="3"
             step="0.5"
             value={ph.border.width_mm}
-            oninput={(e) => previewPhoto({ border: { width_mm: Number(e.currentTarget.value), color: ph.border!.color } })}
+            oninput={(e) => previewPhoto({ border: { ...ph.border!, width_mm: Number(e.currentTarget.value) } })}
             onchange={endPreview}
           />
-          <ColorPicker value={ph.border.color} onchange={(c) => updatePhoto({ border: { width_mm: ph.border!.width_mm, color: c ?? "#ffffff" } })} />
+          <ColorPicker value={ph.border.color} onchange={(c) => updatePhoto({ border: { ...ph.border!, color: c ?? "#ffffff" } })} />
+          <StrokeStylePicker value={ph.border.style} onpick={(style) => updatePhoto({ border: { ...ph.border!, style: style === "Solid" ? null : style } })} />
         {/if}
       </div>
       <div class="field">
@@ -201,12 +203,13 @@
           value={s.stroke?.width_mm ?? 0}
           oninput={(e) => {
             const w = Number(e.currentTarget.value);
-            previewShape({ stroke: w === 0 ? null : { width_mm: w, color: s.stroke?.color ?? "#999999" } });
+            previewShape({ stroke: w === 0 ? null : { width_mm: w, color: s.stroke?.color ?? "#999999", style: s.stroke?.style ?? null } });
           }}
           onchange={endPreview}
         />
         {#if s.stroke}
-          <ColorPicker value={s.stroke.color} onchange={(c) => updateShape({ stroke: { width_mm: s.stroke!.width_mm, color: c ?? "#999999" } })} />
+          <ColorPicker value={s.stroke.color} onchange={(c) => updateShape({ stroke: { ...s.stroke!, color: c ?? "#999999" } })} />
+          <StrokeStylePicker value={s.stroke.style} onpick={(style) => updateShape({ stroke: { ...s.stroke!, style: style === "Solid" ? null : style } })} />
         {/if}
       </div>
       {#if s.shape === "Rect"}

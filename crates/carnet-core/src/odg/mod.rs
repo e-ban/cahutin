@@ -308,6 +308,36 @@ mod tests {
     }
 
     #[test]
+    fn dashed_and_dotted_strokes_use_declared_dashes() {
+        let stroke = |style| Some(Stroke { width_mm: 1.0, color: "#333333".into(), style: Some(style) });
+        let shape = |style| Element {
+            id: new_id(),
+            frame: frame(10.0, 10.0, 50.0, 30.0),
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: stroke(style), corner_radius_mm: 0.0 }),
+        };
+        let mut e = export(&doc_with(vec![shape(StrokeStyle::Dashed), shape(StrokeStyle::Dotted), shape(StrokeStyle::Solid)]), &AssetStore::default());
+        let content = e.xml("content.xml");
+        assert!(content.contains(r#"draw:stroke="dash" draw:stroke-dash="CarnetDashed""#) || content.contains(r#"draw:stroke-dash="CarnetDashed""#), "{content}");
+        assert!(content.contains(r#"draw:stroke-dash="CarnetDotted""#));
+        assert!(content.contains(r#"draw:stroke="solid""#));
+        let styles = e.xml("styles.xml");
+        let doc = roxmltree::Document::parse(&styles).unwrap();
+        let dash = |name: &str| doc.descendants().find(|n| n.has_tag_name("stroke-dash") && n.attribute(("urn:oasis:names:tc:opendocument:xmlns:drawing:1.0", "name")) == Some(name)).expect(name);
+        let d = "urn:oasis:names:tc:opendocument:xmlns:drawing:1.0";
+        // Tirets de 3 épaisseurs séparés de 2 ; points d'une épaisseur séparés d'une (comme à l'écran).
+        assert_eq!(dash("CarnetDashed").attribute((d, "dots1-length")), Some("300%"));
+        assert_eq!(dash("CarnetDashed").attribute((d, "distance")), Some("200%"));
+        assert_eq!(dash("CarnetDotted").attribute((d, "dots1-length")), Some("100%"));
+        assert_eq!(dash("CarnetDotted").attribute((d, "distance")), Some("100%"));
+        // Sans tirets, rien n'est déclaré.
+        let mut plain = export(&doc_with(vec![shape(StrokeStyle::Solid)]), &AssetStore::default());
+        assert!(!plain.xml("styles.xml").contains("stroke-dash"));
+    }
+
+    #[test]
     fn repeated_spaces_are_kept() {
         let d = doc_with(vec![text(RichText::plain("a   b"), None)]);
         let mut e = export(&d, &AssetStore::default());

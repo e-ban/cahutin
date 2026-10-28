@@ -514,3 +514,53 @@ fn vertical_alignment_and_padding_are_rendered() {
         }
     }
 }
+
+/// Tirets et pointillés mesurés sur le rendu : mêmes longueurs qu'à l'écran (3e et 2e, puis e et e).
+#[test]
+#[ignore]
+fn dashes_have_the_screen_lengths() {
+    const DPI: u32 = 254; // 10 pixels par millimètre
+    let width = 2.0;
+    let mut doc = Document::new("tirets");
+    doc.pages.clear();
+    for style in [StrokeStyle::Dashed, StrokeStyle::Dotted] {
+        let mut page = Page::new(A4_PORTRAIT);
+        page.elements.push(Element {
+            id: new_id(),
+            frame: Frame { x_mm: 20.0, y_mm: 50.0, w_mm: 150.0, h_mm: 8.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Shape(ShapeProps {
+                shape: ShapeKind::Line,
+                fill: None,
+                stroke: Some(Stroke { width_mm: width, color: "#000000".into(), style: Some(style) }),
+                corner_radius_mm: 0.0,
+            }),
+        });
+        doc.pages.push(page);
+    }
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    for (page, (dash, gap)) in [(1, (3.0 * width, 2.0 * width)), (2, (width, width))] {
+        let (w, _h, px) = gray_page(&pdf, page, DPI);
+        let row = &px[54 * 10 * w..54 * 10 * w + w];
+        // Longueurs des suites de pixels sombres et clairs entre le premier et le dernier tiret.
+        let mut runs: Vec<(bool, usize)> = vec![];
+        for &p in row {
+            let dark = p < 128;
+            match runs.last_mut() {
+                Some((d, n)) if *d == dark => *n += 1,
+                _ => runs.push((dark, 1)),
+            }
+        }
+        let inner: Vec<(bool, usize)> = runs.iter().copied().skip_while(|r| !r.0).collect();
+        let inner = &inner[..inner.iter().rposition(|r| r.0).unwrap() + 1];
+        let mean = |dark: bool| {
+            let v: Vec<f64> = inner.iter().filter(|r| r.0 == dark).map(|r| r.1 as f64 / 10.0).collect();
+            assert!(v.len() >= 5, "page {page} : trop peu de tirets ({runs:?})");
+            v.iter().sum::<f64>() / v.len() as f64
+        };
+        let (d, g) = (mean(true), mean(false));
+        assert!((d - dash).abs() < 0.6 && (g - gap).abs() < 0.6, "page {page} : tirets {d:.2} mm, espaces {g:.2} mm (attendu {dash} et {gap})");
+    }
+}

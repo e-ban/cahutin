@@ -101,6 +101,8 @@ export const fr = {
   color: "Couleur",
   alignment: "Alignement",
   padding: "Marge intérieure",
+  strokeStyle: "Style du trait",
+  strokeStyles: { Solid: "Plein", Dashed: "Tirets", Dotted: "Pointillés" } as Record<string, string>,
   textVAlign: { Top: "En haut du cadre", Middle: "Au milieu du cadre", Bottom: "En bas du cadre" } as Record<string, string>,
   textAlign: { Left: "Aligner à gauche", Center: "Centrer", Right: "Aligner à droite", Justify: "Justifier" } as Record<string, string>,
   fill: "Remplissage",

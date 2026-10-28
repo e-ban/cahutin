@@ -2,20 +2,24 @@
   import { assetUrl } from "../../lib/api";
   import { cropToCss } from "../../lib/crop";
   import { fr } from "../../lib/i18n/fr";
+  import { dashArray, isSolid } from "../../lib/strokes";
   import { mmToPx } from "../../lib/units";
   import type { AssetMeta, Element, PhotoProps } from "../../lib/types";
 
   let { element, props, meta, zoom }: { element: Element; props: PhotoProps; meta: AssetMeta | undefined; zoom: number } = $props();
 
   const css = $derived(meta ? cropToCss(meta, element.frame, props.crop) : null);
+  const borderPx = $derived(props.border ? mmToPx(props.border.width_mm, zoom) : 0);
+  // Bordure pleine en contour CSS ; en tirets, en SVG avec les longueurs de l'export.
+  const solidBorder = $derived(!!props.border && isSolid(props.border));
 </script>
 
 {#if props.asset && meta && css}
   <div
     class="photo"
     style:border-radius="{mmToPx(props.corner_radius_mm, zoom)}px"
-    style:outline={props.border ? `${mmToPx(props.border.width_mm, zoom)}px solid ${props.border.color}` : "none"}
-    style:outline-offset={props.border ? `-${mmToPx(props.border.width_mm, zoom) / 2}px` : "0"}
+    style:outline={solidBorder ? `${borderPx}px solid ${props.border!.color}` : "none"}
+    style:outline-offset={solidBorder ? `-${borderPx / 2}px` : "0"}
     style:box-shadow={props.shadow ? `${mmToPx(1, zoom)}px ${mmToPx(1, zoom)}px 0 rgba(128,128,128,0.5)` : "none"}
   >
     <img
@@ -27,6 +31,23 @@
       style:left="{mmToPx(css.leftMm, zoom)}px"
       style:top="{mmToPx(css.topMm, zoom)}px"
     />
+    {#if props.border && !solidBorder}
+      {@const w = mmToPx(element.frame.w_mm, zoom)}
+      {@const h = mmToPx(element.frame.h_mm, zoom)}
+      <svg class="border" width={w} height={h} aria-hidden="true">
+        <rect
+          x={borderPx / 2}
+          y={borderPx / 2}
+          width={Math.max(0, w - borderPx)}
+          height={Math.max(0, h - borderPx)}
+          rx={Math.max(0, mmToPx(props.corner_radius_mm, zoom) - borderPx / 2)}
+          fill="none"
+          stroke={props.border.color}
+          stroke-width={borderPx}
+          stroke-dasharray={dashArray(props.border, borderPx)}
+        />
+      </svg>
+    {/if}
   </div>
 {:else}
   <div class="zone-empty photo-zone" class:zone={element.zone} style:border-width="{zoom < 0.5 ? 1 : 2}px">
@@ -40,6 +61,11 @@
     position: absolute;
     inset: 0;
     overflow: hidden;
+  }
+  .border {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
   }
   img {
     position: absolute;

@@ -4,7 +4,7 @@ use super::NS;
 use super::xml::Xml;
 use crate::fonts::{self, FontFace, FontSet};
 use crate::background::{self, Mark};
-use crate::model::{Background, PageSize};
+use crate::model::{Background, PageSize, StrokeStyle};
 
 pub(crate) type Props = Vec<(&'static str, Vec<(&'static str, String)>)>;
 
@@ -25,6 +25,17 @@ pub(crate) struct Registry {
     pub masters: Vec<(PageSize, Option<Background>)>,
     /// Une flèche est présente : la pointe (`draw:marker`) est déclarée dans `styles.xml`.
     pub arrow_marker: bool,
+    /// Styles de tirets utilisés, déclarés dans `styles.xml` (`draw:stroke-dash`).
+    pub dashes: Vec<StrokeStyle>,
+}
+
+/// Nom de la définition de tirets d'un style, `None` pour un trait plein.
+pub(crate) fn dash_name(style: StrokeStyle) -> Option<&'static str> {
+    match style {
+        StrokeStyle::Solid => None,
+        StrokeStyle::Dashed => Some("CarnetDashed"),
+        StrokeStyle::Dotted => Some("CarnetDotted"),
+    }
 }
 
 /// Nom de la pointe de flèche, celui de LibreOffice.
@@ -36,7 +47,7 @@ pub(crate) fn mm(v: f64) -> String {
 
 impl Registry {
     pub fn new(fonts: &FontSet) -> Registry {
-        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], masters: vec![], arrow_marker: false }
+        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], masters: vec![], arrow_marker: false, dashes: vec![] }
     }
 
     /// Style automatique dédupliqué ; renvoie son nom.
@@ -148,6 +159,15 @@ impl Registry {
         if self.arrow_marker {
             // Pointe triangulaire standard de LibreOffice.
             x.empty("draw:marker", &[("draw:name", ARROW_MARKER), ("svg:viewBox", "0 0 20 30"), ("svg:d", "M10 0l-10 30h20z")]);
+        }
+        // Longueurs relatives à l'épaisseur du trait, comme le `stroke-dasharray` de l'écran.
+        for &style in &self.dashes {
+            let (dash, gap) = match style {
+                StrokeStyle::Dashed => ("300%", "200%"),
+                _ => ("100%", "100%"),
+            };
+            let name = dash_name(style).unwrap_or_default();
+            x.empty("draw:stroke-dash", &[("draw:name", name), ("draw:style", "rect"), ("draw:dots1", "1"), ("draw:dots1-length", dash), ("draw:distance", gap)]);
         }
         for (name, href) in &self.fill_images {
             x.empty(

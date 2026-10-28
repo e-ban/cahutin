@@ -1,6 +1,6 @@
 //! `content.xml` : une `draw:page` par page, un objet ODG par élément.
 
-use super::styles::{ARROW_MARKER, Props, Registry, mm};
+use super::styles::{ARROW_MARKER, Props, Registry, dash_name, mm};
 use super::xml::Xml;
 use super::{NS, OPENMOJI_CREDIT_PAGE, OdgError, odf_transform};
 use crate::crop::source_rect;
@@ -39,15 +39,22 @@ fn line_ends(f: &Frame) -> Vec<(&'static str, String)> {
     vec![("svg:x1", r(x1)), ("svg:y1", r(y1)), ("svg:x2", r(x2)), ("svg:y2", r(y2))]
 }
 
-fn stroke(s: Option<&Stroke>) -> Vec<(&'static str, String)> {
-    match s {
-        None => vec![("draw:stroke", "none".into())],
-        Some(s) => vec![
-            ("draw:stroke", "solid".into()),
-            ("svg:stroke-width", mm(s.width_mm)),
-            ("svg:stroke-color", s.color.clone()),
-        ],
-    }
+/// Trait plein, ou tirets déclarés une fois dans `styles.xml`.
+fn stroke(reg: &mut Registry, s: Option<&Stroke>) -> Vec<(&'static str, String)> {
+    let Some(s) = s else { return vec![("draw:stroke", "none".into())] };
+    let style = s.style.unwrap_or_default();
+    let mut out = match dash_name(style) {
+        None => vec![("draw:stroke", "solid".into())],
+        Some(name) => {
+            if !reg.dashes.contains(&style) {
+                reg.dashes.push(style);
+            }
+            vec![("draw:stroke", "dash".into()), ("draw:stroke-dash", name.into())]
+        }
+    };
+    out.push(("svg:stroke-width", mm(s.width_mm)));
+    out.push(("svg:stroke-color", s.color.clone()));
+    out
 }
 
 fn shadow(on: bool) -> Vec<(&'static str, String)> {
@@ -195,7 +202,7 @@ impl Writer<'_> {
             ("draw:fill-image-name", fill_name),
             ("style:repeat", "stretch".into()),
         ];
-        props.extend(stroke(p.border.as_ref()));
+        props.extend(stroke(self.reg, p.border.as_ref()));
         props.extend(shadow(p.shadow));
         let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", props)]);
         let mut a = vec![("draw:style-name", style), ("draw:corner-radius", mm(p.corner_radius_mm))];
@@ -294,7 +301,7 @@ impl Writer<'_> {
             Some(c) if !stroke_only => vec![("draw:fill", "solid".into()), ("draw:fill-color", c.clone())],
             _ => vec![("draw:fill", "none".into())],
         };
-        props.extend(stroke(s.stroke.as_ref()));
+        props.extend(stroke(self.reg, s.stroke.as_ref()));
         if s.shape == ShapeKind::Arrow {
             self.reg.arrow_marker = true;
             props.push(("draw:marker-end", ARROW_MARKER.into()));

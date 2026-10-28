@@ -1,6 +1,7 @@
 // État de l'éditeur : le document (immuable, avec historique), la page courante, la sélection, le zoom.
 import { createHistory, type History } from "./history";
 import { newDocument } from "./factory";
+import type { LibraryPhoto } from "./photoLibrary";
 import { readPref, writePref } from "./prefs";
 import type { AssetMeta, Document, Element, Page } from "./types";
 
@@ -15,8 +16,10 @@ class Editor {
   zoom = $state<Zoom>("fit");
   fitZoom = $state(1);
   templateMode = $state(false);
-  /** Photos importées pendant la session (pas forcément utilisées dans le document). */
-  photos = $state.raw<AssetMeta[]>([]);
+  /** Photothèque de la session (pas forcément utilisées dans le document) ; gardée après « Nouveau ». */
+  photos = $state.raw<LibraryPhoto[]>([]);
+  /** Import en cours : photos traitées sur le total demandé. */
+  importProgress = $state<{ done: number; total: number } | null>(null);
   /** Texte en cours d'édition. */
   editingText = $state<string | null>(null);
   /** Déplacement, redimensionnement ou rotation à la souris en cours (Moveable). */
@@ -146,9 +149,10 @@ class Editor {
     this.commit({ ...this.doc, pages });
   }
 
-  addPhotos(metas: AssetMeta[]) {
-    const known = new Set(this.photos.map((p) => p.id));
-    this.photos = [...this.photos, ...metas.filter((m) => !known.has(m.id))];
+  addPhotos(photos: LibraryPhoto[]) {
+    const known = new Set(this.photos.map((p) => p.meta.id));
+    const fresh = photos.filter((p) => !known.has(p.meta.id));
+    if (fresh.length) this.photos = [...this.photos, ...fresh];
   }
 
   /** Images connues sans modification du document (aperçus de modèles). */

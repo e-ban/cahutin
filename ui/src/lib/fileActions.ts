@@ -5,6 +5,9 @@ import * as api from "./api";
 import { ask } from "./ask";
 import { confirmDiscardIfDirty, editor, type DiscardChoice } from "./docStore.svelte";
 import { newDocument } from "./factory";
+import { summarizeImport } from "./importSummary";
+import { pendingPaths } from "./photoLibrary";
+import type { ImportOutcome } from "./types";
 import { modal } from "./modal.svelte";
 
 const baseName = () => (editor.doc.title.trim() || "Sans titre").replace(/[\\/:*?"<>|]/g, "-");
@@ -32,7 +35,9 @@ async function write(path: string): Promise<boolean> {
   saving = true;
   try {
     const snapshot = editor.doc;
-    const ok = await guard(() => api.saveDocument(path, snapshot));
+    // Les photos importées mais non placées sont retrouvées à la réouverture (chemins seulement).
+    const written = { ...snapshot, pending_photos: pendingPaths(editor.photos, snapshot) };
+    const ok = await guard(() => api.saveDocument(path, written));
     if (ok === undefined) return false;
     editor.markSaved(path, snapshot);
     return true;
@@ -78,6 +83,10 @@ export async function openDoc() {
   const opened = await guard(() => api.openDocument(picked));
   if (!opened) return;
   editor.reset(opened.doc, picked);
+  editor.addPhotos(Object.values(opened.doc.assets).flatMap((meta) => (meta ? [{ meta, path: "", folder: "" }] : [])));
+  // Photos en attente : celles qui existent encore sont réimportées, sans message pour les autres.
+  const pending = await api.existingPaths(opened.doc.pending_photos).catch(() => []);
+  if (pending.length) void importPaths(pending, { quiet: true });
   editor.showPicker = false;
   editor.templateMode = false;
 }
@@ -141,4 +150,36 @@ export async function deletePage(index: number) {
   if (editor.doc.pages.length === 1) return;
   if (!(await ask(`Supprimer la page ${index + 1} ?`, "Supprimer"))) return;
   editor.commit({ ...editor.doc, pages: editor.doc.pages.filter((_, i) => i !== index) });
+}
+
+/**
+ * Importe en arrière-plan : les vignettes apparaissent au fil de l'eau, la progression avance,
+ * les échecs sont résumés à la fin (sauf `quiet`, pour les photos en attente d'un document).
+ */
+export async function importPaths(paths: string[], opts: { fromFolder?: boolean; quiet?: boolean } = {}) {
+  if (paths.length === 0) {
+    if (opts.fromFolder) editor.notice = summarizeImport([], { fromFolder: true }).message;
+    return;
+  }
+  const progress = editor.importProgress ?? { done: 0, total: 0 };
+  editor.importProgress = { done: progress.done, total: progress.total + paths.length };
+  const outcomes: ImportOutcome[] = [];
+  try {
+    await api.importPhotos(paths, (o) => {
+      outcomes.push(o);
+      if (o.status === "Ok") editor.addPhotos([{ meta: o.asset, path: o.path, folder: o.folder }]);
+      if (editor.importProgress) editor.importProgress = { ...editor.importProgress, done: editor.importProgress.done + 1 };
+    });
+  } catch (e) {
+    if (!opts.quiet) editor.notice = String(e);
+  } finally {
+    // Import interrompu : les photos jamais traitées comptent comme terminées, pour ne pas bloquer la barre.
+    const p = editor.importProgress;
+    if (p) {
+      const done = p.done + (paths.length - outcomes.length);
+      editor.importProgress = done >= p.total ? null : { ...p, done };
+    }
+  }
+  const { message } = summarizeImport(outcomes);
+  if (message && !opts.quiet) editor.notice = message;
 }

@@ -6,7 +6,7 @@ const meta: AssetMeta = { id: "a", width_px: 10, height_px: 10, mime: "Jpeg" };
 
 test("summarizeImport all ok", () => {
   const r = summarizeImport([{ status: "Ok", path: "/p/a.jpg", folder: "p", asset: meta }]);
-  expect(r.imported).toEqual([meta]);
+  expect(r.imported).toEqual([{ meta, path: "/p/a.jpg", folder: "p" }]);
   expect(r.message).toBeNull();
 });
 
@@ -17,7 +17,7 @@ test("summarizeImport lists failures by file name", () => {
     { status: "Err", path: "/home/élodie/abîmé.jpg", message: "fichier illisible ou abîmé" },
   ];
   const r = summarizeImport(outcomes);
-  expect(r.imported.length).toBe(1);
+  expect(r.imported).toEqual([{ meta, path: "C:\\Photos\\a.jpg", folder: "Photos" }]);
   expect(r.message).toBe(
     "2 photos n'ont pas pu être importées :\nIMG_1.HEIC : format HEIC (iPhone) non pris en charge : enregistrez la photo en JPEG\nabîmé.jpg : fichier illisible ou abîmé",
   );

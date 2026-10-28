@@ -5,7 +5,7 @@
   import { onMount } from "svelte";
   import Modal from "./components/Modal.svelte";
   import PrintRoot from "./components/PrintRoot.svelte";
-  import { confirmLeave } from "./lib/fileActions";
+  import { confirmLeave, importPaths } from "./lib/fileActions";
   import ContextBar from "./components/ContextBar.svelte";
   import ContextMenu, { type ContextTarget } from "./components/layout/ContextMenu.svelte";
   import PageView from "./components/PageView.svelte";
@@ -23,6 +23,7 @@
   import TextDrawer from "./components/drawers/TextDrawer.svelte";
   import { editor } from "./lib/docStore.svelte";
   import { fonts } from "./lib/fonts.svelte";
+  import { addPhotoAt } from "./lib/editActions";
   import { handleShortcut } from "./lib/shortcuts";
   import { newDocument, newId } from "./lib/factory";
   import { templates } from "./lib/templates.svelte";
@@ -33,7 +34,8 @@
   editor.showPicker = true;
   fonts.load();
   templates.refresh();
-  if (import.meta.env.DEV) (window as unknown as { __editor: typeof editor }).__editor = editor;
+  // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
+  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths } });
 
   // Fermeture de la fenêtre : demander d'enregistrer s'il y a des modifications.
   onMount(() => {
@@ -76,38 +78,14 @@
 
   /** Photo déposée : dans une zone photo, elle la remplit ; ailleurs, une nouvelle photo de 80 mm de large. */
   function dropAsset(assetId: string, elementId: string | null, xMm: number, yMm: number) {
-    const meta = editor.photos.find((p) => p.id === assetId) ?? editor.doc.assets[assetId];
+    const meta = editor.photos.find((p) => p.meta.id === assetId)?.meta ?? editor.doc.assets[assetId];
     if (!meta) return;
     if (elementId) {
       editor.placePhoto(elementId, meta);
       editor.selection = [elementId];
       return;
     }
-    const w = 80;
-    const h = (w * meta.height_px) / meta.width_px;
-    const id = newId();
-    editor.commit({
-      ...editor.doc,
-      assets: { ...editor.doc.assets, [meta.id]: meta },
-      pages: editor.doc.pages.map((p, i) =>
-        i !== editor.pageIndex
-          ? p
-          : {
-              ...p,
-              elements: [
-                ...p.elements,
-                {
-                  id,
-                  frame: { x_mm: Math.round((xMm - w / 2) * 10) / 10, y_mm: Math.round((yMm - h / 2) * 10) / 10, w_mm: w, h_mm: Math.round(h * 10) / 10, rotation_deg: 0 },
-                  locked: false,
-                  zone: false,
-                  kind: { type: "Photo", asset: meta.id, crop: { scale: 1, center_x: 0.5, center_y: 0.5 }, corner_radius_mm: 0, border: null, shadow: false },
-                },
-              ],
-            },
-      ),
-    });
-    editor.selection = [id];
+    addPhotoAt(meta, xMm, yMm);
   }
 
   function endCrop(id: string, crop: Crop) {

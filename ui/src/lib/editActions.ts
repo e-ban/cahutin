@@ -1,7 +1,8 @@
 // Actions d'édition sur la sélection, communes aux raccourcis, au clic droit et à la barre flottante.
 import { copyElements, duplicateElements, pasteElements, removeElements, reorder } from "./clipboard";
 import { editor } from "./docStore.svelte";
-import type { Element } from "./types";
+import { newId } from "./factory";
+import type { AssetMeta, Element } from "./types";
 
 let clipboard: Element[] = [];
 
@@ -46,4 +47,36 @@ export function toggleLockSelection() {
 export function deleteSelection() {
   const next = removeElements(editor.page, editor.selection);
   if (next !== editor.page) editor.updatePage(() => next);
+}
+
+export const NEW_PHOTO_WIDTH_MM = 80;
+
+/** Nouvelle photo libre centrée sur (x, y), de 80 mm de large ; l'image rejoint celles du document. */
+export function addPhotoAt(meta: AssetMeta, xMm: number, yMm: number) {
+  const w = NEW_PHOTO_WIDTH_MM;
+  const h = Math.round(((w * meta.height_px) / meta.width_px) * 10) / 10;
+  const id = newId();
+  const el: Element = {
+    id,
+    frame: { x_mm: Math.round((xMm - w / 2) * 10) / 10, y_mm: Math.round((yMm - h / 2) * 10) / 10, w_mm: w, h_mm: h, rotation_deg: 0 },
+    locked: false,
+    zone: false,
+    kind: { type: "Photo", asset: meta.id, crop: { scale: 1, center_x: 0.5, center_y: 0.5 }, corner_radius_mm: 0, border: null, shadow: false },
+  };
+  editor.commit({
+    ...editor.doc,
+    assets: { ...editor.doc.assets, [meta.id]: meta },
+    pages: editor.doc.pages.map((p, i) => (i === editor.pageIndex ? { ...p, elements: [...p.elements, el] } : p)),
+  });
+  editor.selection = [id];
+}
+
+/** Clic sur une vignette : remplit (ou remplace) la photo sélectionnée, sinon pose la photo au centre de la page. */
+export function usePhoto(meta: AssetMeta) {
+  const e = editor.selected;
+  if (e && e.kind.type === "Photo" && !e.locked) {
+    editor.placePhoto(e.id, meta);
+    return;
+  }
+  addPhotoAt(meta, editor.page.size.width_mm / 2, editor.page.size.height_mm / 2);
 }

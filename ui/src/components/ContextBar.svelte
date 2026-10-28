@@ -119,6 +119,7 @@
   <div
     class="ctx"
     role="toolbar"
+    tabindex="-1"
     aria-label="Barre de l'élément"
     bind:this={barEl}
     style:left={pos ? `${pos.left}px` : "-9999px"}

@@ -4,7 +4,7 @@
 
 ## 1. Construire l'installeur
 
-**Le plus simple :** télécharger l'installeur `Carnet_<version>_x64-setup.exe` de la dernière version sur la page « Releases » du dépôt. Pour essayer une construction plus récente : à chaque envoi sur `main`, GitHub construit l'installeur (workflow « Windows ») ; ouvrir « Actions », puis le dernier run réussi « Windows », et télécharger l'artefact `carnet-installeur-windows-…`. On peut aussi relancer la construction à la main avec « Run workflow ».
+**Le plus simple :** télécharger l'installeur `Carnet_<version>_x64-setup.exe` de la dernière version sur la page « Releases » du dépôt. Pour essayer une construction plus récente : à chaque envoi sur `main`, GitHub construit l'installeur (workflow « Construction ») ; ouvrir « Actions », puis le dernier run réussi « Construction », et télécharger l'artefact `carnet-installeur-windows-…`. On peut aussi relancer la construction à la main avec « Run workflow ».
 
 **Sur le poste Windows lui-même :**
 

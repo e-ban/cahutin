@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.4.1
+
+- Version Linux : AppImage pour toutes les distributions et paquet .deb pour Debian et Ubuntu.
+
 ## 0.4.0
 
 Première version publiée.

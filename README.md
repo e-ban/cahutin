@@ -2,7 +2,7 @@
 
 Carnet est un éditeur de pages pour les enseignants de l'école primaire : pages de cahier de vie, fiches, affichages de classe. On part d'un modèle ou d'un exemple, on dépose ses photos, on écrit, et on obtient une page prête à imprimer, à exporter en PDF ou à reprendre dans LibreOffice.
 
-L'application fonctionne **entièrement hors ligne** sur Windows 11 : aucune donnée ne quitte le poste.
+L'application fonctionne **entièrement hors ligne** sur Windows 11 et sous Linux : aucune donnée ne quitte le poste.
 
 ## Ce que Carnet sait faire
 
@@ -19,9 +19,22 @@ L'application fonctionne **entièrement hors ligne** sur Windows 11 : aucune don
 
 ## Installer
 
+### Windows 11
+
 1. Ouvrir la page [Releases](../../releases) et télécharger `Carnet_<version>_x64-setup.exe` de la dernière version.
 2. Lancer le fichier. L'installation se fait pour l'utilisateur courant, **sans droits administrateur**.
 3. L'installeur n'est pas encore signé : Windows affiche « Windows a protégé votre ordinateur ». Cliquer sur **Informations complémentaires**, puis **Exécuter quand même**.
+
+### Linux
+
+Sur la page [Releases](../../releases), deux paquets pour PC 64 bits :
+
+- `Carnet_<version>_amd64.AppImage`, pour toutes les distributions : le rendre exécutable (`chmod +x Carnet_*.AppImage`), puis le lancer.
+- `Carnet_<version>_amd64.deb`, pour Debian, Ubuntu et leurs dérivées : `sudo apt install ./Carnet_<version>_amd64.deb`.
+
+Sous Linux, « Exporter en PDF » n'existe pas : utiliser « Imprimer », puis « Enregistrer en PDF ».
+
+### Mises à jour
 
 Carnet n'a pas de mise à jour automatique (il ne se connecte jamais à internet) : pour changer de version, installer la nouvelle par-dessus l'ancienne. Les documents et les modèles personnels sont conservés.
 
@@ -37,7 +50,7 @@ Carnet n'a pas de mise à jour automatique (il ne se connecte jamais à internet
 | Extension | Contenu |
 |---|---|
 | `.carnet` | Document Carnet : pages, photos, polices ajoutées dont la licence le permet. |
-| `.carnet-modele` | Modèle personnel, à copier dans `%APPDATA%\fr.carnet.app\modeles` sur un autre poste. |
+| `.carnet-modele` | Modèle personnel, à copier dans `%APPDATA%\fr.carnet.app\modeles` (Windows) ou `~/.local/share/fr.carnet.app/modeles` (Linux) sur un autre poste. |
 | `.odg` | Export pour LibreOffice Draw. |
 
 ## Développement
@@ -59,7 +72,7 @@ npm ci
 npm run tauri dev        # application en développement
 npm test                 # tests de l'interface
 cargo test --workspace   # tests du moteur et de l'application
-npm run tauri build      # installeur
+npm run tauri build      # installeur Windows (sous Linux : -- --bundles appimage,deb)
 ```
 
 Le banc de fidélité exporte des pages en ODG et les fait rendre par LibreOffice pour vérifier qu'elles sont identiques à l'écran (LibreOffice doit être installé) :
@@ -76,7 +89,7 @@ Les types TypeScript de `ui/src/lib/gen` sont produits par le moteur (ts-rs) lor
 2. Ajouter une section `## <version>` en tête de `CHANGELOG.md`.
 3. Valider, puis créer et envoyer le tag : `git tag v<version>` et `git push origin main v<version>`.
 
-Le workflow « Windows » lance les tests, construit l'installeur et publie la release avec la section du journal des versions. Il refuse un tag qui ne correspond pas à la version de l'application ou qui n'a pas de section dans `CHANGELOG.md`.
+Le workflow « Construction » lance les tests sous Windows et Linux, construit les installeurs et publie la release avec la section du journal des versions. Il refuse un tag qui ne correspond pas à la version de l'application ou qui n'a pas de section dans `CHANGELOG.md`.
 
 ## Mentions
 

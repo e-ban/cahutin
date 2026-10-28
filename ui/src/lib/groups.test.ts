@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { boundsOf, elementsInRect, expandSelection, groupElements, isLockedSelection, rotateElements, scaleElements, ungroup } from "./groups";
+import { alignableIds, boundsOf, elementsInRect, expandSelection, groupElements, isLockedSelection, rotateElements, scaleElements, ungroup } from "./groups";
 import type { Element, Page } from "./types";
 
 const shape = (id: string, x = 0, extra: Partial<Element> = {}): Element => ({
@@ -88,4 +88,20 @@ test("boundsOf includes rotated corners", () => {
 test("elementsInRect returns only fully covered elements", () => {
   const p = page([shape("in", 20), shape("half", 45), shape("out", 100)]);
   expect(elementsInRect(p, { x_mm: 15, y_mm: 5, w_mm: 35, h_mm: 20 })).toEqual(["in"]);
+});
+
+test("grid cells are left out of a group of free elements", () => {
+  const p = page([shape("z1"), shape("z2"), shape("f1"), shape("f2")], ["z1", "z2"]);
+  const r = groupElements(p, ["z1", "z2", "f1", "f2"]);
+  expect(r.group).not.toBeNull();
+  expect(r.page.elements.filter((e) => e.group === r.group).map((e) => e.id)).toEqual(["f1", "f2"]);
+  expect(r.page.elements.filter((e) => e.id.startsWith("z")).every((e) => !e.group)).toBe(true);
+});
+
+test("alignableIds is empty when a group member is locked", () => {
+  const p = page([shape("a", 0, { group: "g", locked: true }), shape("b", 10, { group: "g" }), shape("c", 20)]);
+  expect(alignableIds(p, ["a", "b"])).toEqual([]);
+  expect(alignableIds(p, ["c", "b"])).toEqual([]);
+  const q = page([shape("a"), shape("b", 10), shape("z", 20)], ["z"]);
+  expect(alignableIds(q, ["a", "b", "z"])).toEqual(["a", "b"]);
 });

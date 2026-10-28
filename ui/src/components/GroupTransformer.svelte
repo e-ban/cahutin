@@ -9,7 +9,7 @@
   import { boundsOf, isLockedSelection } from "../lib/groups";
   import { PX_PER_MM } from "../lib/units";
 
-  let { pageEl, zoom }: { pageEl: HTMLElement | undefined; zoom: number } = $props();
+  let { pageEl, zoom, onpick }: { pageEl: HTMLElement | undefined; zoom: number; onpick: (id: string | null, add: boolean) => void } = $props();
 
   let moveable: Moveable | null = null;
   let key = "";
@@ -61,6 +61,9 @@
       keepRatio: true,
       renderDirections: ["nw", "ne", "sw", "se"],
       origin: false,
+      // Le cadre du groupe reste droit : l'angle mesuré est celui du geste en cours.
+      useDefaultGroupRotate: true,
+      defaultGroupRotate: 0,
     });
     m.on("dragGroupStart", () => begin(targets))
       .on("dragGroup", ({ events }) => {
@@ -87,12 +90,17 @@
       .on("rotateGroupStart", () => begin(targets))
       .on("rotateGroup", (ev) => {
         ev.events.forEach((e) => (e.target.style.transform = e.drag.transform));
-        if (gesture) gesture.deg = ev.beforeRotate;
+        if (gesture) gesture.deg = ev.beforeDist;
       })
       .on("rotateGroupEnd", () => end(targets))
-      // La zone du groupe recouvre ses éléments : un double-clic est transmis à l'élément visé.
+      // La zone du groupe recouvre la boîte englobante : un clic sur un autre élément (ou sur la page)
+      // dessous le sélectionne. Le double-clic est traité par la page.
       .on("clickGroup", (ev) => {
-        if (ev.isDouble && ev.targetIndex >= 0) targets[ev.targetIndex].dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+        if (ev.isDouble) return;
+        const input = ev.inputEvent as MouseEvent;
+        const id = document.elementsFromPoint(input.clientX, input.clientY).map((n) => n.closest<HTMLElement>(".element")).find((n) => n && pageEl?.contains(n))?.dataset.id ?? null;
+        if (id && ids?.includes(id)) return;
+        onpick(id, input.shiftKey);
       });
     return m;
   }

@@ -57,6 +57,26 @@
   let liveCrop = $state<Crop | null>(null);
   let dragFrom: { x: number; y: number } | null = null;
 
+  /** Double-clic : un élément groupé est modifié seul ; une photo se recadre, un texte s'écrit. */
+  function activate(e: Element) {
+    if (e.group) onfocusmember?.(e.id);
+    if (e.kind.type === "Photo" && e.kind.asset && !e.locked) {
+      liveCrop = null;
+      oncropstart?.(e.id);
+    } else if (e.kind.type === "Text" && !e.locked) {
+      onedittext?.(e.id);
+    }
+  }
+
+  /** Élément de cette page sous le pointeur, même sous la zone des poignées d'un groupe. */
+  function elementUnder(x: number, y: number): string | null {
+    const n = document.elementsFromPoint(x, y).map((el) => el.closest<HTMLElement>(".element")).find((el) => el && pageEl?.contains(el));
+    return n?.dataset.id ?? null;
+  }
+
+  // Forme vide (sans remplissage) : seul son contour se clique, l'intérieur laisse passer vers la page.
+  const isHollow = (e: Element) => e.kind.type === "Shape" && e.kind.fill === null && e.kind.shape !== "Line" && e.kind.shape !== "Arrow";
+
   function frameStyle(e: Element): string {
     return rectStyle(e.frame);
   }
@@ -118,7 +138,15 @@
   style:height="{mmToPx(page.size.height_mm, zoom)}px"
   onpointerdown={(ev) => {
     if (cropping) endCrop();
-    if (ev.target === ev.currentTarget) onselect?.(null, false);
+    // Maj : la sélection au cadre ajoutera à la sélection actuelle.
+    if (ev.target === ev.currentTarget && !ev.shiftKey) onselect?.(null, false);
+  }}
+  ondblclick={(ev) => {
+    // Double-clic sur la zone des poignées d'un groupe (pas sur un élément) : l'élément sous le pointeur.
+    if ((ev.target as HTMLElement).closest(".element")) return;
+    const id = elementUnder(ev.clientX, ev.clientY);
+    const e = id ? page.elements.find((x) => x.id === id) : undefined;
+    if (e) activate(e);
   }}
   ondragover={(ev) => {
     if (acceptsAsset(ev)) ev.preventDefault();
@@ -130,8 +158,7 @@
     ev.preventDefault();
     const r = pageEl.getBoundingClientRect();
     // Sous la zone des poignées d'un groupe, l'élément est celui qui se trouve sous le pointeur.
-    const under = document.elementsFromPoint(ev.clientX, ev.clientY).map((n) => n.closest<HTMLElement>(".element")).find((n) => n && pageEl!.contains(n));
-    const id = under?.dataset.id ?? null;
+    const id = elementUnder(ev.clientX, ev.clientY);
     oncontext(id, (ev.clientX - r.left) / (PX_PER_MM * zoom), (ev.clientY - r.top) / (PX_PER_MM * zoom), ev.clientX, ev.clientY);
   }}
 >
@@ -143,6 +170,7 @@
       class:cropping={e.id === cropping}
       class:zone-photo={e.zone && e.kind.type === "Photo"}
       class:zone-text={e.zone && e.kind.type === "Text"}
+      class:hollow={isHollow(e)}
       class:merge-ok={templateMode && editor.mergePreview?.ok && editor.mergePreview.ids.includes(e.id)}
       class:merge-bad={templateMode && editor.mergePreview && !editor.mergePreview.ok && editor.mergePreview.ids.includes(e.id)}
       data-id={e.id}
@@ -170,15 +198,7 @@
         ev.preventDefault();
         liveCrop = wheelCrop(liveCrop ?? e.kind.crop, ev.deltaY);
       }}
-      ondblclick={() => {
-        if (e.group) onfocusmember?.(e.id);
-        if (e.kind.type === "Photo" && e.kind.asset && !e.locked) {
-          liveCrop = null;
-          oncropstart?.(e.id);
-        } else if (e.kind.type === "Text" && !e.locked) {
-          onedittext?.(e.id);
-        }
-      }}
+      ondblclick={() => activate(e)}
       ondragover={(ev) => {
         if (acceptsAsset(ev) && e.kind.type === "Photo" && !e.locked) {
           ev.preventDefault();
@@ -234,6 +254,13 @@
   .element {
     position: absolute;
     transform-origin: center;
+  }
+  .element.hollow {
+    pointer-events: none;
+  }
+  .element.hollow.selected,
+  .element.hollow.locked {
+    pointer-events: none;
   }
   .element.merge-ok {
     outline: 3px solid var(--accent);

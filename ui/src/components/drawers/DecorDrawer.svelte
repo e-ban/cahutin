@@ -42,7 +42,8 @@
     chosen = code;
     const images = editor.page.elements.some((e) => editor.selection.includes(e.id) && e.kind.type === "Image");
     if (images) {
-      editor.updatePage((p) => replacePictos(p, editor.selection, code));
+      // Après un double-clic, seule l'image modifiée seule est remplacée ; sinon toute la frise.
+      editor.updatePage((p) => replacePictos(p, editor.selection, code, !editor.focusedMember));
       return;
     }
     const el = pictoElement(editor.page, code);

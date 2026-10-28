@@ -22,8 +22,9 @@ export function expandSelection(page: Page, ids: string[]): string[] {
 
 /** Un seul groupe avec tous les éléments (et les groupes qu'ils touchent), rassemblés à la place du plus haut. */
 export function groupElements(page: Page, ids: string[]): { page: Page; group: string | null } {
-  const expanded = expandSelection(page, ids);
-  if (expanded.some((id) => isCell(page, id)) || expanded.length < 2) return { page, group: null };
+  // Les cases de grille sont écartées ; le reste est groupé s'il reste au moins deux éléments.
+  const expanded = expandSelection(page, ids).filter((id) => !isCell(page, id));
+  if (expanded.length < 2) return { page, group: null };
   const group = newId();
   const members = new Set(expanded);
   const top = Math.max(...page.elements.map((e, i) => (members.has(e.id) ? i : -1)));
@@ -51,6 +52,13 @@ export function dissolveSmallGroups(page: Page): Page {
 export function isLockedSelection(page: Page, ids: string[]): boolean {
   const all = new Set(expandSelection(page, ids));
   return page.elements.some((e) => all.has(e.id) && e.locked);
+}
+
+/** Éléments qu'Aligner et Répartir peuvent déplacer : aucun si un membre (groupes compris) est verrouillé ; jamais les cases de grille. */
+export function alignableIds(page: Page, ids: string[]): string[] {
+  if (isLockedSelection(page, ids)) return [];
+  const all = new Set(expandSelection(page, ids));
+  return page.elements.filter((e) => all.has(e.id) && !isCell(page, e.id)).map((e) => e.id);
 }
 
 function corners(f: Frame): Point[] {

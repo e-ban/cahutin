@@ -142,7 +142,7 @@ pub fn open_document(state: State<'_, AppState>, path: String) -> Result<OpenedD
 pub fn export_odg(state: State<'_, AppState>, path: String, doc: Document) -> Result<(), String> {
     let store = state.store.lock().unwrap();
     odg::export_odg_to_path(&doc, &store, &state.fonts.read().unwrap(), Path::new(&path)).map_err(|e| {
-        log::error!("export_odg_failed kind={e:?}");
+        log::error!("export_odg_failed kind={}", e.kind());
         e.message_fr()
     })?;
     log::info!("export_odg pages={}", doc.pages.len());

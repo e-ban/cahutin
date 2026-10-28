@@ -25,6 +25,15 @@ fn csp_lets_user_fonts_load_from_the_asset_protocol() {
     assert!(font_src.contains("carnet-asset:") && font_src.contains("http://carnet-asset.localhost"), "{font_src}");
 }
 
+/// L'interface lit des fichiers servis avec elle (index des images) : `fetch` vers sa propre origine.
+#[test]
+fn csp_lets_the_page_fetch_its_own_files() {
+    let c = config();
+    let csp = c["app"]["security"]["csp"].as_str().unwrap();
+    let connect = csp.split(';').map(str::trim).find(|d| d.starts_with("connect-src")).expect("connect-src");
+    assert!(connect.split_whitespace().any(|s| s == "'self'"), "{connect}");
+}
+
 #[test]
 fn installer_is_per_user_nsis() {
     let c = config();

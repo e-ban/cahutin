@@ -44,6 +44,16 @@ pub enum OdgError {
 }
 
 impl OdgError {
+    /// Nom de l'erreur pour le journal, sans rien du document (ni identifiant, ni code d'image).
+    pub fn kind(&self) -> &'static str {
+        match self {
+            OdgError::MissingAsset(_) => "MissingAsset",
+            OdgError::MissingPicture(_) => "MissingPicture",
+            OdgError::Image => "Image",
+            OdgError::Io => "Io",
+        }
+    }
+
     pub fn message_fr(&self) -> String {
         match self {
             OdgError::MissingAsset(_) => "Une photo du document est introuvable.",
@@ -513,5 +523,11 @@ mod tests {
         let err = export_odg(&doc_with(vec![picture_el("ZZZZ", None)]), &AssetStore::default(), &FontSet::builtin(), &mut buf).err().unwrap();
         assert!(matches!(err, OdgError::MissingPicture(_)));
         assert_eq!(err.message_fr(), "Une image décorative du document est introuvable.");
+    }
+
+    #[test]
+    fn error_kind_never_carries_document_text() {
+        assert_eq!(OdgError::MissingPicture("code venu du document".into()).kind(), "MissingPicture");
+        assert_eq!(OdgError::MissingAsset("id".into()).kind(), "MissingAsset");
     }
 }

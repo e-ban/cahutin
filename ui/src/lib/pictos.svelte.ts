@@ -50,8 +50,8 @@ export function pictoElement(page: Page, code: string, at?: { x_mm: number; y_mm
 }
 
 /** Remplace toutes les images de la sélection et de ses groupes (une frise change de motif). */
-export function replacePictos(page: Page, ids: string[], code: string): Page {
-  const all = new Set(expandSelection(page, ids));
+export function replacePictos(page: Page, ids: string[], code: string, expand = true): Page {
+  const all = new Set(expand ? expandSelection(page, ids) : ids);
   return { ...page, elements: page.elements.map((e) => (all.has(e.id) && e.kind.type === "Image" && !e.locked ? { ...e, kind: { type: "Image", code } } : e)) };
 }
 

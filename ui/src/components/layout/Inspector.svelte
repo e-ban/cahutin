@@ -7,7 +7,7 @@
   import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
   import { ALIGNS, activeTip, isMarkActive, setAlign, setColor, setFont, setSize, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
   import { endPreview, previewPhoto, previewShape, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
-  import { deleteSelection, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
+  import { deleteSelection, setSelectedFrame, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
   import { boundsOf, isLockedSelection } from "../../lib/groups";
   import type { Frame } from "../../lib/types";
 
@@ -41,11 +41,9 @@
   const frameFixed = $derived(!!selected && (selected.locked || !!editor.page.grid?.cells.some((c) => c.element_id === selected.id)));
 
   function setFrame(key: keyof Frame, raw: string) {
-    const v = Number(raw.replace(",", "."));
-    if (!Number.isFinite(v)) return;
-    const min = key === "w_mm" || key === "h_mm" ? 1 : -10000;
-    update((e) => ({ ...e, frame: { ...e.frame, [key]: Math.max(min, Math.round(v * 10) / 10) } }));
+    setSelectedFrame(key, Number(raw.replace(",", ".")));
   }
+
 </script>
 
 {#if !editor.inspectorOpen}

@@ -12,7 +12,7 @@
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
   import { isStrokeOnly } from "../lib/shapePaths";
-  import { isLockedSelection } from "../lib/groups";
+  import { alignableIds, isLockedSelection } from "../lib/groups";
   import { ALIGNS, isMarkActive, setAlign, setColor, setFont, setSize, toggleMark } from "../lib/textFormat.svelte";
   import type { Frame } from "../lib/types";
 
@@ -97,8 +97,10 @@
 
   /** Éléments libres de la sélection (ni verrouillés, ni cases de grille). */
   function movable() {
-    return editor.page.elements.filter((e) => editor.selection.includes(e.id) && !e.locked && !inGrid(e.id));
+    const ids = alignableIds(editor.page, editor.selection);
+    return editor.page.elements.filter((e) => ids.includes(e.id));
   }
+
 
   function applyFrames(fn: (frames: Frame[]) => Frame[]) {
     const els = movable();

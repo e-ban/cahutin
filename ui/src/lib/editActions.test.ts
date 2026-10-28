@@ -61,3 +61,32 @@ test("a resize gesture on a group commits one history step", async () => {
   expect(editor.page.elements[1].frame.x_mm).toBe(40);
   expect(editor.canUndo).toBe(false);
 });
+
+test("after a double-click, delete removes only the focused member and dissolves the pair", async () => {
+  const { deleteSelection } = await import("./editActions");
+  const { textElement } = await import("./factory");
+  const doc = newDocument("f");
+  const a = { ...textElement({ x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 }), group: "g" };
+  const b = { ...textElement({ x_mm: 20, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 }), group: "g" };
+  doc.pages[0].elements.push(a, b);
+  editor.reset(doc, null);
+  editor.focusedMember = a.id;
+  editor.selection = [a.id];
+  deleteSelection();
+  expect(editor.page.elements.map((e) => [e.id, e.group ?? null])).toEqual([[b.id, null]]);
+  editor.focusedMember = null;
+});
+
+test("a picture stays square when its size is typed in the inspector", async () => {
+  const { setSelectedFrame } = await import("./editActions");
+  const { pictoElement } = await import("./pictos.svelte");
+  const doc = newDocument("s");
+  const fox = pictoElement(doc.pages[0], "1F98A");
+  doc.pages[0].elements.push(fox);
+  editor.reset(doc, null);
+  editor.selection = [fox.id];
+  setSelectedFrame("w_mm", 40);
+  expect(editor.page.elements[0].frame).toMatchObject({ w_mm: 40, h_mm: 40 });
+  setSelectedFrame("h_mm", 22);
+  expect(editor.page.elements[0].frame).toMatchObject({ w_mm: 22, h_mm: 22 });
+});

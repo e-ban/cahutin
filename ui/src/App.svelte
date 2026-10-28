@@ -190,7 +190,7 @@
       bind:pageEl
     />
     <Transformer {pageEl} zoom={editor.effectiveZoom} />
-    <GroupTransformer {pageEl} zoom={editor.effectiveZoom} />
+    <GroupTransformer {pageEl} zoom={editor.effectiveZoom} onpick={select} />
     <ContextBar {pageEl} {stageEl} />
     <BoxSelect {pageEl} zoom={editor.effectiveZoom} />
     <CellBar {pageEl} {stageEl} />

@@ -13,6 +13,8 @@
   // Pointe de flèche : même proportion que celle de LibreOffice (base 20, longueur 30).
   const headW = $derived(mmToPx(arrowHeadMm(props.stroke?.width_mm ?? 1), zoom));
   const headL = $derived(headW * 1.5);
+  /** Épaisseur cliquable autour du contour d'une forme vide. */
+  const HIT_PX = 8;
 </script>
 
 {#if props.shape === "Line" || props.shape === "Arrow"}
@@ -25,7 +27,8 @@
     {/if}
   </svg>
 {:else if path}
-  <svg class="shape" viewBox="0 0 {SHAPE_VIEWBOX} {SHAPE_VIEWBOX}" preserveAspectRatio="none" aria-hidden="true">
+  <svg class="shape" class:hollow={!props.fill} viewBox="0 0 {SHAPE_VIEWBOX} {SHAPE_VIEWBOX}" preserveAspectRatio="none" aria-hidden="true">
+    {#if !props.fill}<path class="hit" d={path} stroke-width={Math.max(strokePx, HIT_PX)} vector-effect="non-scaling-stroke" />{/if}
     <path
       d={path}
       fill={props.fill ?? "none"}
@@ -34,6 +37,19 @@
       stroke-linejoin="round"
       vector-effect="non-scaling-stroke"
     />
+  </svg>
+{:else if !props.fill}
+  <!-- Forme vide : le contour seul se clique (intérieur transparent aux clics). -->
+  {@const sw = strokePx}
+  {@const r = props.shape === "Ellipse" ? null : Math.max(0, mmToPx(props.corner_radius_mm, zoom) - sw / 2)}
+  <svg class="shape hollow" width={w} height={h} aria-hidden="true">
+    {#if r === null}
+      <ellipse class="hit" cx={w / 2} cy={h / 2} rx={Math.max(0, w / 2 - sw / 2)} ry={Math.max(0, h / 2 - sw / 2)} stroke-width={Math.max(sw, HIT_PX)} />
+      {#if props.stroke}<ellipse cx={w / 2} cy={h / 2} rx={Math.max(0, w / 2 - sw / 2)} ry={Math.max(0, h / 2 - sw / 2)} fill="none" stroke={props.stroke.color} stroke-width={sw} />{/if}
+    {:else}
+      <rect class="hit" x={sw / 2} y={sw / 2} width={Math.max(0, w - sw)} height={Math.max(0, h - sw)} rx={r} stroke-width={Math.max(sw, HIT_PX)} />
+      {#if props.stroke}<rect x={sw / 2} y={sw / 2} width={Math.max(0, w - sw)} height={Math.max(0, h - sw)} rx={r} fill="none" stroke={props.stroke.color} stroke-width={sw} />{/if}
+    {/if}
   </svg>
 {:else}
   <div
@@ -54,5 +70,14 @@
   svg.shape {
     width: 100%;
     height: 100%;
+  }
+  /* Forme vide : ni le dessin ni sa boîte ne captent les clics, seul le contour (.hit) les reçoit. */
+  svg.hollow {
+    pointer-events: none;
+  }
+  .hit {
+    fill: none;
+    stroke: transparent;
+    pointer-events: stroke;
   }
 </style>

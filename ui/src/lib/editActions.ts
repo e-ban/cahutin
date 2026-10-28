@@ -3,7 +3,7 @@ import { copyElements, duplicateElements, pasteElements, removeElements, reorder
 import { editor } from "./docStore.svelte";
 import { expandSelection, groupElements, rotateElements, scaleElements, ungroup } from "./groups";
 import { newId } from "./factory";
-import type { AssetMeta, Element } from "./types";
+import type { AssetMeta, Element, Frame } from "./types";
 
 let clipboard: Element[] = [];
 // Images des photos copiées : collées dans un autre document, elles doivent rejoindre ses images.
@@ -20,8 +20,8 @@ function assetsOf(elements: Element[]): Record<string, AssetMeta> {
   return out;
 }
 
-/** La sélection, groupes complétés. */
-const selected = () => expandSelection(editor.page, editor.selection);
+/** La sélection, groupes complétés ; l'élément modifié seul après un double-clic reste seul. */
+const selected = () => (editor.focusedMember ? editor.selection : expandSelection(editor.page, editor.selection));
 
 export function copySelection() {
   if (editor.selection.length === 0) return;
@@ -110,6 +110,16 @@ export function applyGroupTransform(ids: string[], t: GroupTransform) {
     const byId = new Map(moved.map((e) => [e.id, e]));
     return { ...p, elements: p.elements.map((e) => byId.get(e.id) ?? e) };
   });
+}
+
+/** Valeur tapée dans le panneau de droite ; une image de la banque reste carrée. */
+export function setSelectedFrame(key: keyof Frame, value: number) {
+  const e = editor.selected;
+  if (!e || !Number.isFinite(value)) return;
+  const min = key === "w_mm" || key === "h_mm" ? 1 : -10000;
+  const v = Math.max(min, Math.round(value * 10) / 10);
+  const square = e.kind.type === "Image" && (key === "w_mm" || key === "h_mm");
+  editor.updateElement(e.id, (el) => ({ ...el, frame: square ? { ...el.frame, w_mm: v, h_mm: v } : { ...el.frame, [key]: v } }));
 }
 
 export const NEW_PHOTO_WIDTH_MM = 80;

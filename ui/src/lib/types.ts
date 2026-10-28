@@ -1,6 +1,8 @@
 // Types du document, générés depuis le moteur Rust (ts-rs) dans ./gen.
 export type { Align } from "./gen/Align";
 export type { AssetMeta } from "./gen/AssetMeta";
+export type { Background } from "./gen/Background";
+export type { Pattern } from "./gen/Pattern";
 export type { Crop } from "./gen/Crop";
 export type { Document } from "./gen/Document";
 export type { Element } from "./gen/Element";

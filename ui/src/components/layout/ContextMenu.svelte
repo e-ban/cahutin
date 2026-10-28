@@ -71,6 +71,8 @@
     <button role="menuitem" disabled={!hasClipboard()} onclick={() => run(paste)}><span>{fr.paste}</span><kbd>Ctrl+V</kbd></button>
     <button role="menuitem" onclick={() => run(() => addHere("text"))}><span>{fr.addTextHere}</span></button>
     <button role="menuitem" onclick={() => run(() => addHere("shape"))}><span>{fr.addShapeHere}</span></button>
+    <hr />
+    <button role="menuitem" onclick={() => run(() => (editor.showBackground = true))}><span>{fr.backgroundMenu}</span></button>
   {/if}
 </div>
 

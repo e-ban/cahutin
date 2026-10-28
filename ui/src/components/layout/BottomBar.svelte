@@ -51,6 +51,7 @@
   </div>
   <button onclick={() => insert(newPage())} title={fr.addPage}>＋ {fr.addPage}</button>
   <button class="ghost" onclick={duplicate}>⧉ {fr.duplicatePage}</button>
+  <button class="ghost" class:on={editor.showBackground} onclick={() => (editor.showBackground = !editor.showBackground)}>▤ {fr.backgroundButton}</button>
   <button class="ghost" onclick={rotate}>⟳ {editor.page.size.width_mm > editor.page.size.height_mm ? fr.portrait : fr.landscape}</button>
   <button class="ghost" disabled={editor.doc.pages.length === 1} onclick={() => deletePage(editor.pageIndex)}>🗑 {fr.deletePage}</button>
   <span class="spacer"></span>

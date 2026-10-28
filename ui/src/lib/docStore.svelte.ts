@@ -35,6 +35,8 @@ class Editor {
   cropping = $state<string | null>(null);
   /** Pages d'impression rendues seulement pendant une impression ou un export PDF. */
   printing = $state(false);
+  /** Panneau du fond de page. */
+  showBackground = $state(false);
   /** Écran À propos (menu Fichier). */
   showAbout = $state(false);
   /** Écran d'accueil : au démarrage et pour un nouveau document. */

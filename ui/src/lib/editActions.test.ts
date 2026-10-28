@@ -90,3 +90,27 @@ test("a picture stays square when its size is typed in the inspector", async () 
   setSelectedFrame("h_mm", 22);
   expect(editor.page.elements[0].frame).toMatchObject({ w_mm: 22, h_mm: 22 });
 });
+
+test("setBackground changes the current page only", async () => {
+  const { setBackground } = await import("./editActions");
+  const { newPage } = await import("./factory");
+  const doc = newDocument("b");
+  doc.pages.push(newPage());
+  editor.reset(doc, null);
+  editor.pageIndex = 1;
+  setBackground({ color: "#d8bc8a", pattern: "Seyes" }, false);
+  expect(editor.doc.pages.map((p) => p.background ?? null)).toEqual([null, { color: "#d8bc8a", pattern: "Seyes" }]);
+});
+
+test("apply to all pages is one undo step", async () => {
+  const { setBackground } = await import("./editActions");
+  const { newPage } = await import("./factory");
+  const doc = newDocument("b");
+  doc.pages.push(newPage(), newPage());
+  editor.reset(doc, null);
+  setBackground({ color: "#ffffff", pattern: "SmallSquares" }, true);
+  expect(editor.doc.pages.every((p) => p.background?.pattern === "SmallSquares")).toBe(true);
+  editor.undo();
+  expect(editor.doc.pages.every((p) => !p.background)).toBe(true);
+  expect(editor.canUndo).toBe(false);
+});

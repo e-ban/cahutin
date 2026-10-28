@@ -17,6 +17,7 @@
   import GridDrawer from "./components/drawers/GridDrawer.svelte";
   import DecorDrawer from "./components/drawers/DecorDrawer.svelte";
   import About from "./components/layout/About.svelte";
+  import BackgroundPanel from "./components/BackgroundPanel.svelte";
   import Hint from "./components/layout/Hint.svelte";
   import Welcome from "./components/layout/Welcome.svelte";
   import Transformer from "./components/Transformer.svelte";
@@ -202,6 +203,7 @@
   <BottomBar />
   {#if editor.showWelcome}<Welcome />{/if}
   {#if editor.showAbout}<About />{/if}
+  {#if editor.showBackground}<BackgroundPanel />{/if}
   <Modal />
   {#if editor.notice}
     <div class="notice" role="alert">

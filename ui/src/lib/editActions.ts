@@ -3,7 +3,7 @@ import { copyElements, duplicateElements, pasteElements, removeElements, reorder
 import { editor } from "./docStore.svelte";
 import { expandSelection, groupElements, rotateElements, scaleElements, ungroup } from "./groups";
 import { newId } from "./factory";
-import type { AssetMeta, Element, Frame } from "./types";
+import type { AssetMeta, Background, Element, Frame } from "./types";
 
 let clipboard: Element[] = [];
 // Images des photos copiées : collées dans un autre document, elles doivent rejoindre ses images.
@@ -120,6 +120,14 @@ export function setSelectedFrame(key: keyof Frame, value: number) {
   const v = Math.max(min, Math.round(value * 10) / 10);
   const square = e.kind.type === "Image" && (key === "w_mm" || key === "h_mm");
   editor.updateElement(e.id, (el) => ({ ...el, frame: square ? { ...el.frame, w_mm: v, h_mm: v } : { ...el.frame, [key]: v } }));
+}
+
+/** Fond de la page courante (ou de toutes les pages) : un seul pas d'annulation. */
+export function setBackground(bg: Background | null, allPages: boolean) {
+  editor.commit({
+    ...editor.doc,
+    pages: editor.doc.pages.map((p, i) => (allPages || i === editor.pageIndex ? { ...p, background: bg && { ...bg } } : p)),
+  });
 }
 
 export const NEW_PHOTO_WIDTH_MM = 80;

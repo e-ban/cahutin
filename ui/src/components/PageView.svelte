@@ -9,6 +9,7 @@
   import { pageHasPictos } from "../lib/pictos.svelte";
   import { TEXT_PADDING_MM } from "../lib/richtext";
   import PictoEl from "./elements/PictoEl.svelte";
+  import { marks } from "../lib/background";
   import { CREDIT_SIZE_PT, creditFrame } from "../lib/decor";
   import { PX_PER_MM, mmToPx, ptToPx } from "../lib/units";
   import type { Crop, Document, Element, Frame, Page, RichText } from "../lib/types";
@@ -136,6 +137,7 @@
   role="presentation"
   style:width="{mmToPx(page.size.width_mm, zoom)}px"
   style:height="{mmToPx(page.size.height_mm, zoom)}px"
+  style:background={page.background?.color ?? "white"}
   onpointerdown={(ev) => {
     if (cropping) endCrop();
     // Maj : la sélection au cadre ajoutera à la sélection actuelle.
@@ -162,6 +164,18 @@
     oncontext(id, (ev.clientX - r.left) / (PX_PER_MM * zoom), (ev.clientY - r.top) / (PX_PER_MM * zoom), ev.clientX, ev.clientY);
   }}
 >
+  {#if page.background?.pattern}
+    <!-- Motif d'école : même géométrie que l'ODG (lib/background.ts), derrière tout, jamais cliquable. -->
+    <svg class="pattern" viewBox="0 0 {page.size.width_mm} {page.size.height_mm}" aria-hidden="true">
+      {#each marks(page.size, page.background.pattern) as m, i (i)}
+        {#if m.type === "Line"}
+          <line x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} stroke={m.color} stroke-width={m.width_mm} />
+        {:else}
+          <circle cx={m.x} cy={m.y} r={m.d_mm / 2} fill={m.color} />
+        {/if}
+      {/each}
+    </svg>
+  {/if}
   {#each page.elements as e (e.id)}
     <div
       class="element"
@@ -240,6 +254,13 @@
     background: white;
     box-shadow: 0 2px 14px rgba(60, 40, 20, 0.18);
     flex: none;
+  }
+  .pattern {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
   }
   .credit {
     position: absolute;

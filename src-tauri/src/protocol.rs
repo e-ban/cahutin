@@ -1,8 +1,9 @@
 //! Protocole `carnet-asset` : sert les images importées à l'interface.
-//! `/<id>` donne l'image (relue depuis le cache), `/<id>/thumb` sa vignette (en mémoire).
+//! `/<id>` donne l'image (relue depuis le cache), `/<id>/thumb` sa vignette (en mémoire),
+//! `/font/<fichier>` une police ajoutée par l'utilisateur.
 
 use crate::state::AppState;
-use carnet_core::Mime;
+use carnet_core::{Mime, fonts};
 use std::borrow::Cow;
 use tauri::http::{Request, Response, StatusCode, header};
 use tauri::{Manager, Runtime, UriSchemeContext};
@@ -11,6 +12,9 @@ pub const SCHEME: &str = "carnet-asset";
 
 pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
     let path = request.uri().path().trim_start_matches('/');
+    if let Some(file) = path.strip_prefix("font/") {
+        return font(&ctx.app_handle().state::<AppState>(), file);
+    }
     let (id, thumb) = match path.strip_suffix("/thumb") {
         Some(id) => (id, true),
         None => (path, false),
@@ -31,4 +35,17 @@ pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>
         .header(header::CACHE_CONTROL, "max-age=31536000, immutable")
         .body(Cow::Owned(bytes.to_vec()))
         .unwrap()
+}
+
+fn not_found() -> Response<Cow<'static, [u8]>> {
+    Response::builder().status(StatusCode::NOT_FOUND).body(Cow::Borrowed(&[][..])).unwrap()
+}
+
+fn font(state: &AppState, file: &str) -> Response<Cow<'static, [u8]>> {
+    if !fonts::is_safe_file_name(file) {
+        return not_found();
+    }
+    let Ok(bytes) = std::fs::read(state.fonts_dir.join(file)) else { return not_found() };
+    let mime = if bytes.starts_with(b"OTTO") { "font/otf" } else { "font/ttf" };
+    Response::builder().header(header::CONTENT_TYPE, mime).body(Cow::Owned(bytes)).unwrap()
 }

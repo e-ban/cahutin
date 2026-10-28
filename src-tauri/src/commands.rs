@@ -2,7 +2,7 @@
 //! Journal : uniquement des noms d'événements et des compteurs, jamais de chemin ni de contenu.
 
 use crate::state::AppState;
-use carnet_core::fonts::{FontFamilyInfo, FontSet};
+use carnet_core::fonts::{self, FontFamilyInfo};
 use carnet_core::photo;
 use carnet_core::templates::{self, TemplateInfo};
 use carnet_core::{AssetMeta, Document, Page, PageSize, ZoneKind, grid, native, odg, report};
@@ -75,11 +75,9 @@ pub fn list_importable_in(dir: String) -> Vec<String> {
     photo::list_importable(Path::new(&dir)).into_iter().map(|p| p.to_string_lossy().into_owned()).collect()
 }
 
-/// Exécutée hors du fil principal : la fenêtre reste réactive.
-#[tauri::command(async)]
-pub fn save_document(state: State<'_, AppState>, path: String, doc: Document) -> Result<(), String> {
+fn save_document_in(state: &AppState, path: &Path, doc: &Document) -> Result<(), String> {
     let store = state.store.lock().unwrap();
-    native::save_to_path(&doc, &store, &FontSet::builtin(), Path::new(&path)).map_err(|e| {
+    native::save_to_path(doc, &store, &state.fonts.read().unwrap(), path).map_err(|e| {
         log::error!("save_document_failed kind={e:?}");
         e.message_fr()
     })?;
@@ -89,24 +87,58 @@ pub fn save_document(state: State<'_, AppState>, path: String, doc: Document) ->
 
 /// Exécutée hors du fil principal : la fenêtre reste réactive.
 #[tauri::command(async)]
-pub fn open_document(state: State<'_, AppState>, path: String) -> Result<Document, String> {
-    let native::LoadedDocument { doc, assets, .. } = native::load_from_path(Path::new(&path)).map_err(|e| {
+pub fn save_document(state: State<'_, AppState>, path: String, doc: Document) -> Result<(), String> {
+    save_document_in(&state, Path::new(&path), &doc)
+}
+
+#[derive(Serialize, TS)]
+#[ts(export)]
+pub struct OpenedDocument {
+    pub doc: Document,
+    /// Familles transportées par le document et absentes du poste, à proposer à l'ajout.
+    pub offered_fonts: Vec<String>,
+}
+
+fn open_document_in(state: &AppState, path: &Path) -> Result<OpenedDocument, String> {
+    let native::LoadedDocument { doc, assets, fonts } = native::load_from_path(path).map_err(|e| {
         log::error!("open_document_failed kind={e:?}");
         e.message_fr()
     })?;
-    let mut store = state.store.lock().unwrap();
-    for a in assets {
-        store.insert(a).map_err(|e| e.message_fr())?;
+    {
+        let mut store = state.store.lock().unwrap();
+        for a in assets {
+            store.insert(a).map_err(|e| e.message_fr())?;
+        }
     }
-    log::info!("open_document pages={}", doc.pages.len());
-    Ok(doc)
+    let installed = state.fonts.read().unwrap().families();
+    let mut offered_fonts: Vec<String> = Vec::new();
+    let mut pending = Vec::new();
+    for (file, bytes) in fonts {
+        let Some(family) = fonts::family_of(&bytes) else { continue };
+        if installed.iter().any(|f| f.name.eq_ignore_ascii_case(&family)) {
+            continue;
+        }
+        if !offered_fonts.contains(&family) {
+            offered_fonts.push(family);
+        }
+        pending.push((file, bytes));
+    }
+    *state.pending_fonts.lock().unwrap() = pending;
+    log::info!("open_document pages={} offered_fonts={}", doc.pages.len(), offered_fonts.len());
+    Ok(OpenedDocument { doc, offered_fonts })
+}
+
+/// Exécutée hors du fil principal : la fenêtre reste réactive.
+#[tauri::command(async)]
+pub fn open_document(state: State<'_, AppState>, path: String) -> Result<OpenedDocument, String> {
+    open_document_in(&state, Path::new(&path))
 }
 
 /// Exécutée hors du fil principal : la fenêtre reste réactive.
 #[tauri::command(async)]
 pub fn export_odg(state: State<'_, AppState>, path: String, doc: Document) -> Result<(), String> {
     let store = state.store.lock().unwrap();
-    odg::export_odg_to_path(&doc, &store, &FontSet::builtin(), Path::new(&path)).map_err(|e| {
+    odg::export_odg_to_path(&doc, &store, &state.fonts.read().unwrap(), Path::new(&path)).map_err(|e| {
         log::error!("export_odg_failed kind={e:?}");
         e.message_fr()
     })?;
@@ -188,8 +220,85 @@ pub fn delete_template(state: State<'_, AppState>, id: String) -> Result<(), Str
 }
 
 #[tauri::command]
-pub fn list_fonts() -> Vec<FontFamilyInfo> {
-    FontSet::builtin().families()
+pub fn list_fonts(state: State<'_, AppState>) -> Vec<FontFamilyInfo> {
+    state.fonts.read().unwrap().families()
+}
+
+fn add_font_in(state: &AppState, path: &Path) -> Result<FontFamilyInfo, String> {
+    let info = fonts::add_user_font(&state.fonts_dir, path).map_err(|e| {
+        log::warn!("add_font_failed kind={e:?}");
+        e.message_fr()
+    })?;
+    state.reload_fonts();
+    log::info!("add_font embeddable={}", info.embeddable);
+    Ok(info)
+}
+
+/// Exécutée hors du fil principal : la fenêtre reste réactive.
+#[tauri::command(async)]
+pub fn add_font(state: State<'_, AppState>, path: String) -> Result<FontFamilyInfo, String> {
+    add_font_in(&state, Path::new(&path))
+}
+
+fn remove_font_in(state: &AppState, family: &str) -> Result<(), String> {
+    let is_user = state.fonts.read().unwrap().families().iter().any(|f| f.user && f.name == family);
+    if !is_user {
+        return Err("Les polices fournies avec l'application ne peuvent pas être supprimées.".into());
+    }
+    fonts::remove_user_family(&state.fonts_dir, family).map_err(|_| "Impossible de supprimer cette police.".to_string())?;
+    state.reload_fonts();
+    log::info!("remove_font");
+    Ok(())
+}
+
+#[tauri::command]
+pub fn remove_font(state: State<'_, AppState>, family: String) -> Result<(), String> {
+    remove_font_in(&state, &family)
+}
+
+#[derive(Serialize, TS)]
+#[ts(export)]
+pub struct FontFileInfo {
+    pub family: String,
+    pub bold: bool,
+    pub italic: bool,
+    /// Chemin servi par le protocole `carnet-asset` : `/font/<fichier>`.
+    pub url_path: String,
+}
+
+/// Fichiers des polices utilisateur, que l'interface charge pour l'affichage.
+#[tauri::command]
+pub fn font_files(state: State<'_, AppState>) -> Vec<FontFileInfo> {
+    let set = state.fonts.read().unwrap();
+    set.faces()
+        .iter()
+        .filter(|f| f.user)
+        .map(|f| FontFileInfo {
+            family: f.family.clone(),
+            bold: f.bold,
+            italic: f.italic,
+            url_path: format!("/font/{}", f.file_name),
+        })
+        .collect()
+}
+
+fn accept_document_fonts_in(state: &AppState) -> Result<Vec<FontFamilyInfo>, String> {
+    let pending = std::mem::take(&mut *state.pending_fonts.lock().unwrap());
+    let mut added: Vec<FontFamilyInfo> = Vec::new();
+    for (file, bytes) in pending {
+        let info = fonts::add_user_font_bytes(&state.fonts_dir, &file, &bytes).map_err(|e| e.message_fr())?;
+        if !added.iter().any(|f| f.name == info.name) {
+            added.push(info);
+        }
+    }
+    state.reload_fonts();
+    log::info!("accept_document_fonts count={}", added.len());
+    Ok(added)
+}
+
+#[tauri::command]
+pub fn accept_document_fonts(state: State<'_, AppState>) -> Result<Vec<FontFamilyInfo>, String> {
+    accept_document_fonts_in(&state)
 }
 
 fn log_path(app: &AppHandle) -> Option<PathBuf> {
@@ -235,6 +344,8 @@ pub async fn export_pdf(webview: tauri::Webview, path: String, landscape: bool) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use carnet_core::photo::AssetStore;
+    use carnet_core::templates::Library;
     use carnet_core::{A4_PORTRAIT, Page, grid};
 
     #[test]
@@ -291,5 +402,55 @@ mod tests {
         std::fs::create_dir(&folder).unwrap();
         let s = |p: &std::path::Path| p.to_string_lossy().into_owned();
         assert_eq!(existing_paths(vec![s(&kept), s(&removed), s(&folder)]), vec![s(&kept)]);
+    }
+
+    fn test_state(dir: &Path) -> AppState {
+        AppState::new(AssetStore::default(), Library::open(dir.join("modeles")).unwrap(), dir.join("polices"))
+    }
+
+    fn fixture(name: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../crates/carnet-core/tests/fixtures").join(name)
+    }
+
+    #[test]
+    fn remove_font_refuses_builtin() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(dir.path());
+        assert!(remove_font_in(&state, "Andika").is_err());
+        add_font_in(&state, &fixture("CarnetTest-Regular.ttf")).unwrap();
+        assert!(remove_font_in(&state, "Carnet Test").is_ok());
+        assert!(!state.fonts.read().unwrap().families().iter().any(|f| f.name == "Carnet Test"));
+    }
+
+    #[test]
+    fn open_document_offers_missing_fonts() {
+        let dir = tempfile::tempdir().unwrap();
+        let author = test_state(&dir.path().join("auteur"));
+        add_font_in(&author, &fixture("CarnetTest-Regular.ttf")).unwrap();
+        let mut doc = Document::new("partagé");
+        let mut style = carnet_core::TextStyle::default_zone();
+        style.font = "Carnet Test".into();
+        doc.pages[0].elements.push(carnet_core::Element {
+            id: carnet_core::new_id(),
+            frame: carnet_core::Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 50.0, h_mm: 20.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            kind: carnet_core::ElementKind::Text(carnet_core::TextProps {
+                content: carnet_core::RichText::plain("bonjour"),
+                style,
+                prompt: None,
+            }),
+        });
+        let path = dir.path().join("partagé.carnet");
+        save_document_in(&author, &path, &doc).unwrap();
+
+        let colleague = test_state(&dir.path().join("collègue"));
+        let opened = open_document_in(&colleague, &path).unwrap();
+        assert_eq!(opened.offered_fonts, vec!["Carnet Test".to_string()]);
+        let added = accept_document_fonts_in(&colleague).unwrap();
+        assert_eq!(added.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["Carnet Test"]);
+        assert!(colleague.fonts.read().unwrap().face("Carnet Test", false, false).is_some());
+        // Chez l'auteur, la police est déjà là : rien à proposer.
+        assert!(open_document_in(&author, &path).unwrap().offered_fonts.is_empty());
     }
 }

@@ -75,9 +75,9 @@ export async function openDoc() {
   if (!(await confirmLeave())) return;
   const picked = await open({ filters: [{ name: "Document Carnet", extensions: ["carnet"] }] });
   if (typeof picked !== "string") return;
-  const doc = await guard(() => api.openDocument(picked));
-  if (!doc) return;
-  editor.reset(doc, picked);
+  const opened = await guard(() => api.openDocument(picked));
+  if (!opened) return;
+  editor.reset(opened.doc, picked);
   editor.showPicker = false;
   editor.templateMode = false;
 }

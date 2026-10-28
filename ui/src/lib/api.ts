@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { Document, FontFamilyInfo, ImportOutcome, InstantiatedPage, Page, TemplateInfo, ZoneKind } from "./types";
+import type { Document, FontFamilyInfo, FontFileInfo, ImportOutcome, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -11,7 +11,7 @@ export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => v
 export const existingPaths = (paths: string[]) => invoke<string[]>("existing_paths", { paths });
 export const listImportableIn = (dir: string) => invoke<string[]>("list_importable_in", { dir });
 export const saveDocument = (path: string, doc: Document) => invoke<void>("save_document", { path, doc });
-export const openDocument = (path: string) => invoke<Document>("open_document", { path });
+export const openDocument = (path: string) => invoke<OpenedDocument>("open_document", { path });
 export const exportOdg = (path: string, doc: Document) => invoke<void>("export_odg", { path, doc });
 export const gridSet = (page: Page, cols: number, rows: number) => invoke<Page>("grid_set", { page, cols, rows });
 export const gridMerge = (page: Page, a: string, b: string) => invoke<Page>("grid_merge", { page, a, b });
@@ -24,6 +24,10 @@ export const instantiateTemplate = (id: string) => invoke<InstantiatedPage>("ins
 export const savePageAsTemplate = (name: string, page: Page) => invoke<TemplateInfo>("save_page_as_template", { name, page });
 export const deleteTemplate = (id: string) => invoke<void>("delete_template", { id });
 export const listFonts = () => invoke<FontFamilyInfo[]>("list_fonts");
+export const addFont = (path: string) => invoke<FontFamilyInfo>("add_font", { path });
+export const removeFont = (family: string) => invoke<void>("remove_font", { family });
+export const fontFiles = () => invoke<FontFileInfo[]>("font_files");
+export const acceptDocumentFonts = () => invoke<FontFamilyInfo[]>("accept_document_fonts");
 export const exportProblemReport = (path: string) => invoke<void>("export_problem_report", { path });
 export const canExportPdf = () => invoke<boolean>("can_export_pdf");
 export const exportPdf = (path: string, landscape: boolean) => invoke<void>("export_pdf", { path, landscape });

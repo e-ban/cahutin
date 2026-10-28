@@ -207,13 +207,28 @@ fn safe_file_name(name: &str) -> String {
 pub fn add_user_font(dir: &Path, src: &Path) -> Result<FontFamilyInfo, FontError> {
     let bytes = std::fs::read(src).map_err(|_| FontError::Unreadable)?;
     let original = src.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let face = parse_face(&bytes, &original)?;
+    add_user_font_bytes(dir, &original, &bytes)
+}
+
+/// Comme `add_user_font`, pour une police reçue dans un document.
+pub fn add_user_font_bytes(dir: &Path, file_name: &str, bytes: &[u8]) -> Result<FontFamilyInfo, FontError> {
+    let face = parse_face(bytes, file_name)?;
     if is_builtin_family(&face.family) {
         return Err(FontError::BuiltinName);
     }
     std::fs::create_dir_all(dir).map_err(|_| FontError::Io)?;
-    std::fs::write(dir.join(safe_file_name(&original)), &bytes).map_err(|_| FontError::Io)?;
+    std::fs::write(dir.join(safe_file_name(file_name)), bytes).map_err(|_| FontError::Io)?;
     FontSet::with_user_dir(dir).families().into_iter().find(|f| f.user && f.name == face.family).ok_or(FontError::Io)
+}
+
+/// Nom de famille d'un fichier de police, s'il est lisible.
+pub fn family_of(bytes: &[u8]) -> Option<String> {
+    parse_face(bytes, "").ok().map(|f| f.family)
+}
+
+/// Nom de fichier servi par `/font/<nom>` : seulement des caractères sûrs, jamais de chemin.
+pub fn is_safe_file_name(name: &str) -> bool {
+    !name.is_empty() && !name.starts_with('.') && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
 }
 
 /// Supprime tous les fichiers de cette famille dans le dossier des polices utilisateur.

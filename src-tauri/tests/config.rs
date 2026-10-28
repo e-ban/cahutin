@@ -18,6 +18,14 @@ fn csp_allows_no_remote_origin() {
 }
 
 #[test]
+fn csp_lets_user_fonts_load_from_the_asset_protocol() {
+    let c = config();
+    let csp = c["app"]["security"]["csp"].as_str().unwrap();
+    let font_src = csp.split(';').map(str::trim).find(|d| d.starts_with("font-src")).expect("font-src");
+    assert!(font_src.contains("carnet-asset:") && font_src.contains("http://carnet-asset.localhost"), "{font_src}");
+}
+
+#[test]
 fn installer_is_per_user_nsis() {
     let c = config();
     assert_eq!(c["bundle"]["targets"], serde_json::json!(["nsis"]));

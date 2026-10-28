@@ -1,11 +1,11 @@
 <script lang="ts">
-  import ColorPicker from "./ColorPicker.svelte";
-  import { editor } from "../lib/docStore.svelte";
-  import { fr } from "../lib/i18n/fr";
-  import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
-  import { alignToCss } from "../lib/richtext";
-  import { textEditing } from "../lib/textEditing.svelte";
-  import type { Align, Element, PhotoProps, Run, ShapeProps, TextProps, TextStyle } from "../lib/types";
+  import ColorPicker from "../ColorPicker.svelte";
+  import { editor } from "../../lib/docStore.svelte";
+  import { fr } from "../../lib/i18n/fr";
+  import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
+  import { alignToCss } from "../../lib/richtext";
+  import { textEditing } from "../../lib/textEditing.svelte";
+  import type { Align, Element, Frame, PhotoProps, Run, ShapeProps, TextProps, TextStyle } from "../../lib/types";
 
   const selected = $derived(editor.selected);
 
@@ -89,16 +89,50 @@
     return runs.length > 0 && runs.every((r) => r[mark]);
   }
 
+  // Position et taille exactes : une case de grille se règle en mode modèle, un élément verrouillé ne bouge pas.
+  const frameFixed = $derived(!!selected && (selected.locked || !!editor.page.grid?.cells.some((c) => c.element_id === selected.id)));
+
+  function setFrame(key: keyof Frame, raw: string) {
+    const v = Number(raw.replace(",", "."));
+    if (!Number.isFinite(v)) return;
+    const min = key === "w_mm" || key === "h_mm" ? 1 : -10000;
+    update((e) => ({ ...e, frame: { ...e.frame, [key]: Math.max(min, Math.round(v * 10) / 10) } }));
+  }
+
   function updateShape(patch: Partial<ShapeProps>) {
     update((e) => (e.kind.type === "Shape" ? { ...e, kind: { ...e.kind, ...patch } } : e));
   }
 </script>
 
-<aside class="right">
+{#if !editor.inspectorOpen}
+  <button class="tab" title={fr.openInspector} aria-label={fr.openInspector} onclick={() => (editor.inspectorOpen = true)}>⚙ {fr.inspector} ◂</button>
+{:else}
+<aside class="right" aria-label={fr.inspector}>
+  <header>
+    <h3>{fr.inspector}</h3>
+    <button class="close" title={fr.closeInspector} aria-label={fr.closeInspector} onclick={() => (editor.inspectorOpen = false)}>▸</button>
+  </header>
   {#if !selected}
     <p class="hint">{fr.noSelection}</p>
   {:else}
     <h3>{selected.kind.type === "Photo" ? fr.photo : selected.kind.type === "Text" ? fr.text : fr.shape}</h3>
+
+    <div class="field">
+      <span>{fr.position}</span>
+      <div class="frame">
+        {#each [["x_mm", fr.posX], ["y_mm", fr.posY], ["w_mm", fr.width], ["h_mm", fr.height]] as [key, label] (key)}
+          <label>
+            {label}
+            <input type="number" step="0.5" disabled={frameFixed} value={selected.frame[key as keyof Frame]} onchange={(e) => setFrame(key as keyof Frame, e.currentTarget.value)} />
+          </label>
+        {/each}
+      </div>
+      <label class="rot">
+        {fr.rotation}
+        <input type="number" step="1" disabled={frameFixed} value={selected.frame.rotation_deg} onchange={(e) => setFrame("rotation_deg", e.currentTarget.value)} />
+      </label>
+      {#if frameFixed && !selected.locked}<small class="hint">{fr.gridLockedFrame}</small>{/if}
+    </div>
 
     {#if selected.kind.type === "Photo"}
       {@const ph = selected.kind}
@@ -223,14 +257,55 @@
     </div>
   {/if}
 </aside>
+{/if}
 
 <style>
   .right {
     grid-area: right;
+    width: 250px;
     background: var(--panel);
     border-left: 1px solid var(--line);
     overflow-y: auto;
-    padding: 12px;
+    padding: 8px 12px 12px;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  header h3 {
+    margin: 0;
+  }
+  .close {
+    border: 0;
+    background: transparent;
+  }
+  .tab {
+    grid-area: right;
+    align-self: start;
+    margin-top: 12px;
+    writing-mode: vertical-rl;
+    border-radius: 8px 0 0 8px;
+    border-right: 0;
+    padding: 12px 6px;
+    background: var(--panel);
+  }
+  .frame {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .frame label,
+  .rot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .frame input,
+  .rot input {
+    width: 100%;
+    min-width: 0;
+    padding: 3px 6px;
   }
   .hint {
     color: var(--muted);

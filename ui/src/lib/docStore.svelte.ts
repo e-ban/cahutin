@@ -1,9 +1,11 @@
 // État de l'éditeur : le document (immuable, avec historique), la page courante, la sélection, le zoom.
 import { createHistory, type History } from "./history";
 import { newDocument } from "./factory";
+import { readPref, writePref } from "./prefs";
 import type { AssetMeta, Document, Element, Page } from "./types";
 
 export type Zoom = number | "fit";
+export type DrawerId = "templates" | "photos" | "text" | "shapes" | "fonts" | "grid";
 
 class Editor {
   doc = $state.raw<Document>(newDocument());
@@ -25,10 +27,28 @@ class Editor {
   showPicker = $state(false);
   /** Message à afficher (erreurs d'import, d'enregistrement...). */
   notice = $state<string | null>(null);
+  /** Tiroir ouvert à côté de la colonne d'icônes (un seul à la fois). */
+  drawer = $state<DrawerId | null>(null);
+  #inspectorOpen = $state(readPref("inspectorOpen", false));
   canUndo = $state(false);
   canRedo = $state(false);
   dirty = $state(false);
   #history: History<Document> = createHistory(this.doc);
+
+  /** Panneau de droite (réglages avancés) ; fermé par défaut, mémorisé sur le poste. */
+  get inspectorOpen(): boolean {
+    return this.#inspectorOpen;
+  }
+
+  set inspectorOpen(open: boolean) {
+    this.#inspectorOpen = open;
+    writePref("inspectorOpen", open);
+  }
+
+  /** Re-cliquer l'icône du tiroir ouvert le referme. */
+  toggleDrawer(id: DrawerId) {
+    this.drawer = this.drawer === id ? null : id;
+  }
 
   get page(): Page {
     return this.doc.pages[Math.min(this.pageIndex, this.doc.pages.length - 1)];

@@ -1,5 +1,5 @@
 import { editor } from "./docStore.svelte";
-import { save } from "./fileActions";
+import { newDoc, openDoc, print, save } from "./fileActions";
 import { nudge, type ArrowKey } from "./geometry";
 
 function typing(ev: KeyboardEvent): boolean {
@@ -7,23 +7,41 @@ function typing(ev: KeyboardEvent): boolean {
   return !!t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
 }
 
-/** Raccourcis globaux : annuler, rétablir, supprimer, déplacer au clavier. */
+export type ShortcutAction = "new" | "open" | "save" | "print" | "duplicate" | "undo" | "redo";
+
+type KeyInfo = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "repeat">;
+
+/** Raccourci Ctrl+touche reconnu ; une touche maintenue ne relance pas une commande de fichier. */
+export function shortcutAction(ev: KeyInfo): ShortcutAction | null {
+  if (!(ev.ctrlKey || ev.metaKey)) return null;
+  const k = ev.key.toLowerCase();
+  if (k === "z") return ev.shiftKey ? "redo" : "undo";
+  if (k === "y") return "redo";
+  if (ev.repeat) return null;
+  const actions: Record<string, ShortcutAction> = { n: "new", o: "open", s: "save", p: "print", d: "duplicate" };
+  return actions[k] ?? null;
+}
+
+/** Raccourcis globaux : fichiers, annuler, rétablir, supprimer, déplacer au clavier. */
 export function handleShortcut(ev: KeyboardEvent) {
-  const ctrl = ev.ctrlKey || ev.metaKey;
-  if (ctrl && ev.key.toLowerCase() === "s") {
+  const action = shortcutAction(ev);
+  // Commandes de fichier : même pendant la saisie d'un texte (le texte en cours est validé avant).
+  const fileActions: Partial<Record<ShortcutAction, () => unknown>> = { new: newDoc, open: openDoc, save, print };
+  if (action && fileActions[action]) {
     ev.preventDefault();
-    if (!ev.repeat) save();
+    fileActions[action]!();
     return;
   }
-  if (ctrl && ev.key.toLowerCase() === "p") {
+  // Touche maintenue : ne pas laisser passer l'action du navigateur (enregistrer la page, imprimer…).
+  if ((ev.ctrlKey || ev.metaKey) && ["n", "o", "s", "p"].includes(ev.key.toLowerCase())) {
     ev.preventDefault();
     return;
   }
   if (typing(ev)) return;
-  if (ctrl && ev.key.toLowerCase() === "z" && !ev.shiftKey) {
+  if (action === "undo") {
     ev.preventDefault();
     editor.undo();
-  } else if (ctrl && (ev.key.toLowerCase() === "y" || (ev.key.toLowerCase() === "z" && ev.shiftKey))) {
+  } else if (action === "redo") {
     ev.preventDefault();
     editor.redo();
   } else if (ev.key === "Delete" || ev.key === "Backspace") {

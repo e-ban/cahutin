@@ -6,14 +6,19 @@
   import Modal from "./components/Modal.svelte";
   import PrintRoot from "./components/PrintRoot.svelte";
   import { confirmLeave } from "./lib/fileActions";
-  import LeftPanel from "./components/LeftPanel.svelte";
-  import PageBar from "./components/PageBar.svelte";
   import PageView from "./components/PageView.svelte";
-  import RightPanel from "./components/RightPanel.svelte";
   import TemplateBar from "./components/TemplateBar.svelte";
   import TemplatePicker from "./components/TemplatePicker.svelte";
-  import Toolbar from "./components/Toolbar.svelte";
   import Transformer from "./components/Transformer.svelte";
+  import BottomBar from "./components/layout/BottomBar.svelte";
+  import Inspector from "./components/layout/Inspector.svelte";
+  import Rail from "./components/layout/Rail.svelte";
+  import TopBar from "./components/layout/TopBar.svelte";
+  import FontsDrawer from "./components/drawers/FontsDrawer.svelte";
+  import PhotosDrawer from "./components/drawers/PhotosDrawer.svelte";
+  import ShapesDrawer from "./components/drawers/ShapesDrawer.svelte";
+  import TemplatesDrawer from "./components/drawers/TemplatesDrawer.svelte";
+  import TextDrawer from "./components/drawers/TextDrawer.svelte";
   import { editor } from "./lib/docStore.svelte";
   import { fonts } from "./lib/fonts.svelte";
   import { handleShortcut } from "./lib/shortcuts";
@@ -49,9 +54,13 @@
   });
 
   let stageWidth = $state(800);
+  let stageHeight = $state(600);
   let pageEl = $state<HTMLElement>();
+  // « Ajuster » : la page entière est visible, marges de la scène comprises.
   $effect(() => {
-    editor.fitZoom = Math.max(0.2, (stageWidth - 64) / mmToPx(editor.page.size.width_mm, 1));
+    const byWidth = (stageWidth - 64) / mmToPx(editor.page.size.width_mm, 1);
+    const byHeight = (stageHeight - 64) / mmToPx(editor.page.size.height_mm, 1);
+    editor.fitZoom = Math.max(0.2, Math.min(byWidth, byHeight));
   });
 
   /** Photo déposée : dans une zone photo, elle la remplit ; ailleurs, une nouvelle photo de 80 mm de large. */
@@ -117,10 +126,16 @@
 <svelte:window onkeydown={handleShortcut} />
 
 <div class="app">
-  <Toolbar />
+  <TopBar />
   {#if editor.templateMode}<TemplateBar />{/if}
-  <LeftPanel />
-  <main class="stage" bind:clientWidth={stageWidth}>
+  <Rail />
+  {#if editor.drawer === "templates"}<TemplatesDrawer />
+  {:else if editor.drawer === "photos"}<PhotosDrawer />
+  {:else if editor.drawer === "text"}<TextDrawer />
+  {:else if editor.drawer === "shapes"}<ShapesDrawer />
+  {:else if editor.drawer === "fonts"}<FontsDrawer />
+  {/if}
+  <main class="stage" bind:clientWidth={stageWidth} bind:clientHeight={stageHeight}>
     <PageView
       page={editor.page}
       doc={editor.doc}
@@ -146,8 +161,8 @@
     <Transformer {pageEl} zoom={editor.effectiveZoom} />
     {#if editor.showPicker}<TemplatePicker />{/if}
   </main>
-  <RightPanel />
-  <PageBar />
+  <Inspector />
+  <BottomBar />
   <Modal />
   {#if editor.notice}
     <div class="notice" role="alert">
@@ -206,9 +221,9 @@
   .app {
     display: grid;
     height: 100vh;
-    grid-template-columns: 260px 1fr 260px;
+    grid-template-columns: auto auto 1fr auto;
     grid-template-rows: auto auto 1fr auto;
-    grid-template-areas: "top top top" "tbar tbar tbar" "left stage right" "bottom bottom bottom";
+    grid-template-areas: "top top top top" "tbar tbar tbar tbar" "rail drawer stage right" "bottom bottom bottom bottom";
   }
   .notice {
     position: fixed;
@@ -239,6 +254,7 @@
     align-items: flex-start;
     padding: 32px;
     min-width: 0;
+    min-height: 0;
     position: relative;
   }
 </style>

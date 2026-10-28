@@ -228,7 +228,9 @@ impl Writer<'_> {
     }
 
     fn text(&mut self, e: &Element, t: &TextProps) {
-        if t.content.is_blank() {
+        // Un texte vide disparaît, sauf s'il a un cadre (une étiquette à remplir) ; l'invite n'est jamais exportée.
+        let blank = t.content.is_blank();
+        if blank && t.frame.is_none() {
             return;
         }
         let pad = mm(t.style.padding());
@@ -237,14 +239,19 @@ impl Writer<'_> {
             VAlign::Middle => "middle",
             VAlign::Bottom => "bottom",
         };
+        // Cadre : fond et bordure natifs du cadre de texte (le texte reste modifiable d'un clic dans LibreOffice).
+        let frame = t.frame.as_ref();
+        let mut props: Vec<(&'static str, String)> = match frame.and_then(|f| f.fill.clone()) {
+            Some(c) => vec![("draw:fill", "solid".into()), ("draw:fill-color", c)],
+            None => vec![("draw:fill", "none".into())],
+        };
+        props.extend(stroke(self.reg, frame.and_then(|f| f.stroke.as_ref())));
         let style = self.reg.style(
             "graphic",
             "gr",
             vec![(
                 "style:graphic-properties",
-                vec![
-                    ("draw:stroke", "none".into()),
-                    ("draw:fill", "none".into()),
+                [props, vec![
                     ("fo:padding-top", pad.clone()),
                     ("fo:padding-bottom", pad.clone()),
                     ("fo:padding-left", pad.clone()),
@@ -254,7 +261,8 @@ impl Writer<'_> {
                     ("draw:textarea-vertical-align", valign.into()),
                     ("draw:textarea-horizontal-align", "justify".into()),
                     ("fo:wrap-option", "wrap".into()),
-                ],
+                ]]
+                .concat(),
             )],
         );
         let mut a = vec![("draw:style-name", style)];
@@ -263,8 +271,10 @@ impl Writer<'_> {
             a.push(("draw:protect", "position size".into()));
         }
         self.body.open("draw:frame", &attrs(&a));
-        self.body.open("draw:text-box", &[]);
-        for p in &t.content.paragraphs {
+        let radius = frame.map(|f| f.corner_radius_mm).filter(|r| *r > 0.0).map(mm);
+        let box_attrs: Vec<(&str, &str)> = radius.iter().map(|r| ("draw:corner-radius", r.as_str())).collect();
+        self.body.open("draw:text-box", &box_attrs);
+        for p in t.content.paragraphs.iter().filter(|_| !blank) {
             let mut props: Props = vec![(
                 "style:paragraph-properties",
                 vec![

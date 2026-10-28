@@ -11,7 +11,8 @@
   import { placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
   import { addCaption, deleteSelection, groupSelection, toggleLockSelection, ungroupSelection } from "../lib/editActions";
-  import { endPreview, previewPhoto, previewShape, updatePhoto, updateShape } from "../lib/elementEdit";
+  import { endPreview, previewPhoto, previewShape, previewTextFrame, previewTextStyle, updatePhoto, updateShape, updateTextFrame } from "../lib/elementEdit";
+  import { textPadding } from "../lib/richtext";
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
   import { isStrokeOnly } from "../lib/shapePaths";
@@ -23,7 +24,7 @@
 
   const ROTATION_HANDLE_GAP = 44;
 
-  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute";
+  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame";
   let pop = $state<Pop | null>(null);
   let barEl = $state<HTMLElement>();
   let pos = $state<{ left: number; top: number } | null>(null);
@@ -233,6 +234,39 @@
           </div>
         {/if}
       </div>
+      <div class="wrap">
+        <button class:on={!!t.frame} onclick={() => toggle("frame")}>▭ {fr.textFrame}</button>
+        {#if pop === "frame"}
+          {@const f = t.frame}
+          <div class="pop frame">
+            <span>{fr.frameFill}</span>
+            <ColorPicker value={f?.fill ?? null} allowNone onchange={(c) => updateTextFrame({ fill: c })} />
+            <span>{fr.border} : {f?.stroke ? `${f.stroke.width_mm} mm` : fr.none}</span>
+            <input
+              type="range"
+              min="0"
+              max="3"
+              step="0.5"
+              value={f?.stroke?.width_mm ?? 0}
+              oninput={(e) => {
+                const w = Number(e.currentTarget.value);
+                previewTextFrame({ stroke: w === 0 ? null : { width_mm: w, color: f?.stroke?.color ?? "#333333", style: f?.stroke?.style ?? null } });
+              }}
+              onchange={endPreview}
+            />
+            {#if f?.stroke}
+              <ColorPicker value={f.stroke.color} onchange={(c) => updateTextFrame({ stroke: { ...f.stroke!, color: c ?? "#333333" } })} />
+              <StrokeStylePicker value={f.stroke.style} onpick={(style) => updateTextFrame({ stroke: { ...f.stroke!, style: style === "Solid" ? null : style } })} />
+            {/if}
+            {#if f}
+              <span>{fr.corners} : {f.corner_radius_mm} mm</span>
+              <input type="range" min="0" max="20" step="1" value={f.corner_radius_mm} oninput={(e) => previewTextFrame({ corner_radius_mm: Number(e.currentTarget.value) })} onchange={endPreview} />
+            {/if}
+            <span>{fr.padding} : {textPadding(t.style)} mm</span>
+            <input type="range" min="0" max="10" step="0.5" value={textPadding(t.style)} oninput={(e) => previewTextStyle({ padding_mm: Number(e.currentTarget.value) })} onchange={endPreview} />
+          </div>
+        {/if}
+      </div>
     {:else if selected?.kind.type === "Image"}
       <button onclick={() => (editor.drawer = "decor")}>⇄ {fr.replace}</button>
       {#if !selected.locked}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
@@ -359,6 +393,14 @@
     gap: 6px;
     min-width: 180px;
     white-space: normal;
+  }
+  .pop.frame {
+    min-width: 230px;
+    gap: 6px;
+  }
+  .pop.frame > span {
+    font-size: 12px;
+    color: var(--muted);
   }
   .pop.grid {
     min-width: 0;

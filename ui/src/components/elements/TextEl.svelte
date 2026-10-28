@@ -3,6 +3,7 @@
   // les retours à la ligne ne dépendent pas du zoom et correspondent à ceux de l'export.
   import TextEditor from "../TextEditor.svelte";
   import { alignToCss, textPadding } from "../../lib/richtext";
+  import { dashArray } from "../../lib/strokes";
   import type { Element, RichText, Run, TextProps } from "../../lib/types";
 
   let {
@@ -41,6 +42,23 @@
   });
 </script>
 
+{#if props.frame}
+  <!-- Cadre derrière le texte, en mm comme lui ; trait centré sur le bord, comme dans LibreOffice. -->
+  {@const f = props.frame}
+  {@const w = element.frame.w_mm}
+  {@const h = element.frame.h_mm}
+  <svg class="deco" viewBox="0 0 {w} {h}" style:width="{w}mm" style:height="{h}mm" style:transform="scale({zoom})" aria-hidden="true">
+    <rect
+      width={w}
+      height={h}
+      rx={f.corner_radius_mm}
+      fill={f.fill ?? "none"}
+      stroke={f.stroke?.color ?? "none"}
+      stroke-width={f.stroke?.width_mm ?? 0}
+      stroke-dasharray={dashArray(f.stroke, f.stroke?.width_mm ?? 0)}
+    />
+  </svg>
+{/if}
 <div
   class="text"
   class:overflow
@@ -100,6 +118,14 @@
   .flow.bottom {
     flex: none;
     margin-top: auto;
+  }
+  .deco {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+    overflow: visible;
+    pointer-events: none;
   }
   .text :global(p) {
     margin: 0;

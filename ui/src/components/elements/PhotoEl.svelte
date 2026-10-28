@@ -31,24 +31,15 @@
       style:left="{mmToPx(css.leftMm, zoom)}px"
       style:top="{mmToPx(css.topMm, zoom)}px"
     />
-    {#if props.border && !solidBorder}
-      {@const w = mmToPx(element.frame.w_mm, zoom)}
-      {@const h = mmToPx(element.frame.h_mm, zoom)}
-      <svg class="border" width={w} height={h} aria-hidden="true">
-        <rect
-          x={borderPx / 2}
-          y={borderPx / 2}
-          width={Math.max(0, w - borderPx)}
-          height={Math.max(0, h - borderPx)}
-          rx={Math.max(0, mmToPx(props.corner_radius_mm, zoom) - borderPx / 2)}
-          fill="none"
-          stroke={props.border.color}
-          stroke-width={borderPx}
-          stroke-dasharray={dashArray(props.border, borderPx)}
-        />
-      </svg>
-    {/if}
   </div>
+  {#if props.border && !solidBorder}
+    <!-- Hors du cadre rogné : le trait est centré sur le bord, comme le contour plein et dans LibreOffice. -->
+    {@const w = mmToPx(element.frame.w_mm, zoom)}
+    {@const h = mmToPx(element.frame.h_mm, zoom)}
+    <svg class="border" width={w} height={h} aria-hidden="true">
+      <rect width={w} height={h} rx={mmToPx(props.corner_radius_mm, zoom)} fill="none" stroke={props.border.color} stroke-width={borderPx} stroke-dasharray={dashArray(props.border, borderPx)} />
+    </svg>
+  {/if}
 {:else}
   <div class="zone-empty photo-zone" class:zone={element.zone} style:border-width="{zoom < 0.5 ? 1 : 2}px">
     <!-- Dans les miniatures, l'invite serait illisible : seule la zone en pointillés reste. -->
@@ -65,6 +56,7 @@
   .border {
     position: absolute;
     inset: 0;
+    overflow: visible;
     pointer-events: none;
   }
   img {

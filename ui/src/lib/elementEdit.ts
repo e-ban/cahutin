@@ -31,7 +31,7 @@ export const previewShape = (patch: Partial<ShapeProps>) => previewSelected(shap
 const textStyle = (patch: Partial<TextStyle>) => (e: Element): Element =>
   e.kind.type === "Text" ? { ...e, kind: { ...e.kind, style: { ...e.kind.style, ...patch } } } : e;
 /** Cadre d'un texte ; un cadre sans fond, sans bordure et sans image disparaît (le document reste lisible par la 0.4). */
-const textFrame = (patch: Partial<TextFrame>) => (e: Element): Element => {
+export const textFrame = (patch: Partial<TextFrame>) => (e: Element): Element => {
   if (e.kind.type !== "Text") return e;
   const f = { fill: null, stroke: null, corner_radius_mm: 0, image: null, ...e.kind.frame, ...patch };
   const empty = !f.fill && !f.stroke && !f.image;

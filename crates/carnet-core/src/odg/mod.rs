@@ -338,6 +338,37 @@ mod tests {
     }
 
     #[test]
+    fn text_frame_fill_border_and_corners_are_exported() {
+        let mut t = text(RichText::plain("étiquette"), None);
+        if let ElementKind::Text(p) = &mut t.kind {
+            p.frame = Some(TextFrame {
+                fill: Some("#fdebd0".into()),
+                stroke: Some(Stroke { width_mm: 1.0, color: "#c0392b".into(), style: Some(StrokeStyle::Dashed) }),
+                corner_radius_mm: 4.0,
+                image: None,
+            });
+        }
+        let mut e = export(&doc_with(vec![t]), &AssetStore::default());
+        let content = e.xml("content.xml");
+        assert!(content.contains(r##"draw:fill="solid" draw:fill-color="#fdebd0""##), "{content}");
+        assert!(content.contains(r#"draw:stroke-dash="CarnetDashed""#));
+        assert!(content.contains(&format!(r#"draw:corner-radius="{}""#, mm(4.0))));
+        // Une étiquette encore vide garde son cadre.
+        let mut empty = text(RichText::default(), Some("Prénom"));
+        if let ElementKind::Text(p) = &mut empty.kind {
+            p.frame = Some(TextFrame { fill: Some("#d6eaf8".into()), ..TextFrame::default() });
+        }
+        let mut e2 = export(&doc_with(vec![empty]), &AssetStore::default());
+        let c2 = e2.xml("content.xml");
+        assert!(c2.contains("#d6eaf8") && c2.contains("<draw:text-box"), "{c2}");
+        assert!(!all_text(&c2).contains("Prénom"));
+        // Un texte sans cadre reste transparent et sans trait.
+        let mut plain = export(&doc_with(vec![text(RichText::plain("x"), None)]), &AssetStore::default());
+        let c = plain.xml("content.xml");
+        assert!(c.contains(r#"draw:stroke="none""#) && c.contains(r#"draw:fill="none""#) && !c.contains("corner-radius"));
+    }
+
+    #[test]
     fn repeated_spaces_are_kept() {
         let d = doc_with(vec![text(RichText::plain("a   b"), None)]);
         let mut e = export(&d, &AssetStore::default());

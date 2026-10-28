@@ -564,3 +564,72 @@ fn dashes_have_the_screen_lengths() {
         assert!((d - dash).abs() < 0.6 && (g - gap).abs() < 0.6, "page {page} : tirets {d:.2} mm, espaces {g:.2} mm (attendu {dash} et {gap})");
     }
 }
+
+/// Page rendue en couleur par poppler : (largeur, hauteur, pixels RVB).
+fn rgb_page(pdf: &Path, page: usize, dpi: u32) -> (usize, usize, Vec<u8>) {
+    let prefix = pdf.parent().unwrap().join(format!("c{page}"));
+    run(Command::new("pdftoppm").args(["-r", &dpi.to_string(), "-f", &page.to_string(), "-l", &page.to_string(), "-singlefile"]).arg(pdf).arg(&prefix));
+    let data = std::fs::read(prefix.with_extension("ppm")).unwrap();
+    let mut fields = Vec::new();
+    let mut pos = 0;
+    while fields.len() < 4 {
+        while data[pos].is_ascii_whitespace() {
+            pos += 1;
+        }
+        let start = pos;
+        while !data[pos].is_ascii_whitespace() {
+            pos += 1;
+        }
+        fields.push(String::from_utf8_lossy(&data[start..pos]).into_owned());
+    }
+    let (w, h): (usize, usize) = (fields[1].parse().unwrap(), fields[2].parse().unwrap());
+    (w, h, data[pos + 1..].to_vec())
+}
+
+/// Cadre de texte : fond, bordure, coins arrondis et marge rendus par LibreOffice comme à l'écran.
+#[test]
+#[ignore]
+fn text_frame_is_rendered() {
+    const DPI: u32 = 254; // 10 pixels par millimètre
+    let (x, y, w, h, pad, radius) = (ORIGIN_MM, ORIGIN_MM, 100.0, 40.0, 5.0, 8.0);
+    let mut style = TextStyle::default_zone();
+    style.padding_mm = Some(pad);
+    style.valign = Some(VAlign::Middle);
+    let mut doc = Document::new("cadre");
+    doc.pages[0].elements.push(Element {
+        id: new_id(),
+        frame: Frame { x_mm: x, y_mm: y, w_mm: w, h_mm: h, rotation_deg: 0.0 },
+        locked: false,
+        zone: false,
+        group: None,
+        kind: ElementKind::Text(TextProps {
+            content: RichText::plain("Étiquette"),
+            style,
+            prompt: None,
+            frame: Some(TextFrame {
+                fill: Some("#3c78d8".into()),
+                stroke: Some(Stroke { width_mm: 1.0, color: "#cc0000".into(), style: None }),
+                corner_radius_mm: radius,
+                image: None,
+            }),
+        }),
+    });
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    let (pw, _ph, px) = rgb_page(&pdf, 1, DPI);
+    let at = |x_mm: f64, y_mm: f64| {
+        let i = ((y_mm * 10.0) as usize * pw + (x_mm * 10.0) as usize) * 3;
+        (px[i], px[i + 1], px[i + 2])
+    };
+    let blue = |c: (u8, u8, u8)| c.2 > 180 && c.0 < 100;
+    let red = |c: (u8, u8, u8)| c.0 > 180 && c.1 < 80 && c.2 < 80;
+    let white = |c: (u8, u8, u8)| c.0 > 240 && c.1 > 240 && c.2 > 240;
+    assert!(blue(at(x + 20.0, y + 5.0)), "fond : {:?}", at(x + 20.0, y + 5.0));
+    assert!(red(at(x + 0.3, y + h / 2.0)), "bordure gauche : {:?}", at(x + 0.3, y + h / 2.0));
+    // Coin arrondi : le point du coin, hors de l'arc, reste blanc.
+    assert!(white(at(x + 0.8, y + 0.8)), "coin : {:?}", at(x + 0.8, y + 0.8));
+    let words = words(&pdf);
+    let wd = words.iter().find(|w| w.text.contains("tiquette")).expect("texte rendu");
+    assert!((wd.x_min - (x + pad) * PT_PER_MM).abs() < 1.5, "marge : {:.1}", wd.x_min);
+    let mid = (wd.y_min + wd.y_max) / 2.0;
+    assert!((mid - (y + h / 2.0) * PT_PER_MM).abs() < 3.0, "milieu : {mid:.1}");
+}

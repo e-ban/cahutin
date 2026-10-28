@@ -2,6 +2,7 @@
 import { createHistory, type History } from "./history";
 import { newDocument } from "./factory";
 import type { LibraryPhoto } from "./photoLibrary";
+import { readRecents, type Recent } from "./recents";
 import { readPref, writePref } from "./prefs";
 import type { AssetMeta, Document, Element, Page } from "./types";
 
@@ -30,8 +31,10 @@ class Editor {
   cropping = $state<string | null>(null);
   /** Pages d'impression rendues seulement pendant une impression ou un export PDF. */
   printing = $state(false);
-  /** Choix d'un modèle au démarrage et pour un nouveau document. */
-  showPicker = $state(false);
+  /** Écran d'accueil : au démarrage et pour un nouveau document. */
+  showWelcome = $state(false);
+  /** Documents récents (sur le poste seulement). */
+  recents = $state.raw<Recent[]>(readRecents());
   /** Message à afficher (erreurs d'import, d'enregistrement...). */
   notice = $state<string | null>(null);
   /** Tiroir ouvert à côté de la colonne d'icônes (un seul à la fois). */

@@ -9,6 +9,7 @@ import { fonts } from "./fonts.svelte";
 import { fr } from "./i18n/fr";
 import { summarizeImport } from "./importSummary";
 import { pendingPaths } from "./photoLibrary";
+import { addRecent, writeRecents } from "./recents";
 import type { ImportOutcome } from "./types";
 import { modal } from "./modal.svelte";
 
@@ -42,6 +43,7 @@ async function write(path: string): Promise<boolean> {
     const ok = await guard(() => api.saveDocument(path, written));
     if (ok === undefined) return false;
     editor.markSaved(path, snapshot);
+    remember(path, snapshot.title);
     return true;
   } finally {
     saving = false;
@@ -76,24 +78,41 @@ export async function newDoc() {
   editor.reset(newDocument(), null);
   editor.templateMode = false;
   if (editor.drawer === "grid") editor.drawer = null;
-  editor.showPicker = true;
+  editor.showWelcome = true;
 }
 
 export async function openDoc() {
   if (!(await confirmLeave())) return;
   const picked = await open({ filters: [{ name: "Document Carnet", extensions: ["carnet"] }] });
-  if (typeof picked !== "string") return;
-  const opened = await guard(() => api.openDocument(picked));
+  if (typeof picked === "string") await openPath(picked, false);
+}
+
+/** Ouvre un document (choisi, ou dans les documents récents). Un récent introuvable est retiré de la liste. */
+export async function openPath(path: string, confirm = true) {
+  if (confirm && !(await confirmLeave())) return;
+  if ((await api.existingPaths([path]).catch(() => [path])).length === 0) {
+    editor.recents = editor.recents.filter((r) => r.path !== path);
+    writeRecents(editor.recents);
+    editor.notice = fr.recentMissing;
+    return;
+  }
+  const opened = await guard(() => api.openDocument(path));
   if (!opened) return;
-  editor.reset(opened.doc, picked);
+  editor.reset(opened.doc, path);
+  remember(path, opened.doc.title);
   if (opened.offered_fonts.length) void offerDocumentFonts(opened.offered_fonts);
   editor.addPhotos(Object.values(opened.doc.assets).flatMap((meta) => (meta ? [{ meta, path: "", folder: "" }] : [])));
+  editor.showWelcome = false;
+  editor.templateMode = false;
+  if (editor.drawer === "grid") editor.drawer = null;
   // Photos en attente : celles qui existent encore sont réimportées, sans message pour les autres.
   const pending = await api.existingPaths(opened.doc.pending_photos).catch(() => []);
   if (pending.length) void importPaths(pending, { quiet: true });
-  editor.showPicker = false;
-  editor.templateMode = false;
-  if (editor.drawer === "grid") editor.drawer = null;
+}
+
+function remember(path: string, title: string) {
+  editor.recents = addRecent(editor.recents, { path, title: title.trim() || fileName(path), openedAt: Date.now() });
+  writeRecents(editor.recents);
 }
 
 export async function exportOdg() {

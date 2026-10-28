@@ -23,7 +23,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 200;
+    z-index: 6000; /* au-dessus de l'écran d'accueil */
   }
   .box {
     background: var(--panel);

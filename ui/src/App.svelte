@@ -13,7 +13,8 @@
   import GridDragMerge from "./components/GridDragMerge.svelte";
   import TemplateBanner from "./components/layout/TemplateBanner.svelte";
   import GridDrawer from "./components/drawers/GridDrawer.svelte";
-  import TemplatePicker from "./components/TemplatePicker.svelte";
+  import Hint from "./components/layout/Hint.svelte";
+  import Welcome from "./components/layout/Welcome.svelte";
   import Transformer from "./components/Transformer.svelte";
   import BottomBar from "./components/layout/BottomBar.svelte";
   import Inspector from "./components/layout/Inspector.svelte";
@@ -34,7 +35,7 @@
   import type { Crop, RichText } from "./lib/types";
 
   editor.reset(newDocument(), null);
-  editor.showPicker = true;
+  editor.showWelcome = true;
   fonts.load();
   templates.refresh();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
@@ -157,10 +158,11 @@
     <CellBar {pageEl} {stageEl} />
     <GridDragMerge {pageEl} />
     {#if contextTarget}<ContextMenu target={contextTarget} onclose={() => (contextTarget = null)} />{/if}
-    {#if editor.showPicker}<TemplatePicker />{/if}
   </main>
+  <div class="hint-slot"><Hint /></div>
   <Inspector />
   <BottomBar />
+  {#if editor.showWelcome}<Welcome />{/if}
   <Modal />
   {#if editor.notice}
     <div class="notice" role="alert">
@@ -237,7 +239,14 @@
     display: flex;
     gap: 14px;
     align-items: flex-start;
-    z-index: 100;
+    z-index: 6000;
+  }
+  .hint-slot {
+    grid-area: stage;
+    align-self: end;
+    justify-self: center;
+    margin-bottom: 14px;
+    z-index: 30;
   }
   .notice pre {
     margin: 0;

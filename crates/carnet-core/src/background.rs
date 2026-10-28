@@ -109,6 +109,8 @@ mod tests {
         if std::env::var_os("CARNET_WRITE_FIXTURES").is_some() {
             std::fs::write(path, &json).unwrap();
         }
-        assert_eq!(std::fs::read_to_string(path).unwrap_or_default(), json, "lancer avec CARNET_WRITE_FIXTURES=1 pour régénérer");
+        // Comparaison des valeurs, pas du texte : la copie Windows peut avoir des fins de ligne CRLF.
+        let stored: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap_or_default()).unwrap_or_default();
+        assert_eq!(stored, serde_json::to_value(&all).unwrap(), "lancer avec CARNET_WRITE_FIXTURES=1 pour régénérer");
     }
 }

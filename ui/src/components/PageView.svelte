@@ -177,7 +177,7 @@
       {:else if e.kind.type === "Text"}
         <TextEl element={e} props={e.kind} {zoom} editing={e.id === editingText} ondone={(content) => ontextdone?.(e.id, content)} />
       {:else}
-        <ShapeEl props={e.kind} {zoom} />
+        <ShapeEl props={e.kind} frame={e.frame} {zoom} />
       {/if}
     </div>
   {/each}

@@ -236,6 +236,12 @@ pub struct ShapeProps {
 pub enum ShapeKind {
     Rect,
     Ellipse,
+    Line,
+    Arrow,
+    Star,
+    Heart,
+    Bubble,
+    Cloud,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]

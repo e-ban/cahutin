@@ -13,7 +13,7 @@
   // Menu du clic droit : sur un élément, ou sur la page vide.
   import { editor } from "../../lib/docStore.svelte";
   import { bringSelection, copySelection, cutSelection, deleteSelection, duplicateSelection, hasClipboard, paste, toggleLockSelection } from "../../lib/editActions";
-  import { newId, textElement } from "../../lib/factory";
+  import { shapeElement, textElement } from "../../lib/factory";
   import { fr } from "../../lib/i18n/fr";
 
   let { target, onclose }: { target: ContextTarget; onclose: () => void } = $props();
@@ -31,13 +31,8 @@
   }
 
   function addHere(kind: "text" | "shape") {
-    const w = kind === "text" ? 80 : 60;
-    const h = kind === "text" ? 20 : 40;
-    const frame = { x_mm: Math.round(target.xMm - w / 2), y_mm: Math.round(target.yMm - h / 2), w_mm: w, h_mm: h, rotation_deg: 0 };
-    const el =
-      kind === "text"
-        ? textElement(frame)
-        : { id: newId(), frame, locked: false, zone: false, kind: { type: "Shape" as const, shape: "Rect" as const, fill: "#f6e3c5", stroke: null, corner_radius_mm: 0 } };
+    const at = { x_mm: target.xMm, y_mm: target.yMm };
+    const el = kind === "text" ? textElement({ x_mm: Math.round(at.x_mm - 40), y_mm: Math.round(at.y_mm - 10), w_mm: 80, h_mm: 20, rotation_deg: 0 }) : shapeElement(editor.page, "Rect", 0, at);
     editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
     editor.selection = [el.id];
     if (kind === "text") editor.editingText = el.id;

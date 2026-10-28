@@ -9,6 +9,7 @@ pub mod native;
 pub mod odg;
 pub mod photo;
 pub mod report;
+pub mod shapes;
 pub mod templates;
 
 pub use crop::{SourceRect, source_rect};

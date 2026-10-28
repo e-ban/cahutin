@@ -1,11 +1,12 @@
 //! `content.xml` : une `draw:page` par page, un objet ODG par élément.
 
-use super::styles::{Props, Registry, mm};
+use super::styles::{ARROW_MARKER, Props, Registry, mm};
 use super::xml::Xml;
 use super::{NS, OdgError, TEXT_PADDING_MM, odf_transform};
 use crate::crop::source_rect;
 use crate::model::*;
 use crate::photo::{self, AssetStore, MAX_LONG_EDGE_PX};
+use crate::shapes;
 use image::imageops::FilterType;
 
 pub(crate) struct Picture {
@@ -19,6 +20,22 @@ fn geometry(f: &Frame) -> Vec<(&'static str, String)> {
         None => vec![("svg:x", mm(f.x_mm)), ("svg:y", mm(f.y_mm)), ("svg:width", mm(f.w_mm)), ("svg:height", mm(f.h_mm))],
         Some(t) => vec![("svg:width", mm(f.w_mm)), ("svg:height", mm(f.h_mm)), ("draw:transform", t)],
     }
+}
+
+/// Largeur de la pointe d'une flèche : quatre fois le trait, 4 mm au moins (comme à l'écran).
+pub(crate) fn arrow_head_mm(s: &ShapeProps) -> f64 {
+    (s.stroke.as_ref().map_or(1.0, |st| st.width_mm) * 4.0).max(4.0)
+}
+
+/// Extrémités d'un trait : milieux des bords gauche et droit du cadre, tournés autour de son centre
+/// (sens horaire, comme à l'écran).
+fn line_ends(f: &Frame) -> Vec<(&'static str, String)> {
+    let (cx, cy) = (f.x_mm + f.w_mm / 2.0, f.y_mm + f.h_mm / 2.0);
+    let (sin, cos) = f.rotation_deg.to_radians().sin_cos();
+    let end = |dx: f64| (cx + dx * cos, cy + dx * sin);
+    let ((x1, y1), (x2, y2)) = (end(-f.w_mm / 2.0), end(f.w_mm / 2.0));
+    let r = |v: f64| mm((v * 1000.0).round() / 1000.0 + 0.0);
+    vec![("svg:x1", r(x1)), ("svg:y1", r(y1)), ("svg:x2", r(x2)), ("svg:y2", r(y2))]
 }
 
 fn stroke(s: Option<&Stroke>) -> Vec<(&'static str, String)> {
@@ -214,19 +231,39 @@ impl Writer<'_> {
     }
 
     fn shape(&mut self, e: &Element, s: &ShapeProps) {
+        let stroke_only = shapes::is_stroke_only(s.shape);
         let mut props = match &s.fill {
-            Some(c) => vec![("draw:fill", "solid".into()), ("draw:fill-color", c.clone())],
-            None => vec![("draw:fill", "none".into())],
+            Some(c) if !stroke_only => vec![("draw:fill", "solid".into()), ("draw:fill-color", c.clone())],
+            _ => vec![("draw:fill", "none".into())],
         };
         props.extend(stroke(s.stroke.as_ref()));
+        if s.shape == ShapeKind::Arrow {
+            self.reg.arrow_marker = true;
+            props.push(("draw:marker-end", ARROW_MARKER.into()));
+            props.push(("draw:marker-end-width", mm(arrow_head_mm(s))));
+        }
         let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", props)]);
         let mut a = vec![("draw:style-name", style)];
+        if stroke_only {
+            a.extend(line_ends(&e.frame));
+            self.body.empty("draw:line", &attrs(&a));
+            return;
+        }
+        if let Some(path) = shapes::path(s.shape) {
+            a.extend(geometry(&e.frame));
+            self.body.open("draw:custom-shape", &attrs(&a));
+            let viewbox = format!("0 0 {0} {0}", shapes::VIEWBOX);
+            let enhanced = format!("{path} N");
+            self.body.empty("draw:enhanced-geometry", &[("svg:viewBox", viewbox.as_str()), ("draw:enhanced-path", enhanced.as_str())]);
+            self.body.close();
+            return;
+        }
         let name = match s.shape {
             ShapeKind::Rect => {
                 a.push(("draw:corner-radius", mm(s.corner_radius_mm)));
                 "draw:rect"
             }
-            ShapeKind::Ellipse => "draw:ellipse",
+            _ => "draw:ellipse",
         };
         a.extend(geometry(&e.frame));
         self.body.empty(name, &attrs(&a));

@@ -11,6 +11,7 @@
   import { endPreview, previewPhoto, previewShape, updatePhoto, updateShape } from "../lib/elementEdit";
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
+  import { isStrokeOnly } from "../lib/shapePaths";
   import { ALIGNS, isMarkActive, setAlign, setColor, setFont, setSize, toggleMark } from "../lib/textFormat.svelte";
   import type { Frame } from "../lib/types";
 
@@ -200,10 +201,12 @@
       </div>
     {:else if selected?.kind.type === "Shape"}
       {@const s = selected.kind}
+      {#if !isStrokeOnly(s.shape)}
       <div class="wrap">
         <button onclick={() => toggle("fill")}><span class="dot" style:background={s.fill ?? "transparent"}></span> {fr.fill}</button>
         {#if pop === "fill"}<div class="pop"><ColorPicker value={s.fill} allowNone onchange={(c) => updateShape({ fill: c })} /></div>{/if}
       </div>
+      {/if}
       <div class="wrap">
         <button class:on={!!s.stroke} onclick={() => toggle("stroke")}>▢ {fr.stroke}</button>
         {#if pop === "stroke"}
@@ -211,7 +214,7 @@
             <span>{s.stroke ? `${s.stroke.width_mm} mm` : fr.noStroke}</span>
             <input
               type="range"
-              min="0"
+              min={isStrokeOnly(s.shape) ? 0.5 : 0}
               max="3"
               step="0.5"
               value={s.stroke?.width_mm ?? 0}

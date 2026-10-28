@@ -402,4 +402,49 @@ mod tests {
             assert!(styles.contains(&format!("xlink:href=\"{name}\"")), "{name} non déclaré");
         }
     }
+
+    fn shape_el(kind: ShapeKind, f: Frame) -> Element {
+        Element {
+            id: new_id(),
+            frame: f,
+            locked: false,
+            zone: false,
+            kind: ElementKind::Shape(ShapeProps {
+                shape: kind,
+                fill: Some("#f1c40f".into()),
+                stroke: Some(Stroke { width_mm: 1.0, color: "#333333".into() }),
+                corner_radius_mm: 0.0,
+            }),
+        }
+    }
+
+    #[test]
+    fn drawn_shapes_are_custom_shapes_with_the_screen_geometry() {
+        let mut e = export(&doc_with(vec![shape_el(ShapeKind::Star, frame(20.0, 20.0, 40.0, 40.0))]), &AssetStore::default());
+        let content = e.xml("content.xml");
+        assert!(content.contains("<draw:custom-shape"), "{content}");
+        assert!(content.contains(r#"svg:viewBox="0 0 1000 1000""#));
+        let path = crate::shapes::path(ShapeKind::Star).unwrap();
+        assert!(content.contains(&format!(r#"draw:enhanced-path="{path} N""#)), "{content}");
+    }
+
+    #[test]
+    fn arrow_is_a_line_with_an_end_marker() {
+        let mut e = export(&doc_with(vec![shape_el(ShapeKind::Arrow, frame(10.0, 20.0, 60.0, 8.0))]), &AssetStore::default());
+        let content = e.xml("content.xml");
+        assert!(content.contains(r#"svg:x1="10.000mm" svg:y1="24.000mm" svg:x2="70.000mm" svg:y2="24.000mm""#), "{content}");
+        assert!(content.contains("draw:marker-end="), "{content}");
+        assert!(content.contains(r#"draw:marker-end-width="4.000mm""#), "{content}");
+        assert!(e.xml("styles.xml").contains("<draw:marker "));
+    }
+
+    #[test]
+    fn a_rotated_line_turns_around_its_centre() {
+        let mut f = frame(10.0, 20.0, 60.0, 8.0);
+        f.rotation_deg = 90.0;
+        let mut e = export(&doc_with(vec![shape_el(ShapeKind::Line, f)]), &AssetStore::default());
+        let content = e.xml("content.xml");
+        assert!(content.contains(r#"svg:x1="40.000mm" svg:y1="-6.000mm" svg:x2="40.000mm" svg:y2="54.000mm""#), "{content}");
+        assert!(!e.xml("styles.xml").contains("<draw:marker "));
+    }
 }

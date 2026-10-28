@@ -21,7 +21,12 @@ pub(crate) struct Registry {
     /// (nom, chemin dans l'archive)
     pub fill_images: Vec<(String, String)>,
     pub page_sizes: Vec<PageSize>,
+    /// Une flèche est présente : la pointe (`draw:marker`) est déclarée dans `styles.xml`.
+    pub arrow_marker: bool,
 }
+
+/// Nom de la pointe de flèche, celui de LibreOffice.
+pub(crate) const ARROW_MARKER: &str = "Arrow";
 
 pub(crate) fn mm(v: f64) -> String {
     format!("{v:.3}mm")
@@ -29,7 +34,7 @@ pub(crate) fn mm(v: f64) -> String {
 
 impl Registry {
     pub fn new(fonts: &FontSet) -> Registry {
-        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], page_sizes: vec![] }
+        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], page_sizes: vec![], arrow_marker: false }
     }
 
     /// Style automatique dédupliqué ; renvoie son nom.
@@ -137,6 +142,10 @@ impl Registry {
         x.open("office:document-styles", &root);
         self.write_font_decls(&mut x);
         x.open("office:styles", &[]);
+        if self.arrow_marker {
+            // Pointe triangulaire standard de LibreOffice.
+            x.empty("draw:marker", &[("draw:name", ARROW_MARKER), ("svg:viewBox", "0 0 20 30"), ("svg:d", "M10 0l-10 30h20z")]);
+        }
         for (name, href) in &self.fill_images {
             x.empty(
                 "draw:fill-image",

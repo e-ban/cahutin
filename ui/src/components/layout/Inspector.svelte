@@ -3,6 +3,7 @@
   import FontPicker from "../FontPicker.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
+  import { isStrokeOnly } from "../../lib/shapePaths";
   import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
   import { ALIGNS, activeTip, isMarkActive, setAlign, setColor, setFont, setSize, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
   import { endPreview, previewPhoto, previewShape, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
@@ -139,15 +140,17 @@
 
     {#if selected.kind.type === "Shape"}
       {@const s = selected.kind}
+      {#if !isStrokeOnly(s.shape)}
       <div class="field">
         <span>Remplissage</span>
         <ColorPicker value={s.fill} allowNone onchange={(c) => updateShape({ fill: c })} />
       </div>
+      {/if}
       <div class="field">
         <span>Trait : {s.stroke ? `${s.stroke.width_mm} mm` : "aucun"}</span>
         <input
           type="range"
-          min="0"
+          min={isStrokeOnly(s.shape) ? 0.5 : 0}
           max="3"
           step="0.5"
           value={s.stroke?.width_mm ?? 0}

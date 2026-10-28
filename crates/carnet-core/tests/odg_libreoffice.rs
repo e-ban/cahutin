@@ -4,6 +4,7 @@
 
 use carnet_core::fonts::{FontSet, add_user_font};
 use carnet_core::odg::export_odg_to_path;
+use carnet_core::shapes;
 use carnet_core::photo::{AssetStore, import_bytes};
 use carnet_core::*;
 use image::{ImageFormat, Rgb, RgbImage};
@@ -254,3 +255,115 @@ fn photos_are_rendered() {
     assert_eq!(list.lines().skip(2).filter(|l| !l.trim().is_empty()).count(), 2, "{list}");
 }
 
+
+/// Surface du tracé (courbes aplaties) rapportée à son carré de `VIEWBOX` unités.
+fn path_area_ratio(path: &str) -> f64 {
+    let toks: Vec<&str> = path.split_whitespace().collect();
+    let num = |i: usize| toks[i].parse::<f64>().unwrap();
+    let (mut pts, mut cur, mut i) = (Vec::new(), (0.0, 0.0), 0);
+    while i < toks.len() {
+        match toks[i] {
+            "M" | "L" => {
+                cur = (num(i + 1), num(i + 2));
+                pts.push(cur);
+                i += 3;
+            }
+            "C" => {
+                let (c1, c2, p) = ((num(i + 1), num(i + 2)), (num(i + 3), num(i + 4)), (num(i + 5), num(i + 6)));
+                for k in 1..=32 {
+                    let t = k as f64 / 32.0;
+                    let u = 1.0 - t;
+                    let b = |a: f64, b: f64, c: f64, d: f64| u * u * u * a + 3.0 * u * u * t * b + 3.0 * u * t * t * c + t * t * t * d;
+                    pts.push((b(cur.0, c1.0, c2.0, p.0), b(cur.1, c1.1, c2.1, p.1)));
+                }
+                cur = p;
+                i += 7;
+            }
+            _ => i += 1,
+        }
+    }
+    let twice: f64 = pts.iter().zip(pts.iter().cycle().skip(1)).map(|(a, b)| a.0 * b.1 - b.0 * a.1).sum();
+    twice.abs() / 2.0 / (shapes::VIEWBOX * shapes::VIEWBOX)
+}
+
+/// Page rendue en niveaux de gris par poppler : (largeur, hauteur, pixels).
+fn gray_page(pdf: &Path, page: usize, dpi: u32) -> (usize, usize, Vec<u8>) {
+    let dir = pdf.parent().unwrap();
+    let prefix = dir.join(format!("p{page}"));
+    run(Command::new("pdftoppm").args(["-gray", "-r", &dpi.to_string(), "-f", &page.to_string(), "-l", &page.to_string(), "-singlefile"]).arg(pdf).arg(&prefix));
+    let data = std::fs::read(prefix.with_extension("pgm")).unwrap();
+    let mut fields = Vec::new();
+    let mut pos = 0;
+    while fields.len() < 4 {
+        while data[pos].is_ascii_whitespace() {
+            pos += 1;
+        }
+        let start = pos;
+        while !data[pos].is_ascii_whitespace() {
+            pos += 1;
+        }
+        fields.push(String::from_utf8_lossy(&data[start..pos]).into_owned());
+    }
+    let (w, h): (usize, usize) = (fields[1].parse().unwrap(), fields[2].parse().unwrap());
+    (w, h, data[pos + 1..].to_vec())
+}
+
+#[test]
+#[ignore]
+fn drawn_shapes_keep_their_geometry() {
+    const SIDE_MM: f64 = 100.0;
+    const DPI: u32 = 72;
+    let kinds = [ShapeKind::Star, ShapeKind::Heart, ShapeKind::Bubble, ShapeKind::Cloud];
+    let mut doc = Document::new("formes");
+    doc.pages.clear();
+    for kind in kinds {
+        let mut page = Page::new(A4_PORTRAIT);
+        page.elements.push(Element {
+            id: new_id(),
+            frame: Frame { x_mm: ORIGIN_MM, y_mm: ORIGIN_MM, w_mm: SIDE_MM, h_mm: SIDE_MM, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            kind: ElementKind::Shape(ShapeProps { shape: kind, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0 }),
+        });
+        doc.pages.push(page);
+    }
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    let px_per_mm = DPI as f64 / 25.4;
+    for (i, kind) in kinds.iter().enumerate() {
+        let (w, h, px) = gray_page(&pdf, i + 1, DPI);
+        let dark = px.iter().filter(|&&v| v < 128).count() as f64;
+        let ratio = dark / (SIDE_MM * px_per_mm).powi(2);
+        let expected = path_area_ratio(shapes::path(*kind).unwrap());
+        assert!((ratio - expected).abs() < 0.03, "{kind:?} : surface {ratio:.3} au lieu de {expected:.3} ({w}x{h})");
+    }
+}
+
+#[test]
+#[ignore]
+fn arrow_has_its_head() {
+    const DPI: u32 = 144;
+    let mut doc = Document::new("flèche");
+    doc.pages[0].elements.push(Element {
+        id: new_id(),
+        frame: Frame { x_mm: ORIGIN_MM, y_mm: ORIGIN_MM, w_mm: 100.0, h_mm: 10.0, rotation_deg: 0.0 },
+        locked: false,
+        zone: false,
+        kind: ElementKind::Shape(ShapeProps {
+            shape: ShapeKind::Arrow,
+            fill: None,
+            stroke: Some(Stroke { width_mm: 1.0, color: "#000000".into() }),
+            corner_radius_mm: 0.0,
+        }),
+    });
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    let (w, _, px) = gray_page(&pdf, 1, DPI);
+    let px_per_mm = DPI as f64 / 25.4;
+    let dark_rows = |x_mm: f64| {
+        let x = (x_mm * px_per_mm) as usize;
+        px.chunks(w).filter(|row| row[x] < 128).count() as f64 / px_per_mm
+    };
+    let shaft = dark_rows(ORIGIN_MM + 50.0);
+    let head = dark_rows(ORIGIN_MM + 99.0 - 1.5);
+    assert!((0.6..1.6).contains(&shaft), "trait de {shaft:.2} mm");
+    assert!(head > 1.5, "pointe de {head:.2} mm seulement");
+}

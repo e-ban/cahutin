@@ -61,11 +61,32 @@ pub struct Page {
     pub size: PageSize,
     pub elements: Vec<Element>,
     pub grid: Option<GridLayout>,
+    /// Fond de la page (couleur et motif d'école) ; absent : blanc.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub background: Option<Background>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export)]
+pub struct Background {
+    pub color: String,
+    pub pattern: Option<Pattern>,
+}
+
+/// Motifs d'école dessinés par-dessus la couleur du fond.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export)]
+pub enum Pattern {
+    Seyes,
+    SmallSquares,
+    Lines,
+    Dots,
 }
 
 impl Page {
     pub fn new(size: PageSize) -> Page {
-        Page { id: new_id(), size, elements: vec![], grid: None }
+        Page { id: new_id(), size, elements: vec![], grid: None, background: None }
     }
 }
 

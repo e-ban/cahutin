@@ -7,7 +7,7 @@
   import { alignFrames, distributeFrames, type AlignMode } from "../lib/align";
   import { placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
-  import { deleteSelection } from "../lib/editActions";
+  import { deleteSelection, groupSelection, toggleLockSelection, ungroupSelection } from "../lib/editActions";
   import { endPreview, previewPhoto, previewShape, updatePhoto, updateShape } from "../lib/elementEdit";
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
@@ -25,6 +25,13 @@
   let pos = $state<{ left: number; top: number } | null>(null);
 
   const inGrid = (id: string) => !!editor.page.grid?.cells.some((c) => c.element_id === id);
+  // Sélection qui est exactement un groupe : on propose Dissocier ; sinon Grouper (hors cases de grille).
+  const isGroup = $derived.by(() => {
+    const groups = new Set(editor.page.elements.filter((e) => editor.selection.includes(e.id)).map((e) => e.group ?? null));
+    const [g] = [...groups];
+    return groups.size === 1 && !!g && editor.page.elements.filter((e) => e.group === g).length === editor.selection.length;
+  });
+  const canGroup = $derived(!editor.selection.some(inGrid));
   const selected = $derived(editor.selected);
   const many = $derived(editor.selection.length > 1);
   // En mode modèle, une case de grille a sa propre barre (CellBar).
@@ -124,6 +131,12 @@
     onpointerdown={keepFocus}
   >
     {#if many}
+      {#if isGroup}
+        <button class="main" title="Ctrl+Maj+G" onclick={ungroupSelection}>⊟ {fr.ungroup}</button>
+      {:else}
+        <button class="main" title="Ctrl+G" disabled={!canGroup} onclick={groupSelection}>⊞ {fr.group}</button>
+      {/if}
+      <span class="sep"></span>
       <div class="wrap">
         <button onclick={() => toggle("alignMany")} disabled={movable().length < 2}>{fr.alignMenu} ▾</button>
         {#if pop === "alignMany"}
@@ -142,6 +155,7 @@
         {/if}
       </div>
       <span class="sep"></span>
+      {#if isGroup}<button title={fr.lock} aria-label={fr.lock} onclick={toggleLockSelection}>🔒</button>{/if}
       <button onclick={removeSelected}>🗑 {fr.delete}</button>
     {:else if selected?.kind.type === "Photo"}
       {@const ph = selected.kind}

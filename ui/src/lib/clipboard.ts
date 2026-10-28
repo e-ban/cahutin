@@ -1,6 +1,7 @@
 // Copier, coller, dupliquer, ordre d'empilement et suppression d'éléments d'une page.
 // Le presse-papiers est interne à l'application : rien ne passe par celui du système.
 import { newId } from "./factory";
+import { dissolveSmallGroups, expandSelection } from "./groups";
 import type { Element, Page } from "./types";
 
 export const PASTE_OFFSET_MM = 5;
@@ -18,9 +19,17 @@ function plainCopy(e: Element): Element {
 /** Colle des copies décalées, toujours libres : jamais dans la grille, jamais zone à remplir, jamais verrouillées. */
 export function pasteElements(page: Page, copied: Element[], offsetMm = PASTE_OFFSET_MM): { page: Page; ids: string[] } {
   if (copied.length === 0) return { page, ids: [] };
+  // Chaque collage crée ses propres groupes : coller deux fois donne deux groupes distincts.
+  const groups = new Map<string, string>();
+  const regroup = (g: string | null | undefined) => {
+    if (!g) return null;
+    if (!groups.has(g)) groups.set(g, newId());
+    return groups.get(g)!;
+  };
   const pasted = copied.map((e) => ({
     ...plainCopy(e),
     id: newId(),
+    group: regroup(e.group),
     zone: false,
     locked: false,
     frame: { ...e.frame, x_mm: e.frame.x_mm + offsetMm, y_mm: e.frame.y_mm + offsetMm },
@@ -33,7 +42,8 @@ export function duplicateElements(page: Page, ids: string[]): { page: Page; ids:
 }
 
 /** Devant (fin de la liste) ou derrière (début), sans changer l'ordre entre les éléments déplacés. */
-export function reorder(page: Page, ids: string[], where: "front" | "back"): Page {
+export function reorder(page: Page, selected: string[], where: "front" | "back"): Page {
+  const ids = expandSelection(page, selected);
   const moved = page.elements.filter((e) => ids.includes(e.id));
   const rest = page.elements.filter((e) => !ids.includes(e.id));
   return { ...page, elements: where === "front" ? [...rest, ...moved] : [...moved, ...rest] };
@@ -44,9 +54,9 @@ export function removeElements(page: Page, ids: string[]): Page {
   const gone = new Set(page.elements.filter((e) => ids.includes(e.id) && !e.locked).map((e) => e.id));
   if (gone.size === 0) return page;
   const cells = page.grid?.cells.filter((c) => !gone.has(c.element_id));
-  return {
+  return dissolveSmallGroups({
     ...page,
     elements: page.elements.filter((e) => !gone.has(e.id)),
     grid: page.grid && cells && cells.length > 0 ? { ...page.grid, cells } : null,
-  };
+  });
 }

@@ -197,6 +197,11 @@ export const fr = {
   hintDblclickText: "Double-cliquez dans le texte pour écrire.",
   hintRightclick: "Clic droit sur un élément : copier, dupliquer, mettre devant…",
   closeHint: "Fermer l'astuce",
+  // Groupes
+  group: "Grouper",
+  ungroup: "Dissocier",
+  groupOf: (n: number) => `Groupe de ${n} éléments`,
+  groupPosition: "Position du groupe (mm)",
   // Clic droit
   cut: "Couper",
   copy: "Copier",

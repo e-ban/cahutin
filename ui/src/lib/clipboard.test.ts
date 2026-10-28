@@ -69,3 +69,28 @@ test("removeElements keeps locked elements and cleans the grid", () => {
   expect(out.elements.map((e) => e.id)).toEqual(["b", "l"]);
   expect(out.grid!.cells.map((c) => c.element_id)).toEqual(["b"]);
 });
+
+test("pasting a group twice makes two groups", () => {
+  const p = page([el("a", 10, { group: "g" }), el("b", 50, { group: "g" })]);
+  const copied = copyElements(p, ["a", "b"]);
+  const first = pasteElements(p, copied);
+  const second = pasteElements(first.page, copied);
+  const groupsOf = (ids: string[], pg: Page) => new Set(pg.elements.filter((e) => ids.includes(e.id)).map((e) => e.group));
+  const g1 = groupsOf(first.ids, second.page);
+  const g2 = groupsOf(second.ids, second.page);
+  expect(g1.size).toBe(1);
+  expect(g2.size).toBe(1);
+  expect([...g1][0]).not.toBe("g");
+  expect([...g1][0]).not.toBe([...g2][0]);
+});
+
+test("removing a member dissolves a group of one", () => {
+  const p = page([el("a", 10, { group: "g" }), el("b", 50, { group: "g" }), el("c", 90, { group: "h" }), el("d", 90, { group: "h" }), el("e", 90, { group: "h" })]);
+  const out = removeElements(p, ["a", "c"]);
+  expect(out.elements.map((e) => [e.id, e.group ?? null])).toEqual([["b", null], ["d", "h"], ["e", "h"]]);
+});
+
+test("reorder moves the whole group", () => {
+  const p = page([el("a", 0, { group: "g" }), el("b"), el("c", 0, { group: "g" }), el("d")]);
+  expect(reorder(p, ["a"], "front").elements.map((e) => e.id)).toEqual(["b", "d", "a", "c"]);
+});

@@ -1,6 +1,7 @@
 // Actions d'édition sur la sélection, communes aux raccourcis, au clic droit et à la barre flottante.
 import { copyElements, duplicateElements, pasteElements, removeElements, reorder } from "./clipboard";
 import { editor } from "./docStore.svelte";
+import { expandSelection, groupElements, ungroup } from "./groups";
 import { newId } from "./factory";
 import type { AssetMeta, Element } from "./types";
 
@@ -19,9 +20,12 @@ function assetsOf(elements: Element[]): Record<string, AssetMeta> {
   return out;
 }
 
+/** La sélection, groupes complétés. */
+const selected = () => expandSelection(editor.page, editor.selection);
+
 export function copySelection() {
   if (editor.selection.length === 0) return;
-  clipboard = copyElements(editor.page, editor.selection);
+  clipboard = copyElements(editor.page, selected());
   clipboardAssets = assetsOf(clipboard);
 }
 
@@ -45,7 +49,7 @@ export function paste() {
 
 export function duplicateSelection() {
   if (editor.selection.length === 0) return;
-  const { page, ids } = duplicateElements(editor.page, editor.selection);
+  const { page, ids } = duplicateElements(editor.page, selected());
   editor.updatePage(() => page);
   editor.selection = ids;
 }
@@ -55,15 +59,31 @@ export function bringSelection(where: "front" | "back") {
 }
 
 export function toggleLockSelection() {
-  const ids = editor.selection;
+  const ids = selected();
   const lock = !editor.page.elements.filter((e) => ids.includes(e.id)).every((e) => e.locked);
   editor.updatePage((p) => ({ ...p, elements: p.elements.map((e) => (ids.includes(e.id) ? { ...e, locked: lock } : e)) }));
 }
 
 /** Les éléments verrouillés restent. */
 export function deleteSelection() {
-  const next = removeElements(editor.page, editor.selection);
+  const next = removeElements(editor.page, selected());
   if (next !== editor.page) editor.updatePage(() => next);
+}
+
+/** Grouper la sélection (Ctrl+G) : un seul pas d'annulation. */
+export function groupSelection() {
+  const { page, group } = groupElements(editor.page, editor.selection);
+  if (!group) return;
+  editor.updatePage(() => page);
+  editor.selection = page.elements.filter((e) => e.group === group).map((e) => e.id);
+}
+
+/** Dissocier (Ctrl+Maj+G) : les éléments restent sélectionnés. */
+export function ungroupSelection() {
+  if (!editor.page.elements.some((e) => editor.selection.includes(e.id) && e.group)) return;
+  const ids = selected();
+  editor.updatePage((p) => ungroup(p, ids));
+  editor.selection = ids;
 }
 
 export const NEW_PHOTO_WIDTH_MM = 80;

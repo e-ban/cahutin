@@ -1,5 +1,5 @@
 import { editor } from "./docStore.svelte";
-import { copySelection, cutSelection, deleteSelection, duplicateSelection, paste } from "./editActions";
+import { copySelection, cutSelection, deleteSelection, duplicateSelection, groupSelection, paste, ungroupSelection } from "./editActions";
 import { newDoc, openDoc, print, save } from "./fileActions";
 import { modal } from "./modal.svelte";
 import { nudge, type ArrowKey } from "./geometry";
@@ -9,7 +9,7 @@ function typing(ev: KeyboardEvent): boolean {
   return !!t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
 }
 
-export type ShortcutAction = "new" | "open" | "save" | "print" | "duplicate" | "undo" | "redo" | "copy" | "cut" | "paste";
+export type ShortcutAction = "new" | "open" | "save" | "print" | "duplicate" | "undo" | "redo" | "copy" | "cut" | "paste" | "group" | "ungroup";
 
 type KeyInfo = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "repeat">;
 
@@ -19,6 +19,7 @@ export function shortcutAction(ev: KeyInfo): ShortcutAction | null {
   const k = ev.key.toLowerCase();
   if (k === "z") return ev.shiftKey ? "redo" : "undo";
   if (k === "y") return "redo";
+  if (k === "g") return ev.repeat ? null : ev.shiftKey ? "ungroup" : "group";
   if (ev.repeat) return null;
   const actions: Record<string, ShortcutAction> = { n: "new", o: "open", s: "save", p: "print", d: "duplicate", c: "copy", x: "cut", v: "paste" };
   return actions[k] ?? null;
@@ -50,6 +51,8 @@ export function handleShortcut(ev: KeyboardEvent) {
     copy: copySelection,
     cut: cutSelection,
     paste,
+    group: groupSelection,
+    ungroup: ungroupSelection,
   };
   if (action && editActions[action]) {
     ev.preventDefault();

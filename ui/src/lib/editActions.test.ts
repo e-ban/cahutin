@@ -22,3 +22,24 @@ test("a photo pasted into another document brings its image with it", () => {
   expect(editor.page.elements).toHaveLength(1);
   expect(editor.doc.assets.img1).toEqual(meta);
 });
+
+test("groupSelection then ungroupSelection restores ungrouped elements in one undo step each", async () => {
+  const { groupSelection, ungroupSelection } = await import("./editActions");
+  const { textElement } = await import("./factory");
+  const doc = newDocument("g");
+  const a = textElement({ x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 });
+  const b = textElement({ x_mm: 20, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 });
+  doc.pages[0].elements.push(a, b);
+  editor.reset(doc, null);
+  editor.selection = [a.id, b.id];
+  groupSelection();
+  const g = editor.page.elements[0].group;
+  expect(g).toBeTruthy();
+  expect(editor.page.elements[1].group).toBe(g);
+  ungroupSelection();
+  expect(editor.page.elements.every((e) => !e.group)).toBe(true);
+  editor.undo();
+  expect(editor.page.elements[0].group).toBe(g);
+  editor.undo();
+  expect(editor.page.elements.every((e) => !e.group)).toBe(true);
+});

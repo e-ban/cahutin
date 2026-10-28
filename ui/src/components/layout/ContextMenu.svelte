@@ -12,7 +12,7 @@
 <script lang="ts">
   // Menu du clic droit : sur un élément, ou sur la page vide.
   import { editor } from "../../lib/docStore.svelte";
-  import { bringSelection, copySelection, cutSelection, deleteSelection, duplicateSelection, hasClipboard, paste, toggleLockSelection } from "../../lib/editActions";
+  import { bringSelection, copySelection, cutSelection, deleteSelection, duplicateSelection, groupSelection, hasClipboard, paste, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
   import { shapeElement, textElement } from "../../lib/factory";
   import { fr } from "../../lib/i18n/fr";
 
@@ -53,6 +53,14 @@
     <button role="menuitem" onclick={() => run(copySelection)}><span>{fr.copy}</span><kbd>Ctrl+C</kbd></button>
     <button role="menuitem" disabled={!hasClipboard()} onclick={() => run(paste)}><span>{fr.paste}</span><kbd>Ctrl+V</kbd></button>
     <button role="menuitem" onclick={() => run(duplicateSelection)}><span>{fr.duplicate}</span><kbd>Ctrl+D</kbd></button>
+    {#if editor.selection.length > 1 || element.group}
+      <hr />
+      {#if element.group}
+        <button role="menuitem" onclick={() => run(ungroupSelection)}><span>{fr.ungroup}</span><kbd>Ctrl+Maj+G</kbd></button>
+      {:else}
+        <button role="menuitem" onclick={() => run(groupSelection)}><span>{fr.group}</span><kbd>Ctrl+G</kbd></button>
+      {/if}
+    {/if}
     <hr />
     <button role="menuitem" onclick={() => run(() => bringSelection("front"))}><span>{fr.bringFront}</span></button>
     <button role="menuitem" onclick={() => run(() => bringSelection("back"))}><span>{fr.sendBack}</span></button>

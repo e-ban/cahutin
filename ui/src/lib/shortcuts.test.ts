@@ -21,6 +21,8 @@ test("shortcutAction maps the file and edit shortcuts", () => {
   expect(shortcutAction(key("c"))).toBe("copy");
   expect(shortcutAction(key("x"))).toBe("cut");
   expect(shortcutAction(key("v"))).toBe("paste");
+  expect(shortcutAction(key("g"))).toBe("group");
+  expect(shortcutAction(key("G", { shift: true }))).toBe("ungroup");
 });
 
 test("shortcutAction ignores repeats and keys without Ctrl", () => {

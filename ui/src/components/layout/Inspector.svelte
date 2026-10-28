@@ -7,12 +7,33 @@
   import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
   import { ALIGNS, activeTip, isMarkActive, setAlign, setColor, setFont, setSize, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
   import { endPreview, previewPhoto, previewShape, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
-  import { deleteSelection } from "../../lib/editActions";
+  import { deleteSelection, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
+  import { boundsOf, isLockedSelection } from "../../lib/groups";
   import type { Frame } from "../../lib/types";
 
   const selected = $derived(editor.selected);
 
   const update = updateSelected;
+
+  // Groupe sélectionné : sa position déplace tous ses éléments.
+  const groupIds = $derived.by(() => {
+    const els = editor.page.elements.filter((e) => editor.selection.includes(e.id));
+    const g = els[0]?.group;
+    return els.length > 1 && g && els.every((e) => e.group === g) ? els.map((e) => e.id) : null;
+  });
+  const groupBox = $derived(groupIds ? boundsOf(editor.page.elements.filter((e) => groupIds.includes(e.id)).map((e) => e.frame)) : null);
+  const groupLocked = $derived(!!groupIds && isLockedSelection(editor.page, groupIds));
+
+  function moveGroup(axis: "x" | "y", raw: string) {
+    const v = Number(raw.replace(",", "."));
+    if (!groupIds || !groupBox || !Number.isFinite(v)) return;
+    const d = v - (axis === "x" ? groupBox.x_mm : groupBox.y_mm);
+    const key = axis === "x" ? "x_mm" : "y_mm";
+    editor.updatePage((p) => ({
+      ...p,
+      elements: p.elements.map((e) => (groupIds.includes(e.id) ? { ...e, frame: { ...e.frame, [key]: Math.round((e.frame[key] + d) * 10) / 10 } } : e)),
+    }));
+  }
 
   const tip = $derived(selected ? activeTip() : null);
 
@@ -35,7 +56,21 @@
     <h3>{fr.inspector}</h3>
     <button class="close" title={fr.closeInspector} aria-label={fr.closeInspector} onclick={() => (editor.inspectorOpen = false)}>▸</button>
   </header>
-  {#if !selected}
+  {#if groupIds}
+    <h3>{fr.groupOf(groupIds.length)}</h3>
+    <div class="field">
+      <span>{fr.groupPosition}</span>
+      <div class="frame">
+        <label>{fr.posX}<input type="number" step="0.5" disabled={groupLocked} value={Math.round(groupBox!.x_mm * 10) / 10} onchange={(e) => moveGroup("x", e.currentTarget.value)} /></label>
+        <label>{fr.posY}<input type="number" step="0.5" disabled={groupLocked} value={Math.round(groupBox!.y_mm * 10) / 10} onchange={(e) => moveGroup("y", e.currentTarget.value)} /></label>
+      </div>
+    </div>
+    <div class="actions">
+      <button onclick={ungroupSelection}>⊟ {fr.ungroup}</button>
+      <button onclick={toggleLockSelection}>{groupLocked ? `🔓 ${fr.unlock}` : `🔒 ${fr.lock}`}</button>
+      <button onclick={deleteSelection}>🗑 {fr.delete}</button>
+    </div>
+  {:else if !selected}
     <p class="hint">{fr.noSelection}</p>
   {:else}
     <h3>{selected.kind.type === "Photo" ? fr.photo : selected.kind.type === "Text" ? fr.text : fr.shape}</h3>

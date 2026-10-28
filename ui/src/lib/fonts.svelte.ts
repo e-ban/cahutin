@@ -11,6 +11,7 @@ const FALLBACK: FontFamilyInfo[] = EMBEDDED_FAMILIES.map((name) => ({
   has_bold: name !== "Playwrite FR Moderne",
   has_italic: name !== "Playwrite FR Moderne",
   user: false,
+  system: false,
   embeddable: true,
   kind: KINDS[name],
 }));

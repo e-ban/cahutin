@@ -2,6 +2,10 @@
 
 export type FontFileInfo = { family: string, bold: boolean, italic: boolean, 
 /**
- * Chemin servi par le protocole `carnet-asset` : `/font/<fichier>`.
+ * Police du poste : l'interface ne la charge que lorsqu'un texte l'utilise.
+ */
+system: boolean, 
+/**
+ * Chemin servi par le protocole `carnet-asset` : `/font/<fichier>` ou `/sysfont/<indice>`.
  */
 url_path: string, };

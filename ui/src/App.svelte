@@ -1,6 +1,7 @@
 <script lang="ts">
   import "./fonts.css";
   import "./print.css";
+  import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { onMount } from "svelte";
   import Modal from "./components/Modal.svelte";
@@ -42,6 +43,12 @@
   if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath } });
 
   // Fermeture de la fenêtre : demander d'enregistrer s'il y a des modifications.
+  // Polices du poste lues en arrière-plan par le moteur : la liste se met à jour quand elles arrivent.
+  onMount(() => {
+    const stop = listen("fonts-changed", () => fonts.load()).catch(() => undefined);
+    return () => void stop.then((u) => u?.());
+  });
+
   onMount(() => {
     let unlisten: (() => void) | undefined;
     try {

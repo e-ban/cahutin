@@ -45,9 +45,12 @@ impl Registry {
 
     /// Enregistre la police à intégrer ; renvoie le nom de famille à écrire dans `style:font-name`.
     pub fn font(&mut self, family: &str, bold: bool, italic: bool) -> String {
+        // Une police du poste dont le fichier a disparu depuis le démarrage est remplacée par la police par défaut.
+        let available = |f: &&FontFace| f.system_path().is_none_or(|p| p.is_file());
         let face = self
             .fonts
             .face(family, bold, italic)
+            .filter(available)
             .or_else(|| self.fonts.face(fonts::DEFAULT_FAMILY, bold, italic))
             .expect("la police par défaut est embarquée")
             .clone();

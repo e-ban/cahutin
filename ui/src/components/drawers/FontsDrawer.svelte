@@ -5,12 +5,13 @@
   import { ask } from "../../lib/ask";
   import { editor } from "../../lib/docStore.svelte";
   import { fonts } from "../../lib/fonts.svelte";
+  import { groupFamilies, searchFamilies } from "../../lib/fontSearch";
   import { fr } from "../../lib/i18n/fr";
   import { setFont } from "../../lib/textFormat.svelte";
   import type { FontFamilyInfo } from "../../lib/types";
 
-  const builtin = $derived(fonts.families.filter((f) => !f.user));
-  const added = $derived(fonts.families.filter((f) => f.user));
+  let query = $state("");
+  const groups = $derived(groupFamilies(searchFamilies(fonts.families, query)));
   const current = $derived(editor.selected?.kind.type === "Text" ? editor.selected.kind.style.font : null);
   let explain = $state<string | null>(null);
 
@@ -55,11 +56,23 @@
 
 <Drawer title={fr.fonts}>
   <button class="add" onclick={pick}>{fr.addFont}</button>
-  <h3>{fr.builtinFonts}</h3>
-  {#each builtin as f (f.name)}{@render row(f)}{/each}
-  <h3>{fr.userFonts}</h3>
-  {#each added as f (f.name)}{@render row(f)}{:else}<p class="hint">{fr.noUserFonts}</p>{/each}
+  <input class="search" type="search" bind:value={query} placeholder={fr.searchFont} aria-label={fr.searchFont} />
   <p class="hint">{fr.applyFontHint}</p>
+  {#if groups.builtin.length}
+    <h3>{fr.builtinFonts}</h3>
+    {#each groups.builtin as f (f.name)}{@render row(f)}{/each}
+  {/if}
+  {#if groups.user.length || !query}
+    <h3>{fr.userFonts}</h3>
+    {#each groups.user as f (f.name)}{@render row(f)}{:else}<p class="hint">{fr.noUserFonts}</p>{/each}
+  {/if}
+  {#if groups.system.length}
+    <h3>{fr.systemFonts} ({groups.system.length})</h3>
+    {#each groups.system as f (f.name)}{@render row(f)}{/each}
+  {/if}
+  {#if query && !groups.builtin.length && !groups.user.length && !groups.system.length}
+    <p class="hint">{fr.noFontFound}</p>
+  {/if}
 </Drawer>
 
 <style>
@@ -69,7 +82,12 @@
   h3 {
     margin: 6px 0 0;
   }
+  .search {
+    padding: 6px 8px;
+  }
   .font {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 36px;
     background: white;
     border: 1px solid var(--line);
     border-radius: 7px;

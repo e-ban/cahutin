@@ -124,6 +124,9 @@ export const fr = {
   addFont: "＋ Ajouter une police (.ttf, .otf)",
   builtinFonts: "Fournies",
   userFonts: "Ajoutées par vous",
+  systemFonts: "Sur cet ordinateur",
+  searchFont: "Rechercher une police…",
+  noFontFound: "Aucune police ne porte ce nom.",
   noUserFonts: "Aucune pour l'instant.",
   exportWarning: "⚠ export",
   restrictedFontExplain:

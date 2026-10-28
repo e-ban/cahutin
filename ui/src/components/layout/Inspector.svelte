@@ -1,5 +1,6 @@
 <script lang="ts">
   import ColorPicker from "../ColorPicker.svelte";
+  import FontPicker from "../FontPicker.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
@@ -106,9 +107,7 @@
       {/if}
       <div class="field">
         <span>Police</span>
-        <select value={t.style.font} onchange={(e) => setFont(e.currentTarget.value)}>
-          {#each fonts.families as f}<option value={f.name} style:font-family={`"${f.name}"`}>{f.name}</option>{/each}
-        </select>
+        <FontPicker value={t.style.font} onpick={setFont} />
       </div>
       <div class="field">
         <span>Taille</span>

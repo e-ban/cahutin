@@ -90,8 +90,8 @@ fn used_families(doc: &Document) -> BTreeSet<&str> {
     out
 }
 
-/// Seules les images utilisées par un élément sont enregistrées, et seules les polices utilisateur
-/// utilisées et intégrables.
+/// Seules les images utilisées par un élément sont enregistrées, et seules les polices ajoutées ou
+/// du poste, utilisées et intégrables.
 pub fn save(doc: &Document, store: &AssetStore, fonts: &FontSet, out: impl Write + Seek) -> Result<(), NativeError> {
     let used = used_assets(doc);
     let mut doc = doc.clone();
@@ -111,9 +111,9 @@ pub fn save(doc: &Document, store: &AssetStore, fonts: &FontSet, out: impl Write
         zip.write_all(&asset.thumb)?;
     }
     let families = used_families(&doc);
-    for f in fonts.faces().iter().filter(|f| f.user && f.embeddable && families.contains(f.family.as_str())) {
+    for f in fonts.faces().iter().filter(|f| (f.user || f.system) && f.embeddable && families.contains(f.family.as_str())) {
         zip.start_file(format!("{FONTS_DIR}{}", f.file_name), deflated)?;
-        zip.write_all(&f.bytes)?;
+        zip.write_all(&f.bytes().ok_or(NativeError::Io)?)?;
     }
     zip.finish()?;
     Ok(())
@@ -313,5 +313,28 @@ mod tests {
         let loaded = load(buf).unwrap();
         let original = std::fs::read(fixtures.join("CarnetTest-Regular.ttf")).unwrap();
         assert_eq!(loaded.fonts, vec![("CarnetTest-Regular.ttf".to_string(), original)]);
+    }
+
+    #[test]
+    fn embeddable_system_font_travels_in_the_document() {
+        let sys = tempfile::tempdir().unwrap();
+        let fixtures = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures"));
+        std::fs::copy(fixtures.join("CarnetTest-Regular.ttf"), sys.path().join("carnettest.ttf")).unwrap();
+        let fonts = FontSet::builtin().with_system(&crate::fonts::scan_font_dirs(&[sys.path()]));
+        let mut doc = Document::new("poste");
+        let mut style = TextStyle::default_zone();
+        style.font = "Carnet Test".into();
+        doc.pages[0].elements.push(Element {
+            id: new_id(),
+            frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 80.0, h_mm: 20.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            kind: ElementKind::Text(TextProps { content: RichText::plain("bonjour"), style, prompt: None }),
+        });
+        let mut buf = Cursor::new(Vec::new());
+        save(&doc, &AssetStore::default(), &fonts, &mut buf).unwrap();
+        buf.set_position(0);
+        let names: Vec<String> = load(buf).unwrap().fonts.into_iter().map(|f| f.0).collect();
+        assert_eq!(names, vec!["carnettest.ttf".to_string()]);
     }
 }

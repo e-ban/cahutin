@@ -221,6 +221,29 @@ fn user_font_is_embedded_in_rendering() {
     assert!(fonts.contains("CarnetTest"), "{fonts}");
 }
 
+/// Police « du poste » (dossier jouant ce rôle), absente de LibreOffice : elle n'arrive que par l'ODG.
+#[test]
+#[ignore]
+fn system_font_is_embedded_in_rendering() {
+    let sys = tempfile::tempdir().unwrap();
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/CarnetTest-Regular.ttf");
+    std::fs::copy(fixture, sys.path().join("carnettest.ttf")).unwrap();
+    let fonts = FontSet::builtin().with_system(&carnet_core::fonts::scan_font_dirs(&[sys.path()]));
+    let mut doc = Document::new("police du poste");
+    let mut style = TextStyle::default_zone();
+    style.font = "Carnet Test".into();
+    doc.pages[0].elements.push(Element {
+        id: new_id(),
+        frame: Frame { x_mm: ORIGIN_MM, y_mm: ORIGIN_MM, w_mm: 120.0, h_mm: 20.0, rotation_deg: 0.0 },
+        locked: false,
+        zone: false,
+        kind: ElementKind::Text(TextProps { content: RichText::plain("Police du poste"), style, prompt: None }),
+    });
+    let (_dir, pdf) = render_with(&doc, &AssetStore::default(), &fonts);
+    let out = run(Command::new("pdffonts").arg(&pdf));
+    assert!(out.contains("CarnetTest"), "{out}");
+}
+
 #[test]
 #[ignore]
 fn photos_are_rendered() {

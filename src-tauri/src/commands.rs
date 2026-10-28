@@ -228,7 +228,7 @@ pub fn delete_template(state: State<'_, AppState>, id: String) -> Result<(), Str
     state.library.delete(&id).map_err(|_| "Ce modèle ne peut pas être supprimé.".to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_fonts(state: State<'_, AppState>) -> Vec<FontFamilyInfo> {
     state.fonts.read().unwrap().families()
 }
@@ -271,24 +271,31 @@ pub struct FontFileInfo {
     pub family: String,
     pub bold: bool,
     pub italic: bool,
-    /// Chemin servi par le protocole `carnet-asset` : `/font/<fichier>`.
+    /// Police du poste : l'interface ne la charge que lorsqu'un texte l'utilise.
+    pub system: bool,
+    /// Chemin servi par le protocole `carnet-asset` : `/font/<fichier>` ou `/sysfont/<indice>`.
     pub url_path: String,
 }
 
-/// Fichiers des polices utilisateur, que l'interface charge pour l'affichage.
-#[tauri::command]
-pub fn font_files(state: State<'_, AppState>) -> Vec<FontFileInfo> {
+fn font_files_in(state: &AppState) -> Vec<FontFileInfo> {
     let set = state.fonts.read().unwrap();
     set.faces()
         .iter()
-        .filter(|f| f.user)
-        .map(|f| FontFileInfo {
-            family: f.family.clone(),
-            bold: f.bold,
-            italic: f.italic,
-            url_path: format!("/font/{}", f.file_name),
+        .filter_map(|f| {
+            let url_path = if f.user {
+                format!("/font/{}", f.file_name)
+            } else {
+                format!("/sysfont/{}", state.system_font_index(f.system_path()?)?)
+            };
+            Some(FontFileInfo { family: f.family.clone(), bold: f.bold, italic: f.italic, system: f.system, url_path })
         })
         .collect()
+}
+
+/// Fichiers des polices ajoutées et du poste, que l'interface charge pour l'affichage.
+#[tauri::command(async)]
+pub fn font_files(state: State<'_, AppState>) -> Vec<FontFileInfo> {
+    font_files_in(&state)
 }
 
 fn accept_document_fonts_in(state: &AppState) -> Result<Vec<FontFamilyInfo>, String> {
@@ -461,5 +468,22 @@ mod tests {
         assert!(colleague.fonts.read().unwrap().face("Carnet Test", false, false).is_some());
         // Chez l'auteur, la police est déjà là : rien à proposer.
         assert!(open_document_in(&author, &path).unwrap().offered_fonts.is_empty());
+    }
+
+    #[test]
+    fn font_files_serve_system_fonts_by_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let sys = dir.path().join("systeme");
+        std::fs::create_dir(&sys).unwrap();
+        std::fs::copy(fixture("CarnetTest-Regular.ttf"), sys.join("carnettest.ttf")).unwrap();
+        let state = test_state(dir.path());
+        state.set_system_fonts(fonts::scan_font_dirs(&[sys.as_path()]));
+        let files = font_files_in(&state);
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].family, "Carnet Test");
+        assert!(files[0].system);
+        assert_eq!(files[0].url_path, "/sysfont/0");
+        assert_eq!(state.system_font_path(0).unwrap(), sys.join("carnettest.ttf"));
+        assert!(remove_font_in(&state, "Carnet Test").is_err());
     }
 }

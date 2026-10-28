@@ -1,8 +1,8 @@
-//! Polices : celles fournies avec l'application (licence OFL) et celles ajoutées par l'utilisateur.
-//! L'écran et l'export utilisent les mêmes fichiers.
+//! Polices : celles fournies avec l'application (licence OFL), celles ajoutées par l'utilisateur et
+//! celles installées sur le poste. L'écran et l'export utilisent les mêmes fichiers.
 
 use serde::Serialize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use ts_rs::TS;
 
@@ -16,10 +16,36 @@ pub struct FontFace {
     pub file_name: String,
     /// "truetype" ou "opentype", tel qu'écrit dans `svg:font-face-format`.
     pub format: &'static str,
-    pub bytes: Arc<[u8]>,
+    data: FontData,
     /// Faux si la licence interdit d'intégrer la police à un fichier (`OS/2.fsType` « restricted »).
     pub embeddable: bool,
     pub user: bool,
+    /// Installée sur le poste : le fichier est lu là où il est, seulement quand on en a besoin.
+    pub system: bool,
+}
+
+#[derive(Debug, Clone)]
+enum FontData {
+    Loaded(Arc<[u8]>),
+    File(PathBuf),
+}
+
+impl FontFace {
+    /// Octets du fichier de police ; `None` si un fichier du poste a disparu depuis le démarrage.
+    pub fn bytes(&self) -> Option<Arc<[u8]>> {
+        match &self.data {
+            FontData::Loaded(b) => Some(b.clone()),
+            FontData::File(path) => std::fs::read(path).ok().map(Arc::from),
+        }
+    }
+
+    /// Chemin du fichier, pour une police du poste.
+    pub fn system_path(&self) -> Option<&Path> {
+        match &self.data {
+            FontData::File(p) => Some(p),
+            FontData::Loaded(_) => None,
+        }
+    }
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq, TS)]
@@ -29,6 +55,7 @@ pub struct FontFamilyInfo {
     pub has_bold: bool,
     pub has_italic: bool,
     pub user: bool,
+    pub system: bool,
     pub embeddable: bool,
     /// Un mot pour les polices fournies (« scripte », « cursive »…), rien pour celles de l'utilisateur.
     pub kind: Option<String>,
@@ -62,9 +89,10 @@ macro_rules! face {
             italic: $italic,
             file_name: $file.to_string(),
             format: $format,
-            bytes: Arc::from(&include_bytes!(concat!("../../../assets/fonts/", $dir, "/", $file))[..]),
+            data: FontData::Loaded(Arc::from(&include_bytes!(concat!("../../../assets/fonts/", $dir, "/", $file))[..])),
             embeddable: true,
             user: false,
+            system: false,
         }
     };
 }
@@ -122,9 +150,10 @@ fn parse_face(bytes: &[u8], file_name: &str) -> Result<FontFace, FontError> {
         italic: face.is_italic(),
         file_name: file_name.to_string(),
         format: if bytes.starts_with(b"OTTO") { "opentype" } else { "truetype" },
-        bytes: Arc::from(bytes),
+        data: FontData::Loaded(Arc::from(bytes)),
         embeddable: face.permissions() != Some(ttf_parser::Permissions::Restricted),
         user: true,
+        system: false,
     })
 }
 
@@ -175,8 +204,9 @@ impl FontSet {
                 has_bold: faces().any(|g| g.bold),
                 has_italic: faces().any(|g| g.italic),
                 user: f.user,
+                system: f.system,
                 embeddable: faces().all(|g| g.embeddable),
-                kind: if f.user { None } else { builtin_kind(&f.family) },
+                kind: builtin_kind(&f.family).filter(|_| !f.user && !f.system),
             });
         }
         out
@@ -194,6 +224,73 @@ impl FontSet {
     pub fn faces(&self) -> &[FontFace] {
         &self.faces
     }
+
+    /// Ajoute les polices du poste, après les autres ; une famille fournie ou ajoutée par
+    /// l'utilisateur garde la priorité.
+    pub fn with_system(mut self, system: &[FontFace]) -> FontSet {
+        let taken: Vec<String> = self.faces.iter().map(|f| f.family.to_lowercase()).collect();
+        let mut extra: Vec<FontFace> = system.iter().filter(|f| !taken.contains(&f.family.to_lowercase())).cloned().collect();
+        extra.sort_by(|a, b| a.family.to_lowercase().cmp(&b.family.to_lowercase()).then(a.file_name.cmp(&b.file_name)));
+        self.faces.extend(extra);
+        self
+    }
+}
+
+/// Polices installées sur le poste (dossiers de polices de Windows, de l'utilisateur, ou du système sous Linux).
+pub fn scan_system_fonts() -> Vec<FontFace> {
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+    faces_from_db(&db)
+}
+
+pub fn scan_font_dirs(dirs: &[&Path]) -> Vec<FontFace> {
+    let mut db = fontdb::Database::new();
+    for d in dirs {
+        db.load_fonts_dir(d);
+    }
+    faces_from_db(&db)
+}
+
+/// Les collections (.ttc) sont écartées : l'ODG ne sait intégrer qu'un fichier par police. Les
+/// largeurs étroites ou larges aussi, et pour chaque style (gras, italique) seule la graisse la plus
+/// proche de 400 (ou 700 en gras) est gardée : le texte n'a que normal et gras.
+fn faces_from_db(db: &fontdb::Database) -> Vec<FontFace> {
+    let mut out: Vec<(FontFace, u16)> = Vec::new();
+    for info in db.faces() {
+        let fontdb::Source::File(path) = &info.source else { continue };
+        let Some((family, _)) = info.families.first() else { continue };
+        if info.index > 0 || info.stretch != fontdb::Stretch::Normal {
+            continue;
+        }
+        let Some((collection, opentype, embeddable)) = db.with_face_data(info.id, |data, index| {
+            let face = ttf_parser::Face::parse(data, index).ok()?;
+            Some((data.starts_with(b"ttcf"), data.starts_with(b"OTTO"), face.permissions() != Some(ttf_parser::Permissions::Restricted)))
+        }).flatten() else {
+            continue;
+        };
+        if collection || family.trim().is_empty() {
+            continue;
+        }
+        let bold = info.weight.0 >= 600;
+        let distance = info.weight.0.abs_diff(if bold { 700 } else { 400 });
+        let face = FontFace {
+            family: family.trim().to_string(),
+            bold,
+            italic: info.style != fontdb::Style::Normal,
+            file_name: path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+            format: if opentype { "opentype" } else { "truetype" },
+            data: FontData::File(path.clone()),
+            embeddable,
+            user: false,
+            system: true,
+        };
+        match out.iter_mut().find(|(f, _)| f.family == face.family && f.bold == face.bold && f.italic == face.italic) {
+            Some(slot) if distance < slot.1 => *slot = (face, distance),
+            Some(_) => {}
+            None => out.push((face, distance)),
+        }
+    }
+    out.into_iter().map(|(f, _)| f).collect()
 }
 
 fn safe_file_name(name: &str) -> String {
@@ -248,7 +345,8 @@ mod tests {
         let set = FontSet::builtin();
         assert!(!set.faces.is_empty());
         for f in &set.faces {
-            let face = ttf_parser::Face::parse(&f.bytes, 0).unwrap_or_else(|_| panic!("{} illisible", f.file_name));
+            let bytes = f.bytes().unwrap();
+            let face = ttf_parser::Face::parse(&bytes, 0).unwrap_or_else(|_| panic!("{} illisible", f.file_name));
             let names: Vec<String> = face
                 .names()
                 .into_iter()
@@ -352,5 +450,66 @@ mod tests {
         let names: Vec<String> = FontSet::with_user_dir(dir.path()).families().into_iter().map(|f| f.name).collect();
         assert!(!names.contains(&"Carnet Test".to_string()));
         assert!(names.contains(&"Carnet Test Restricted".to_string()));
+    }
+
+    /// Dossier qui joue le rôle des polices installées sur le poste.
+    fn fake_system_dir() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::copy(fixture("CarnetTest-Regular.ttf"), dir.path().join("carnettest.ttf")).unwrap();
+        std::fs::copy(fixture("CarnetTestRestricted-Regular.ttf"), dir.path().join("restreinte.ttf")).unwrap();
+        let andika = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/fonts/andika/Andika-Regular.ttf");
+        std::fs::copy(andika, dir.path().join("andika-systeme.ttf")).unwrap();
+        dir
+    }
+
+    #[test]
+    fn system_fonts_are_listed_after_user_fonts_without_shadowing() {
+        let sys = fake_system_dir();
+        let user = tempfile::tempdir().unwrap();
+        let system = scan_font_dirs(&[sys.path()]);
+        let names: Vec<_> = FontSet::with_user_dir(user.path()).with_system(&system).families().into_iter().map(|f| (f.name, f.system)).collect();
+        assert_eq!(names.len(), 6, "{names:?}");
+        assert_eq!(names[4], ("Carnet Test".to_string(), true));
+        assert_eq!(names[5], ("Carnet Test Restricted".to_string(), true));
+        // Une police ajoutée l'emporte sur la même famille installée sur le poste.
+        add_user_font(user.path(), &fixture("CarnetTest-Regular.ttf")).unwrap();
+        let set = FontSet::with_user_dir(user.path()).with_system(&system);
+        let fams = set.families();
+        assert_eq!(fams.iter().filter(|f| f.name == "Carnet Test").count(), 1);
+        assert!(fams.iter().find(|f| f.name == "Carnet Test").unwrap().user);
+        assert!(!set.face("Andika", false, false).unwrap().system);
+    }
+
+    #[test]
+    fn system_font_bytes_are_read_from_the_installed_file() {
+        let sys = fake_system_dir();
+        let system = scan_font_dirs(&[sys.path()]);
+        let face = system.iter().find(|f| f.family == "Carnet Test").unwrap();
+        assert!(face.system && face.embeddable && !face.user);
+        assert_eq!(&*face.bytes().unwrap(), std::fs::read(fixture("CarnetTest-Regular.ttf")).unwrap().as_slice());
+        let restricted = system.iter().find(|f| f.family == "Carnet Test Restricted").unwrap();
+        assert!(!restricted.embeddable);
+    }
+
+    #[test]
+    fn font_collections_are_not_listed() {
+        let sys = fake_system_dir();
+        let ttc = std::fs::read(fixture("CarnetTest-Regular.ttf")).unwrap();
+        // En-tête de collection pointant vers la police : fontdb la lirait comme une face.
+        let mut data = b"ttcf\0\x01\0\0\0\0\0\x01\0\0\0\x10".to_vec();
+        data.extend_from_slice(&ttc);
+        std::fs::write(sys.path().join("lot.ttc"), data).unwrap();
+        assert!(scan_font_dirs(&[sys.path()]).iter().all(|f| !f.file_name.ends_with(".ttc")));
+    }
+
+    #[test]
+    fn only_the_normal_width_closest_weight_is_kept_per_style() {
+        let sys = tempfile::tempdir().unwrap();
+        for f in ["CarnetTest-Light.ttf", "CarnetTest-Condensed.ttf", "CarnetTest-Regular.ttf"] {
+            std::fs::copy(fixture(f), sys.path().join(f)).unwrap();
+        }
+        let faces = scan_font_dirs(&[sys.path()]);
+        let names: Vec<&str> = faces.iter().map(|f| f.file_name.as_str()).collect();
+        assert_eq!(names, ["CarnetTest-Regular.ttf"]);
     }
 }

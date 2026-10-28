@@ -3,6 +3,7 @@
   // Cachée pendant un geste à la souris, un recadrage et en mode modèle.
   import { tick } from "svelte";
   import ColorPicker from "./ColorPicker.svelte";
+  import FontPicker from "./FontPicker.svelte";
   import { alignFrames, distributeFrames, type AlignMode } from "../lib/align";
   import { placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
@@ -177,9 +178,7 @@
     {:else if selected?.kind.type === "Text"}
       {@const t = selected.kind}
       {@const family = fonts.families.find((f) => f.name === t.style.font)}
-      <select class="font" title={fr.font} value={t.style.font} onchange={(e) => setFont(e.currentTarget.value)}>
-        {#each fonts.families as f (f.name)}<option value={f.name} style:font-family={`"${f.name}"`}>{f.name}</option>{/each}
-      </select>
+      <FontPicker value={t.style.font} onpick={setFont} compact />
       <select title={fr.size} value={String(t.style.size_pt)} onchange={(e) => setSize(Number(e.currentTarget.value))}>
         {#each FONT_SIZES as s (s)}<option value={String(s)}>{s}</option>{/each}
       </select>
@@ -280,9 +279,6 @@
   }
   select {
     padding: 3px 4px;
-  }
-  .font {
-    max-width: 150px;
   }
   .sep {
     width: 1px;

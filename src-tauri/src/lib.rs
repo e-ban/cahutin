@@ -6,10 +6,14 @@ mod pdf_windows;
 mod protocol;
 mod state;
 
+use carnet_core::fonts;
 use carnet_core::photo::{AssetStore, CacheDir};
 use carnet_core::templates::Library;
 use state::AppState;
-use tauri::{Manager, RunEvent};
+use tauri::{Emitter, Manager, RunEvent};
+
+/// Événement envoyé à l'interface quand la liste des polices change (polices du poste lues).
+const FONTS_CHANGED: &str = "fonts-changed";
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
 
 pub fn run() {
@@ -44,6 +48,14 @@ pub fn run() {
                 app.manage(CacheGuard(c));
             }
             app.manage(AppState::new(store, Library::open(data.join("modeles"))?, data.join("polices")));
+            // Polices du poste : lues en arrière-plan pour ne pas retarder l'ouverture de la fenêtre.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let faces = fonts::scan_system_fonts();
+                log::info!("system_fonts count={}", faces.len());
+                handle.state::<AppState>().set_system_fonts(faces);
+                let _ = handle.emit(FONTS_CHANGED, ());
+            });
             log::info!("app_started version={}", env!("CARGO_PKG_VERSION"));
             Ok(())
         })

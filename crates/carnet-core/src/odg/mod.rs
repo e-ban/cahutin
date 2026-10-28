@@ -87,7 +87,8 @@ pub fn export_odg(doc: &Document, store: &AssetStore, fonts: &FontSet, out: impl
     }
     for f in reg.faces.iter().filter(|f| f.embeddable) {
         let media_type = if f.format == "opentype" { "application/x-font-otf" } else { "application/x-font-ttf" };
-        parts.push(Part { path: format!("Fonts/{}", f.file_name), media_type, bytes: f.bytes.to_vec(), compress: true });
+        let bytes = f.bytes().ok_or(OdgError::Io)?;
+        parts.push(Part { path: format!("Fonts/{}", f.file_name), media_type, bytes: bytes.to_vec(), compress: true });
     }
     package::write(parts, out)
 }

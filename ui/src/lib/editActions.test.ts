@@ -177,3 +177,50 @@ test("grid cell caption is not grouped", async () => {
   expect(editor.page.elements).toHaveLength(2);
   editor.editingText = null;
 });
+
+function gridDoc() {
+  const doc = newDocument("g");
+  const cell = (id: string, y: number) => ({
+    id,
+    frame: { x_mm: 10, y_mm: y, w_mm: 90, h_mm: 76, rotation_deg: 0 },
+    locked: false,
+    zone: true,
+    kind: { type: "Photo" as const, asset: null, crop: { scale: 1, center_x: 0.5, center_y: 0.5 }, corner_radius_mm: 0, border: null, shadow: false },
+  });
+  doc.pages[0].elements.push(cell("top", 130), cell("bottom", 211));
+  doc.pages[0].grid = { cols: 1, rows: 2, margin_mm: 10, gap_mm: 4, cells: [{ element_id: "top", col: 0, row: 0, col_span: 1, row_span: 1 }, { element_id: "bottom", col: 0, row: 1, col_span: 1, row_span: 1 }] };
+  editor.reset(doc, null);
+}
+
+test("a grid cell caption is drawn above the cells and stays on the page", async () => {
+  const { addCaption } = await import("./editActions");
+  gridDoc();
+  addCaption("top");
+  expect(editor.page.elements.at(-1)!.kind.type).toBe("Text");
+  editor.editingText = null;
+  addCaption("bottom");
+  const c = editor.page.elements.at(-1)!;
+  expect(c.frame.y_mm + c.frame.h_mm).toBeLessThanOrEqual(297 - 2);
+  editor.editingText = null;
+  // Recliquer sélectionne la légende déjà posée sur une case de grille.
+  addCaption("bottom");
+  expect(editor.page.elements).toHaveLength(4);
+  expect(editor.selection).toEqual([c.id]);
+  editor.editingText = null;
+  editor.focusedMember = null;
+});
+
+test("caption is still found after photo and caption are enlarged together", async () => {
+  const { addCaption, applyGroupTransform } = await import("./editActions");
+  photoDoc();
+  addCaption("ph");
+  editor.editingText = null;
+  editor.focusedMember = null;
+  const ids = editor.page.elements.map((e) => e.id);
+  applyGroupTransform(ids, { dx_mm: 0, dy_mm: 0, factor: 1.5, origin: { x_mm: 20, y_mm: 30 }, deg: 0 });
+  editor.selection = ["ph"];
+  addCaption("ph");
+  expect(editor.page.elements).toHaveLength(2);
+  expect(editor.selection).toEqual([ids[1]]);
+  editor.focusedMember = null;
+});

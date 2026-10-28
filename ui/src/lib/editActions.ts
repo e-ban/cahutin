@@ -133,14 +133,24 @@ export function setBackground(bg: Background | null, allPages: boolean) {
 export const CAPTION_GAP_MM = 2;
 export const CAPTION_HEIGHT_MM = 10;
 
-/** Texte du même groupe posé juste sous la photo : sa légende. */
+/**
+ * Légende de la photo : un texte juste sous elle (même après un agrandissement du groupe) qui la
+ * recouvre en largeur ; du même groupe, ou, pour une photo sans groupe (case de grille), une légende
+ * posée par ce bouton (invite « Légende… »).
+ */
 function captionOf(photo: Element): Element | undefined {
-  if (!photo.group) return undefined;
-  const bottom = photo.frame.y_mm + photo.frame.h_mm;
-  return editor.page.elements.find(
-    (e) => e.group === photo.group && e.kind.type === "Text" && Math.abs(e.frame.y_mm - bottom - CAPTION_GAP_MM) < 1 && Math.abs(e.frame.x_mm - photo.frame.x_mm) < 1,
-  );
+  const f = photo.frame;
+  const bottom = f.y_mm + f.h_mm;
+  return editor.page.elements.find((e) => {
+    if (e.kind.type !== "Text" || e.id === photo.id) return false;
+    const sameOwner = photo.group ? e.group === photo.group : !e.group && e.kind.prompt === CAPTION_PROMPT;
+    const below = e.frame.y_mm >= bottom - CAPTION_HEIGHT_MM - CAPTION_GAP_MM && e.frame.y_mm <= bottom + 2 * CAPTION_HEIGHT_MM;
+    const overlap = Math.min(e.frame.x_mm + e.frame.w_mm, f.x_mm + f.w_mm) - Math.max(e.frame.x_mm, f.x_mm);
+    return sameOwner && below && overlap > e.frame.w_mm / 2;
+  });
 }
+
+const CAPTION_PROMPT = "Légende…";
 
 /**
  * Légende d'une photo : un texte sous la photo, groupé avec elle (dans son groupe s'il existe), ouvert
@@ -158,18 +168,22 @@ export function addCaption(photoId: string) {
   const inGrid = !!editor.page.grid?.cells.some((c) => c.element_id === photo.id);
   const group = inGrid ? null : (photo.group ?? newId());
   const f = photo.frame;
+  // Toujours sur la page (marge de 2 mm en bas), quitte à mordre sur le bas de la photo.
+  const maxY = editor.page.size.height_mm - CAPTION_HEIGHT_MM - CAPTION_GAP_MM;
   const caption: Element = {
     id: newId(),
-    frame: { x_mm: f.x_mm, y_mm: Math.round((f.y_mm + f.h_mm + CAPTION_GAP_MM) * 10) / 10, w_mm: f.w_mm, h_mm: CAPTION_HEIGHT_MM, rotation_deg: 0 },
+    frame: { x_mm: f.x_mm, y_mm: Math.round(Math.min(f.y_mm + f.h_mm + CAPTION_GAP_MM, maxY) * 10) / 10, w_mm: f.w_mm, h_mm: CAPTION_HEIGHT_MM, rotation_deg: 0 },
     locked: false,
     zone: false,
     group,
-    kind: { type: "Text", content: { paragraphs: [] }, style: { font: "Andika", size_pt: 12, color: "#333333", align: "Center" }, prompt: "Légende…" },
+    kind: { type: "Text", content: { paragraphs: [] }, style: { font: "Andika", size_pt: 12, color: "#333333", align: "Center" }, prompt: CAPTION_PROMPT },
   };
   editor.updatePage((p) => {
-    const i = p.elements.findIndex((e) => e.id === photo.id);
     const elements = p.elements.map((e) => (e.id === photo.id && group ? { ...e, group } : e));
-    elements.splice(i + 1, 0, caption);
+    // Groupée : juste après sa photo (le groupe reste d'un seul tenant). Case de grille : au-dessus
+    // de toutes les cases, sinon la case du dessous la recouvrirait.
+    if (group) elements.splice(p.elements.findIndex((e) => e.id === photo.id) + 1, 0, caption);
+    else elements.push(caption);
     return { ...p, elements };
   });
   editor.focusedMember = group ? caption.id : null;

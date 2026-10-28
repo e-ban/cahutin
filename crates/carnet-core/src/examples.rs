@@ -167,7 +167,7 @@ fn weather() -> Page {
     }
     els.extend(grouped(vec![
         text(frame(8.0, 38.0, 40.0, 10.0), "Aujourd'hui", "Andika", 12.0, "#c0392b", Align::Center),
-        shape(ShapeKind::Arrow, Frame { rotation_deg: 90.0, ..frame(18.0, 50.0, 20.0, 6.0) }, None, Some((1.0, "#c0392b")), 0.0),
+        shape(ShapeKind::Arrow, Frame { rotation_deg: 90.0, ..frame(22.0, 52.0, 12.0, 6.0) }, None, Some((1.0, "#c0392b")), 0.0),
     ]));
     els.push(picto("2614", 150.0, 170.0, 40.0));
     els.push(text_zone(frame(15.0, 170.0, 130.0, 60.0), "Le temps qu'il a fait cette semaine…", "Andika", 14.0));
@@ -284,5 +284,24 @@ mod tests {
         }).collect();
         assert_eq!(captions.len(), 2);
         assert!(captions.iter().all(|t| t.style.align == Align::Center));
+    }
+
+    /// Boîte englobante d'un cadre tourné.
+    fn bounds(f: &Frame) -> (f64, f64, f64, f64) {
+        let (s, c) = f.rotation_deg.to_radians().sin_cos();
+        let (cx, cy) = (f.x_mm + f.w_mm / 2.0, f.y_mm + f.h_mm / 2.0);
+        let (hw, hh) = ((f.w_mm / 2.0 * c).abs() + (f.h_mm / 2.0 * s).abs(), (f.w_mm / 2.0 * s).abs() + (f.h_mm / 2.0 * c).abs());
+        (cx - hw, cy - hh, cx + hw, cy + hh)
+    }
+
+    #[test]
+    fn weather_arrow_does_not_cross_its_label() {
+        let d = document("meteo").unwrap();
+        let find = |pred: &dyn Fn(&Element) -> bool| elements(&d).find(|e| pred(e)).unwrap().frame;
+        let label = find(&|e| matches!(&e.kind, ElementKind::Text(t) if t.content.paragraphs.iter().flat_map(|p| &p.runs).any(|r| r.text == "Aujourd'hui")));
+        let arrow = find(&|e| matches!(&e.kind, ElementKind::Shape(s) if s.shape == ShapeKind::Arrow));
+        let (_, top, _, bottom) = bounds(&arrow);
+        assert!(top >= label.y_mm + label.h_mm, "la flèche commence à {top} mm, sous le texte qui finit à {} mm", label.y_mm + label.h_mm);
+        assert!(bottom <= 62.0, "la flèche dépasse sur la case du lundi ({bottom} mm)");
     }
 }

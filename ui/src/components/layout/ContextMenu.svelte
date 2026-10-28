@@ -62,7 +62,7 @@
     <button role="menuitem" onclick={() => run(() => bringSelection("front"))}><span>{fr.bringFront}</span></button>
     <button role="menuitem" onclick={() => run(() => bringSelection("back"))}><span>{fr.sendBack}</span></button>
     <hr />
-    <button role="menuitem" onclick={() => run(toggleLockSelection)}><span>{element.locked ? fr.unlock : fr.lock}</span></button>
+    <button role="menuitem" onclick={() => run(toggleLockSelection)}><span>{editor.templateMode ? (element.locked ? fr.unfixCell : fr.fixCell) : element.locked ? fr.unlock : fr.lock}</span></button>
     <button role="menuitem" disabled={element.locked} onclick={() => run(deleteSelection)}><span>{fr.delete}</span><kbd>Suppr</kbd></button>
   {:else}
     <button role="menuitem" disabled={!hasClipboard()} onclick={() => run(paste)}><span>{fr.paste}</span><kbd>Ctrl+V</kbd></button>

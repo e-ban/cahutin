@@ -75,7 +75,6 @@
   let contextTarget = $state<ContextTarget | null>(null);
 
   function openContextMenu(id: string | null, xMm: number, yMm: number, clientX: number, clientY: number) {
-    if (editor.templateMode) return;
     if (id && !editor.selection.includes(id)) editor.selection = [id];
     if (!id) editor.selection = [];
     contextTarget = { id, xMm, yMm, clientX, clientY };

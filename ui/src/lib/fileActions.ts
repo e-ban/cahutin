@@ -104,7 +104,7 @@ export async function openPath(path: string, confirm = true) {
   editor.carriedPending = opened.doc.pending_photos;
   remember(path, opened.doc.title);
   void checkDocumentFonts(opened.doc, opened.offered_fonts);
-  editor.addPhotos(Object.values(opened.doc.assets).flatMap((meta) => (meta ? [{ meta, path: "", folder: "" }] : [])));
+  editor.replaceLibrary(Object.values(opened.doc.assets).flatMap((meta) => (meta ? [{ meta, path: "", folder: "" }] : [])));
   editor.showWelcome = false;
   editor.templateMode = false;
   if (editor.drawer === "grid") editor.drawer = null;

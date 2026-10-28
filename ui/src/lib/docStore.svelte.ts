@@ -156,10 +156,24 @@ class Editor {
     this.commit({ ...this.doc, pages });
   }
 
+  /** Une photo déjà présente (même id, ou même fichier importé) n'est pas ajoutée une seconde fois. */
   addPhotos(photos: LibraryPhoto[]) {
-    const known = new Set(this.photos.map((p) => p.meta.id));
-    const fresh = photos.filter((p) => !known.has(p.meta.id));
+    const ids = new Set(this.photos.map((p) => p.meta.id));
+    const paths = new Set(this.photos.map((p) => p.path).filter(Boolean));
+    const fresh: LibraryPhoto[] = [];
+    for (const p of photos) {
+      if (ids.has(p.meta.id) || (p.path && paths.has(p.path))) continue;
+      ids.add(p.meta.id);
+      if (p.path) paths.add(p.path);
+      fresh.push(p);
+    }
     if (fresh.length) this.photos = [...this.photos, ...fresh];
+  }
+
+  /** Document ouvert : la photothèque devient la sienne (ses photos, puis ses photos en attente). */
+  replaceLibrary(photos: LibraryPhoto[]) {
+    this.photos = [];
+    this.addPhotos(photos);
   }
 
   /** Images connues sans modification du document (aperçus de modèles). */

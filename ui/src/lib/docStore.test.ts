@@ -64,3 +64,13 @@ test("a slider preview ends in a single undo step", () => {
   expect(editor.doc).toBe(before);
   expect(editor.canUndo).toBe(false);
 });
+
+test("re-importing the same file does not duplicate it in the library", () => {
+  const meta = (id: string) => ({ id, width_px: 10, height_px: 10, mime: "Jpeg" as const });
+  editor.replaceLibrary([]);
+  editor.addPhotos([{ meta: meta("a"), path: "/p/IMG_1.jpg", folder: "p" }]);
+  editor.addPhotos([{ meta: meta("b"), path: "/p/IMG_1.jpg", folder: "p" }, { meta: meta("c"), path: "", folder: "" }]);
+  expect(editor.photos.map((p) => p.meta.id)).toEqual(["a", "c"]);
+  editor.replaceLibrary([{ meta: meta("d"), path: "", folder: "" }]);
+  expect(editor.photos.map((p) => p.meta.id)).toEqual(["d"]);
+});

@@ -24,3 +24,10 @@ test("placeContextBar clamps horizontally", () => {
   expect(placeContextBar({ left: 0, top: 300, width: 40, height: 40 }, bar, viewport).left).toBe(8);
   expect(placeContextBar({ left: 980, top: 300, width: 40, height: 40 }, bar, viewport).left).toBe(692);
 });
+
+test("a larger gap above the element does not widen the viewport margin", () => {
+  // Écart de 44 px (poignée de rotation) : la marge avec le bord de la zone visible reste de 8 px.
+  expect(placeContextBar({ left: 100, top: -50, width: 800, height: 900 }, bar, viewport, 44).top).toBe(8);
+  expect(placeContextBar({ left: 400, top: 100, width: 200, height: 100 }, bar, viewport, 44).top).toBe(16);
+  expect(placeContextBar({ left: 0, top: 300, width: 40, height: 40 }, bar, viewport, 44).left).toBe(8);
+});

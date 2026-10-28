@@ -314,13 +314,37 @@ pub fn add_user_font_bytes(dir: &Path, file_name: &str, bytes: &[u8]) -> Result<
         return Err(FontError::BuiltinName);
     }
     std::fs::create_dir_all(dir).map_err(|_| FontError::Io)?;
-    std::fs::write(dir.join(safe_file_name(file_name)), bytes).map_err(|_| FontError::Io)?;
+    // Un autre fichier du même nom n'est jamais écrasé ; le même fichier n'est pas copié deux fois.
+    let names = unique_names(std::iter::repeat_n(safe_file_name(file_name), 1000));
+    let target = names
+        .iter()
+        .map(|n| dir.join(n))
+        .find(|p| std::fs::read(p).map_or(true, |existing| existing == bytes))
+        .ok_or(FontError::Io)?;
+    std::fs::write(target, bytes).map_err(|_| FontError::Io)?;
     FontSet::with_user_dir(dir).families().into_iter().find(|f| f.user && f.name == face.family).ok_or(FontError::Io)
 }
 
 /// Nom de famille d'un fichier de police, s'il est lisible.
 pub fn family_of(bytes: &[u8]) -> Option<String> {
     parse_face(bytes, "").ok().map(|f| f.family)
+}
+
+/// Noms tous différents, dans l'ordre : le deuxième « police.ttf » devient « police-2.ttf ».
+pub fn unique_names<S: AsRef<str>>(names: impl IntoIterator<Item = S>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for name in names {
+        let name = name.as_ref();
+        let (stem, ext) = name.rsplit_once('.').map_or((name, String::new()), |(s, e)| (s, format!(".{e}")));
+        let mut candidate = name.to_string();
+        let mut n = 2;
+        while out.contains(&candidate) {
+            candidate = format!("{stem}-{n}{ext}");
+            n += 1;
+        }
+        out.push(candidate);
+    }
+    out
 }
 
 /// Nom de fichier servi par `/font/<nom>` : seulement des caractères sûrs, jamais de chemin.
@@ -511,5 +535,20 @@ mod tests {
         let faces = scan_font_dirs(&[sys.path()]);
         let names: Vec<&str> = faces.iter().map(|f| f.file_name.as_str()).collect();
         assert_eq!(names, ["CarnetTest-Regular.ttf"]);
+    }
+
+    #[test]
+    fn a_font_with_the_same_file_name_does_not_replace_another() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = tempfile::tempdir().unwrap();
+        add_user_font(dir.path(), &fixture("CarnetTest-Regular.ttf")).unwrap();
+        let same_name = src.path().join("CarnetTest-Regular.ttf");
+        std::fs::copy(fixture("CarnetAutre-Regular.ttf"), &same_name).unwrap();
+        add_user_font(dir.path(), &same_name).unwrap();
+        let names: Vec<String> = FontSet::with_user_dir(dir.path()).families().into_iter().filter(|f| f.user).map(|f| f.name).collect();
+        assert_eq!(names, ["Carnet Autre", "Carnet Test"]);
+        // Le même fichier ajouté deux fois n'est pas dupliqué.
+        add_user_font(dir.path(), &fixture("CarnetTest-Regular.ttf")).unwrap();
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
     }
 }

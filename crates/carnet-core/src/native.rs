@@ -111,8 +111,10 @@ pub fn save(doc: &Document, store: &AssetStore, fonts: &FontSet, out: impl Write
         zip.write_all(&asset.thumb)?;
     }
     let families = used_families(&doc);
-    for f in fonts.faces().iter().filter(|f| (f.user || f.system) && f.embeddable && families.contains(f.family.as_str())) {
-        zip.start_file(format!("{FONTS_DIR}{}", f.file_name), deflated)?;
+    let carried: Vec<_> = fonts.faces().iter().filter(|f| (f.user || f.system) && f.embeddable && families.contains(f.family.as_str())).collect();
+    let names = crate::fonts::unique_names(carried.iter().map(|f| f.file_name.as_str()));
+    for (f, name) in carried.into_iter().zip(names) {
+        zip.start_file(format!("{FONTS_DIR}{name}"), deflated)?;
         zip.write_all(&f.bytes().ok_or(NativeError::Io)?)?;
     }
     zip.finish()?;
@@ -336,5 +338,34 @@ mod tests {
         buf.set_position(0);
         let names: Vec<String> = load(buf).unwrap().fonts.into_iter().map(|f| f.0).collect();
         assert_eq!(names, vec!["carnettest.ttf".to_string()]);
+    }
+
+    #[test]
+    fn carried_fonts_sharing_a_file_name_are_both_saved() {
+        let user = tempfile::tempdir().unwrap();
+        let sys = tempfile::tempdir().unwrap();
+        let fixtures = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures"));
+        let src = tempfile::tempdir().unwrap();
+        std::fs::copy(fixtures.join("CarnetTest-Regular.ttf"), src.path().join("police.ttf")).unwrap();
+        crate::fonts::add_user_font(user.path(), &src.path().join("police.ttf")).unwrap();
+        std::fs::copy(fixtures.join("CarnetAutre-Regular.ttf"), sys.path().join("police.ttf")).unwrap();
+        let fonts = FontSet::with_user_dir(user.path()).with_system(&crate::fonts::scan_font_dirs(&[sys.path()]));
+        let mut doc = Document::new("deux");
+        for family in ["Carnet Test", "Carnet Autre"] {
+            let mut style = TextStyle::default_zone();
+            style.font = family.into();
+            doc.pages[0].elements.push(Element {
+                id: new_id(),
+                frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 80.0, h_mm: 20.0, rotation_deg: 0.0 },
+                locked: false,
+                zone: false,
+                kind: ElementKind::Text(TextProps { content: RichText::plain("x"), style, prompt: None }),
+            });
+        }
+        let mut buf = Cursor::new(Vec::new());
+        save(&doc, &AssetStore::default(), &fonts, &mut buf).unwrap();
+        buf.set_position(0);
+        let families: Vec<String> = load(buf).unwrap().fonts.iter().filter_map(|(_, b)| crate::fonts::family_of(b)).collect();
+        assert_eq!(families.len(), 2, "{families:?}");
     }
 }

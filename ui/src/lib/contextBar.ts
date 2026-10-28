@@ -6,15 +6,16 @@ export interface Box {
   height: number;
 }
 
-export function placeContextBar(target: Box, bar: { width: number; height: number }, viewport: Box, gap = 8): { left: number; top: number } {
-  const minTop = viewport.top + gap;
-  const maxTop = viewport.top + viewport.height - gap - bar.height;
+/** `gap` : écart avec l'élément ; `margin` : écart minimal avec les bords de la zone visible. */
+export function placeContextBar(target: Box, bar: { width: number; height: number }, viewport: Box, gap = 8, margin = 8): { left: number; top: number } {
+  const minTop = viewport.top + margin;
+  const maxTop = viewport.top + viewport.height - margin - bar.height;
   const above = target.top - gap - bar.height;
   const below = target.top + target.height + gap;
   const top = above >= minTop ? above : below <= maxTop ? below : minTop;
   const centered = target.left + target.width / 2 - bar.width / 2;
-  const minLeft = viewport.left + gap;
-  const maxLeft = Math.max(minLeft, viewport.left + viewport.width - gap - bar.width);
+  const minLeft = viewport.left + margin;
+  const maxLeft = Math.max(minLeft, viewport.left + viewport.width - margin - bar.width);
   return { left: Math.min(maxLeft, Math.max(minLeft, centered)), top };
 }
 

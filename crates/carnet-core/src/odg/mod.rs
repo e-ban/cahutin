@@ -85,10 +85,10 @@ pub fn export_odg(doc: &Document, store: &AssetStore, fonts: &FontSet, out: impl
     for p in pictures {
         parts.push(Part { path: p.path, media_type: p.media_type, bytes: p.bytes, compress: false });
     }
-    for f in reg.faces.iter().filter(|f| f.embeddable) {
+    for (f, name) in reg.faces.iter().zip(reg.archive_names()).filter(|(f, _)| f.embeddable) {
         let media_type = if f.format == "opentype" { "application/x-font-otf" } else { "application/x-font-ttf" };
         let bytes = f.bytes().ok_or(OdgError::Io)?;
-        parts.push(Part { path: format!("Fonts/{}", f.file_name), media_type, bytes: bytes.to_vec(), compress: true });
+        parts.push(Part { path: format!("Fonts/{name}"), media_type, bytes: bytes.to_vec(), compress: true });
     }
     package::write(parts, out)
 }
@@ -379,5 +379,27 @@ mod tests {
         let content = e.xml("content.xml");
         assert!(content.contains(r#"style:font-face style:name="Carnet Test Restricted""#), "{content}");
         assert!(content.contains(r#"style:font-name="Carnet Test Restricted""#));
+    }
+
+    #[test]
+    fn fonts_sharing_a_file_name_are_both_embedded() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = tempfile::tempdir().unwrap();
+        // Police ajoutée dont le fichier porte le nom d'un fichier fourni.
+        let named = src.path().join("Andika-Regular.ttf");
+        std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/CarnetTest-Regular.ttf"), &named).unwrap();
+        crate::fonts::add_user_font(dir.path(), &named).unwrap();
+        let fonts = FontSet::with_user_dir(dir.path());
+        let mut user_text = text(RichText::plain("ajoutée"), None);
+        if let ElementKind::Text(t) = &mut user_text.kind {
+            t.style.font = "Carnet Test".into();
+        }
+        let mut e = export_with(&doc_with(vec![text(RichText::plain("fournie"), None), user_text]), &AssetStore::default(), &fonts);
+        let embedded: Vec<String> = e.names().into_iter().filter(|n| n.starts_with("Fonts/")).collect();
+        assert_eq!(embedded.len(), 2, "{embedded:?}");
+        let styles = e.xml("content.xml");
+        for name in &embedded {
+            assert!(styles.contains(&format!("xlink:href=\"{name}\"")), "{name} non déclaré");
+        }
     }
 }

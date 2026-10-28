@@ -1,6 +1,7 @@
 import { editor } from "./docStore.svelte";
 import { copySelection, cutSelection, deleteSelection, duplicateSelection, paste } from "./editActions";
 import { newDoc, openDoc, print, save } from "./fileActions";
+import { modal } from "./modal.svelte";
 import { nudge, type ArrowKey } from "./geometry";
 
 function typing(ev: KeyboardEvent): boolean {
@@ -25,6 +26,8 @@ export function shortcutAction(ev: KeyInfo): ShortcutAction | null {
 
 /** Raccourcis globaux : fichiers, annuler, rétablir, supprimer, déplacer au clavier. */
 export function handleShortcut(ev: KeyboardEvent) {
+  // Une boîte de dialogue attend une réponse : aucun raccourci.
+  if (modal.message !== null) return;
   const action = shortcutAction(ev);
   // Commandes de fichier : même pendant la saisie d'un texte (le texte en cours est validé avant).
   const fileActions: Partial<Record<ShortcutAction, () => unknown>> = { new: newDoc, open: openDoc, save, print };
@@ -38,7 +41,8 @@ export function handleShortcut(ev: KeyboardEvent) {
     ev.preventDefault();
     return;
   }
-  if (typing(ev)) return;
+  // Sous l'écran d'accueil, la page n'est pas visible : rien ne doit la modifier.
+  if (typing(ev) || editor.showWelcome) return;
   const editActions: Partial<Record<ShortcutAction, () => void>> = {
     undo: () => editor.undo(),
     redo: () => editor.redo(),

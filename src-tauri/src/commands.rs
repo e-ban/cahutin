@@ -301,14 +301,20 @@ pub fn font_files(state: State<'_, AppState>) -> Vec<FontFileInfo> {
 fn accept_document_fonts_in(state: &AppState) -> Result<Vec<FontFamilyInfo>, String> {
     let pending = std::mem::take(&mut *state.pending_fonts.lock().unwrap());
     let mut added: Vec<FontFamilyInfo> = Vec::new();
+    let mut failures = 0;
+    // Un fichier abîmé n'empêche pas d'ajouter les autres polices du document.
     for (file, bytes) in pending {
-        let info = fonts::add_user_font_bytes(&state.fonts_dir, &file, &bytes).map_err(|e| e.message_fr())?;
-        if !added.iter().any(|f| f.name == info.name) {
-            added.push(info);
+        match fonts::add_user_font_bytes(&state.fonts_dir, &file, &bytes) {
+            Ok(info) if !added.iter().any(|f| f.name == info.name) => added.push(info),
+            Ok(_) => {}
+            Err(e) => {
+                failures += 1;
+                log::warn!("accept_document_font_failed kind={e:?}");
+            }
         }
     }
     state.reload_fonts();
-    log::info!("accept_document_fonts count={}", added.len());
+    log::info!("accept_document_fonts count={} failures={failures}", added.len());
     Ok(added)
 }
 
@@ -485,5 +491,16 @@ mod tests {
         assert_eq!(files[0].url_path, "/sysfont/0");
         assert_eq!(state.system_font_path(0).unwrap(), sys.join("carnettest.ttf"));
         assert!(remove_font_in(&state, "Carnet Test").is_err());
+    }
+
+    #[test]
+    fn a_broken_document_font_does_not_stop_the_others() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(dir.path());
+        let good = std::fs::read(fixture("CarnetTest-Regular.ttf")).unwrap();
+        *state.pending_fonts.lock().unwrap() = vec![("abimee.ttf".into(), b"pas une police".to_vec()), ("CarnetTest-Regular.ttf".into(), good)];
+        let added = accept_document_fonts_in(&state).unwrap();
+        assert_eq!(added.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["Carnet Test"]);
+        assert!(state.fonts.read().unwrap().face("Carnet Test", false, false).is_some());
     }
 }

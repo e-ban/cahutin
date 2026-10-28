@@ -4,6 +4,7 @@
   import { editor } from "../../lib/docStore.svelte";
   import { openDoc, openPath } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
+  import { modal } from "../../lib/modal.svelte";
   import { templates } from "../../lib/templates.svelte";
 
   const MINI = 0.24;
@@ -22,7 +23,7 @@
   const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 </script>
 
-<svelte:window onkeydown={(e) => e.key === "Escape" && (step === "layouts" ? (step = "choices") : close())} />
+<svelte:window onkeydown={(e) => e.key === "Escape" && modal.message === null && (step === "layouts" ? (step = "choices") : close())} />
 
 <div class="welcome">
   {#if step === "choices"}

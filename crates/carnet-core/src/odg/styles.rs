@@ -55,10 +55,15 @@ impl Registry {
             .expect("la police par défaut est embarquée")
             .clone();
         let name = face.family.clone();
-        if !self.faces.iter().any(|f| f.file_name == face.file_name) {
+        if !self.faces.iter().any(|f| f.family == face.family && f.bold == face.bold && f.italic == face.italic) {
             self.faces.push(face);
         }
         name
+    }
+
+    /// Nom de chaque police dans `Fonts/`, dans l'ordre de `faces` : deux fichiers de même nom restent distincts.
+    pub fn archive_names(&self) -> Vec<String> {
+        fonts::unique_names(self.faces.iter().map(|f| f.file_name.as_str()))
     }
 
     pub fn fill_image(&mut self, name: String, href: String) {
@@ -85,14 +90,15 @@ impl Registry {
         for family in families {
             x.open("style:font-face", &[("style:name", family), ("svg:font-family", family)]);
             // Licence restreinte : la police est déclarée sans fichier, LibreOffice prendra celle du poste.
-            let embedded: Vec<&FontFace> = self.faces.iter().filter(|f| f.family == family && f.embeddable).collect();
+            let names = self.archive_names();
+            let embedded: Vec<(&FontFace, &String)> = self.faces.iter().zip(&names).filter(|(f, _)| f.family == family && f.embeddable).collect();
             if embedded.is_empty() {
                 x.close();
                 continue;
             }
             x.open("svg:font-face-src", &[]);
-            for f in embedded {
-                let href = format!("Fonts/{}", f.file_name);
+            for (f, name) in embedded {
+                let href = format!("Fonts/{name}");
                 x.open(
                     "svg:font-face-uri",
                     &[

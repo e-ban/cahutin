@@ -9,7 +9,7 @@
   import { ask } from "../lib/ask";
   import { templates } from "../lib/templates.svelte";
   import PageView from "./PageView.svelte";
-  import type { ShapeKind } from "../lib/types";
+  import type { ImportOutcome, ShapeKind } from "../lib/types";
 
   const EXTENSIONS = ["jpg", "jpeg", "png", "webp", "heic", "heif", "JPG", "JPEG", "PNG", "WEBP", "HEIC", "HEIF"];
 
@@ -19,7 +19,8 @@
     if (paths.length === 0 && !fromFolder) return;
     busy = true;
     try {
-      const outcomes = paths.length ? await importPhotos(paths) : [];
+      const outcomes: ImportOutcome[] = [];
+      if (paths.length) await importPhotos(paths, (o) => outcomes.push(o));
       const { imported, message } = summarizeImport(outcomes, { fromFolder });
       editor.addPhotos(imported);
       if (message) editor.notice = message;

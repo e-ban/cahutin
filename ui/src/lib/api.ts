@@ -1,8 +1,14 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import type { Document, FontFamilyInfo, ImportOutcome, InstantiatedPage, Page, TemplateInfo, ZoneKind } from "./types";
 
-export const importPhotos = (paths: string[]) => invoke<ImportOutcome[]>("import_photos", { paths });
+/** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
+export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
+  const onProgress = new Channel<ImportOutcome>();
+  onProgress.onmessage = onOutcome;
+  return invoke<void>("import_photos", { paths, onProgress });
+}
+export const existingPaths = (paths: string[]) => invoke<string[]>("existing_paths", { paths });
 export const listImportableIn = (dir: string) => invoke<string[]>("list_importable_in", { dir });
 export const saveDocument = (path: string, doc: Document) => invoke<void>("save_document", { path, doc });
 export const openDocument = (path: string) => invoke<Document>("open_document", { path });

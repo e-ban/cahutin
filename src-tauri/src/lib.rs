@@ -6,10 +6,12 @@ mod pdf_windows;
 mod protocol;
 mod state;
 
+use carnet_core::photo::{self, AssetStore};
 use carnet_core::templates::Library;
 use state::AppState;
+use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{AppHandle, Manager, RunEvent, Runtime};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
 
 pub fn run() {
@@ -30,12 +32,17 @@ pub fn run() {
         .register_uri_scheme_protocol(protocol::SCHEME, protocol::handle)
         .setup(|app| {
             let dir = app.path().app_data_dir()?.join("modeles");
-            app.manage(AppState { store: Mutex::new(Default::default()), library: Library::open(dir)? });
+            // Photos d'élèves : le cache ne doit rien garder d'une session à l'autre.
+            let cache = image_cache_dir(app.handle())?;
+            photo::clear_cache_dir(&cache);
+            let store = AssetStore::with_cache_dir(cache)?;
+            app.manage(AppState { store: Mutex::new(store), library: Library::open(dir)? });
             log::info!("app_started version={}", env!("CARGO_PKG_VERSION"));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::import_photos,
+            commands::existing_paths,
             commands::list_importable_in,
             commands::save_document,
             commands::open_document,
@@ -55,6 +62,17 @@ pub fn run() {
             commands::can_export_pdf,
             commands::export_pdf,
         ])
-        .run(tauri::generate_context!())
-        .expect("échec du démarrage de l'application");
+        .build(tauri::generate_context!())
+        .expect("échec du démarrage de l'application")
+        .run(|app, event| {
+            if let RunEvent::Exit = event
+                && let Ok(cache) = image_cache_dir(app)
+            {
+                photo::clear_cache_dir(&cache);
+            }
+        });
+}
+
+fn image_cache_dir<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<PathBuf> {
+    Ok(app.path().app_cache_dir()?.join("images"))
 }

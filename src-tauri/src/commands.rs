@@ -3,11 +3,13 @@
 
 use crate::state::AppState;
 use carnet_core::fonts::{self, FontFamilyInfo};
-use carnet_core::photo::{self, Asset};
+use carnet_core::photo;
 use carnet_core::templates::{self, TemplateInfo};
 use carnet_core::{AssetMeta, Document, Page, PageSize, ZoneKind, grid, native, odg, report};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 use ts_rs::TS;
 
@@ -15,11 +17,12 @@ pub const LOG_FILE_NAME: &str = "carnet";
 const IMPORT_THREADS: usize = 4;
 const REPORT_MAX_LINES: usize = 500;
 
-#[derive(Serialize, TS)]
+#[derive(Serialize, Clone, TS)]
 #[serde(tag = "status")]
 #[ts(export)]
 pub enum ImportOutcome {
-    Ok { path: String, asset: AssetMeta },
+    /// `folder` : nom du dossier de la photo, sans le reste du chemin (pastilles de la photothèque).
+    Ok { path: String, folder: String, asset: AssetMeta },
     Err { path: String, message: String },
 }
 
@@ -30,43 +33,41 @@ pub struct InstantiatedPage {
     pub assets: Vec<AssetMeta>,
 }
 
-/// Importe en parallèle (4 fils au plus) en gardant l'ordre des fichiers.
+/// Nom du dossier qui contient le fichier, seul.
+fn folder_name(path: &str) -> String {
+    Path::new(path).parent().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+}
+
+/// Importe en parallèle (4 fils au plus) et envoie un résultat par photo dès qu'elle est prête.
 /// Exécutée hors du fil principal : la fenêtre reste réactive.
 #[tauri::command(async)]
-pub fn import_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Vec<ImportOutcome>, String> {
-    let chunk = paths.len().div_ceil(IMPORT_THREADS).max(1);
-    let results: Vec<(String, Result<Asset, photo::ImportError>)> = std::thread::scope(|s| {
-        let handles: Vec<_> = paths
-            .chunks(chunk)
-            .map(|part| s.spawn(move || part.iter().map(|p| (p.clone(), photo::import_path(Path::new(p)))).collect::<Vec<_>>()))
-            .collect();
-        handles.into_iter().flat_map(|h| h.join().unwrap()).collect()
-    });
-    let mut store = state.store.lock().unwrap();
-    let mut failures = 0;
-    let outcomes: Vec<ImportOutcome> = results
-        .into_iter()
-        .map(|(path, r)| match r {
-            Ok(a) => {
-                let meta = a.meta.clone();
-                match store.insert(a) {
-                    Ok(()) => ImportOutcome::Ok { path, asset: meta },
-                    Err(e) => {
-                        failures += 1;
-                        log::warn!("import_photo_failed kind={e:?}");
-                        ImportOutcome::Err { path, message: e.message_fr() }
-                    }
-                }
-            }
+pub fn import_photos(state: State<'_, AppState>, paths: Vec<String>, on_progress: Channel<ImportOutcome>) -> Result<(), String> {
+    let files: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
+    let failures = AtomicUsize::new(0);
+    photo::import_many(&files, IMPORT_THREADS, |i, r| {
+        let path = paths[i].clone();
+        let r = r.and_then(|a| {
+            let meta = a.meta.clone();
+            state.store.lock().unwrap().insert(a).map(|()| meta)
+        });
+        let outcome = match r {
+            Ok(asset) => ImportOutcome::Ok { folder: folder_name(&path), path, asset },
             Err(e) => {
-                failures += 1;
+                failures.fetch_add(1, Ordering::Relaxed);
                 log::warn!("import_photo_failed kind={e:?}");
                 ImportOutcome::Err { path, message: e.message_fr() }
             }
-        })
-        .collect();
-    log::info!("import_photos total={} failures={failures}", outcomes.len());
-    Ok(outcomes)
+        };
+        let _ = on_progress.send(outcome);
+    });
+    log::info!("import_photos total={} failures={}", paths.len(), failures.into_inner());
+    Ok(())
+}
+
+/// Garde les chemins qui désignent encore un fichier.
+#[tauri::command]
+pub fn existing_paths(paths: Vec<String>) -> Vec<String> {
+    paths.into_iter().filter(|p| Path::new(p).is_file()).collect()
 }
 
 #[tauri::command]
@@ -261,5 +262,20 @@ mod tests {
         assert_eq!(page.elements.len(), 4);
         let page = grid_liberate(page);
         assert!(page.grid.is_none());
+    }
+
+    #[test]
+    fn folder_is_the_parent_name_only() {
+        assert_eq!(folder_name("/a/Sortie ferme/x.jpg"), "Sortie ferme");
+    }
+
+    #[test]
+    fn existing_paths_drops_missing_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let kept = dir.path().join("là.jpg");
+        std::fs::write(&kept, b"x").unwrap();
+        let gone = dir.path().join("parti.jpg").to_string_lossy().into_owned();
+        let kept = kept.to_string_lossy().into_owned();
+        assert_eq!(existing_paths(vec![kept.clone(), gone]), vec![kept]);
     }
 }

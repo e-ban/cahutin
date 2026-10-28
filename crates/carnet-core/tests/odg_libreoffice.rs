@@ -633,3 +633,64 @@ fn text_frame_is_rendered() {
     let mid = (wd.y_min + wd.y_max) / 2.0;
     assert!((mid - (y + h / 2.0) * PT_PER_MM).abs() < 3.0, "milieu : {mid:.1}");
 }
+
+/// Étiquette : l'image de fond couvre le cadre de texte aux coins arrondis, sous le texte ; une photo à
+/// bordure en pointillés garde ses points (remplissage bitmap d'un rectangle).
+#[test]
+#[ignore]
+fn frame_image_and_dotted_photo_border_are_rendered() {
+    const DPI: u32 = 254; // 10 pixels par millimètre
+    let mut store = AssetStore::default();
+    let mut bytes = Cursor::new(Vec::new());
+    RgbImage::from_pixel(600, 200, Rgb([90, 140, 200])).write_to(&mut bytes, ImageFormat::Png).unwrap();
+    let label = import_bytes(&bytes.into_inner()).unwrap();
+    let id = label.meta.id.clone();
+    let mut doc = Document::new("étiquette");
+    doc.assets.insert(id.clone(), label.meta.clone());
+    store.insert(label).unwrap();
+    let (x, y, w, h) = (ORIGIN_MM, ORIGIN_MM, 90.0, 30.0);
+    let mut style = TextStyle::default_zone();
+    style.valign = Some(VAlign::Middle);
+    doc.pages[0].elements.push(Element {
+        id: new_id(),
+        frame: Frame { x_mm: x, y_mm: y, w_mm: w, h_mm: h, rotation_deg: 0.0 },
+        locked: false,
+        zone: false,
+        group: None,
+        kind: ElementKind::Text(TextProps {
+            content: RichText::plain("Prénom"),
+            style,
+            prompt: None,
+            frame: Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 8.0, image: Some(id.clone()) }),
+        }),
+    });
+    let (py, ph) = (100.0, 60.0);
+    doc.pages[0].elements.push(Element {
+        id: new_id(),
+        frame: Frame { x_mm: x, y_mm: py, w_mm: 90.0, h_mm: ph, rotation_deg: 0.0 },
+        locked: false,
+        zone: false,
+        group: None,
+        kind: ElementKind::Photo(PhotoProps {
+            asset: Some(id),
+            crop: Crop::COVER,
+            corner_radius_mm: 0.0,
+            border: Some(Stroke { width_mm: 2.0, color: "#cc0000".into(), style: Some(StrokeStyle::Dotted) }),
+            shadow: false,
+        }),
+    });
+    let (_dir, pdf) = render(&doc, &store);
+    let (pw, _ph, px) = rgb_page(&pdf, 1, DPI);
+    let at = |x_mm: f64, y_mm: f64| {
+        let i = ((y_mm * 10.0) as usize * pw + (x_mm * 10.0) as usize) * 3;
+        (px[i], px[i + 1], px[i + 2])
+    };
+    let near = |c: (u8, u8, u8), r: u8, g: u8, b: u8| c.0.abs_diff(r) < 25 && c.1.abs_diff(g) < 25 && c.2.abs_diff(b) < 25;
+    assert!(near(at(x + 10.0, y + 4.0), 90, 140, 200), "image de fond : {:?}", at(x + 10.0, y + 4.0));
+    assert!(near(at(x + 0.8, y + 0.8), 255, 255, 255), "coin arrondi : {:?}", at(x + 0.8, y + 0.8));
+    assert!(words(&pdf).iter().any(|wd| wd.text.contains("Prénom")), "texte de l'étiquette absent");
+    // Bordure en pointillés : le long du bord haut, alternance de points rouges et de photo.
+    let row: Vec<bool> = (0..800).map(|i| near(at(x + 5.0 + i as f64 / 10.0, py + 0.2), 204, 0, 0)).collect();
+    let switches = row.windows(2).filter(|p| p[0] != p[1]).count();
+    assert!(switches > 20, "pointillés : {switches} changements sur 80 mm");
+}

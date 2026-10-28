@@ -48,12 +48,20 @@
   {@const f = props.frame}
   {@const w = element.frame.w_mm}
   {@const h = element.frame.h_mm}
+  {#if f.image}
+    <!-- Image de fond : couvre le cadre, recadrée au centre (comme l'export), aux coins du cadre. Un fond CSS
+         plutôt qu'un clipPath SVG : l'élément est dessiné plusieurs fois (page, miniatures, impression). -->
+    <div
+      class="deco"
+      style:width="{w}mm"
+      style:height="{h}mm"
+      style:border-radius="{f.corner_radius_mm}mm"
+      style:background-image="url({JSON.stringify(assetUrl(f.image))})"
+      style:transform="scale({zoom})"
+      aria-hidden="true"
+    ></div>
+  {/if}
   <svg class="deco" viewBox="0 0 {w} {h}" style:width="{w}mm" style:height="{h}mm" style:transform="scale({zoom})" aria-hidden="true">
-    {#if f.image}
-      <!-- Image de fond : couvre le cadre, recadrée au centre (comme l'export), aux coins du cadre. -->
-      <clipPath id="frame-clip-{element.id}"><rect width={w} height={h} rx={f.corner_radius_mm} /></clipPath>
-      <image href={assetUrl(f.image)} width={w} height={h} preserveAspectRatio="xMidYMid slice" clip-path="url(#frame-clip-{element.id})" />
-    {/if}
     <rect
       width={w}
       height={h}
@@ -132,6 +140,8 @@
     transform-origin: 0 0;
     overflow: visible;
     pointer-events: none;
+    background-size: cover;
+    background-position: center;
   }
   .text :global(p) {
     margin: 0;

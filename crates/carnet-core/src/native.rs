@@ -3,7 +3,7 @@
 
 pub use crate::model::FORMAT_VERSION;
 use crate::fonts::FontSet;
-use crate::model::{Document, Element, ElementKind, Mime, Stroke, VAlign};
+use crate::model::{Document, Element, ElementKind, Mime, Stroke, TEXT_PADDING_MM, VAlign};
 use crate::photo::{Asset, AssetStore};
 use std::collections::BTreeSet;
 use std::io::{Read, Seek, Write};
@@ -88,7 +88,9 @@ pub fn written_version(doc: &Document) -> u32 {
 fn uses_version_3(e: &Element) -> bool {
     let dashed = |s: &Option<Stroke>| s.as_ref().is_some_and(|s| !s.is_solid());
     match &e.kind {
-        ElementKind::Text(t) => t.style.valign.unwrap_or_default() != VAlign::Top || t.style.padding_mm.is_some() || t.frame.is_some(),
+        ElementKind::Text(t) => {
+            t.style.valign.unwrap_or_default() != VAlign::Top || t.style.padding_mm.is_some_and(|p| p != TEXT_PADDING_MM) || t.frame.is_some()
+        }
         ElementKind::Shape(s) => dashed(&s.stroke),
         ElementKind::Photo(p) => dashed(&p.border),
         ElementKind::Image(_) => false,
@@ -461,6 +463,8 @@ mod tests {
         assert_eq!(with(text_el(TextStyle { valign: Some(VAlign::Top), padding_mm: None, ..plain.clone() }, None)), 2);
         assert_eq!(with(text_el(TextStyle { valign: Some(VAlign::Middle), ..plain.clone() }, None)), 3);
         assert_eq!(with(text_el(TextStyle { padding_mm: Some(4.0), ..plain.clone() }, None)), 3);
+        // La marge par défaut écrite telle quelle ne perd rien en 0.4.
+        assert_eq!(with(text_el(TextStyle { padding_mm: Some(TEXT_PADDING_MM), ..plain.clone() }, None)), 2);
         let frame = TextFrame { fill: Some("#ffeeaa".into()), ..TextFrame::default() };
         assert_eq!(with(text_el(plain.clone(), Some(frame))), 3);
         let dashed = Stroke { width_mm: 1.0, color: "#000000".into(), style: Some(StrokeStyle::Dashed) };

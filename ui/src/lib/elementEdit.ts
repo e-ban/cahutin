@@ -1,5 +1,6 @@
 // Modifications de l'élément sélectionné, partagées par la barre flottante et le panneau de droite.
 import { editor } from "./docStore.svelte";
+import { TEXT_PADDING_MM } from "./richtext";
 import type { Element, PhotoProps, ShapeProps, TextFrame, TextStyle } from "./types";
 
 export function updateSelected(fn: (e: Element) => Element) {
@@ -28,8 +29,14 @@ export const previewPhoto = (patch: Partial<PhotoProps>) => previewSelected(phot
 export const updateShape = (patch: Partial<ShapeProps>) => updateSelected(shape(patch));
 export const previewShape = (patch: Partial<ShapeProps>) => previewSelected(shape(patch));
 
-const textStyle = (patch: Partial<TextStyle>) => (e: Element): Element =>
-  e.kind.type === "Text" ? { ...e, kind: { ...e.kind, style: { ...e.kind.style, ...patch } } } : e;
+/** Réglages du texte ; la marge par défaut et l'alignement en haut sont enregistrés comme absents (format inchangé). */
+export const textStyle = (patch: Partial<TextStyle>) => (e: Element): Element => {
+  if (e.kind.type !== "Text") return e;
+  const style = { ...e.kind.style, ...patch };
+  if (style.padding_mm === TEXT_PADDING_MM) style.padding_mm = null;
+  if (style.valign === "Top") style.valign = null;
+  return { ...e, kind: { ...e.kind, style } };
+};
 /** Cadre d'un texte ; un cadre sans fond, sans bordure et sans image disparaît (le document reste lisible par la 0.4). */
 export const textFrame = (patch: Partial<TextFrame>) => (e: Element): Element => {
   if (e.kind.type !== "Text") return e;

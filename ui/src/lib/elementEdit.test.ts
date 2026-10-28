@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { textFrame } from "./elementEdit";
+import { textFrame, textStyle } from "./elementEdit";
 import type { Element } from "./types";
 
 const text: Element = {
@@ -18,4 +18,9 @@ test("a text frame is created by its first setting and removed when nothing is l
   expect(cleared.kind.type === "Text" && cleared.kind.frame).toBeNull();
   // Des coins seuls ne font pas un cadre.
   expect(textFrame({ corner_radius_mm: 5 })(text).kind.type === "Text" && textFrame({ corner_radius_mm: 5 })(text).kind).toMatchObject({ frame: null });
+});
+
+test("the default margin and top alignment are stored as absent", () => {
+  const back = textStyle({ padding_mm: 1.5, valign: "Top" })(textStyle({ padding_mm: 4, valign: "Middle" })(text));
+  expect(back.kind.type === "Text" && [back.kind.style.padding_mm, back.kind.style.valign]).toEqual([null, null]);
 });

@@ -56,3 +56,9 @@ fn html5_drag_and_drop_is_not_captured_by_the_window() {
     let c = config();
     assert_eq!(c["app"]["windows"][0]["dragDropEnabled"], false);
 }
+
+/// Une seule source de version : sans champ `version`, Tauri prend celle de Cargo.toml (vérifiée au tag de release).
+#[test]
+fn version_comes_from_cargo() {
+    assert!(config().get("version").is_none(), "retirer \"version\" de tauri.conf.json");
+}

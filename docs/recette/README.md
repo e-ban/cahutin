@@ -4,7 +4,7 @@
 
 ## 1. Construire l'installeur
 
-**Le plus simple :** à chaque envoi sur `main`, GitHub construit l'installeur (workflow « Windows »). Sur la page du dépôt, ouvrir « Actions », puis le dernier run réussi « Windows », et télécharger l'artefact `carnet-installeur-windows-…`. Il contient `Carnet_0.1.0_x64-setup.exe`. On peut aussi relancer la construction à la main avec « Run workflow ».
+**Le plus simple :** télécharger l'installeur `Carnet_<version>_x64-setup.exe` de la dernière version sur la page « Releases » du dépôt. Pour essayer une construction plus récente : à chaque envoi sur `main`, GitHub construit l'installeur (workflow « Windows ») ; ouvrir « Actions », puis le dernier run réussi « Windows », et télécharger l'artefact `carnet-installeur-windows-…`. On peut aussi relancer la construction à la main avec « Run workflow ».
 
 **Sur le poste Windows lui-même :**
 
@@ -15,7 +15,7 @@
 
    WebView2 est déjà présent sur Windows 11.
 2. Dans le dossier du projet : `npm ci`, puis `npm run tauri build`.
-3. Résultat attendu : `target\release\bundle\nsis\Carnet_0.1.0_x64-setup.exe`.
+3. Résultat attendu : `target\release\bundle\nsis\Carnet_<version>_x64-setup.exe`.
 
 ## 2. Point de contrôle (en développement)
 

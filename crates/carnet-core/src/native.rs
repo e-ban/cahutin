@@ -19,6 +19,8 @@ const DOCUMENT_ENTRY: &str = "document.json";
 pub enum NativeError {
     NewerVersion(u32),
     Corrupt,
+    /// Une photo du document n'est plus en mémoire.
+    MissingAsset,
     Io,
 }
 
@@ -27,6 +29,7 @@ impl NativeError {
         match self {
             NativeError::NewerVersion(_) => "Ce fichier a été créé par une version plus récente de l'application.",
             NativeError::Corrupt => "Ce fichier est abîmé ou n'est pas un document de l'application.",
+            NativeError::MissingAsset => "Une photo du document est introuvable : le document n'a pas été enregistré.",
             NativeError::Io => "Impossible de lire ou d'écrire le fichier.",
         }
         .to_string()
@@ -78,7 +81,7 @@ pub fn save(doc: &Document, store: &AssetStore, out: impl Write + Seek) -> Resul
     zip.start_file(DOCUMENT_ENTRY, deflated)?;
     zip.write_all(&serde_json::to_vec_pretty(&doc).map_err(|_| NativeError::Corrupt)?)?;
     for meta in doc.assets.values() {
-        let asset = store.get(&meta.id).ok_or(NativeError::Corrupt)?;
+        let asset = store.get(&meta.id).ok_or(NativeError::MissingAsset)?;
         let ext = extension(meta.mime);
         zip.start_file(format!("assets/{}.{ext}", meta.id), stored)?;
         zip.write_all(&asset.bytes)?;
@@ -89,19 +92,9 @@ pub fn save(doc: &Document, store: &AssetStore, out: impl Write + Seek) -> Resul
     Ok(())
 }
 
-/// Écrit dans un fichier temporaire voisin puis le renomme : un échec ne détruit pas l'ancien fichier.
+/// Écriture sûre : un échec ne détruit pas l'ancien fichier.
 pub fn save_to_path(doc: &Document, store: &AssetStore, path: &Path) -> Result<(), NativeError> {
-    let mut tmp = path.as_os_str().to_owned();
-    tmp.push(".tmp");
-    let tmp = std::path::PathBuf::from(tmp);
-    let result = std::fs::File::create(&tmp)
-        .map_err(NativeError::from)
-        .and_then(|f| save(doc, store, f))
-        .and_then(|_| std::fs::rename(&tmp, path).map_err(NativeError::from));
-    if result.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    result
+    crate::fsutil::write_atomically(path, |f| save(doc, store, f))
 }
 
 fn read_entry<R: Read + Seek>(zip: &mut ZipArchive<R>, name: &str) -> Result<Vec<u8>, NativeError> {
@@ -224,6 +217,15 @@ mod tests {
         let err = load(buf).err().unwrap();
         assert_eq!(err, NativeError::NewerVersion(2));
         assert!(err.message_fr().contains("plus récente"));
+    }
+
+    #[test]
+    fn missing_image_is_reported_as_such() {
+        let (doc, _, _) = sample();
+        let mut buf = Cursor::new(Vec::new());
+        let err = save(&doc, &AssetStore::default(), &mut buf).err().unwrap();
+        assert!(matches!(err, NativeError::MissingAsset));
+        assert!(err.message_fr().contains("photo"));
     }
 
     #[test]

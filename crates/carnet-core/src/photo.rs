@@ -173,6 +173,12 @@ mod tests {
     }
 
     #[test]
+    fn orientation_8_is_applied() {
+        let a = import_path(&Path::new(FIXTURES).join("orientation8.jpg")).unwrap();
+        assert_eq!((a.meta.width_px, a.meta.height_px), (20, 40));
+    }
+
+    #[test]
     fn metadata_is_stripped() {
         let src = std::fs::read(Path::new(FIXTURES).join("gps.jpg")).unwrap();
         assert!(exif::Reader::new().read_from_container(&mut Cursor::new(&src)).is_ok());

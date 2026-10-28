@@ -2,6 +2,7 @@
 
 pub mod crop;
 pub mod fonts;
+mod fsutil;
 pub mod grid;
 pub mod model;
 pub mod native;

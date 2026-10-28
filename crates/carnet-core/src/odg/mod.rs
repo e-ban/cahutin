@@ -91,9 +91,9 @@ pub fn export_odg(doc: &Document, store: &AssetStore, out: impl Write + Seek) ->
     package::write(parts, out)
 }
 
+/// Écriture sûre : un export qui échoue n'écrase pas un export précédent du même nom.
 pub fn export_odg_to_path(doc: &Document, store: &AssetStore, path: &Path) -> Result<(), OdgError> {
-    let file = std::fs::File::create(path)?;
-    export_odg(doc, store, file)
+    crate::fsutil::write_atomically(path, |f| export_odg(doc, store, f))
 }
 
 #[cfg(test)]
@@ -322,6 +322,17 @@ mod tests {
         let d = doc_with(vec![photo(Some("absent"), frame(10.0, 10.0, 50.0, 50.0), 0.0)]);
         let mut buf = Cursor::new(Vec::new());
         assert!(matches!(export_odg(&d, &AssetStore::default(), &mut buf), Err(OdgError::MissingAsset(_))));
+    }
+
+    #[test]
+    fn failed_export_keeps_the_previous_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cahier.odg");
+        std::fs::write(&path, b"export precedent").unwrap();
+        let d = doc_with(vec![photo(Some("absent"), frame(10.0, 10.0, 50.0, 50.0), 0.0)]);
+        assert!(export_odg_to_path(&d, &AssetStore::default(), &path).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"export precedent");
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
     #[test]

@@ -198,7 +198,15 @@ impl Library {
         self.dir.join(format!("{id}.{TEMPLATE_EXT}"))
     }
 
+    /// Un identifiant venu de l'interface ne doit désigner qu'un fichier du dossier des modèles.
+    fn valid_id(id: &str) -> bool {
+        !id.is_empty() && !id.contains(['/', '\\', ':']) && !id.contains("..")
+    }
+
     fn load_file(&self, id: &str) -> Option<Template> {
+        if !Self::valid_id(id) {
+            return None;
+        }
         let (doc, assets) = native::load_from_path(&self.path(id)).ok()?;
         let page = doc.pages.into_iter().next()?;
         Some(Template { info: TemplateInfo { id: id.to_string(), name: doc.title, builtin: false }, page, assets })
@@ -240,6 +248,9 @@ impl Library {
     pub fn delete(&self, id: &str) -> std::io::Result<()> {
         if builtin().iter().any(|t| t.info.id == id) {
             return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "modèle intégré"));
+        }
+        if !Self::valid_id(id) {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "identifiant de modèle invalide"));
         }
         std::fs::remove_file(self.path(id))
     }
@@ -402,6 +413,16 @@ mod tests {
         std::fs::write(dir.path().join("abime.carnet-modele"), b"pas un zip").unwrap();
         assert_eq!(lib.list().len(), 3);
         assert!(lib.load("abime").is_none());
+    }
+
+    #[test]
+    fn template_ids_cannot_leave_the_library() {
+        let dir = tempfile::tempdir().unwrap();
+        let lib = Library::open(dir.path().join("modeles")).unwrap();
+        std::fs::write(dir.path().join("dehors.carnet-modele"), b"x").unwrap();
+        assert!(lib.load("../dehors").is_none());
+        assert_eq!(lib.delete("../dehors").unwrap_err().kind(), std::io::ErrorKind::InvalidInput);
+        assert!(dir.path().join("dehors.carnet-modele").exists());
     }
 
     #[test]

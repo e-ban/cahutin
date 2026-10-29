@@ -1,5 +1,6 @@
 <script lang="ts">
   import FileMenu from "./FileMenu.svelte";
+  import HelpMenu from "./HelpMenu.svelte";
   import OutputMenu from "./OutputMenu.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
@@ -14,6 +15,7 @@
 <header class="top">
   <span class="logo">{fr.appName}</span>
   <FileMenu />
+  <HelpMenu />
   <input
     class="title"
     value={editor.doc.title}

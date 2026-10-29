@@ -44,8 +44,8 @@ export function handleShortcut(ev: KeyboardEvent) {
     ev.preventDefault();
     return;
   }
-  // Sous l'écran d'accueil, la page n'est pas visible : rien ne doit la modifier.
-  if (typing(ev) || editor.showWelcome) return;
+  // Sous l'écran d'accueil ou le panneau Astuces, la page n'est pas visible : rien ne doit la modifier.
+  if (typing(ev) || editor.showWelcome || editor.showTips) return;
   const editActions: Partial<Record<ShortcutAction, () => void>> = {
     undo: () => editor.undo(),
     redo: () => editor.redo(),

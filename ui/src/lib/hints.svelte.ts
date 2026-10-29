@@ -8,8 +8,20 @@ export function nextHint(counts: Record<string, number>, wanted: HintId): HintId
   return (counts[wanted] ?? 0) < HINT_MAX_SHOWS ? wanted : null;
 }
 
+/** Astuce à montrer : aucune quand elles sont coupées (menu Aide). */
+export function hintFor(enabled: boolean, counts: Record<string, number>, wanted: HintId): HintId | null {
+  return enabled ? nextHint(counts, wanted) : null;
+}
+
 class Hints {
   counts = $state<Record<string, number>>(readPref("hints", {}));
+  /** Astuces pendant le travail (menu Aide > « Afficher les astuces pendant le travail »). */
+  enabled = $state(readPref("hintsEnabled", true));
+
+  toggle() {
+    this.enabled = !this.enabled;
+    writePref("hintsEnabled", this.enabled);
+  }
 
   /** Compte une apparition de l'astuce. */
   shown(id: HintId) {

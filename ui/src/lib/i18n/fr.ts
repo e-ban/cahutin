@@ -222,6 +222,10 @@ export const fr = {
   tourNext: "Suivant",
   tourDone: "Terminer",
   tourSkip: "Passer",
+  help: "Aide",
+  tourMenu: "Visite guidée",
+  tips: "Astuces",
+  hintsWhileWorking: "Afficher les astuces pendant le travail",
   // Groupes
   group: "Grouper",
   ungroup: "Dissocier",

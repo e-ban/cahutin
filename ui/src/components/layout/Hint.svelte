@@ -2,7 +2,7 @@
   // Astuce discrète en bas de la page, liée à ce que l'on fait ; chacune au plus 3 fois.
   import { untrack } from "svelte";
   import { editor } from "../../lib/docStore.svelte";
-  import { hints, nextHint, type HintId } from "../../lib/hints.svelte";
+  import { hintFor, hints, type HintId } from "../../lib/hints.svelte";
   import { fr } from "../../lib/i18n/fr";
 
   const TEXTS: Record<HintId, string> = {
@@ -36,10 +36,10 @@
 
   let current = $state<HintId | null>(null);
   $effect(() => {
-    const w = wanted;
+    const w = hints.enabled ? wanted : null;
     untrack(() => {
       if (w === current) return;
-      current = w && nextHint(hints.counts, w);
+      current = w && hintFor(hints.enabled, hints.counts, w);
       if (current) hints.shown(current);
     });
   });

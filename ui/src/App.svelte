@@ -21,6 +21,7 @@
   import BackgroundPanel from "./components/BackgroundPanel.svelte";
   import Hint from "./components/layout/Hint.svelte";
   import Tour from "./components/Tour.svelte";
+  import TipsPanel from "./components/TipsPanel.svelte";
   import { shouldStartTour, tour } from "./lib/tour.svelte";
   import Welcome from "./components/layout/Welcome.svelte";
   import Transformer from "./components/Transformer.svelte";
@@ -223,6 +224,7 @@
   <BottomBar />
   {#if editor.showWelcome}<Welcome />{/if}
   {#if editor.showAbout}<About />{/if}
+  {#if editor.showTips}<TipsPanel />{/if}
   {#if editor.showBackground}<BackgroundPanel />{/if}
   <Modal />
   <Tour />

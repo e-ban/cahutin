@@ -23,8 +23,6 @@
       : []),
     { label: fr.examplesMenu, disabled: true, separator: true, action: () => {} },
     ...examples.map((ex) => ({ label: `   ${ex.name}`, action: () => files.openExampleDoc(ex.id) })),
-    { label: fr.reportProblem, action: files.problemReport, separator: true },
-    { label: fr.about, action: () => (editor.showAbout = true) },
   ]);
 </script>
 

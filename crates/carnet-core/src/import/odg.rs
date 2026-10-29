@@ -108,16 +108,34 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String]) -> Styles {
     styles
 }
 
-/// Taille de la première mise en page de `styles.xml`, au dixième de mm ; A4 portrait à défaut.
-fn page_size(styles_xml: Option<&str>) -> PageSize {
-    let found = styles_xml.and_then(|x| roxmltree::Document::parse(x).ok()).and_then(|doc| {
-        let p = doc.descendants().find(|n| n.has_tag_name((STYLE, "page-layout-properties")) && n.attribute((FO, "page-width")).is_some())?;
-        Some((attr_mm(p, FO, "page-width")?, attr_mm(p, FO, "page-height")?))
-    });
-    match found {
-        Some((w, h)) => PageSize { width_mm: (w * 10.0).round() / 10.0, height_mm: (h * 10.0).round() / 10.0 },
-        None => A4_PORTRAIT,
+/// Tailles des pages maîtresses de `styles.xml` (page maîtresse → mise en page), au dixième de mm,
+/// et la taille par défaut : la première mise en page, ou A4 portrait.
+struct PageSizes {
+    by_master: HashMap<String, PageSize>,
+    default: PageSize,
+}
+
+fn page_sizes(styles_xml: Option<&str>) -> PageSizes {
+    let mut sizes = PageSizes { by_master: HashMap::new(), default: A4_PORTRAIT };
+    let Some(doc) = styles_xml.and_then(|x| roxmltree::Document::parse(x).ok()) else { return sizes };
+    let mut layouts: HashMap<&str, PageSize> = HashMap::new();
+    for l in doc.descendants().filter(|n| n.has_tag_name((STYLE, "page-layout"))) {
+        let Some(p) = l.children().find(|n| n.has_tag_name((STYLE, "page-layout-properties"))) else { continue };
+        let (Some(w), Some(h)) = (attr_mm(p, FO, "page-width"), attr_mm(p, FO, "page-height")) else { continue };
+        let size = PageSize { width_mm: (w * 10.0).round() / 10.0, height_mm: (h * 10.0).round() / 10.0 };
+        if layouts.is_empty() {
+            sizes.default = size;
+        }
+        if let Some(name) = l.attribute((STYLE, "name")) {
+            layouts.insert(name, size);
+        }
     }
+    for m in doc.descendants().filter(|n| n.has_tag_name((STYLE, "master-page"))) {
+        if let (Some(name), Some(size)) = (m.attribute((STYLE, "name")), m.attribute((STYLE, "page-layout-name")).and_then(|l| layouts.get(l))) {
+            sizes.by_master.insert(name.to_string(), *size);
+        }
+    }
+    sizes
 }
 
 /// Élément posé, ou place réservée à une ligne de texte (remplacée par son texte recollé).
@@ -329,7 +347,7 @@ pub fn read_odg(input: impl Read + Seek, known_fonts: &[String]) -> Result<Impor
     let styles_xml = read_entry(&mut zip, "styles.xml").and_then(|b| String::from_utf8(b).ok());
     let doc = roxmltree::Document::parse(&content).map_err(|_| ImportError::Unreadable)?;
     let styles = read_styles(&doc, known_fonts);
-    let size = page_size(styles_xml.as_deref());
+    let sizes = page_sizes(styles_xml.as_deref());
     let mut pages = Vec::new();
     let mut assets = Vec::new();
     let mut skipped = 0;
@@ -339,6 +357,7 @@ pub fn read_odg(input: impl Read + Seek, known_fonts: &[String]) -> Result<Impor
             reader.node(c);
         }
         let (elements, page_assets, page_skipped) = reader.finish();
+        let size = page_node.attribute((DRAW, "master-page-name")).and_then(|m| sizes.by_master.get(m)).copied().unwrap_or(sizes.default);
         pages.push(Page { elements, ..Page::new(size) });
         assets.extend(page_assets);
         skipped += page_skipped;
@@ -357,6 +376,13 @@ mod tests {
 
     /// ODG minimal : styles relevés dans l'essai du 2026-10-29, corps de page fourni par le test.
     fn odg_fixture(content_body: &str, page_layout: &str, pictures: &[(&str, Vec<u8>)]) -> Vec<u8> {
+        let pages = format!(r#"<draw:page draw:name="page1">{content_body}</draw:page>"#);
+        let layouts = format!(r#"<style:page-layout style:name="PM1"><style:page-layout-properties fo:margin-top="2cm" {page_layout}/></style:page-layout>"#);
+        odg_raw(&pages, &layouts, "", pictures)
+    }
+
+    /// ODG aux pages, mises en page et pages maîtresses fournies.
+    fn odg_raw(pages: &str, layouts: &str, masters: &str, pictures: &[(&str, Vec<u8>)]) -> Vec<u8> {
         let content = format!(
             r##"<?xml version="1.0" encoding="UTF-8"?>
 <office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:loext="urn:org:documentfoundation:names:experimental:office:xmlns:loext:1.0" office:version="1.3">
@@ -373,12 +399,13 @@ mod tests {
 <style:style style:name="T3" style:family="text"><style:text-properties fo:color="#000000" style:font-name="Liberation Serif" fo:font-size="12pt" fo:font-weight="bold"/></style:style>
 <style:style style:name="T4" style:family="text"><style:text-properties fo:color="#000000" style:font-name="Comic Inconnue" fo:font-size="12pt" fo:font-style="italic" style:text-underline-style="solid"/></style:style>
 </office:automatic-styles>
-<office:body><office:drawing><draw:page draw:name="page1">{content_body}</draw:page></office:drawing></office:body></office:document-content>"##
+<office:body><office:drawing>{pages}</office:drawing></office:body></office:document-content>"##
         );
         let styles = format!(
             r#"<?xml version="1.0" encoding="UTF-8"?>
-<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
-<office:automatic-styles><style:page-layout style:name="PM1"><style:page-layout-properties fo:margin-top="2cm" {page_layout}/></style:page-layout></office:automatic-styles>
+<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+<office:automatic-styles>{layouts}</office:automatic-styles>
+<office:master-styles>{masters}</office:master-styles>
 </office:document-styles>"#
         );
         let mut buf = Cursor::new(Vec::new());
@@ -512,6 +539,17 @@ mod tests {
         assert_eq!((imported.pages[0].size.width_mm, imported.pages[0].size.height_mm), (215.9, 279.4));
         let a4 = read("");
         assert_eq!((a4.pages[0].size.width_mm, a4.pages[0].size.height_mm), (210.0, 297.0));
+    }
+
+    /// PDF A5 paysage puis US Letter : LibreOffice range la mise en page Letter en premier.
+    #[test]
+    fn each_page_keeps_its_own_size() {
+        let layouts = r#"<style:page-layout style:name="PM0"><style:page-layout-properties fo:page-width="21.59cm" fo:page-height="27.94cm"/></style:page-layout><style:page-layout style:name="PM1"><style:page-layout-properties fo:page-width="21cm" fo:page-height="14.8cm"/></style:page-layout>"#;
+        let masters = r#"<style:master-page style:name="master-page1" style:page-layout-name="PM1"/><style:master-page style:name="master-page2" style:page-layout-name="PM0"/>"#;
+        let pages = r#"<draw:page draw:name="page1" draw:master-page-name="master-page1"/><draw:page draw:name="page2" draw:master-page-name="master-page2"/>"#;
+        let imported = read_odg(Cursor::new(odg_raw(pages, layouts, masters, &[])), &known()).unwrap();
+        let sizes: Vec<(f64, f64)> = imported.pages.iter().map(|p| (p.size.width_mm, p.size.height_mm)).collect();
+        assert_eq!(sizes, [(210.0, 148.0), (215.9, 279.4)]);
     }
 
     #[test]

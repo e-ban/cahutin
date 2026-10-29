@@ -143,4 +143,4 @@ jobs:
             test -n "$f" || { echo "::error::$name introuvable"; find dist -type f; exit 1; }
             files+=("$f")
           done
-          gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --title "Cahutin $version (bêta)" --notes-file "$(find dist -type f -name notes.md | head -1)" --prerelease
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --title "Cahutin $version (bêta)" --notes-file "$(find dist -type f -name notes.md | head -1)"

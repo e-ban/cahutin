@@ -4,6 +4,7 @@
 
 - Carnet s'appelle désormais Cahutin, logiciel libre sous EUPL 1.2. Première version publique, en bêta : retours bienvenus par « Signaler un problème » ou par une issue GitHub.
 - Au premier lancement, Cahutin reprend les modèles personnels et les polices ajoutées dans Carnet ; les documents `.carnet` s'ouvrent comme avant. Carnet peut ensuite être désinstallé.
+- Avis de nouvelle version : au premier lancement, Cahutin demande s'il doit prévenir quand une nouvelle version sort. Si oui, il lit une fois par jour le numéro de la dernière version sur github.com, sans rien envoyer d'autre, et affiche un bandeau avec un lien vers la page des téléchargements. Réglable dans le menu Aide ; sans accord, Cahutin ne se connecte jamais à internet.
 - Windows affiche un avertissement (SmartScreen) à l'installation : cliquer sur « Informations complémentaires », puis « Exécuter quand même ».
 - Visite guidée de l'écran au premier lancement, et menu Aide : visite, astuces à feuilleter, réglage pour couper les astuces pendant le travail. « Signaler un problème » et « À propos » passent du menu Fichier au menu Aide.
 - Fichier > Importer… (et « Importer un fichier » à l'accueil) : pages d'un autre carnet, et fiches Word, LibreOffice, PDF ou Publisher reprises en textes, photos et formes modifiables, avec un compte rendu. LibreOffice doit être installé pour ces formats.

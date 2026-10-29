@@ -1,6 +1,6 @@
 # Cahutin
 
-Cahutin aide les enseignants de l'école primaire à faire leurs pages de cahier de vie, leurs fiches et leurs affichages de classe : on part d'un modèle, on dépose ses photos, on écrit, et la page est prête à imprimer. Gratuit, libre, et **entièrement hors ligne** : aucune donnée ne quitte l'ordinateur.
+Cahutin aide les enseignants de l'école primaire à faire leurs pages de cahier de vie, leurs fiches et leurs affichages de classe : on part d'un modèle, on dépose ses photos, on écrit, et la page est prête à imprimer. Gratuit, libre, et **hors ligne** : aucun document ne quitte l'ordinateur.
 
 ![La page « Joyeux anniversaire » ouverte dans Cahutin](docs/capture.png)
 
@@ -29,7 +29,7 @@ Cahutin est le nouveau nom de Carnet. Installez Cahutin : au premier lancement, 
 
 ### Mises à jour
 
-Cahutin n'a pas de mise à jour automatique (il ne se connecte jamais à internet) : pour changer de version, installer la nouvelle par-dessus l'ancienne. Les documents et les modèles personnels sont conservés.
+Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvelle version sort (réglable ensuite dans le menu Aide). Si vous acceptez, un bandeau l'annonce avec un lien vers la page des téléchargements. Pour changer de version, installer la nouvelle par-dessus l'ancienne : les documents et les modèles personnels sont conservés.
 
 ## Ce que Cahutin sait faire
 
@@ -48,7 +48,7 @@ Cahutin n'a pas de mise à jour automatique (il ne se connecte jamais à interne
 
 ## Confidentialité
 
-- Aucun accès au réseau : la politique de sécurité de l'application n'autorise aucune adresse distante.
+- Une seule connexion possible, facultative et désactivée tant que vous ne l'avez pas acceptée : une fois par jour, Cahutin lit le numéro de la dernière version sur l'API de GitHub (`api.github.com`). Rien d'autre n'est envoyé (ni document, ni identifiant, ni information sur l'ordinateur) ; GitHub voit seulement l'adresse IP de la connexion, comme pour toute visite d'un site. L'interface elle-même n'a accès à aucune adresse distante.
 - Les métadonnées des photos (lieu, appareil, date) sont retirées à l'import.
 - Le journal de l'application ne contient ni texte de document, ni nom de fichier, ni prénom d'enfant. Le rapport de problème (Aide > Signaler un problème) reprend seulement ce journal.
 - Les photos importées sont copiées dans un dossier temporaire vidé à la fermeture ; un document enregistré (`.carnet`) contient ses propres photos.

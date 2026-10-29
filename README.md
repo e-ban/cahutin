@@ -4,6 +4,8 @@ Cahutin aide les enseignants de l'école primaire à faire leurs fiches, leurs a
 
 ![La page « Joyeux anniversaire » ouverte dans Cahutin](docs/capture.png)
 
+Site : [e-ban.github.io/cahutin](https://e-ban.github.io/cahutin)
+
 > Cahutin est en **bêta** : il est utilisé en classe, mais il peut encore rester des défauts. Les retours sont bienvenus, par « Aide > Signaler un problème » ou par une [issue](https://github.com/e-ban/cahutin/issues).
 
 ## Télécharger et installer

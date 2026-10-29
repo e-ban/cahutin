@@ -9,6 +9,7 @@
   let target = $state<Box | null>(null);
   let pos = $state<{ left: number; top: number } | null>(null);
   let bubbleEl = $state<HTMLElement>();
+  let primaryEl = $state<HTMLButtonElement>();
 
   const step = $derived(tour.step === null ? null : TOUR_STEPS[tour.step]);
 
@@ -21,6 +22,8 @@
     await tick();
     if (!bubbleEl) return;
     pos = placeBubble(target, { width: bubbleEl.offsetWidth, height: bubbleEl.offsetHeight }, { width: window.innerWidth, height: window.innerHeight });
+    // Le clavier est dans la bulle : Entrée passe à l'étape suivante.
+    primaryEl?.focus();
   }
 
   $effect(() => {
@@ -35,6 +38,7 @@
       if (e.key === "Escape") tour.end();
       else if (e.key === "ArrowRight") tour.next();
       else if (e.key === "ArrowLeft") tour.prev();
+      // Tab, Entrée et Espace restent dans la bulle : le reste de l'application est inerte.
       else if (e.key !== "Tab" && e.key !== "Enter" && e.key !== " ") e.preventDefault();
     };
     const onResize = () => void measure();
@@ -67,7 +71,7 @@
         <span class="count">{fr.tourStep(tour.step + 1, TOUR_STEPS.length)}</span>
         <button class="link" onclick={() => tour.end()}>{fr.tourSkip}</button>
         <button onclick={() => tour.prev()} disabled={tour.step === 0}>{fr.tourPrev}</button>
-        <button class="primary" onclick={() => tour.next()}>{tour.step === TOUR_STEPS.length - 1 ? fr.tourDone : fr.tourNext}</button>
+        <button class="primary" bind:this={primaryEl} onclick={() => tour.next()}>{tour.step === TOUR_STEPS.length - 1 ? fr.tourDone : fr.tourNext}</button>
       </div>
     </div>
   </div>

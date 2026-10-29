@@ -5,6 +5,9 @@
   import { TIP_THEMES, TIPS } from "../lib/tips";
 
   const close = () => (editor.showTips = false);
+  // Le clavier commence dans le panneau (le reste de l'application est inerte).
+  let closeEl = $state<HTMLButtonElement>();
+  $effect(() => closeEl?.focus());
 </script>
 
 <svelte:window onkeydown={(e) => e.key === "Escape" && close()} />
@@ -13,7 +16,7 @@
   <div class="panel" role="dialog" aria-modal="true" aria-labelledby="tips-title">
     <header>
       <h2 id="tips-title">💡 {fr.tips}</h2>
-      <button onclick={close}>{fr.close}</button>
+      <button bind:this={closeEl} onclick={close}>{fr.close}</button>
     </header>
     <div class="body">
       {#each TIP_THEMES as theme (theme)}

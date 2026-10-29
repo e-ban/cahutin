@@ -22,7 +22,8 @@
   import Hint from "./components/layout/Hint.svelte";
   import Tour from "./components/Tour.svelte";
   import TipsPanel from "./components/TipsPanel.svelte";
-  import { shouldStartTour, tour } from "./lib/tour.svelte";
+  import { shouldStartTour, tour, tourMayStart } from "./lib/tour.svelte";
+  import { modal } from "./lib/modal.svelte";
   import Welcome from "./components/layout/Welcome.svelte";
   import Transformer from "./components/Transformer.svelte";
   import GroupTransformer from "./components/GroupTransformer.svelte";
@@ -57,8 +58,11 @@
   let welcomeWasOpen = editor.showWelcome;
   $effect(() => {
     const open = editor.showWelcome;
-    if (shouldStartTour(tour.done, welcomeWasOpen, open) && tour.step === null) tour.start();
+    if (shouldStartTour(tour.done, welcomeWasOpen, open) && tour.step === null) tour.pending = true;
     welcomeWasOpen = open;
+  });
+  $effect(() => {
+    if (tourMayStart(tour.pending, modal.message !== null, !!editor.notice)) tour.start();
   });
 
   // Fermeture de la fenêtre : demander d'enregistrer s'il y a des modifications.
@@ -160,7 +164,8 @@
 
 <svelte:window onkeydown={handleShortcut} />
 
-<div class="app">
+<!-- Pendant la visite ou le panneau Astuces, l'application est inerte : ni clic ni clavier ne l'atteignent. -->
+<div class="app" inert={tour.step !== null || editor.showTips}>
   <TopBar />
   {#if editor.templateMode}<TemplateBanner />{/if}
   <Rail />
@@ -224,10 +229,8 @@
   <BottomBar />
   {#if editor.showWelcome}<Welcome />{/if}
   {#if editor.showAbout}<About />{/if}
-  {#if editor.showTips}<TipsPanel />{/if}
   {#if editor.showBackground}<BackgroundPanel />{/if}
   <Modal />
-  <Tour />
   {#if editor.fileImport}
     <div class="notice" role="status">
       <pre>{fr.importingFile(editor.fileImport.name)}</pre>
@@ -240,6 +243,8 @@
     </div>
   {/if}
 </div>
+{#if editor.showTips}<TipsPanel />{/if}
+<Tour />
 {#if editor.printing}<PrintRoot />{/if}
 
 <style>

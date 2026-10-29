@@ -59,12 +59,21 @@ export function shouldStartTour(done: boolean, welcomeWasOpen: boolean, welcomeO
   return !done && welcomeWasOpen && !welcomeOpen;
 }
 
+/** Visite demandée : elle attend qu'aucune boîte de dialogue ni aucun avis ne soit ouvert (polices d'un
+ * document ouvert depuis l'accueil, compte rendu d'import), pour ne jamais s'y superposer. */
+export function tourMayStart(pending: boolean, dialogOpen: boolean, noticeOpen: boolean): boolean {
+  return pending && !dialogOpen && !noticeOpen;
+}
+
 class Tour {
   /** Étape affichée ; null : pas de visite en cours. */
   step = $state<number | null>(null);
   done = $state(readPref("tourDone", false));
+  /** Demandée à la fermeture de l'accueil, pas encore montrée. */
+  pending = $state(false);
 
   start() {
+    this.pending = false;
     this.step = 0;
   }
 

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { placeBubble, shouldStartTour, tour, TOUR_STEPS } from "./tour.svelte";
+import { placeBubble, shouldStartTour, tour, tourMayStart, TOUR_STEPS } from "./tour.svelte";
 
 const bubble = { width: 300, height: 150 };
 const viewport = { width: 1000, height: 700 };
@@ -56,4 +56,11 @@ test("end marks the tour done and next ends it at the last step", () => {
   tour.next();
   expect(tour.step).toBeNull();
   expect(tour.done).toBe(true);
+});
+
+test("a pending tour waits for open dialogs and notices", () => {
+  expect(tourMayStart(true, false, false)).toBe(true);
+  expect(tourMayStart(true, true, false)).toBe(false);
+  expect(tourMayStart(true, false, true)).toBe(false);
+  expect(tourMayStart(false, false, false)).toBe(false);
 });

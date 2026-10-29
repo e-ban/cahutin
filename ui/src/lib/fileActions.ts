@@ -7,7 +7,7 @@ import { confirmDiscardIfDirty, editor, type DiscardChoice } from "./docStore.sv
 import { newDocument, newId } from "./factory";
 import { fonts } from "./fonts.svelte";
 import { fr } from "./i18n/fr";
-import { importReportText, insertImported, newDocumentFrom } from "./importPages";
+import { importReportText, placeImported } from "./importPages";
 import { summarizeImport } from "./importSummary";
 import { pendingPaths } from "./photoLibrary";
 import { addRecent, writeRecents } from "./recents";
@@ -143,6 +143,7 @@ export async function importFiles(paths?: string[], opts: { fresh?: boolean } = 
   if (opts.fresh && !(await confirmLeave())) return;
   editor.flushPending();
   importCancelled = false;
+  const startedFrom = opts.fresh ? editor.doc : null;
   const parts: ImportedPages[] = [];
   const notes: string[] = [];
   const offered = new Set<string>();
@@ -164,15 +165,15 @@ export async function importFiles(paths?: string[], opts: { fresh?: boolean } = 
     editor.fileImport = null;
   }
   if (parts.length) {
-    if (opts.fresh) {
-      editor.reset(newDocumentFrom(parts), null);
+    const placed = placeImported(editor.doc, editor.pageIndex, parts, startedFrom);
+    if (placed.replaced) {
+      editor.reset(placed.doc, null);
       editor.carriedPending = [];
       editor.showWelcome = false;
       editor.templateMode = false;
     } else {
-      const next = insertImported(editor.doc, editor.pageIndex, parts);
-      editor.commit(next.doc);
-      editor.pageIndex = next.pageIndex;
+      editor.commit(placed.doc);
+      editor.pageIndex = placed.pageIndex;
       editor.selection = [];
     }
     editor.addPhotos(parts.flatMap((p) => p.assets.map((meta) => ({ meta, path: "", folder: "" }))));

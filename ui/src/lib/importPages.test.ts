@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { newDocument, newPage } from "./factory";
-import { importReportText, insertImported, newDocumentFrom } from "./importPages";
+import { importReportText, insertImported, newDocumentFrom, placeImported } from "./importPages";
 import type { AssetMeta, ImportedPages, ImportReport } from "./types";
 
 const report = (r: Partial<ImportReport> = {}): ImportReport => ({ pages: 1, texts: 0, images: 0, shapes: 0, skipped: 0, ...r });
@@ -43,4 +43,22 @@ test("report text with skipped drawings", () => {
 test("report text singular and zero counts", () => {
   expect(importReportText("a.pdf", report({ texts: 1, shapes: 1, skipped: 1 }))).toBe("a.pdf : 1 page importée (1 texte, 1 forme). 1 dessin n'a pas pu être repris.");
   expect(importReportText("vide.pdf", report())).toBe("vide.pdf : 1 page importée.");
+});
+
+test("a welcome import replaces the untouched document", () => {
+  const start = newDocument();
+  const a = part(2);
+  const r = placeImported(start, 0, [a], start);
+  expect(r.replaced).toBe(true);
+  expect(r.doc.pages.map((p) => p.id)).toEqual(a.pages.map((p) => p.id));
+  expect(r.pageIndex).toBe(0);
+});
+
+test("a welcome import keeps work done during the conversion", () => {
+  const start = newDocument();
+  const edited = { ...start, pages: [...start.pages, newPage()] };
+  const r = placeImported(edited, 1, [part(1)], start);
+  expect(r.replaced).toBe(false);
+  expect(r.doc.pages.length).toBe(3);
+  expect(r.doc.pages.slice(0, 2).map((p) => p.id)).toEqual(edited.pages.map((p) => p.id));
 });

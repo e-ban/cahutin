@@ -18,6 +18,16 @@ export function newDocumentFrom(parts: ImportedPages[]): Document {
   return { ...newDocument(), pages: parts.flatMap((p) => p.pages), assets: mergedAssets({}, parts) };
 }
 
+/**
+ * Où vont les pages : `startedFrom` est le document au début d'un import lancé depuis l'accueil. S'il
+ * n'a pas changé pendant la conversion, il est remplacé par les pages importées ; sinon (on a commencé
+ * à travailler entre-temps), les pages s'ajoutent après la page courante, rien n'est perdu.
+ */
+export function placeImported(current: Document, pageIndex: number, parts: ImportedPages[], startedFrom: Document | null): { doc: Document; pageIndex: number; replaced: boolean } {
+  if (startedFrom && current === startedFrom) return { doc: newDocumentFrom(parts), pageIndex: 0, replaced: true };
+  return { ...insertImported(current, pageIndex, parts), replaced: false };
+}
+
 const count = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
 
 export function importReportText(name: string, r: ImportReport): string {

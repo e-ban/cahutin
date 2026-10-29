@@ -31,7 +31,7 @@ pub struct SofficeLookup {
 
 impl SofficeLookup {
     pub fn from_env() -> Self {
-        let program_files = ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"].iter().filter_map(|v| std::env::var_os(v)).map(PathBuf::from).collect();
+        let program_files = ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"].iter().filter_map(std::env::var_os).map(PathBuf::from).collect();
         SofficeLookup { path_var: std::env::var_os("PATH"), program_files, registry: registry_program_dir() }
     }
 }

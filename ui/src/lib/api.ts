@@ -36,6 +36,8 @@ export const acceptDocumentFonts = () => invoke<FontFamilyInfo[]>("accept_docume
 export const exportProblemReport = (path: string) => invoke<void>("export_problem_report", { path });
 export const canExportPdf = () => invoke<boolean>("can_export_pdf");
 export const exportPdf = (path: string, landscape: boolean) => invoke<void>("export_pdf", { path, landscape });
+export const checkUpdate = () => invoke<string | null>("check_update");
+export const openDownloadPage = () => invoke<void>("open_download_page");
 
 // Protocole `carnet-asset` (forme `http://<schéma>.localhost` sous Windows).
 const assetBase = () => (navigator.userAgent.includes("Windows") ? "http://carnet-asset.localhost" : "carnet-asset://localhost");

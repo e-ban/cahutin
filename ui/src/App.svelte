@@ -25,6 +25,8 @@
   import { shouldStartTour, tour, tourMayStart } from "./lib/tour.svelte";
   import { modal } from "./lib/modal.svelte";
   import Welcome from "./components/layout/Welcome.svelte";
+  import UpdateBanner from "./components/layout/UpdateBanner.svelte";
+  import { updates } from "./lib/updates.svelte";
   import Transformer from "./components/Transformer.svelte";
   import GroupTransformer from "./components/GroupTransformer.svelte";
   import BottomBar from "./components/layout/BottomBar.svelte";
@@ -51,6 +53,8 @@
   editor.showWelcome = true;
   fonts.load();
   templates.refresh();
+  // Nouvelles versions : seulement si l'utilisateur l'a accepté, au plus une fois par jour.
+  void updates.checkIfDue();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
   if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath } });
 
@@ -229,6 +233,7 @@
   <BottomBar />
   {#if editor.showWelcome}<Welcome />{/if}
   {#if editor.showAbout}<About />{/if}
+  <UpdateBanner />
   {#if editor.showBackground}<BackgroundPanel />{/if}
   <Modal />
   {#if editor.fileImport}

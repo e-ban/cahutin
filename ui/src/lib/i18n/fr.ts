@@ -226,6 +226,13 @@ export const fr = {
   tourMenu: "Visite guidée",
   tips: "Astuces",
   hintsWhileWorking: "Afficher les astuces pendant le travail",
+  // Nouvelles versions
+  updatesMenu: "Prévenir des nouvelles versions",
+  updateConsent: "Être prévenu quand une nouvelle version de Cahutin sort ? Cahutin consultera github.com une fois par jour, sans rien envoyer de vos documents.",
+  updateConsentYes: "Oui",
+  updateConsentNo: "Non merci",
+  updateAvailable: (v: string) => `Cahutin ${v} est disponible.`,
+  updateDownload: "Télécharger",
   // Groupes
   group: "Grouper",
   ungroup: "Dissocier",
@@ -272,6 +279,7 @@ export const fr = {
   aboutTitle: "À propos de Cahutin",
   aboutVersion: (v: string) => `Version ${v}${v.startsWith("0.") ? " (bêta)" : ""}`,
   aboutFree: "Logiciel libre et gratuit pour l'école.",
+  aboutNetwork: "Cahutin ne se connecte à internet que si vous acceptez d'être prévenu des nouvelles versions (menu Aide) : il lit alors le numéro de la dernière version sur github.com, une fois par jour.",
   aboutOpenmoji: "Pictogrammes : OpenMoji (openmoji.org), licence CC BY-SA 4.0.",
   aboutCldr: "Mots-clés français des images : Unicode CLDR, licence Unicode.",
   aboutFonts: "Polices fournies : Andika, Atkinson Hyperlegible, OpenDyslexic, Playwrite FR Moderne (licence SIL Open Font License).",

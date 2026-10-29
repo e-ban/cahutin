@@ -15,6 +15,7 @@
     <h2>{fr.appName}</h2>
     {#if version}<p>{fr.aboutVersion(version)}</p>{/if}
     <p>{fr.aboutFree}</p>
+    <p>{fr.aboutNetwork}</p>
     <p>{fr.aboutOpenmoji}</p>
     <p>{fr.aboutCldr}</p>
     <p>{fr.aboutFonts}</p>

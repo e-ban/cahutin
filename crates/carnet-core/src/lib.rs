@@ -7,6 +7,7 @@ pub mod fonts;
 mod fsutil;
 pub mod grid;
 pub mod groups;
+pub mod import;
 pub mod model;
 pub mod native;
 pub mod odg;

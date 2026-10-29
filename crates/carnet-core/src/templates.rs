@@ -245,19 +245,7 @@ pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
 /// Nouvelle page à partir du modèle, avec de nouveaux identifiants partout (groupes compris).
 pub fn instantiate(t: &Template) -> (Page, Vec<Asset>) {
     let mut page = t.page.clone();
-    page.id = new_id();
-    let mut groups = std::collections::HashMap::new();
-    for e in &mut page.elements {
-        if let Some(g) = &mut e.group {
-            *g = groups.entry(g.clone()).or_insert_with(new_id).clone();
-        }
-        let old = std::mem::replace(&mut e.id, new_id());
-        if let Some(g) = &mut page.grid
-            && let Some(c) = g.cells.iter_mut().find(|c| c.element_id == old)
-        {
-            c.element_id = e.id.clone();
-        }
-    }
+    renew_ids(&mut page);
     (page, t.assets.clone())
 }
 

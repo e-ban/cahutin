@@ -10,6 +10,23 @@ pub fn new_id() -> Id {
     uuid::Uuid::new_v4().to_string()
 }
 
+/// Nouveaux identifiants partout : page, éléments (et leurs cases de grille), groupes.
+pub fn renew_ids(page: &mut Page) {
+    page.id = new_id();
+    let mut groups = std::collections::HashMap::new();
+    for e in &mut page.elements {
+        if let Some(g) = &mut e.group {
+            *g = groups.entry(g.clone()).or_insert_with(new_id).clone();
+        }
+        let old = std::mem::replace(&mut e.id, new_id());
+        if let Some(g) = &mut page.grid
+            && let Some(c) = g.cells.iter_mut().find(|c| c.element_id == old)
+        {
+            c.element_id = e.id.clone();
+        }
+    }
+}
+
 /// Version la plus récente que cette application sait lire (2 : élément image ; 3 : cadre de texte,
 /// alignement vertical, marge et bordures en tirets ou pointillés).
 pub const FORMAT_VERSION: u32 = 3;

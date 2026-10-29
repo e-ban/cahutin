@@ -1,6 +1,7 @@
 //! Application de bureau : expose le moteur `carnet-core` à l'interface.
 
 pub mod commands;
+mod legacy;
 #[cfg(windows)]
 mod pdf_windows;
 mod protocol;
@@ -34,6 +35,13 @@ pub fn run() {
         .register_uri_scheme_protocol(protocol::SCHEME, protocol::handle)
         .setup(|app| {
             let data = app.path().app_data_dir()?;
+            if let Some(old) = data.parent().map(|p| p.join(legacy::LEGACY_IDENTIFIER)) {
+                match legacy::copy_legacy_data(&old, &data) {
+                    Ok(true) => log::info!("legacy_data_copied"),
+                    Ok(false) => {}
+                    Err(e) => log::warn!("legacy_data_failed kind={:?}", e.kind()),
+                }
+            }
             // Photos d'élèves : le cache ne doit rien garder d'une session à l'autre. Chaque instance a
             // son dossier ; sans cache possible, les images restent en mémoire plutôt que d'empêcher le démarrage.
             let cache = app.path().app_cache_dir().and_then(|d| Ok(CacheDir::acquire(&d.join("images"))?));

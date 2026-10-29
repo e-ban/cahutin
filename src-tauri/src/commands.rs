@@ -104,19 +104,24 @@ pub struct OpenedDocument {
 }
 
 /// Polices transportées et absentes du poste : gardées en attente, familles à proposer à l'ajout.
-fn offer_fonts(state: &AppState, fonts: Vec<(String, Vec<u8>)>) -> Vec<String> {
+/// Une ouverture remplace la liste en attente ; un import (`append`) la complète, pour que les polices
+/// de plusieurs documents importés ensemble puissent toutes être ajoutées.
+fn offer_fonts(state: &AppState, fonts: Vec<(String, Vec<u8>)>, append: bool) -> Vec<String> {
     let installed = state.fonts.read().unwrap().families();
     let mut offered_fonts: Vec<String> = Vec::new();
-    let mut pending = Vec::new();
+    let mut pending = if append { std::mem::take(&mut *state.pending_fonts.lock().unwrap()) } else { Vec::new() };
+    let already: Vec<String> = pending.iter().filter_map(|(_, b): &(String, Vec<u8>)| fonts::family_of(b)).collect();
     for (file, bytes) in fonts {
         let Some(family) = fonts::family_of(&bytes) else { continue };
         if installed.iter().any(|f| f.name.eq_ignore_ascii_case(&family)) {
             continue;
         }
         if !offered_fonts.contains(&family) {
-            offered_fonts.push(family);
+            offered_fonts.push(family.clone());
         }
-        pending.push((file, bytes));
+        if !already.iter().any(|f| f.eq_ignore_ascii_case(&family)) {
+            pending.push((file, bytes));
+        }
     }
     *state.pending_fonts.lock().unwrap() = pending;
     offered_fonts
@@ -133,7 +138,7 @@ fn open_document_in(state: &AppState, path: &Path) -> Result<OpenedDocument, Str
             store.insert(a).map_err(|e| e.message_fr())?;
         }
     }
-    let offered_fonts = offer_fonts(state, fonts);
+    let offered_fonts = offer_fonts(state, fonts, false);
     log::info!("open_document pages={} offered_fonts={}", doc.pages.len(), offered_fonts.len());
     Ok(OpenedDocument { doc, offered_fonts })
 }
@@ -180,7 +185,7 @@ fn import_file_in(state: &AppState, path: &Path, soffice: Option<&Path>) -> Resu
             store.insert(a).map_err(|e| e.message_fr())?;
         }
     }
-    let offered_fonts = if imported.fonts.is_empty() { Vec::new() } else { offer_fonts(state, imported.fonts) };
+    let offered_fonts = offer_fonts(state, imported.fonts, true);
     Ok(ImportedPages { pages: imported.pages, assets, offered_fonts, report: imported.report })
 }
 
@@ -560,6 +565,38 @@ mod tests {
         assert!(colleague.store.lock().unwrap().get(&meta.id).is_some());
         assert_eq!(imported.offered_fonts, vec!["Carnet Test".to_string()]);
         assert_eq!(imported.report.texts, 1);
+    }
+
+    /// Document Carnet dont un texte utilise la police du fichier `font` (ajoutée chez l'auteur).
+    fn carnet_with_font(dir: &Path, font: &str, family: &str, name: &str) -> PathBuf {
+        let author = test_state(&dir.join(format!("auteur-{name}")));
+        add_font_in(&author, &fixture(font)).unwrap();
+        let mut doc = Document::new(name);
+        let mut style = carnet_core::TextStyle::default_zone();
+        style.font = family.into();
+        doc.pages[0].elements.push(carnet_core::Element {
+            id: carnet_core::new_id(),
+            frame: carnet_core::Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 50.0, h_mm: 20.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: carnet_core::ElementKind::Text(carnet_core::TextProps { content: carnet_core::RichText::plain("bonjour"), style, prompt: None, frame: None }),
+        });
+        let path = dir.join(format!("{name}.carnet"));
+        save_document_in(&author, &path, &doc).unwrap();
+        path
+    }
+
+    #[test]
+    fn fonts_of_several_imported_documents_can_all_be_added() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = carnet_with_font(dir.path(), "CarnetTest-Regular.ttf", "Carnet Test", "a");
+        let b = carnet_with_font(dir.path(), "CarnetAutre-Regular.ttf", "Carnet Autre", "b");
+        let colleague = test_state(&dir.path().join("collègue"));
+        import_file_in(&colleague, &a, None).unwrap();
+        import_file_in(&colleague, &b, None).unwrap();
+        let added: Vec<String> = accept_document_fonts_in(&colleague).unwrap().into_iter().map(|f| f.name).collect();
+        assert!(added.contains(&"Carnet Test".to_string()) && added.contains(&"Carnet Autre".to_string()), "{added:?}");
     }
 
     #[test]

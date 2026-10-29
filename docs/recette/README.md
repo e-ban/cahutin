@@ -35,7 +35,7 @@ Avec `npm run tauri dev` :
 
 ## 4. Recette de l'installeur
 
-1. Installer avec un **compte standard** : aucune demande d'administrateur ne doit apparaître. Windows affiche l'avertissement SmartScreen « Windows a protégé votre ordinateur » : cliquer sur « Informations complémentaires », puis sur « Exécuter quand même ».
+1. Installer avec un **compte standard** : aucune demande d'administrateur ne doit apparaître. Windows affiche l'avertissement SmartScreen « Windows a protégé votre ordinateur » : cliquer sur « Informations complémentaires », puis sur « Exécuter quand même ». L'installeur affiche ensuite la licence (EUPL 1.2, en français, accents lisibles) avec un bouton « J'accepte ».
 2. **Couper le réseau** pour toute la suite.
 3. Importer un dossier de photos de téléphone contenant des photos en portrait, en paysage et une HEIC. Attendu : les photos sont droites et la HEIC est signalée par un message clair.
 4. Créer une page depuis « Grille de photos », avec 4 photos et 2 textes. L'exporter pour LibreOffice, puis ouvrir le fichier `.odg` sur un poste **sans** les polices installées. Attendu : même apparence, objets modifiables.

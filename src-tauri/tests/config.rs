@@ -1,4 +1,5 @@
-//! La configuration garantit l'absence d'accès réseau et une installation sans droits administrateur.
+//! La configuration garantit une interface sans accès réseau, aucune mise à jour installée d'office et une
+//! installation sans droits administrateur.
 
 use serde_json::Value;
 
@@ -41,6 +42,15 @@ fn installer_is_per_user_nsis() {
     assert_eq!(c["bundle"]["windows"]["nsis"]["installMode"], "currentUser");
 }
 
+/// L'installeur Windows montre la licence (EUPL, article 10) : le texte officiel, à la racine du dépôt.
+#[test]
+fn installer_shows_the_licence() {
+    let c = config();
+    assert_eq!(c["bundle"]["licenseFile"], "../LICENSE");
+    assert!(include_str!("../../LICENSE").contains("EUPL"));
+}
+
+/// Les nouvelles versions sont seulement signalées (`update.rs`) : rien ne se télécharge ni ne s'installe seul.
 #[test]
 fn no_updater() {
     let c = config();

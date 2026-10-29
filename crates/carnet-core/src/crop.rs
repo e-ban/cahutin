@@ -18,8 +18,9 @@ pub fn source_rect(img_w: u32, img_h: u32, frame_w_mm: f64, frame_h_mm: f64, cro
     let s0 = (frame_w_mm / iw).max(frame_h_mm / ih);
     let w = frame_w_mm / (s0 * crop.scale);
     let h = frame_h_mm / (s0 * crop.scale);
-    let x = (crop.center_x * iw - w / 2.0).clamp(0.0, iw - w);
-    let y = (crop.center_y * ih - h / 2.0).clamp(0.0, ih - h);
+    // Cadre aux proportions de l'image : l'arrondi peut donner w un rien plus grand que iw.
+    let x = (crop.center_x * iw - w / 2.0).clamp(0.0, (iw - w).max(0.0));
+    let y = (crop.center_y * ih - h / 2.0).clamp(0.0, (ih - h).max(0.0));
     SourceRect { x, y, w, h }
 }
 
@@ -28,6 +29,16 @@ mod tests {
     use super::*;
     use crate::model::Crop;
     use serde::Deserialize;
+
+    /// Cadre aux proportions exactes de l'image (photo importée) : l'arrondi ne doit pas faire planter.
+    #[test]
+    fn a_frame_with_the_image_proportions_does_not_panic() {
+        for (fw, fh) in [(32.4, 24.3), (67.4, 50.550000000000004)] {
+            let r = source_rect(4000, 3000, fw, fh, &Crop::COVER);
+            assert!(r.x.abs() < 1e-6 && r.y.abs() < 1e-6, "{r:?}");
+            assert!((r.w - 4000.0).abs() < 1e-6 && (r.h - 3000.0).abs() < 1e-6, "{r:?}");
+        }
+    }
 
     #[derive(Deserialize)]
     struct Expected {

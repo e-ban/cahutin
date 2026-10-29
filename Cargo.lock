@@ -302,6 +302,7 @@ name = "cahutin-mcp"
 version = "0.5.1"
 dependencies = [
  "carnet-core",
+ "image",
  "serde_json",
  "tempfile",
  "zip",

@@ -7,131 +7,7 @@
 <meta name="description" content="Cahutin aide les enseignants de l'école primaire à faire leurs fiches, affiches, étiquettes et pages de cahier de vie. Gratuit, libre et hors ligne : les photos des élèves ne quittent pas l'ordinateur.">
 <link rel="icon" href="img/icone.png">
 <link rel="preload" href="fonts/PlaywriteFRModerne-Regular.woff2" as="font" type="font/woff2" crossorigin>
-<style>
-@font-face { font-family: "Playwrite FR Moderne"; src: url("fonts/PlaywriteFRModerne-Regular.woff2") format("woff2"); font-display: swap; }
-@font-face { font-family: "Andika"; src: url("fonts/Andika-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
-@font-face { font-family: "Andika"; src: url("fonts/Andika-Bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
-
-:root {
-  --papier: #fcfdff;
-  --ligne: #e6ecf8;
-  --ligne-forte: #bfcdea;
-  --marge: #d9473f;
-  --encre: #1f2c4a;
-  --encre-douce: #4c5873;
-  --bleu: #2e86de;
-  --bleu-fonce: #1f6db8;
-  --rouge: #c0392b;
-  --scotch: rgba(246, 232, 170, 0.78);
-  --u: 8px; /* interligne Seyès : 4 lignes fines par grand carreau */
-  --marge-x: clamp(20px, 7vw, 96px);
-}
-
-* { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body {
-  margin: 0;
-  color: var(--encre);
-  font: 19px/32px "Andika", "Atkinson Hyperlegible", system-ui, sans-serif;
-  background-color: var(--papier);
-  background-image:
-    linear-gradient(to right, transparent calc(var(--marge-x) - 1px), var(--marge) calc(var(--marge-x) - 1px), var(--marge) calc(var(--marge-x) + 1px), transparent calc(var(--marge-x) + 1px)),
-    linear-gradient(to bottom, var(--ligne-forte) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--ligne) 1px, transparent 1px),
-    linear-gradient(to right, var(--ligne) 1px, transparent 1px);
-  background-size: 100% 100%, 100% calc(4 * var(--u)), 100% var(--u), calc(4 * var(--u)) 100%;
-  background-position: 0 0, 0 0, 0 0, var(--marge-x) 0;
-}
-
-a { color: var(--bleu-fonce); text-underline-offset: 3px; }
-a:focus-visible, .bouton:focus-visible { outline: 3px solid var(--bleu); outline-offset: 3px; border-radius: 4px; }
-img { max-width: 100%; height: auto; display: block; }
-
-.cahier { padding: 0 20px 0 calc(var(--marge-x) + 28px); max-width: 1240px; overflow-x: clip; }
-.texte { max-width: 62ch; }
-
-h1, h2 { font-family: "Playwrite FR Moderne", cursive; font-weight: 400; color: var(--rouge); margin: 0; }
-h1 { font-size: clamp(34px, 5.4vw, 64px); line-height: calc(12 * var(--u)); padding-top: calc(12 * var(--u)); max-width: 17ch; }
-h2 { font-size: clamp(28px, 3.4vw, 40px); line-height: calc(8 * var(--u)); padding-top: calc(12 * var(--u)); margin-bottom: calc(2 * var(--u)); }
-h3 { font-size: 21px; line-height: 32px; margin: calc(3 * var(--u)) 0 0; }
-p, ul, ol { margin: 0 0 32px; }
-
-header .chapo { font-size: 23px; line-height: 40px; margin: calc(3 * var(--u)) 0 calc(4 * var(--u)); color: var(--encre); }
-
-.bouton {
-  display: inline-block;
-  background: var(--bleu);
-  color: white;
-  font-weight: 700;
-  font-size: 21px;
-  line-height: 32px;
-  padding: 12px 28px;
-  border-radius: 999px;
-  text-decoration: none;
-  box-shadow: 0 3px 0 var(--bleu-fonce);
-}
-.bouton:hover { background: var(--bleu-fonce); }
-.bouton:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--bleu-fonce); }
-.sous-bouton { color: var(--encre-douce); font-size: 17px; margin: var(--u) 0 0; }
-
-/* La capture de l'application, scotchée sur la page du cahier. */
-.colle { position: relative; margin: calc(8 * var(--u)) 0 calc(4 * var(--u)); max-width: 1080px; transform: rotate(-1.2deg); }
-.colle img { border: 10px solid white; box-shadow: 0 10px 30px rgba(31, 44, 74, 0.18); }
-.colle::before, .colle::after {
-  content: ""; position: absolute; width: 130px; height: 34px; background: var(--scotch); top: -14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-}
-.colle::before { left: 8%; transform: rotate(-4deg); }
-.colle::after { right: 8%; transform: rotate(5deg); }
-
-.exemples { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 28px; margin: calc(2 * var(--u)) 0 calc(4 * var(--u)); padding: 0; list-style: none; }
-.exemples li { margin: 0; }
-.exemples img { border: 6px solid white; box-shadow: 0 6px 18px rgba(31, 44, 74, 0.16); }
-.exemples li:nth-child(odd) img { transform: rotate(-1.5deg); }
-.exemples li:nth-child(even) img { transform: rotate(1.2deg); }
-.exemples b { display: block; margin-top: calc(2 * var(--u)); }
-.exemples span { display: block; color: var(--encre-douce); font-size: 17px; line-height: 24px; }
-
-.deux { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 4fr); gap: 48px; align-items: start; }
-.deux .colle { margin-top: calc(3 * var(--u)); transform: rotate(1deg); }
-
-.gommettes { list-style: none; padding: 0; }
-.gommettes li { position: relative; padding-left: 44px; margin-bottom: calc(2 * var(--u)); }
-.gommettes li::before {
-  content: ""; position: absolute; left: 0; top: 4px; width: 24px; height: 24px; border-radius: 50%;
-  background: var(--g, var(--bleu)); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.12);
-}
-.gommettes li:nth-child(4n+1) { --g: #e74c3c; }
-.gommettes li:nth-child(4n+2) { --g: #f1c40f; }
-.gommettes li:nth-child(4n+3) { --g: #27ae60; }
-.gommettes li:nth-child(4n+4) { --g: #2e86de; }
-.gommettes h3 { margin: 0; }
-
-ol.etapes { padding-left: 1.4em; }
-ol.etapes li { padding-left: 6px; margin-bottom: var(--u); }
-ol.etapes li::marker { font-weight: 700; color: var(--rouge); }
-kbd, code { font-family: inherit; background: #eef3fb; border: 1px solid var(--ligne-forte); border-radius: 4px; padding: 0 6px; font-size: 0.92em; }
-
-footer { margin-top: calc(12 * var(--u)); padding-bottom: calc(8 * var(--u)); color: var(--encre-douce); font-size: 16px; line-height: 24px; }
-footer p { margin-bottom: calc(2 * var(--u)); }
-
-@media (max-width: 960px) {
-  .exemples { grid-template-columns: repeat(5, 62vw); overflow-x: auto; scroll-snap-type: x mandatory; padding: 12px 4px 16px; }
-  .exemples li { scroll-snap-align: start; }
-  .deux { grid-template-columns: 1fr; gap: 0; }
-}
-@media (max-width: 600px) {
-  :root { --marge-x: 14px; }
-  .cahier { padding-left: 34px; padding-right: 16px; }
-  body { font-size: 18px; }
-  header .chapo { font-size: 20px; line-height: 32px; }
-  h1 { line-height: calc(7 * var(--u)); padding-top: calc(8 * var(--u)); }
-  h2 { line-height: calc(6 * var(--u)); }
-  .colle img { border-width: 6px; }
-  .colle::before, .colle::after { width: 80px; height: 24px; }
-}
-@media (prefers-reduced-motion: reduce) { .bouton:active { transform: none; } }
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="cahier">
@@ -196,7 +72,7 @@ footer p { margin-bottom: calc(2 * var(--u)); }
       <li>Accepter la licence, puis suivre l'installation. Cahutin apparaît dans le menu Démarrer.</li>
     </ol>
     <h3>Linux</h3>
-    <p>Sur la même page : le fichier <code>.AppImage</code> fonctionne sur toutes les distributions (le rendre exécutable, puis le lancer), le fichier <code>.deb</code> s'installe sur Debian, Ubuntu et leurs dérivées.</p>
+    <p>Sur la même page : le fichier <code>.AppImage</code> fonctionne sur toutes les distributions (le rendre exécutable, puis le lancer), le fichier <code>.deb</code> s'installe sur Debian, Ubuntu et leurs dérivées. Pour vérifier un fichier téléchargé, voir la <a href="signature.html">politique de signature (Code signing policy)</a>.</p>
     <h3>Vous utilisiez Carnet ?</h3>
     <p>Cahutin est son nouveau nom. Installez Cahutin : il reprend vos modèles personnels et vos polices ajoutées, et vos fichiers <code>.carnet</code> s'ouvrent comme avant. Vous pouvez ensuite désinstaller Carnet.</p>
     <h3>Les nouvelles versions</h3>
@@ -207,7 +83,7 @@ footer p { margin-bottom: calc(2 * var(--u)); }
 
 <footer class="texte">
   <p>Cahutin est en bêta : il sert déjà en classe, mais il peut rester des défauts. Pour en signaler un ou proposer une idée : menu Aide &gt; Signaler un problème dans l'application, ou une <a href="https://github.com/e-ban/cahutin/issues">demande sur GitHub</a>.</p>
-  <p>© Iban Guinebert, <a href="https://github.com/e-ban/cahutin/blob/main/LICENSE">licence EUPL 1.2</a>. Images : <a href="https://openmoji.org">OpenMoji</a>, CC BY-SA 4.0. Polices Andika et Playwrite FR Moderne sous licence SIL Open Font License. Ce site ne dépose aucun cookie et ne mesure pas les visites.</p>
+  <p>© Iban Guinebert, <a href="https://github.com/e-ban/cahutin/blob/main/LICENSE">licence EUPL 1.2</a>. Images : <a href="https://openmoji.org">OpenMoji</a>, CC BY-SA 4.0. Polices Andika et Playwrite FR Moderne sous licence SIL Open Font License. Ce site ne dépose aucun cookie et ne mesure pas les visites. <a href="signature.html">Code signing policy</a>.</p>
 </footer>
 
 </div>

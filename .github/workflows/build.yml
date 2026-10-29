@@ -1,6 +1,6 @@
 # Construction : tests, puis installeurs Windows (NSIS, utilisateur courant) et Linux (AppImage, .deb)
-# publiés en artefacts. Un tag vX.Y.Z publie en plus une préversion GitHub avec les installeurs et la
-# section de CHANGELOG.md.
+# publiés en artefacts. Un tag vX.Y.Z publie en plus une version GitHub avec les installeurs, leurs
+# empreintes (SHA256SUMS, signées ensuite par scripts/sign-release.sh) et la section de CHANGELOG.md.
 name: Construction
 
 on:
@@ -118,7 +118,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # Avant la 1.0 et la recette avec les collègues, les versions sont des préversions.
+  # Avant la 1.0, le titre porte « (bêta) » ; la version n'est pas marquée préversion, pour que
+  # « releases/latest » (liens du README, avis de nouvelle version) la trouve.
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [windows, linux]
@@ -143,4 +144,8 @@ jobs:
             test -n "$f" || { echo "::error::$name introuvable"; find dist -type f; exit 1; }
             files+=("$f")
           done
-          gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --title "Cahutin $version (bêta)" --notes-file "$(find dist -type f -name notes.md | head -1)"
+          for f in "${files[@]}"; do (cd "$(dirname "$f")" && sha256sum "$(basename "$f")"); done > SHA256SUMS
+          cat SHA256SUMS
+          cp "$(find dist -type f -name notes.md | head -1)" notes.md
+          printf '\n---\n\nEmpreintes : `SHA256SUMS` (signature GPG `SHA256SUMS.asc`). Code signing policy : https://e-ban.github.io/cahutin/signature.html\n' >> notes.md
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" SHA256SUMS --repo "$GITHUB_REPOSITORY" --title "Cahutin $version (bêta)" --notes-file notes.md

@@ -29,6 +29,10 @@ Sous Linux, « Exporter en PDF » n'existe pas : utiliser « Imprimer », puis �
 
 Cahutin est le nouveau nom de Carnet. Installez Cahutin : au premier lancement, il reprend vos modèles personnels et vos polices ajoutées, et vos documents `.carnet` s'ouvrent comme avant. Vous pouvez ensuite désinstaller Carnet.
 
+### Vérifier un téléchargement
+
+Chaque version publie les empreintes `SHA256SUMS` et leur signature GPG `SHA256SUMS.asc`. La marche à suivre, l'équipe et la signature de l'installeur Windows sont décrites dans la [politique de signature (Code signing policy)](https://e-ban.github.io/cahutin/signature.html).
+
 ### Mises à jour
 
 Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvelle version sort (réglable ensuite dans le menu Aide). Si vous acceptez, un bandeau l'annonce avec un lien vers la page des téléchargements. Pour changer de version, installer la nouvelle par-dessus l'ancienne : les documents et les modèles personnels sont conservés.
@@ -100,7 +104,7 @@ Les types TypeScript de `ui/src/lib/gen` sont produits par le moteur (ts-rs) lor
 2. Ajouter une section `## <version>` en tête de `CHANGELOG.md`.
 3. Valider, puis créer et envoyer le tag : `git tag v<version>` et `git push origin main v<version>`.
 
-Le workflow « Construction » lance les tests sous Windows et Linux, construit les installeurs et publie la release avec la section du journal des versions. Il refuse un tag qui ne correspond pas à la version de l'application ou qui n'a pas de section dans `CHANGELOG.md`.
+Le workflow « Construction » lance les tests sous Windows et Linux, construit les installeurs et publie la release avec ses empreintes (`SHA256SUMS`) et la section du journal des versions. Une fois la release publiée, signer les empreintes : `scripts/sign-release.sh v<version>`. Il refuse un tag qui ne correspond pas à la version de l'application ou qui n'a pas de section dans `CHANGELOG.md`.
 
 ## Mentions
 

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Politique de signature de Cahutin (Code signing policy)</title>
+<meta name="description" content="Comment les installeurs de Cahutin sont construits, signés et vérifiés, qui approuve chaque version, et ce que le programme envoie sur le réseau.">
+<link rel="icon" href="img/icone.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="cahier">
+
+<header>
+  <h1>Politique de signature</h1>
+  <p class="chapo texte">Code signing policy. Comment les fichiers de Cahutin sont construits et signés, et comment vérifier ceux que vous avez téléchargés. <a href="./">Retour à l'accueil</a>.</p>
+</header>
+
+<main class="texte">
+<section aria-labelledby="windows">
+  <h2 id="windows">Installeur Windows</h2>
+  <p>La signature de l'installeur Windows par SignPath Foundation, gratuite pour les logiciels libres, est en préparation. Une fois en place, les installeurs Windows porteront la mention : <em>Free code signing provided by <a href="https://signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a></em>. L'éditeur affiché par Windows sera alors « SignPath Foundation ».</p>
+  <p>Seuls sont signés les fichiers construits automatiquement par GitHub Actions, à partir du code source public du <a href="https://github.com/e-ban/cahutin">dépôt e-ban/cahutin</a>, pour une version étiquetée (tag <code>vX.Y.Z</code>). Chaque signature de version est approuvée à la main par un approbateur. Le workflow de construction fait partie du code source et se lit dans le dépôt.</p>
+</section>
+
+<section aria-labelledby="linux">
+  <h2 id="linux">Paquets Linux</h2>
+  <p>Chaque version publie un fichier <code>SHA256SUMS</code> avec l'empreinte de chaque paquet, et sa signature <code>SHA256SUMS.asc</code> faite avec la clé GPG de l'auteur :</p>
+  <p><code>8FA0 F2E7 B84F 0A5A 7486 4BF5 F53D 74F1 7C0A 3001</code></p>
+  <p>Pour vérifier un téléchargement, dans le dossier qui contient les fichiers :</p>
+  <ol class="etapes">
+    <li>Importer la clé publiée par GitHub : <code>curl -s https://github.com/e-ban.gpg | gpg --import</code></li>
+    <li>Vérifier la signature : <code>gpg --verify SHA256SUMS.asc SHA256SUMS</code> doit dire « Bonne signature » avec l'empreinte ci-dessus.</li>
+    <li>Vérifier les fichiers : <code>sha256sum --check --ignore-missing SHA256SUMS</code> doit répondre « OK » pour chacun.</li>
+  </ol>
+</section>
+
+<section aria-labelledby="equipe">
+  <h2 id="equipe">L'équipe</h2>
+  <p>Cahutin est développé et maintenu par une seule personne, qui tient les trois rôles :</p>
+  <ul class="gommettes">
+    <li><h3>Auteurs (committers)</h3><a href="https://github.com/e-ban">Iban Guinebert</a> : modifie le code source.</li>
+    <li><h3>Relecteurs (reviewers)</h3><a href="https://github.com/e-ban">Iban Guinebert</a> : relit chaque contribution extérieure (pull request) avant de l'intégrer.</li>
+    <li><h3>Approbateurs (approvers)</h3><a href="https://github.com/e-ban">Iban Guinebert</a> : approuve chaque demande de signature.</li>
+  </ul>
+  <p>Les comptes utilisés pour le dépôt et pour la signature sont protégés par une authentification à deux facteurs.</p>
+</section>
+
+<section aria-labelledby="confidentialite">
+  <h2 id="confidentialite">Confidentialité</h2>
+  <p>Cahutin ne transmet aucune information à un autre système en réseau, sauf si l'utilisateur le demande expressément.</p>
+  <p>La seule connexion possible est l'avis de nouvelle version. Elle est désactivée tant que l'utilisateur ne l'a pas acceptée, et se coupe à tout moment dans le menu Aide. Une fois par jour, Cahutin lit alors le numéro de la dernière version sur <code>api.github.com</code>, sans envoyer aucun document, identifiant ou information sur l'ordinateur ; GitHub voit l'adresse IP de la connexion.</p>
+</section>
+
+<section aria-labelledby="english" lang="en">
+  <h2 id="english">In English</h2>
+  <p><b>Windows installer.</b> Free code signing by SignPath Foundation is in preparation. Once in place: free code signing provided by SignPath.io, certificate by SignPath Foundation. Only installers built by GitHub Actions from the public source of e-ban/cahutin for a tagged release are signed, and every signing request is approved manually.</p>
+  <p><b>Linux packages.</b> Each release ships <code>SHA256SUMS</code> and <code>SHA256SUMS.asc</code>, signed with the GPG key above.</p>
+  <p><b>Team roles.</b> Committers, reviewers and approvers: <a href="https://github.com/e-ban">Iban Guinebert</a>. Multi-factor authentication is enabled.</p>
+  <p><b>Privacy.</b> This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. The only connection is the optional new-version notice: off until the user accepts it, it reads the latest version number from api.github.com once a day.</p>
+</section>
+</main>
+
+<footer class="texte">
+  <p>© Iban Guinebert, <a href="https://github.com/e-ban/cahutin/blob/main/LICENSE">licence EUPL 1.2</a>.</p>
+</footer>
+
+</div>
+</body>
+</html>

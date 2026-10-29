@@ -18,3 +18,9 @@ test("versions before 1.0 say beta", () => {
   expect(fr.aboutVersion("0.5.0")).toContain("0.5.0 (bêta)");
   expect(fr.aboutVersion("1.0.0")).not.toContain("bêta");
 });
+
+/** Cahutin sert à toutes sortes de pages : l'accueil propose un modèle, le cahier de vie n'en est qu'un exemple. */
+test("the welcome screen starts from a template, not only a life book", () => {
+  expect(fr.welcomeTemplate).toBe("Partir d'un modèle");
+  expect(fr.chooseTemplate).toBe("Choisissez un modèle");
+});

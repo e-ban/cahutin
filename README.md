@@ -1,6 +1,6 @@
 # Cahutin
 
-Cahutin aide les enseignants de l'école primaire à faire leurs pages de cahier de vie, leurs fiches et leurs affichages de classe : on part d'un modèle, on dépose ses photos, on écrit, et la page est prête à imprimer. Gratuit, libre, et **hors ligne** : aucun document ne quitte l'ordinateur.
+Cahutin aide les enseignants de l'école primaire à faire leurs fiches, leurs affiches, leurs étiquettes et leurs pages de cahier de vie : on part d'un modèle, on dépose ses photos, on écrit, et la page est prête à imprimer. Gratuit, libre, et **hors ligne** : aucun document ne quitte l'ordinateur.
 
 ![La page « Joyeux anniversaire » ouverte dans Cahutin](docs/capture.png)
 

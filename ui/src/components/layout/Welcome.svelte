@@ -45,7 +45,7 @@
     <h1>{fr.welcomeTitle}</h1>
     <div class="choices">
       <button class="choice main" onclick={() => (step = "layouts")}>
-        <b>📔</b><span>{fr.welcomeLifeBook}</span><small>{fr.welcomeLifeBookSub}</small>
+        <b>📐</b><span>{fr.welcomeTemplate}</span><small>{fr.welcomeTemplateSub}</small>
       </button>
       <button class="choice" onclick={close}><b>📄</b><span>{fr.welcomeBlank}</span><small>{fr.welcomeBlankSub}</small></button>
       <button class="choice" onclick={() => openDoc()}><b>📂</b><span>{fr.welcomeResume}</span><small>{fr.welcomeResumeSub}</small></button>
@@ -83,7 +83,7 @@
   {:else}
     <div class="head">
       <button class="back" onclick={() => (step = "choices")}>{fr.back}</button>
-      <h1>{fr.chooseLayout}</h1>
+      <h1>{fr.chooseTemplate}</h1>
     </div>
     <div class="grid">
       {#each templates.infos as t (t.id)}

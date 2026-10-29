@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.5.1
+
+- Accueil : « Partir d'un modèle » remplace « Une page de cahier de vie » : les modèles servent aussi aux fiches, affiches et étiquettes.
+
 ## 0.5.0
 
 - Carnet s'appelle désormais Cahutin, logiciel libre sous EUPL 1.2. Première version publique, en bêta : retours bienvenus par « Signaler un problème » ou par une issue GitHub.

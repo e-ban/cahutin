@@ -150,12 +150,28 @@ fn extension(path: &Path) -> String {
     path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase()
 }
 
+/// Réglages du profil LibreOffice d'import : aucun contenu lié (image distante, lien de suivi) n'est
+/// téléchargé, et pas de recherche de mise à jour. Écrits avant le premier lancement.
+const OFFLINE_SETTINGS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<oor:items xmlns:oor="http://openoffice.org/2001/registry" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<item oor:path="/org.openoffice.Office.Common/Security/Scripting"><prop oor:name="BlockUntrustedRefererLinks" oor:op="fuse"><value>true</value></prop></item>
+<item oor:path="/org.openoffice.Office.Jobs/Jobs/org.openoffice.Office.Jobs:Job['UpdateCheck']/Arguments"><prop oor:name="AutoCheckEnabled" oor:op="fuse"><value>false</value></prop></item>
+</oor:items>
+"#;
+
+fn write_offline_profile(profile_dir: &Path) -> Result<(), ImportError> {
+    let user = profile_dir.join("user");
+    std::fs::create_dir_all(&user).map_err(|_| ImportError::Conversion)?;
+    std::fs::write(user.join("registrymodifications.xcu"), OFFLINE_SETTINGS).map_err(|_| ImportError::Conversion)
+}
+
 /// Copie de l'entrée sous un nom neutre, PDF si besoin, puis ODG par l'import PDF de Draw.
 pub fn convert_to_odg(soffice: &Path, input: &Path, work: &Path, timeout: Duration, cancel: &AtomicBool) -> Result<PathBuf, ImportError> {
     let deadline = Instant::now() + timeout;
     let ext = extension(input);
     let source = work.join(format!("source.{ext}"));
     std::fs::copy(input, &source).map_err(|_| ImportError::Conversion)?;
+    write_offline_profile(&work.join("profil"))?;
     let profile = profile_url(&work.join("profil"));
     let pdf = if ext == "pdf" {
         source

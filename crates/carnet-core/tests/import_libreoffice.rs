@@ -156,3 +156,55 @@ fn imported_page_looks_like_the_original() {
         assert!((a.0 - b.0).abs() <= 0.5 && (a.1 - b.1).abs() <= 0.5, "{word} : original {a:?}, importé {b:?}");
     }
 }
+
+/// Une image liée à une adresse distante n'est jamais téléchargée pendant la conversion (hors ligne,
+/// et l'auteur du fichier ne doit pas apprendre qu'il a été ouvert). Un serveur local note toute visite.
+#[test]
+#[ignore]
+fn conversion_never_fetches_linked_images() {
+    use std::net::TcpListener;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    listener.set_nonblocking(true).unwrap();
+    let visits = Arc::new(AtomicUsize::new(0));
+    let stop = Arc::new(AtomicBool::new(false));
+    let server = {
+        let (visits, stop) = (visits.clone(), stop.clone());
+        std::thread::spawn(move || {
+            while !stop.load(Ordering::SeqCst) {
+                match listener.accept() {
+                    Ok(_) => {
+                        visits.fetch_add(1, Ordering::SeqCst);
+                    }
+                    Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+                }
+            }
+        })
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let fodt = dir.path().join("lien.fodt");
+    std::fs::write(
+        &fodt,
+        format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.text">
+<office:body><office:text><text:p>Une image liée :</text:p>
+<text:p><draw:frame draw:name="lien" text:anchor-type="paragraph" svg:width="4cm" svg:height="3cm"><draw:image xlink:href="http://127.0.0.1:{port}/pixel.png" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame></text:p>
+</office:text></office:body></office:document>"#
+        ),
+    )
+    .unwrap();
+    // Le fichier passe par un .odt, comme une fiche reçue d'un collègue.
+    let odt = convert(dir.path(), &fodt, "odt");
+    let docx = convert(dir.path(), &fodt, "docx");
+    let pdf = convert(dir.path(), &fodt, "pdf");
+    let before = visits.load(Ordering::SeqCst);
+    let _ = import(&odt);
+    let _ = import(&docx);
+    let _ = pdf;
+    stop.store(true, Ordering::SeqCst);
+    server.join().unwrap();
+    assert_eq!(visits.load(Ordering::SeqCst) - before, 0, "LibreOffice a téléchargé l'image liée pendant l'import");
+}

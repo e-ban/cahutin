@@ -153,6 +153,14 @@ pub struct ImportedPages {
     pub report: ImportReport,
 }
 
+/// Type de fichier pour le journal : un des formats connus, sinon « autre » (une extension inconnue peut
+/// être un prénom : « Bilan.Martin »).
+fn log_kind(path: &Path) -> &'static str {
+    const KNOWN: [&str; 7] = ["carnet", "docx", "doc", "odt", "odg", "pdf", "pub"];
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    KNOWN.into_iter().find(|k| *k == ext).unwrap_or("autre")
+}
+
 /// Ligne du journal d'un import : type de fichier et compteurs, jamais le nom ni le texte.
 fn import_log_line(kind: &str, result: Result<&ImportReport, ImportError>, ms: u128) -> String {
     match result {
@@ -163,18 +171,18 @@ fn import_log_line(kind: &str, result: Result<&ImportReport, ImportError>, ms: u
 
 fn import_file_in(state: &AppState, path: &Path, soffice: Option<&Path>) -> Result<ImportedPages, String> {
     state.import_cancel.store(false, Ordering::SeqCst);
-    let kind = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    let kind = log_kind(path);
     let known: Vec<String> = state.fonts.read().unwrap().families().into_iter().map(|f| f.name).collect();
     let start = std::time::Instant::now();
     let result = import::office::import_file(path, soffice, &known, &state.import_cancel);
     let ms = start.elapsed().as_millis();
     let imported = match result {
         Ok(i) => {
-            log::info!("{}", import_log_line(&kind, Ok(&i.report), ms));
+            log::info!("{}", import_log_line(kind, Ok(&i.report), ms));
             i
         }
         Err(e) => {
-            log::error!("{}", import_log_line(&kind, Err(e), ms));
+            log::error!("{}", import_log_line(kind, Err(e), ms));
             return Err(e.message_fr());
         }
     };
@@ -607,6 +615,15 @@ mod tests {
         std::fs::write(&docx, b"PK").unwrap();
         let err = import_file_in(&state, &docx, None).err().unwrap();
         assert!(err.starts_with("Pour importer ce fichier, installez LibreOffice"), "{err}");
+    }
+
+    /// « Bilan.Martin » : l'extension d'un nom de fichier peut être un prénom, elle n'entre pas au journal.
+    #[test]
+    fn log_kind_is_one_of_the_known_formats() {
+        assert_eq!(log_kind(Path::new("/école/Bilan.Martin")), "autre");
+        assert_eq!(log_kind(Path::new("Fiche.DOCX")), "docx");
+        assert_eq!(log_kind(Path::new("sortie.carnet")), "carnet");
+        assert_eq!(log_kind(Path::new("sans-extension")), "autre");
     }
 
     #[test]

@@ -3,7 +3,7 @@
 //! `cargo test -p carnet-core --test import_libreoffice -- --ignored --test-threads=1`
 
 use carnet_core::fonts::FontSet;
-use carnet_core::import::office::{SofficeLookup, find_soffice, import_file};
+use carnet_core::import::office::{SofficeLookup, find_soffice, import_file, profile_url};
 use carnet_core::import::Imported;
 use carnet_core::odg::export_odg_to_path;
 use carnet_core::photo::AssetStore;
@@ -25,7 +25,7 @@ fn soffice() -> PathBuf {
 }
 
 fn convert(dir: &Path, input: &Path, to: &str) -> PathBuf {
-    let profile = format!("-env:UserInstallation=file://{}", dir.join("profil").display());
+    let profile = format!("-env:UserInstallation={}", profile_url(&dir.join("profil")));
     run(Command::new(soffice()).arg(profile).args(["--headless", "--convert-to", to, "--outdir"]).arg(dir).arg(input));
     input.with_extension(to)
 }

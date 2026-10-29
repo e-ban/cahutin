@@ -695,3 +695,19 @@ mod tests {
         assert!(state.fonts.read().unwrap().face("Carnet Test", false, false).is_some());
     }
 }
+
+/// Version plus récente que celle-ci, si GitHub en annonce une. L'interface n'appelle qu'avec l'accord
+/// de l'utilisateur ; un échec (hors ligne, pare-feu) ne dit rien.
+#[tauri::command]
+pub async fn check_update() -> Option<String> {
+    let body = tauri::async_runtime::spawn_blocking(crate::update::fetch_latest_release).await.ok().flatten();
+    let newer = body.as_deref().and_then(|b| crate::update::newer_version(b, env!("CARGO_PKG_VERSION")));
+    log::info!("update_check reached={} newer={}", body.is_some(), newer.is_some());
+    newer
+}
+
+/// Page des téléchargements dans le navigateur : adresse fixe, quelle que soit la réponse de GitHub.
+#[tauri::command]
+pub fn open_download_page() -> Result<(), String> {
+    open::that_detached(crate::update::DOWNLOAD_PAGE).map_err(|_| "Impossible d'ouvrir le navigateur.".to_string())
+}

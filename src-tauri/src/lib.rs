@@ -6,6 +6,7 @@ mod legacy;
 mod pdf_windows;
 mod protocol;
 mod state;
+mod update;
 
 use carnet_core::fonts;
 use carnet_core::photo::{AssetStore, CacheDir};
@@ -97,6 +98,8 @@ pub fn run() {
             commands::export_problem_report,
             commands::can_export_pdf,
             commands::export_pdf,
+            commands::check_update,
+            commands::open_download_page,
         ])
         .build(tauri::generate_context!())
         .expect("échec du démarrage de l'application")

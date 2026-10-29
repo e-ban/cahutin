@@ -24,6 +24,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ts-rs = "11"
 time = { version = "0.3", features = ["formatting", "local-offset"] }
+ureq = { version = "3.5.0", default-features = false, features = ["rustls-no-provider", "_ring", "platform-verifier", "win-system-proxy"] }
+open = "5.4.5"
 
 [dev-dependencies]
 tempfile = "3"

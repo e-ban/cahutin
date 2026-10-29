@@ -4,7 +4,7 @@
 
 ## 1. Construire l'installeur
 
-**Le plus simple :** télécharger l'installeur `Cahutin_<version>_x64-setup.exe` de la dernière version sur la page « Releases » du dépôt. Pour essayer une construction plus récente : à chaque envoi sur `main`, GitHub construit l'installeur (workflow « Construction ») ; ouvrir « Actions », puis le dernier run réussi « Construction », et télécharger l'artefact `carnet-installeur-windows-…`. On peut aussi relancer la construction à la main avec « Run workflow ».
+**Le plus simple :** télécharger l'installeur `Cahutin_<version>_x64-setup.exe` de la dernière version sur la page « Releases » du dépôt. Pour essayer une construction plus récente : à chaque envoi sur `main`, GitHub construit l'installeur (workflow « Construction ») ; ouvrir « Actions », puis le dernier run réussi « Construction », et télécharger l'artefact `cahutin-installeur-windows-…`. On peut aussi relancer la construction à la main avec « Run workflow ».
 
 **Sur le poste Windows lui-même :**
 
@@ -73,4 +73,4 @@ Avec `npm run tauri dev` :
 30. **Visite guidée et astuces** : sur un poste neuf (ou après avoir supprimé les données de Cahutin), lancer Cahutin et fermer l'écran d'accueil. Attendu : la visite démarre ; chaque étape met en lumière la bonne zone ; Échap la ferme ; elle ne revient pas au lancement suivant. Pendant le test des 5 minutes, noter si la collègue suit la visite jusqu'au bout et ce qu'elle en retient. Menu Aide : Astuces ouvre le panneau ; décocher « Afficher les astuces pendant le travail » fait disparaître les bulles ; Visite guidée la relance.
 31. **Passage de Carnet à Cahutin** :
     - Windows : avec Carnet 0.4 installé, un modèle personnel et une police ajoutée, installer Cahutin. Attendu : Carnet et Cahutin sont tous deux installés ; au premier lancement, Cahutin propose le modèle et la police. Désinstaller ensuite Carnet en cochant la suppression des données. Attendu : Cahutin garde le modèle et la police, et un `.carnet` fait avec Carnet s'ouvre.
-    - Linux : installer le `.deb` de Carnet 0.4 puis celui de Cahutin. Attendu : les deux s'installent côte à côte, sans conflit de fichier.
+    - Linux : avec Carnet 0.4 installé (.deb), un modèle personnel et une police ajoutée, installer le `.deb` de Cahutin. Attendu : les deux s'installent côte à côte, sans conflit de fichier, et au premier lancement Cahutin propose le modèle et la police.

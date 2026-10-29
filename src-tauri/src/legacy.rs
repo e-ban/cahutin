@@ -5,18 +5,27 @@ use std::path::Path;
 /// Identifiant de l'application avant son changement de nom ; son dossier de données est voisin du nôtre.
 pub const LEGACY_IDENTIFIER: &str = "fr.carnet.app";
 
-/// Au premier lancement (dossier `new` absent), copie `modeles` et `polices` de `old` vers `new`, sans
-/// rien déplacer ni effacer : désinstaller Carnet ne touche plus nos données. Vrai si une copie a eu lieu.
+/// Copie `modeles` et `polices` de `old` vers `new`, chacun seulement s'il manque dans `new` : le dossier
+/// `new` lui-même existe déjà (Tauri y range le journal sous Linux), et `modeles` y est créé à chaque
+/// lancement, donc la copie n'a lieu qu'une fois. Rien n'est déplacé ni effacé dans `old` : désinstaller
+/// Carnet ne touche plus nos données. Chaque dossier passe par un dossier provisoire renommé à la fin :
+/// une copie interrompue est refaite au lancement suivant. Vrai si une copie a eu lieu.
 pub fn copy_legacy_data(old: &Path, new: &Path) -> std::io::Result<bool> {
-    if new.exists() || !old.is_dir() {
-        return Ok(false);
-    }
+    let mut copied = false;
     for sub in ["modeles", "polices"] {
-        if old.join(sub).is_dir() {
-            copy_dir(&old.join(sub), &new.join(sub))?;
+        let (from, to) = (old.join(sub), new.join(sub));
+        if !from.is_dir() || to.exists() {
+            continue;
         }
+        let partial = new.join(format!("{sub}.reprise"));
+        if partial.exists() {
+            std::fs::remove_dir_all(&partial)?;
+        }
+        copy_dir(&from, &partial)?;
+        std::fs::rename(&partial, &to)?;
+        copied = true;
     }
-    Ok(true)
+    Ok(copied)
 }
 
 fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
@@ -58,14 +67,43 @@ mod tests {
         }
     }
 
+    /// Sous Linux, Tauri crée le dossier (journal, données du navigateur) avant `setup`.
     #[test]
-    fn nothing_is_copied_when_the_new_folder_exists() {
+    fn data_is_copied_even_when_tauri_already_created_the_new_folder() {
         let root = tempfile::tempdir().unwrap();
         let (old, new) = (root.path().join("fr.carnet.app"), root.path().join("fr.cahutin.app"));
         write(&old.join("modeles/a.carnet-modele"), "modèle");
-        fs::create_dir_all(&new).unwrap();
+        write(&old.join("polices/y.ttf"), "police");
+        fs::create_dir_all(new.join("logs")).unwrap();
+        assert!(copy_legacy_data(&old, &new).unwrap());
+        assert_eq!(fs::read_to_string(new.join("modeles/a.carnet-modele")).unwrap(), "modèle");
+        assert_eq!(fs::read_to_string(new.join("polices/y.ttf")).unwrap(), "police");
+    }
+
+    /// Cahutin déjà lancé : son dossier de modèles existe (même vide), rien n'est copié ni écrasé.
+    #[test]
+    fn nothing_is_copied_over_existing_cahutin_folders() {
+        let root = tempfile::tempdir().unwrap();
+        let (old, new) = (root.path().join("fr.carnet.app"), root.path().join("fr.cahutin.app"));
+        write(&old.join("modeles/a.carnet-modele"), "modèle");
+        write(&old.join("polices/y.ttf"), "ancienne");
+        fs::create_dir_all(new.join("modeles")).unwrap();
+        write(&new.join("polices/y.ttf"), "nouvelle");
         assert!(!copy_legacy_data(&old, &new).unwrap());
-        assert_eq!(fs::read_dir(&new).unwrap().count(), 0);
+        assert_eq!(fs::read_dir(new.join("modeles")).unwrap().count(), 0);
+        assert_eq!(fs::read_to_string(new.join("polices/y.ttf")).unwrap(), "nouvelle");
+    }
+
+    /// Une copie interrompue laisse un dossier provisoire : le lancement suivant recommence proprement.
+    #[test]
+    fn an_interrupted_copy_is_retried() {
+        let root = tempfile::tempdir().unwrap();
+        let (old, new) = (root.path().join("fr.carnet.app"), root.path().join("fr.cahutin.app"));
+        write(&old.join("modeles/a.carnet-modele"), "modèle");
+        write(&new.join("modeles.reprise/a.carnet-modele"), "moitié");
+        assert!(copy_legacy_data(&old, &new).unwrap());
+        assert_eq!(fs::read_to_string(new.join("modeles/a.carnet-modele")).unwrap(), "modèle");
+        assert!(!new.join("modeles.reprise").exists());
     }
 
     #[test]

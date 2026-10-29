@@ -19,6 +19,8 @@ pub struct Line {
 pub struct Block {
     pub align: Align,
     pub lines: Vec<Line>,
+    /// Indice, dans l'entrée de `merge_lines`, de la première ligne du bloc.
+    pub first: usize,
 }
 
 const MM_PER_PT: f64 = 0.3528;
@@ -51,11 +53,10 @@ fn follows(last: &Line, l: &Line) -> bool {
 pub fn merge_lines(lines: Vec<Line>) -> Vec<Block> {
     let mut order: Vec<usize> = (0..lines.len()).collect();
     order.sort_by(|&a, &b| lines[a].y_mm.total_cmp(&lines[b].y_mm).then(lines[a].x_mm.total_cmp(&lines[b].x_mm)));
-    // (indice de la première ligne dans l'entrée, bloc)
-    let mut blocks: Vec<(usize, Block)> = Vec::new();
+    let mut blocks: Vec<Block> = Vec::new();
     for i in order {
         let l = &lines[i];
-        let target = blocks.iter_mut().rev().find_map(|(_, b)| {
+        let target = blocks.iter_mut().rev().find_map(|b| {
             let last = b.lines.last().unwrap();
             if !follows(last, l) {
                 return None;
@@ -69,11 +70,11 @@ pub fn merge_lines(lines: Vec<Line>) -> Vec<Block> {
                 b.align = align;
                 b.lines.push(l.clone());
             }
-            None => blocks.push((i, Block { align: Align::Left, lines: vec![l.clone()] })),
+            None => blocks.push(Block { align: Align::Left, lines: vec![l.clone()], first: i }),
         }
     }
-    blocks.sort_by_key(|(first, _)| *first);
-    blocks.into_iter().map(|(_, b)| b).collect()
+    blocks.sort_by_key(|b| b.first);
+    blocks
 }
 
 /// Texte libre : un paragraphe (lignes jointes par une espace), cadre de toutes les lignes avec sa marge.
@@ -84,10 +85,10 @@ pub fn block_element(b: &Block) -> Element {
     let mut runs: Vec<Run> = Vec::new();
     for (i, line) in b.lines.iter().enumerate() {
         let mut line_runs = line.runs.clone();
-        if i > 0 {
-            if let Some(r) = line_runs.first_mut() {
-                r.text = r.text.trim_start().to_string();
-            }
+        if i > 0
+            && let Some(r) = line_runs.first_mut()
+        {
+            r.text = r.text.trim_start().to_string();
         }
         if i + 1 < b.lines.len() {
             if let Some(r) = line_runs.last_mut() {

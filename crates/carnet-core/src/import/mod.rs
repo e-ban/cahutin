@@ -1,6 +1,7 @@
 //! Import de fichiers : pages d'un autre document Carnet, ou fichiers convertis par LibreOffice.
 
 pub mod carnet;
+pub mod odg;
 pub mod paragraphs;
 
 use crate::model::{ElementKind, Page};

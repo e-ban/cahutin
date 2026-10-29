@@ -13,9 +13,9 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 zip = { version = "6", default-features = false, features = ["deflate"] }
 quick-xml = "0.38"
 roxmltree = "0.20"
+tempfile = "3"
 ttf-parser = "0.25"
 fontdb = { version = "0.24", default-features = false, features = ["fs", "memmap"] }
 
 [dev-dependencies]
 kamadak-exif = "0.6"
-tempfile = "3"

@@ -2,6 +2,7 @@
 
 pub mod carnet;
 pub mod odg;
+pub mod office;
 pub mod paragraphs;
 
 use crate::model::{ElementKind, Page};

@@ -31,7 +31,7 @@ Avec `npm run tauri dev` :
 1. Dans l'application lancée par `npm run tauri dev`, ouvrir la console de développement (clic droit, Inspecter), puis exécuter `location.href = "/fidelity.html"`.
 2. Comparer le résultat affiché aux valeurs `expected_lines` de `fixtures/text_fidelity.json`.
 3. S'ils diffèrent, mettre le fichier à jour et le noter dans le compte rendu.
-4. Avec LibreOffice et poppler pour Windows dans le `PATH`, lancer : `cargo test -p carnet-core --test odg_libreoffice -- --ignored --test-threads=1`. Résultat attendu : 19 tests réussis. Puis le banc d'import : `cargo test -p carnet-core --test import_libreoffice -- --ignored --test-threads=1`, 2 tests réussis.
+4. Avec LibreOffice et poppler pour Windows dans le `PATH`, lancer : `cargo test -p carnet-core --test odg_libreoffice -- --ignored --test-threads=1`. Résultat attendu : 19 tests réussis. Puis le banc d'import : `cargo test -p carnet-core --test import_libreoffice -- --ignored --test-threads=1`, 3 tests réussis.
 
 ## 4. Recette de l'installeur
 
@@ -69,4 +69,4 @@ Avec `npm run tauri dev` :
     - les textes se modifient, avec les lignes d'un paragraphe en un seul texte ;
     - le compte rendu donne, pour chaque fichier, les pages, textes, images et formes repris, et les dessins non repris.
 
-    Recommencer depuis l'écran d'accueil (« Importer un fichier ») : un document neuf avec ces seules pages. Pendant l'import d'un gros PDF (plus de 20 pages), cliquer Annuler : la conversion s'arrête, et le Gestionnaire des tâches ne montre plus de `soffice.bin`. Désinstaller (ou renommer) LibreOffice : l'import d'un .docx affiche « Pour importer ce fichier, installez LibreOffice (gratuit), puis recommencez… », celui d'un `.carnet` marche toujours.
+    Recommencer depuis l'écran d'accueil (« Importer un fichier ») : un document neuf avec ces seules pages. Pendant l'import d'un gros PDF (plus de 20 pages), cliquer Annuler : la conversion s'arrête, le Gestionnaire des tâches ne montre plus de `soffice.bin`, et `%TEMP%` ne contient plus de dossier `carnet-import…`. Désinstaller (ou renommer) LibreOffice : l'import d'un .docx affiche « Pour importer ce fichier, installez LibreOffice (gratuit), puis recommencez… », celui d'un `.carnet` marche toujours.

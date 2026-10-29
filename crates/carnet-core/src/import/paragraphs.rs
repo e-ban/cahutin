@@ -21,6 +21,9 @@ pub struct Block {
     pub lines: Vec<Line>,
     /// Indice, dans l'entrée de `merge_lines`, de la première ligne du bloc.
     pub first: usize,
+    /// Indice, dans l'entrée, de la ligne du bloc venue en dernier : le texte se place là, au-dessus
+    /// de tout fond dessiné sous l'une de ses lignes.
+    pub last: usize,
     /// Pour chaque ligne sauf la dernière : vrai si la ligne suivante la continue (jointe par une
     /// espace), faux si elle commence un nouveau paragraphe.
     pub joins: Vec<bool>,
@@ -127,8 +130,10 @@ pub fn merge_lines(obstacles: &[Frame], lines: Vec<Line>) -> Vec<Block> {
             Some((b, align)) => {
                 b.align = align;
                 b.lines.push(l.clone());
+                b.first = b.first.min(i);
+                b.last = b.last.max(i);
             }
-            None => blocks.push(Block { align: Align::Left, lines: vec![l.clone()], first: i, joins: Vec::new() }),
+            None => blocks.push(Block { align: Align::Left, lines: vec![l.clone()], first: i, last: i, joins: Vec::new() }),
         }
     }
     for b in &mut blocks {

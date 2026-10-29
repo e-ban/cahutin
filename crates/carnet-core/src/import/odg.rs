@@ -333,13 +333,13 @@ impl<R: Read + Seek> PageReader<'_, R> {
     fn finish(self) -> (Vec<Element>, Vec<Asset>, usize) {
         let obstacles: Vec<Frame> = self.items.iter().filter_map(|it| if let Item::Element(e) = it { Some(e.frame) } else { None }).collect();
         let blocks = merge_lines(&obstacles, self.lines);
-        let mut by_first: HashMap<usize, Element> = blocks.iter().map(|b| (b.first, block_element(b))).collect();
+        let mut by_last: HashMap<usize, Element> = blocks.iter().map(|b| (b.last, block_element(b))).collect();
         let elements = self
             .items
             .into_iter()
             .filter_map(|it| match it {
                 Item::Element(e) => Some(*e),
-                Item::Line(i) => by_first.remove(&i),
+                Item::Line(i) => by_last.remove(&i),
             })
             .collect();
         (elements, self.assets, self.skipped)
@@ -493,6 +493,18 @@ mod tests {
         let f = e.frame;
         assert!((f.x_mm - 65.02).abs() < 0.01 && (f.y_mm - 34.59).abs() < 0.01 && (f.w_mm - 79.98).abs() < 0.01 && (f.h_mm - 60.0).abs() < 0.01, "{f:?}");
         assert!(!e.zone && !e.locked);
+    }
+
+    /// Fond dessiné entre la ligne 1 et la ligne 2 d'un paragraphe : le texte recollé reste au-dessus.
+    #[test]
+    fn merged_text_stays_above_fills_drawn_between_its_lines() {
+        let body = text_frame("2cm", "4cm", "4.4cm", r#"<text:span text:style-name="T1">Complète le tableau avec </text:span>"#)
+            + r#"<draw:polygon draw:style-name="gr1" svg:width="5cm" svg:height="1.2cm" svg:x="1.9cm" svg:y="3.9cm" svg:viewBox="0 0 5000 1200" draw:points="0,0 5000,0 5000,1200 0,1200"/>"#
+            + &text_frame("2cm", "4.486cm", "4.1cm", r#"<text:span text:style-name="T1">les mots : rouge, ronde, </text:span>"#);
+        let els = &read(&body).pages[0].elements;
+        assert_eq!(els.len(), 2);
+        assert!(matches!(els[0].kind, ElementKind::Shape(_)), "le texte est sous le fond : {:?}", els.iter().map(|e| std::mem::discriminant(&e.kind)).collect::<Vec<_>>());
+        assert!(matches!(els[1].kind, ElementKind::Text(_)));
     }
 
     #[test]

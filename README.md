@@ -44,7 +44,7 @@ Carnet n'a pas de mise à jour automatique (il ne se connecte jamais à internet
 
 - Aucun accès au réseau : la politique de sécurité de l'application n'autorise aucune adresse distante.
 - Les métadonnées des photos (lieu, appareil, date) sont retirées à l'import.
-- Le journal de l'application ne contient ni texte de document, ni nom de fichier, ni prénom d'enfant. Le rapport de problème (Fichier > Signaler un problème) reprend seulement ce journal.
+- Le journal de l'application ne contient ni texte de document, ni nom de fichier, ni prénom d'enfant. Le rapport de problème (Aide > Signaler un problème) reprend seulement ce journal.
 - Les photos importées sont copiées dans un dossier temporaire vidé à la fermeture ; un document enregistré (`.carnet`) contient ses propres photos.
 
 ## Fichiers

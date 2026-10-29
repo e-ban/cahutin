@@ -39,7 +39,7 @@ class Editor {
   printing = $state(false);
   /** Panneau du fond de page. */
   showBackground = $state(false);
-  /** Écran À propos (menu Fichier). */
+  /** Écran À propos (menu Aide). */
   showAbout = $state(false);
   /** Panneau « Astuces » (menu Aide). */
   showTips = $state(false);

@@ -4,6 +4,7 @@ pub mod carnet;
 pub mod odg;
 pub mod office;
 pub mod paragraphs;
+pub mod tidy;
 
 use crate::model::{ElementKind, Page};
 use crate::native::NativeError;

@@ -362,7 +362,10 @@ pub fn read_odg(input: impl Read + Seek, known_fonts: &[String]) -> Result<Impor
         }
         let (elements, page_assets, page_skipped) = reader.finish();
         let size = page_node.attribute((DRAW, "master-page-name")).and_then(|m| sizes.by_master.get(m)).copied().unwrap_or(sizes.default);
-        pages.push(Page { elements, ..Page::new(size) });
+        let mut page = Page { elements, ..Page::new(size) };
+        super::tidy::full_page_rect_to_background(&mut page);
+        super::tidy::group_fragments(&mut page);
+        pages.push(page);
         assets.extend(page_assets);
         skipped += page_skipped;
     }
@@ -398,6 +401,7 @@ mod tests {
 <office:automatic-styles>
 <style:style style:name="gr1" style:family="graphic"><style:graphic-properties draw:stroke="solid" svg:stroke-width="0cm" svg:stroke-color="#3465a4" draw:fill="solid" draw:fill-color="#729fcf"/></style:style>
 <style:style style:name="gr2" style:family="graphic"><style:graphic-properties draw:stroke="none" draw:fill="none"/></style:style>
+<style:style style:name="gr3" style:family="graphic"><style:graphic-properties draw:stroke="none" draw:fill="solid" draw:fill-color="#ffffff"/></style:style>
 <style:style style:name="T1" style:family="text"><style:text-properties fo:color="#000000" style:font-name="Liberation Serif" fo:font-size="12pt" fo:font-weight="normal"/></style:style>
 <style:style style:name="T2" style:family="text"><style:text-properties fo:color="#c0392b" style:font-name="Liberation Sans" fo:font-size="24pt" fo:font-weight="bold"/></style:style>
 <style:style style:name="T3" style:family="text"><style:text-properties fo:color="#000000" style:font-name="Liberation Serif" fo:font-size="12pt" fo:font-weight="bold"/></style:style>
@@ -515,6 +519,18 @@ mod tests {
         assert_eq!(s.stroke.as_ref().map(|k| (k.width_mm, k.color.as_str())), Some((0.2, "#3465a4")));
         let f = e.frame;
         assert!((f.x_mm - 20.0).abs() < 0.01 && (f.y_mm - 63.81).abs() < 0.01 && (f.w_mm - 119.99).abs() < 0.01 && (f.h_mm - 25.0).abs() < 0.01, "{f:?}");
+    }
+
+    /// Fond blanc que l'export PDF de LibreOffice dessine sous chaque page : pas un élément cliquable.
+    #[test]
+    fn the_white_page_rectangle_is_not_imported_as_a_shape() {
+        let page = r#"<draw:polygon draw:style-name="gr3" svg:width="21.001cm" svg:height="29.7cm" svg:x="0cm" svg:y="0cm" svg:viewBox="0 0 21001 29700" draw:points="0,0 21001,0 21001,29700 0,29700"><text:p/></draw:polygon>"#;
+        let small = r#"<draw:polygon draw:style-name="gr1" svg:width="4cm" svg:height="2cm" svg:x="2cm" svg:y="2cm" svg:viewBox="0 0 4000 2000" draw:points="0,0 4000,0 4000,2000 0,2000"><text:p/></draw:polygon>"#;
+        let imported = read(&format!("{page}{small}"));
+        let els = &imported.pages[0].elements;
+        assert_eq!(els.len(), 1, "{els:?}");
+        assert!((els[0].frame.w_mm - 40.0).abs() < 0.01);
+        assert_eq!(imported.report.shapes, 1);
     }
 
     #[test]

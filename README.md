@@ -15,6 +15,7 @@ L'application fonctionne **entièrement hors ligne** sur Windows 11 et sous Linu
 - **Décors** : plus de 2 000 images OpenMoji avec recherche en français, cadres de page et frises.
 - **Fonds de page** : couleur, Seyès, petits carreaux, lignes, pointillés, papier kraft.
 - **Groupes**, sélection au cadre, alignement, verrouillage, annulation.
+- **Import** : pages d'un autre document Carnet, et fiches Word (.docx, .doc), LibreOffice (.odt, .odg), PDF ou Publisher (.pub) reprises en textes, photos et formes modifiables. Pour ces formats, LibreOffice doit être installé sur le poste.
 - **Sorties** : impression, PDF, et export **ODG** pour LibreOffice Draw, où chaque texte, photo et forme reste modifiable et les polices voyagent avec le fichier.
 
 ## Installer
@@ -79,6 +80,7 @@ Le banc de fidélité exporte des pages en ODG et les fait rendre par LibreOffic
 
 ```sh
 cargo test -p carnet-core --test odg_libreoffice -- --ignored --test-threads=1
+cargo test -p carnet-core --test import_libreoffice -- --ignored --test-threads=1   # import par LibreOffice
 ```
 
 Les types TypeScript de `ui/src/lib/gen` sont produits par le moteur (ts-rs) lors de `cargo test`.

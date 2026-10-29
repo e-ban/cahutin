@@ -31,7 +31,7 @@ Avec `npm run tauri dev` :
 1. Dans l'application lancée par `npm run tauri dev`, ouvrir la console de développement (clic droit, Inspecter), puis exécuter `location.href = "/fidelity.html"`.
 2. Comparer le résultat affiché aux valeurs `expected_lines` de `fixtures/text_fidelity.json`.
 3. S'ils diffèrent, mettre le fichier à jour et le noter dans le compte rendu.
-4. Avec LibreOffice et poppler pour Windows dans le `PATH`, lancer : `cargo test -p carnet-core --test odg_libreoffice -- --ignored --test-threads=1`. Résultat attendu : 19 tests réussis.
+4. Avec LibreOffice et poppler pour Windows dans le `PATH`, lancer : `cargo test -p carnet-core --test odg_libreoffice -- --ignored --test-threads=1`. Résultat attendu : 19 tests réussis. Puis le banc d'import : `cargo test -p carnet-core --test import_libreoffice -- --ignored --test-threads=1`, 2 tests réussis.
 
 ## 4. Recette de l'installeur
 
@@ -63,3 +63,10 @@ Avec `npm run tauri dev` :
 26. **Accrochage au centre** : déplacer une photo vers le milieu de la page, puis vers le centre d'un autre bloc. Attendu : une ligne bleue apparaît et le bloc s'arrête exactement au milieu (Réglages : X = 75,0 pour un bloc de 60 mm de large). Recommencer avec un groupe et avec deux blocs sélectionnés à la fois.
 27. **Nouveaux modèles** : créer une page depuis chacun des modèles « Étiquettes », « Étiquettes photo », « Photos et textes », « Photos légendées » et « Affiche paysage ». Écrire des prénoms et déposer des photos dans les étiquettes, puis imprimer la planche « Étiquettes ». Attendu : aucune étiquette n'est coupée par l'imprimante ; l'affiche est en paysage ; déplacer une étiquette photo déplace sa photo et son prénom.
 28. **Plusieurs polices dans une étiquette** : dans une étiquette, écrire le prénom sur trois lignes ; sélectionner la deuxième ligne et choisir OpenDyslexic dans la barre flottante, puis la troisième et choisir Playwrite FR Moderne en 32. Attendu : l'écriture continue après chaque choix, seule la ligne sélectionnée change ; la barre affiche la police de la ligne où se trouve le curseur ; même rendu à l'impression et dans LibreOffice.
+29. **Importer des fichiers** : Fichier > Importer…, puis choisir ensemble une fiche Word (.docx) et une fiche Publisher (.pub) de collègues, et un document `.carnet`. Attendu :
+    - une bande « Import de … en cours… » avec Annuler ;
+    - les pages arrivent après la page courante, une seule annulation (Ctrl+Z) les retire toutes ;
+    - les textes se modifient, avec les lignes d'un paragraphe en un seul texte ;
+    - le compte rendu donne, pour chaque fichier, les pages, textes, images et formes repris, et les dessins non repris.
+
+    Recommencer depuis l'écran d'accueil (« Importer un fichier ») : un document neuf avec ces seules pages. Pendant l'import d'un gros PDF (plus de 20 pages), cliquer Annuler : la conversion s'arrête, et le Gestionnaire des tâches ne montre plus de `soffice.bin`. Désinstaller (ou renommer) LibreOffice : l'import d'un .docx affiche « Pour importer ce fichier, installez LibreOffice (gratuit), puis recommencez… », celui d'un `.carnet` marche toujours.

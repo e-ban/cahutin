@@ -270,7 +270,7 @@ export const fr = {
   openmojiCreditPage: "Pictogrammes : OpenMoji, CC BY-SA 4.0",
   about: "À propos de Cahutin…",
   aboutTitle: "À propos de Cahutin",
-  aboutVersion: (v: string) => `Version ${v}`,
+  aboutVersion: (v: string) => `Version ${v}${v.startsWith("0.") ? " (bêta)" : ""}`,
   aboutFree: "Logiciel libre et gratuit pour l'école.",
   aboutOpenmoji: "Pictogrammes : OpenMoji (openmoji.org), licence CC BY-SA 4.0.",
   aboutCldr: "Mots-clés français des images : Unicode CLDR, licence Unicode.",

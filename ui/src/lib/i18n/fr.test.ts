@@ -13,3 +13,8 @@ test("the app is called Cahutin", () => {
   expect(fr.appName).toBe("Cahutin");
   expect(texts(fr).filter((t) => t.includes("Carnet"))).toEqual([]);
 });
+
+test("versions before 1.0 say beta", () => {
+  expect(fr.aboutVersion("0.5.0")).toContain("0.5.0 (bêta)");
+  expect(fr.aboutVersion("1.0.0")).not.toContain("bêta");
+});

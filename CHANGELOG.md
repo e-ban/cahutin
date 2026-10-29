@@ -2,6 +2,7 @@
 
 ## 0.5.1
 
+- Clic droit sur la page : « Ajouter un texte ici » et « Ajouter une forme ici » ne faisaient rien.
 - Accueil : « Partir d'un modèle » remplace « Une page de cahier de vie » : les modèles servent aussi aux fiches, affiches et étiquettes.
 
 ## 0.5.0

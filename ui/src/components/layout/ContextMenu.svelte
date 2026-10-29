@@ -25,9 +25,13 @@
   const left = $derived(Math.min(target.clientX, window.innerWidth - (menuEl?.offsetWidth ?? 220) - 8));
   const top = $derived(Math.min(target.clientY, window.innerHeight - (menuEl?.offsetHeight ?? 300) - 8));
 
+  // L'action passe avant la fermeture : fermer détruit le menu, et `target` n'est plus lisible ensuite.
   function run(action: () => void) {
-    onclose();
-    action();
+    try {
+      action();
+    } finally {
+      onclose();
+    }
   }
 
   function addHere(kind: "text" | "shape") {

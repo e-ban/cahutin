@@ -279,6 +279,7 @@ export const fr = {
   aboutTitle: "À propos de Cahutin",
   aboutVersion: (v: string) => `Version ${v}${v.startsWith("0.") ? " (bêta)" : ""}`,
   aboutFree: "Logiciel libre et gratuit pour l'école.",
+  aboutLicense: "© Iban Guinebert. Licence publique de l'Union européenne (EUPL) 1.2 : texte sur github.com/e-ban/cahutin.",
   aboutNetwork: "Cahutin ne se connecte à internet que si vous acceptez d'être prévenu des nouvelles versions (menu Aide) : il lit alors le numéro de la dernière version sur github.com, une fois par jour.",
   aboutOpenmoji: "Pictogrammes : OpenMoji (openmoji.org), licence CC BY-SA 4.0.",
   aboutCldr: "Mots-clés français des images : Unicode CLDR, licence Unicode.",

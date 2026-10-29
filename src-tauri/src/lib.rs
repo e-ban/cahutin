@@ -65,6 +65,8 @@ pub fn run() {
             commands::list_importable_in,
             commands::save_document,
             commands::open_document,
+            commands::import_file,
+            commands::cancel_import,
             commands::export_odg,
             commands::grid_set,
             commands::grid_merge,

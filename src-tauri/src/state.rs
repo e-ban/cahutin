@@ -4,6 +4,7 @@ use carnet_core::fonts::{FontFace, FontSet};
 use carnet_core::photo::AssetStore;
 use carnet_core::templates::Library;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Mutex, RwLock};
 
 pub struct AppState {
@@ -16,6 +17,8 @@ pub struct AppState {
     system_fonts: RwLock<Vec<FontFace>>,
     /// Polices transportées par le dernier document ouvert et absentes du poste : (fichier, octets).
     pub pending_fonts: Mutex<Vec<(String, Vec<u8>)>>,
+    /// Demande d'annulation de l'import de fichier en cours.
+    pub import_cancel: AtomicBool,
 }
 
 impl AppState {
@@ -27,6 +30,7 @@ impl AppState {
             fonts_dir,
             system_fonts: RwLock::new(Vec::new()),
             pending_fonts: Mutex::new(Vec::new()),
+            import_cancel: AtomicBool::new(false),
         }
     }
 

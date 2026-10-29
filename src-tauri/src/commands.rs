@@ -5,6 +5,7 @@ use crate::state::AppState;
 use carnet_core::fonts::{self, FontFamilyInfo};
 use carnet_core::photo;
 use carnet_core::templates::{self, TemplateInfo};
+use carnet_core::import::{self, ImportError, ImportReport};
 use carnet_core::{AssetMeta, Document, Page, PageSize, ZoneKind, examples, grid, native, odg, report};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -102,17 +103,8 @@ pub struct OpenedDocument {
     pub offered_fonts: Vec<String>,
 }
 
-fn open_document_in(state: &AppState, path: &Path) -> Result<OpenedDocument, String> {
-    let native::LoadedDocument { doc, assets, fonts } = native::load_from_path(path).map_err(|e| {
-        log::error!("open_document_failed kind={e:?}");
-        e.message_fr()
-    })?;
-    {
-        let mut store = state.store.lock().unwrap();
-        for a in assets {
-            store.insert(a).map_err(|e| e.message_fr())?;
-        }
-    }
+/// Polices transportées et absentes du poste : gardées en attente, familles à proposer à l'ajout.
+fn offer_fonts(state: &AppState, fonts: Vec<(String, Vec<u8>)>) -> Vec<String> {
     let installed = state.fonts.read().unwrap().families();
     let mut offered_fonts: Vec<String> = Vec::new();
     let mut pending = Vec::new();
@@ -127,8 +119,81 @@ fn open_document_in(state: &AppState, path: &Path) -> Result<OpenedDocument, Str
         pending.push((file, bytes));
     }
     *state.pending_fonts.lock().unwrap() = pending;
+    offered_fonts
+}
+
+fn open_document_in(state: &AppState, path: &Path) -> Result<OpenedDocument, String> {
+    let native::LoadedDocument { doc, assets, fonts } = native::load_from_path(path).map_err(|e| {
+        log::error!("open_document_failed kind={e:?}");
+        e.message_fr()
+    })?;
+    {
+        let mut store = state.store.lock().unwrap();
+        for a in assets {
+            store.insert(a).map_err(|e| e.message_fr())?;
+        }
+    }
+    let offered_fonts = offer_fonts(state, fonts);
     log::info!("open_document pages={} offered_fonts={}", doc.pages.len(), offered_fonts.len());
     Ok(OpenedDocument { doc, offered_fonts })
+}
+
+#[derive(Serialize, TS)]
+#[ts(export)]
+pub struct ImportedPages {
+    pub pages: Vec<Page>,
+    pub assets: Vec<AssetMeta>,
+    /// Familles transportées par un document Carnet importé et absentes du poste.
+    pub offered_fonts: Vec<String>,
+    pub report: ImportReport,
+}
+
+/// Ligne du journal d'un import : type de fichier et compteurs, jamais le nom ni le texte.
+fn import_log_line(kind: &str, result: Result<&ImportReport, ImportError>, ms: u128) -> String {
+    match result {
+        Ok(r) => format!("import_file kind={kind} pages={} texts={} images={} shapes={} skipped={} ms={ms}", r.pages, r.texts, r.images, r.shapes, r.skipped),
+        Err(e) => format!("import_file_failed kind={kind} error={e:?} ms={ms}"),
+    }
+}
+
+fn import_file_in(state: &AppState, path: &Path, soffice: Option<&Path>) -> Result<ImportedPages, String> {
+    state.import_cancel.store(false, Ordering::SeqCst);
+    let kind = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    let known: Vec<String> = state.fonts.read().unwrap().families().into_iter().map(|f| f.name).collect();
+    let start = std::time::Instant::now();
+    let result = import::office::import_file(path, soffice, &known, &state.import_cancel);
+    let ms = start.elapsed().as_millis();
+    let imported = match result {
+        Ok(i) => {
+            log::info!("{}", import_log_line(&kind, Ok(&i.report), ms));
+            i
+        }
+        Err(e) => {
+            log::error!("{}", import_log_line(&kind, Err(e), ms));
+            return Err(e.message_fr());
+        }
+    };
+    let assets: Vec<AssetMeta> = imported.assets.iter().map(|a| a.meta.clone()).collect();
+    {
+        let mut store = state.store.lock().unwrap();
+        for a in imported.assets {
+            store.insert(a).map_err(|e| e.message_fr())?;
+        }
+    }
+    let offered_fonts = if imported.fonts.is_empty() { Vec::new() } else { offer_fonts(state, imported.fonts) };
+    Ok(ImportedPages { pages: imported.pages, assets, offered_fonts, report: imported.report })
+}
+
+/// Exécutée hors du fil principal : la fenêtre reste réactive pendant la conversion.
+#[tauri::command(async)]
+pub fn import_file(state: State<'_, AppState>, path: String) -> Result<ImportedPages, String> {
+    let soffice = import::office::find_soffice(&import::office::SofficeLookup::from_env());
+    import_file_in(&state, Path::new(&path), soffice.as_deref())
+}
+
+#[tauri::command]
+pub fn cancel_import(state: State<'_, AppState>) {
+    state.import_cancel.store(true, Ordering::SeqCst);
 }
 
 /// Exécutée hors du fil principal : la fenêtre reste réactive.
@@ -453,6 +518,65 @@ mod tests {
         add_font_in(&state, &fixture("CarnetTest-Regular.ttf")).unwrap();
         assert!(remove_font_in(&state, "Carnet Test").is_ok());
         assert!(!state.fonts.read().unwrap().families().iter().any(|f| f.name == "Carnet Test"));
+    }
+
+    #[test]
+    fn import_carnet_adds_assets_and_offers_fonts() {
+        let dir = tempfile::tempdir().unwrap();
+        let author = test_state(&dir.path().join("auteur"));
+        add_font_in(&author, &fixture("CarnetTest-Regular.ttf")).unwrap();
+        let asset = photo::import_path(&fixture("gps.jpg")).unwrap();
+        let meta = asset.meta.clone();
+        author.store.lock().unwrap().insert(asset).unwrap();
+        let mut doc = Document::new("sortie");
+        let mut style = carnet_core::TextStyle::default_zone();
+        style.font = "Carnet Test".into();
+        let frame = carnet_core::Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 50.0, h_mm: 20.0, rotation_deg: 0.0 };
+        doc.pages[0].elements.push(carnet_core::Element {
+            id: carnet_core::new_id(),
+            frame,
+            locked: false,
+            zone: false,
+            group: None,
+            kind: carnet_core::ElementKind::Text(carnet_core::TextProps { content: carnet_core::RichText::plain("bonjour"), style, prompt: None, frame: None }),
+        });
+        doc.pages[0].elements.push(carnet_core::Element {
+            id: carnet_core::new_id(),
+            frame,
+            locked: false,
+            zone: false,
+            group: None,
+            kind: carnet_core::ElementKind::Photo(carnet_core::PhotoProps { asset: Some(meta.id.clone()), crop: carnet_core::Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false }),
+        });
+        doc.assets.insert(meta.id.clone(), meta.clone());
+        let path = dir.path().join("sortie.carnet");
+        save_document_in(&author, &path, &doc).unwrap();
+
+        let colleague = test_state(&dir.path().join("collègue"));
+        let imported = import_file_in(&colleague, &path, None).unwrap();
+        assert_eq!(imported.pages.len(), 1);
+        assert!(imported.pages[0].elements.iter().all(|e| doc.pages[0].elements.iter().all(|o| o.id != e.id)));
+        assert_eq!(imported.assets.iter().map(|a| a.id.clone()).collect::<Vec<_>>(), std::slice::from_ref(&meta.id));
+        assert!(colleague.store.lock().unwrap().get(&meta.id).is_some());
+        assert_eq!(imported.offered_fonts, vec!["Carnet Test".to_string()]);
+        assert_eq!(imported.report.texts, 1);
+    }
+
+    #[test]
+    fn office_import_without_libreoffice_is_a_french_message() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(dir.path());
+        let docx = dir.path().join("fiche.docx");
+        std::fs::write(&docx, b"PK").unwrap();
+        let err = import_file_in(&state, &docx, None).err().unwrap();
+        assert!(err.starts_with("Pour importer ce fichier, installez LibreOffice"), "{err}");
+    }
+
+    #[test]
+    fn import_log_never_names_the_file() {
+        let report = carnet_core::import::ImportReport { pages: 2, texts: 14, images: 1, shapes: 6, skipped: 3 };
+        assert_eq!(import_log_line("docx", Ok(&report), 1234), "import_file kind=docx pages=2 texts=14 images=1 shapes=6 skipped=3 ms=1234");
+        assert_eq!(import_log_line("pdf", Err(carnet_core::import::ImportError::Timeout), 120000), "import_file_failed kind=pdf error=Timeout ms=120000");
     }
 
     #[test]

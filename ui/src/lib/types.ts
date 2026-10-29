@@ -18,6 +18,8 @@ export type { ImportOutcome } from "./gen/ImportOutcome";
 export type { InstantiatedPage } from "./gen/InstantiatedPage";
 export type { Mime } from "./gen/Mime";
 export type { OpenedDocument } from "./gen/OpenedDocument";
+export type { ImportedPages } from "./gen/ImportedPages";
+export type { ImportReport } from "./gen/ImportReport";
 export type { Page } from "./gen/Page";
 export type { PageSize } from "./gen/PageSize";
 export type { Paragraph } from "./gen/Paragraph";

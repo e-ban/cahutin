@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { Document, ExampleInfo, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
+import type { Document, ExampleInfo, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -12,6 +12,8 @@ export const existingPaths = (paths: string[]) => invoke<string[]>("existing_pat
 export const listImportableIn = (dir: string) => invoke<string[]>("list_importable_in", { dir });
 export const saveDocument = (path: string, doc: Document) => invoke<void>("save_document", { path, doc });
 export const openDocument = (path: string) => invoke<OpenedDocument>("open_document", { path });
+export const importFile = (path: string) => invoke<ImportedPages>("import_file", { path });
+export const cancelImport = () => invoke<void>("cancel_import");
 export const exportOdg = (path: string, doc: Document) => invoke<void>("export_odg", { path, doc });
 export const gridSet = (page: Page, cols: number, rows: number) => invoke<Page>("grid_set", { page, cols, rows });
 export const gridMerge = (page: Page, a: string, b: string) => invoke<Page>("grid_merge", { page, a, b });

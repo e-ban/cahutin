@@ -145,11 +145,20 @@ pub fn save_to_path(doc: &Document, store: &AssetStore, fonts: &FontSet, path: &
     crate::fsutil::write_atomically(path, |f| save(doc, store, fonts, f))
 }
 
+/// Taille maximale d'une entrée décompressée (photo, police, document) : bien au-delà d'un usage réel,
+/// assez bas pour qu'une « bombe zip » ne remplisse pas la mémoire.
+pub(crate) const MAX_ENTRY_BYTES: u64 = 256 * 1024 * 1024;
+
+/// Contenu de `entry`, ou rien s'il dépasse `max` octets ou ne se lit pas.
+pub(crate) fn read_capped(entry: &mut impl Read, max: u64) -> Option<Vec<u8>> {
+    let mut buf = Vec::new();
+    entry.take(max + 1).read_to_end(&mut buf).ok()?;
+    (buf.len() as u64 <= max).then_some(buf)
+}
+
 fn read_entry<R: Read + Seek>(zip: &mut ZipArchive<R>, name: &str) -> Result<Vec<u8>, NativeError> {
     let mut entry = zip.by_name(name)?;
-    let mut buf = Vec::new();
-    entry.read_to_end(&mut buf)?;
-    Ok(buf)
+    read_capped(&mut entry, MAX_ENTRY_BYTES).ok_or(NativeError::Corrupt)
 }
 
 pub fn load(input: impl Read + Seek) -> Result<LoadedDocument, NativeError> {
@@ -172,9 +181,8 @@ pub fn load(input: impl Read + Seek) -> Result<LoadedDocument, NativeError> {
     }
     let font_entries: Vec<String> = zip
         .file_names()
-        .filter_map(|n| n.strip_prefix(FONTS_DIR))
+        .filter_map(|n| n.ok()?.strip_prefix(FONTS_DIR).map(String::from))
         .filter(|n| !n.is_empty() && !n.contains('/'))
-        .map(String::from)
         .collect();
     let mut fonts = Vec::new();
     for name in font_entries {
@@ -401,6 +409,15 @@ mod tests {
         save(&doc, &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
         buf.set_position(0);
         assert_eq!(load(buf).unwrap().doc.format_version, 2);
+    }
+
+    /// Bombe zip : une entrée minuscule qui se décompresse sans fin ne doit pas remplir la mémoire.
+    #[test]
+    fn an_entry_larger_than_the_cap_is_refused() {
+        let mut bomb = std::io::repeat(0).take(10_001);
+        assert!(read_capped(&mut bomb, 10_000).is_none());
+        let mut fits = std::io::repeat(7).take(10_000);
+        assert_eq!(read_capped(&mut fits, 10_000).unwrap().len(), 10_000);
     }
 
     #[test]

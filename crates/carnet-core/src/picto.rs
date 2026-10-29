@@ -14,7 +14,7 @@ fn bank() -> &'static HashMap<String, Vec<u8>> {
         let mut zip = zip::ZipArchive::new(std::io::Cursor::new(BANK_ZIP)).expect("banque OpenMoji embarquée");
         for i in 0..zip.len() {
             let mut entry = zip.by_index(i).expect("entrée de la banque");
-            let Some(code) = entry.name().strip_suffix(".svg").map(String::from) else { continue };
+            let Some(code) = entry.name().ok().and_then(|n| n.strip_suffix(".svg").map(String::from)) else { continue };
             let mut bytes = Vec::new();
             entry.read_to_end(&mut bytes).expect("image de la banque");
             out.insert(code, bytes);

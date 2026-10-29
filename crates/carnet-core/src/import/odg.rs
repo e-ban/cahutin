@@ -42,9 +42,7 @@ fn attr_mm(n: Node, ns: &str, name: &str) -> Option<f64> {
 
 fn read_entry<R: Read + Seek>(zip: &mut ZipArchive<R>, name: &str) -> Option<Vec<u8>> {
     let mut entry = zip.by_name(name).ok()?;
-    let mut buf = Vec::new();
-    entry.read_to_end(&mut buf).ok()?;
-    Some(buf)
+    crate::native::read_capped(&mut entry, crate::native::MAX_ENTRY_BYTES)
 }
 
 #[derive(Clone, Default)]

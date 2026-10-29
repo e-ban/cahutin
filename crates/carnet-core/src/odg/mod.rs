@@ -179,7 +179,7 @@ mod tests {
             String::from_utf8(self.read(name)).unwrap()
         }
         fn names(&self) -> Vec<String> {
-            self.zip.file_names().map(String::from).collect()
+            self.zip.file_names().map(|n| n.unwrap().into_owned()).collect()
         }
     }
 
@@ -208,7 +208,7 @@ mod tests {
     fn mimetype_comes_first_and_is_stored() {
         let mut e = export(&Document::new("vide"), &AssetStore::default());
         let first = e.zip.by_index(0).unwrap();
-        assert_eq!(first.name(), "mimetype");
+        assert_eq!(first.name().unwrap(), "mimetype");
         assert_eq!(first.compression(), zip::CompressionMethod::Stored);
         drop(first);
         assert_eq!(e.read("mimetype"), b"application/vnd.oasis.opendocument.graphics");

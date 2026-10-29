@@ -4,6 +4,7 @@ import { newDoc, openDoc, print, save } from "./fileActions";
 import { groupOf, isLockedSelection } from "./groups";
 import { modal } from "./modal.svelte";
 import { nudge, type ArrowKey } from "./geometry";
+import { tour } from "./tour.svelte";
 
 function typing(ev: KeyboardEvent): boolean {
   const t = ev.target as HTMLElement | null;
@@ -28,8 +29,8 @@ export function shortcutAction(ev: KeyInfo): ShortcutAction | null {
 
 /** Raccourcis globaux : fichiers, annuler, rétablir, supprimer, déplacer au clavier. */
 export function handleShortcut(ev: KeyboardEvent) {
-  // Une boîte de dialogue attend une réponse : aucun raccourci.
-  if (modal.message !== null) return;
+  // Une boîte de dialogue attend une réponse, ou la visite guidée est ouverte : aucun raccourci.
+  if (modal.message !== null || tour.step !== null) return;
   const action = shortcutAction(ev);
   // Commandes de fichier : même pendant la saisie d'un texte (le texte en cours est validé avant).
   const fileActions: Partial<Record<ShortcutAction, () => unknown>> = { new: newDoc, open: openDoc, save, print };

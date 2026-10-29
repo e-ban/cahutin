@@ -20,6 +20,8 @@
   import About from "./components/layout/About.svelte";
   import BackgroundPanel from "./components/BackgroundPanel.svelte";
   import Hint from "./components/layout/Hint.svelte";
+  import Tour from "./components/Tour.svelte";
+  import { shouldStartTour, tour } from "./lib/tour.svelte";
   import Welcome from "./components/layout/Welcome.svelte";
   import Transformer from "./components/Transformer.svelte";
   import GroupTransformer from "./components/GroupTransformer.svelte";
@@ -49,6 +51,14 @@
   templates.refresh();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
   if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath } });
+
+  // Visite guidée : au premier lancement, quand l'écran d'accueil se ferme.
+  let welcomeWasOpen = editor.showWelcome;
+  $effect(() => {
+    const open = editor.showWelcome;
+    if (shouldStartTour(tour.done, welcomeWasOpen, open) && tour.step === null) tour.start();
+    welcomeWasOpen = open;
+  });
 
   // Fermeture de la fenêtre : demander d'enregistrer s'il y a des modifications.
   // Polices du poste lues en arrière-plan par le moteur : la liste se met à jour quand elles arrivent.
@@ -215,6 +225,7 @@
   {#if editor.showAbout}<About />{/if}
   {#if editor.showBackground}<BackgroundPanel />{/if}
   <Modal />
+  <Tour />
   {#if editor.fileImport}
     <div class="notice" role="status">
       <pre>{fr.importingFile(editor.fileImport.name)}</pre>

@@ -217,6 +217,11 @@ export const fr = {
   hintDblclickText: "Double-cliquez dans le texte pour écrire.",
   hintRightclick: "Clic droit sur un élément : copier, dupliquer, mettre devant…",
   closeHint: "Fermer l'astuce",
+  tourStep: (n: number, total: number) => `Étape ${n} sur ${total}`,
+  tourPrev: "Précédent",
+  tourNext: "Suivant",
+  tourDone: "Terminer",
+  tourSkip: "Passer",
   // Groupes
   group: "Grouper",
   ungroup: "Dissocier",

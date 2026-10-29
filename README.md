@@ -16,6 +16,7 @@ L'application fonctionne **entièrement hors ligne** sur Windows 11 et sous Linu
 - **Fonds de page** : couleur, Seyès, petits carreaux, lignes, pointillés, papier kraft.
 - **Groupes**, sélection au cadre, alignement, verrouillage, annulation.
 - **Import** : pages d'un autre document Carnet, et fiches Word (.docx, .doc), LibreOffice (.odt, .odg), PDF ou Publisher (.pub) reprises en textes, photos et formes modifiables. Pour ces formats, LibreOffice doit être installé sur le poste.
+- **Aide** : visite guidée au premier lancement, astuces par thème et bulles d'aide discrètes (menu Aide).
 - **Sorties** : impression, PDF, et export **ODG** pour LibreOffice Draw, où chaque texte, photo et forme reste modifiable et les polices voyagent avec le fichier.
 
 ## Installer

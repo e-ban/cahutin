@@ -161,11 +161,16 @@ fn element(frame: Frame, kind: ElementKind) -> Element {
     Element { id: new_id(), frame, locked: false, zone: false, group: None, kind }
 }
 
+/// Caractères de la zone privée (puces des polices de symboles : OpenSymbol, Symbol, Wingdings) : « • ».
+fn readable(text: &str) -> String {
+    text.chars().map(|c| if ('\u{E000}'..='\u{F8FF}').contains(&c) { '•' } else { c }).collect()
+}
+
 /// Texte d'un nœud, espaces ODF (`text:s`, `text:tab`) compris.
 fn node_text(n: Node, out: &mut String) {
     for c in n.children() {
         if c.is_text() {
-            out.push_str(c.text().unwrap_or(""));
+            out.push_str(&readable(c.text().unwrap_or("")));
         } else if c.has_tag_name((TEXT, "s")) {
             let count = c.attribute((TEXT, "c")).and_then(|v| v.parse().ok()).unwrap_or(1);
             out.push_str(&" ".repeat(count));
@@ -237,7 +242,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 } else {
                     let mut t = String::new();
                     if c.is_text() {
-                        t.push_str(c.text().unwrap_or(""));
+                        t.push_str(&readable(c.text().unwrap_or("")));
                     } else {
                         node_text(c, &mut t);
                     }
@@ -326,7 +331,8 @@ impl<R: Read + Seek> PageReader<'_, R> {
     }
 
     fn finish(self) -> (Vec<Element>, Vec<Asset>, usize) {
-        let blocks = merge_lines(self.lines);
+        let obstacles: Vec<Frame> = self.items.iter().filter_map(|it| if let Item::Element(e) = it { Some(e.frame) } else { None }).collect();
+        let blocks = merge_lines(&obstacles, self.lines);
         let mut by_first: HashMap<usize, Element> = blocks.iter().map(|b| (b.first, block_element(b))).collect();
         let elements = self
             .items
@@ -513,6 +519,13 @@ mod tests {
         assert_eq!(kinds, [ShapeKind::Ellipse, ShapeKind::Line]);
         let line = &imported.pages[0].elements[1].frame;
         assert!((line.x_mm - 20.0).abs() < 0.01 && (line.w_mm - 40.0).abs() < 0.01 && (line.y_mm + line.h_mm / 2.0 - 120.0).abs() < 0.01, "{line:?}");
+    }
+
+    /// Puce par défaut de LibreOffice (OpenSymbol, zone privée U+F095) : un « • » lisible dans toute police.
+    #[test]
+    fn symbol_font_bullets_become_bullets() {
+        let t = read(&text_frame("2cm", "2cm", "1cm", "<text:span text:style-name=\"T1\">\u{F095}</text:span>"));
+        assert_eq!(plain(texts(&t.pages[0])[0]), "•");
     }
 
     #[test]

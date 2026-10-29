@@ -65,6 +65,9 @@ impl AssetSource {
 pub fn stage(cache_dir: Option<&Path>, a: Asset) -> Result<StagedAsset, ImportError> {
     let storage = match cache_dir {
         Some(dir) => {
+            if !crate::model::is_safe_id(&a.meta.id) {
+                return Err(ImportError::Storage);
+            }
             let path = dir.join(format!("{}.{}", a.meta.id, extension(a.meta.mime)));
             std::fs::write(&path, &*a.bytes).map_err(|_| ImportError::Storage)?;
             Storage::Disk(path)
@@ -507,5 +510,16 @@ mod tests {
         let source = store.locate(&id).unwrap();
         drop(store);
         assert_eq!(source.load().unwrap().bytes, bytes);
+    }
+
+    #[test]
+    fn a_photo_id_never_writes_outside_the_cache() {
+        let root = tempfile::tempdir().unwrap();
+        let cache = root.path().join("cache");
+        std::fs::create_dir(&cache).unwrap();
+        let mut a = import_bytes(&jpeg(12, 12)).unwrap();
+        a.meta.id = "../dehors".into();
+        assert!(stage(Some(&cache), a).is_err());
+        assert!(!root.path().join("dehors.jpg").exists());
     }
 }

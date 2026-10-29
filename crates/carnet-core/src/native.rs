@@ -170,6 +170,9 @@ pub fn load(input: impl Read + Seek) -> Result<LoadedDocument, NativeError> {
         return Err(NativeError::NewerVersion(found));
     }
     let doc: Document = serde_json::from_slice(&json).map_err(|_| NativeError::Corrupt)?;
+    if !doc.assets.values().all(|m| crate::model::is_safe_id(&m.id)) {
+        return Err(NativeError::Corrupt);
+    }
     let mut assets = Vec::new();
     for meta in doc.assets.values() {
         let ext = extension(meta.mime);
@@ -418,6 +421,30 @@ mod tests {
         assert!(read_capped(&mut bomb, 10_000).is_none());
         let mut fits = std::io::repeat(7).take(10_000);
         assert_eq!(read_capped(&mut fits, 10_000).unwrap().len(), 10_000);
+    }
+
+    /// Un identifiant de photo sert de nom de fichier dans le cache : un fichier piégé (`../`) est refusé.
+    #[test]
+    fn a_document_with_a_dangerous_photo_id_is_refused() {
+        for id in ["../../piege", "a/b", "a\\b", "C:x", "", ".."] {
+            let mut doc = Document::new("piège");
+            let a = photo_asset();
+            doc.assets.insert(id.into(), AssetMeta { id: id.into(), ..a.meta.clone() });
+            let json = serde_json::to_vec(&doc).unwrap();
+            let mut buf = Cursor::new(Vec::new());
+            {
+                let mut zip = ZipWriter::new(&mut buf);
+                zip.start_file(DOCUMENT_ENTRY, SimpleFileOptions::default()).unwrap();
+                zip.write_all(&json).unwrap();
+                for name in [format!("assets/{id}.jpg"), format!("assets/{id}.thumb.jpg")] {
+                    zip.start_file(name, SimpleFileOptions::default()).unwrap();
+                    zip.write_all(&a.bytes).unwrap();
+                }
+                zip.finish().unwrap();
+            }
+            buf.set_position(0);
+            assert_eq!(load(buf).err(), Some(NativeError::Corrupt), "{id:?}");
+        }
     }
 
     #[test]

@@ -10,6 +10,12 @@ pub fn new_id() -> Id {
     uuid::Uuid::new_v4().to_string()
 }
 
+/// Identifiant utilisable comme nom de fichier (cache des photos) : lettres, chiffres, `-` et `_`, sans
+/// séparateur de chemin ni `..`. Un document reçu peut contenir n'importe quoi.
+pub fn is_safe_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
 /// Nouveaux identifiants partout : page, éléments (et leurs cases de grille), groupes.
 pub fn renew_ids(page: &mut Page) {
     page.id = new_id();

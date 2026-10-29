@@ -17,7 +17,7 @@
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
   import { isStrokeOnly } from "../lib/shapePaths";
-  import { alignableIds, expandSelection, isLockedSelection } from "../lib/groups";
+  import { alignUnits, arrangeUnits, expandSelection, isLockedSelection } from "../lib/groups";
   import { blockFrieze } from "../lib/decor";
   import { friezeMotifs } from "../lib/friezeMotifs.svelte";
   import { ALIGNS, VALIGNS, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
@@ -103,17 +103,11 @@
   const removeSelected = deleteSelection;
 
   /** Éléments libres de la sélection (ni verrouillés, ni cases de grille). */
-  function movable() {
-    const ids = alignableIds(editor.page, editor.selection);
-    return editor.page.elements.filter((e) => ids.includes(e.id));
-  }
-
+  /** Blocs à aligner ou répartir : un groupe compte pour un. */
+  const units = () => alignUnits(editor.page, editor.selection).length;
 
   function applyFrames(fn: (frames: Frame[]) => Frame[]) {
-    const els = movable();
-    const frames = fn(els.map((e) => e.frame));
-    const byId = new Map(els.map((e, i) => [e.id, frames[i]]));
-    editor.updatePage((p) => ({ ...p, elements: p.elements.map((e) => (byId.has(e.id) ? { ...e, frame: byId.get(e.id)! } : e)) }));
+    editor.updatePage((p) => arrangeUnits(p, editor.selection, fn));
     pop = null;
   }
 
@@ -170,7 +164,7 @@
       {/if}
       <span class="sep"></span>
       <div class="wrap">
-        <button onclick={() => toggle("alignMany")} disabled={movable().length < 2}>{fr.alignMenu} ▾</button>
+        <button onclick={() => toggle("alignMany")} disabled={units() < 2}>{fr.alignMenu} ▾</button>
         {#if pop === "alignMany"}
           <div class="pop list">
             {#each alignModes as [mode, label] (mode)}<button onclick={() => applyFrames((f) => alignFrames(f, mode))}>{label}</button>{/each}
@@ -178,7 +172,7 @@
         {/if}
       </div>
       <div class="wrap">
-        <button onclick={() => toggle("distribute")} disabled={movable().length < 3}>{fr.distribute} ▾</button>
+        <button onclick={() => toggle("distribute")} disabled={units() < 3}>{fr.distribute} ▾</button>
         {#if pop === "distribute"}
           <div class="pop list">
             <button onclick={() => applyFrames((f) => distributeFrames(f, "h"))}>{fr.distributeH}</button>

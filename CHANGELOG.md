@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.5.2
+
+- Export pour LibreOffice : il échouait sur un document contenant des photos importées.
+- Aligner et Répartir déplacent chaque groupe d'un bloc : une photo garde sa légende, une bordure reste entière. Un groupe sélectionné seul n'a rien à aligner.
+- Import : le fond blanc des pages n'est plus une forme qu'on sélectionne par erreur, et une bordure décorative découpée en centaines de morceaux devient un seul groupe, à déplacer ou supprimer d'un clic.
+
 ## 0.5.1
 
 - Clic droit sur la page : « Ajouter un texte ici » et « Ajouter une forme ici » ne faisaient rien.

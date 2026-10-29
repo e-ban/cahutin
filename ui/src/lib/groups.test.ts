@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
-import { alignableIds, boundsOf, elementsInRect, expandSelection, groupElements, isLockedSelection, rotateElements, scaleElements, ungroup } from "./groups";
+import { alignFrames, distributeFrames } from "./align";
+import { alignableIds, alignUnits, arrangeUnits, boundsOf, elementsInRect, expandSelection, groupElements, isLockedSelection, rotateElements, scaleElements, ungroup } from "./groups";
 import type { Element, Page } from "./types";
 
 const shape = (id: string, x = 0, extra: Partial<Element> = {}): Element => ({
@@ -117,4 +118,44 @@ test("alignableIds is empty when a group member is locked", () => {
   expect(alignableIds(p, ["c", "b"])).toEqual([]);
   const q = page([shape("a"), shape("b", 10), shape("z", 20)], ["z"]);
   expect(alignableIds(q, ["a", "b", "z"])).toEqual(["a", "b"]);
+});
+
+// Aligner et Répartir : un groupe bouge d'un bloc, ses membres gardent leur place entre eux.
+const at = (id: string, x: number, y: number, w: number, h: number, group?: string): Element => ({
+  ...shape(id),
+  frame: { x_mm: x, y_mm: y, w_mm: w, h_mm: h, rotation_deg: 0 },
+  group: group ?? null,
+});
+const pageWith = (elements: Element[]): Page => ({ id: "p", size: { width_mm: 210, height_mm: 297 }, elements, grid: null, background: null }) as Page;
+const frameOf = (p: Page, id: string) => p.elements.find((e) => e.id === id)!.frame;
+
+test("a group is one block for align and distribute", () => {
+  // Photo et légende groupées, entre deux formes seules.
+  const page = pageWith([at("a", 0, 0, 10, 10), at("photo", 40, 5, 30, 20, "g"), at("legende", 45, 26, 20, 5, "g"), at("b", 150, 0, 10, 10)]);
+  expect(alignUnits(page, ["a", "photo", "b"])).toEqual([["a"], ["photo", "legende"], ["b"]]);
+  const out = arrangeUnits(page, ["a", "photo", "b"], (f) => distributeFrames(f, "h"));
+  // Blocs de 10, 30 et 10 mm entre 0 et 160 : 55 mm d'espace de part et d'autre du groupe.
+  expect(frameOf(out, "photo").x_mm).toBe(65);
+  expect(frameOf(out, "legende").x_mm).toBe(70);
+  expect(frameOf(out, "legende").y_mm).toBe(26);
+  expect(frameOf(out, "a")).toEqual(frameOf(page, "a"));
+});
+
+test("aligning moves each group as a whole", () => {
+  const page = pageWith([at("a", 20, 0, 10, 10), at("photo", 40, 5, 30, 20, "g"), at("legende", 45, 26, 20, 5, "g")]);
+  const out = arrangeUnits(page, ["a", "legende"], (f) => alignFrames(f, "left"));
+  expect(frameOf(out, "photo").x_mm).toBe(20);
+  expect(frameOf(out, "legende").x_mm).toBe(25);
+});
+
+test("one group alone has nothing to align or distribute", () => {
+  const border = Array.from({ length: 20 }, (_, i) => at(`m${i}`, i * 8, 0, 8, 8, "bordure"));
+  const page = pageWith(border);
+  expect(alignUnits(page, ["m3"])).toEqual([border.map((e) => e.id)]);
+  expect(arrangeUnits(page, ["m3"], (f) => distributeFrames(f, "h"))).toEqual(page);
+});
+
+test("a locked member freezes align and distribute", () => {
+  const page = pageWith([at("a", 0, 0, 10, 10), at("b", 40, 0, 10, 10, "g"), { ...at("c", 60, 0, 10, 10, "g"), locked: true }, at("d", 150, 0, 10, 10)]);
+  expect(alignUnits(page, ["a", "b", "d"])).toEqual([]);
 });

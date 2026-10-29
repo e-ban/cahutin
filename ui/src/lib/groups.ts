@@ -61,6 +61,37 @@ export function alignableIds(page: Page, ids: string[]): string[] {
   return page.elements.filter((e) => all.has(e.id) && !isCell(page, e.id)).map((e) => e.id);
 }
 
+/** Blocs qu'Aligner et Répartir déplacent : chaque groupe d'un tenant, chaque élément seul sinon. */
+export function alignUnits(page: Page, ids: string[]): string[][] {
+  const units = new Map<string, string[]>();
+  for (const id of alignableIds(page, ids)) {
+    const key = page.elements.find((e) => e.id === id)?.group ?? `seul:${id}`;
+    units.set(key, [...(units.get(key) ?? []), id]);
+  }
+  return [...units.values()];
+}
+
+/** Aligne ou répartit les boîtes des blocs avec `arrange`, puis déplace chaque bloc d'une pièce. */
+export function arrangeUnits(page: Page, ids: string[], arrange: (frames: Frame[]) => Frame[]): Page {
+  const units = alignUnits(page, ids);
+  const frameOf = (id: string) => page.elements.find((e) => e.id === id)!.frame;
+  const boxes: Frame[] = units.map((u) => ({ ...boundsOf(u.map(frameOf)), rotation_deg: 0 }));
+  const moved = arrange(boxes);
+  const delta = new Map<string, [number, number]>();
+  units.forEach((u, i) => {
+    const [dx, dy] = [moved[i].x_mm - boxes[i].x_mm, moved[i].y_mm - boxes[i].y_mm];
+    if (dx !== 0 || dy !== 0) for (const id of u) delta.set(id, [dx, dy]);
+  });
+  if (delta.size === 0) return page;
+  return {
+    ...page,
+    elements: page.elements.map((e) => {
+      const d = delta.get(e.id);
+      return d ? { ...e, frame: { ...e.frame, x_mm: round(e.frame.x_mm + d[0]), y_mm: round(e.frame.y_mm + d[1]) } } : e;
+    }),
+  };
+}
+
 function corners(f: Frame): Point[] {
   const cx = f.x_mm + f.w_mm / 2;
   const cy = f.y_mm + f.h_mm / 2;

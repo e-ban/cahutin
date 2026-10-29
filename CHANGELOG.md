@@ -2,6 +2,7 @@
 
 ## Prochaine version
 
+- Plusieurs polices dans un même texte : pendant l'écriture, la police et la taille choisies dans la barre flottante s'appliquent au passage sélectionné (avant, elles s'appliquaient à tout le texte et terminaient l'écriture). La barre affiche la police du passage sous le curseur.
 - Cinq nouveaux modèles : Étiquettes (12 prénoms encadrés à découper), Étiquettes photo (photo et prénom), Photos et textes, Photos légendées, Affiche paysage.
 - Frises : « Choisir les images » compose une suite de motifs sans rien poser sur la page ; la frise répète la suite, tout autour en une boucle continue.
 - Frise autour d'une photo, d'une forme ou d'un texte, groupée avec lui.

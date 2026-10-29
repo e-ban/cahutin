@@ -27,7 +27,7 @@ export function sanitizePlainText(text: string): string {
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
-function parsePt(size: unknown): number | null {
+export function parsePt(size: unknown): number | null {
   if (typeof size !== "string") return null;
   const m = size.match(/^([\d.]+)pt$/);
   return m ? Number(m[1]) : null;

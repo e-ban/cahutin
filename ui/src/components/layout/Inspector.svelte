@@ -8,7 +8,7 @@
   import { fr } from "../../lib/i18n/fr";
   import { isStrokeOnly } from "../../lib/shapePaths";
   import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
-  import { ALIGNS, VALIGNS, activeTip, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
+  import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
   import { endPreview, previewPhoto, previewShape, previewTextStyle, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
   import { deleteSelection, setSelectedFrame, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
   import { boundsOf, isLockedSelection } from "../../lib/groups";
@@ -140,17 +140,17 @@
 
     {#if selected.kind.type === "Text"}
       {@const t = selected.kind}
-      {@const family = fonts.families.find((f) => f.name === t.style.font)}
+      {@const family = fonts.families.find((f) => f.name === currentFont(t))}
       {#if !tip}
         <p class="hint">Double-cliquez pour écrire. Sans édition, les réglages s'appliquent à toute la zone.</p>
       {/if}
       <div class="field">
         <span>Police</span>
-        <FontPicker value={t.style.font} onpick={setFont} />
+        <FontPicker value={currentFont(t)} onpick={setFont} />
       </div>
       <div class="field">
         <span>Taille</span>
-        <select value={String(t.style.size_pt)} onchange={(e) => setSize(Number(e.currentTarget.value))}>
+        <select value={String(currentSize(t))} onchange={(e) => setSize(Number(e.currentTarget.value))}>
           {#each FONT_SIZES as size}<option value={String(size)}>{size} pt</option>{/each}
         </select>
       </div>

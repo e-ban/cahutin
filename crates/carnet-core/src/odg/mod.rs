@@ -434,6 +434,33 @@ mod tests {
         assert!(settings.contains("config:name=\"EmbedFonts\" config:type=\"boolean\">true<"));
     }
 
+/// Le même prénom dans trois polices (étiquettes) : une police par passage, toutes embarquées.
+    #[test]
+    fn each_run_keeps_its_font_and_every_font_is_embedded() {
+        let mut rt = RichText::plain("Léa\nLéa\nLéa");
+        rt.paragraphs[1].runs[0].font = Some("OpenDyslexic".into());
+        rt.paragraphs[2].runs[0].font = Some("Playwrite FR Moderne".into());
+        rt.paragraphs[2].runs[0].size_pt = Some(32.0);
+        let d = doc_with(vec![text(rt, None)]);
+        let mut e = export(&d, &AssetStore::default());
+        let content = e.xml("content.xml");
+        let doc = roxmltree::Document::parse(&content).unwrap();
+        let style_of = |name: &str| {
+            let style = doc.descendants().find(|n| n.has_tag_name("style") && n.attribute(("urn:oasis:names:tc:opendocument:xmlns:style:1.0", "name")) == Some(name)).unwrap();
+            let props = style.children().find(|n| n.has_tag_name("text-properties")).unwrap();
+            let attr = |a: &str| props.attributes().find(|x| x.name() == a).map(|x| x.value().to_string());
+            (attr("font-name"), attr("font-size"))
+        };
+        let spans: Vec<_> = doc.descendants().filter(|n| n.has_tag_name("span")).map(|n| style_of(n.attributes().find(|a| a.name() == "style-name").unwrap().value())).collect();
+        assert_eq!(spans.len(), 3);
+        let fonts: Vec<String> = spans.iter().map(|(f, _)| f.clone().unwrap()).collect();
+        assert!(fonts[0].starts_with("Andika") && fonts[1].starts_with("OpenDyslexic") && fonts[2].starts_with("Playwrite"), "{fonts:?}");
+        assert_eq!(spans[2].1.as_deref(), Some("32pt"));
+        for family in ["Andika", "OpenDyslexic", "Playwrite"] {
+            assert!(e.names().iter().any(|n| n.starts_with("Fonts/") && n.contains(family)), "{family} : {:?}", e.names());
+        }
+    }
+
     #[test]
     fn unused_fonts_are_not_embedded() {
         let d = doc_with(vec![text(RichText::plain("Bonjour"), None)]);

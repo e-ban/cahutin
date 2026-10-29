@@ -500,6 +500,29 @@ fn builtin_templates_render_in_libreoffice() {
     }
 }
 
+/// Étiquette : le même prénom dans trois polices d'un seul texte ; LibreOffice utilise les trois.
+#[test]
+#[ignore]
+fn several_fonts_in_one_text_are_rendered() {
+    let mut rt = RichText::plain("Léa\nLéa\nLéa");
+    rt.paragraphs[1].runs[0].font = Some("OpenDyslexic".into());
+    rt.paragraphs[2].runs[0].font = Some("Playwrite FR Moderne".into());
+    let mut doc = Document::new("polices");
+    doc.pages[0].elements.push(Element {
+        id: new_id(),
+        frame: Frame { x_mm: 30.0, y_mm: 30.0, w_mm: 120.0, h_mm: 70.0, rotation_deg: 0.0 },
+        locked: false,
+        zone: false,
+        group: None,
+        kind: ElementKind::Text(TextProps { content: rt, style: TextStyle::default_zone(), prompt: None, frame: None }),
+    });
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    let fonts = run(Command::new("pdffonts").arg(&pdf));
+    for family in ["Andika", "OpenDyslexic", "Playwrite"] {
+        assert!(fonts.contains(family), "{family} absente :\n{fonts}");
+    }
+}
+
 /// Marge de 5 mm et alignement vertical : le mot est en haut, au milieu ou en bas, à 5 mm des bords.
 #[test]
 #[ignore]

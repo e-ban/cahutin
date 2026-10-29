@@ -5,7 +5,7 @@ import type { Editor } from "@tiptap/core";
 import type {} from "@tiptap/extension-text-align";
 import type {} from "@tiptap/extension-text-style";
 import { editor } from "./docStore.svelte";
-import { alignToCss } from "./richtext";
+import { alignToCss, parsePt } from "./richtext";
 import { textEditing } from "./textEditing.svelte";
 import type { Align, Element, Run, TextProps, TextStyle, VAlign } from "./types";
 
@@ -67,6 +67,19 @@ export function toggleMark(mark: Mark) {
     const on = !all.every((r: Run) => r[mark]);
     return { ...t, content: { paragraphs: t.content.paragraphs.map((p) => ({ ...p, runs: p.runs.map((r) => ({ ...r, [mark]: on })) })) } };
   });
+}
+
+/** Police du passage sélectionné pendant l'écriture, sinon celle de la zone. */
+export function currentFont(t: TextProps): string {
+  void textEditing.tick;
+  const f = activeTip()?.getAttributes("textStyle").fontFamily;
+  return typeof f === "string" && f ? f : t.style.font;
+}
+
+/** Taille du passage sélectionné pendant l'écriture, sinon celle de la zone. */
+export function currentSize(t: TextProps): number {
+  void textEditing.tick;
+  return parsePt(activeTip()?.getAttributes("textStyle").fontSize) ?? t.style.size_pt;
 }
 
 export function isMarkActive(mark: Mark, t: TextProps): boolean {

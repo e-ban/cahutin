@@ -20,7 +20,7 @@
   import { alignableIds, expandSelection, isLockedSelection } from "../lib/groups";
   import { blockFrieze } from "../lib/decor";
   import { friezeMotifs } from "../lib/friezeMotifs.svelte";
-  import { ALIGNS, VALIGNS, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
+  import { ALIGNS, VALIGNS, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
   import type { Frame } from "../lib/types";
 
   let { pageEl, stageEl }: { pageEl: HTMLElement | undefined; stageEl: HTMLElement | undefined } = $props();
@@ -227,9 +227,9 @@
       {/if}
     {:else if selected?.kind.type === "Text"}
       {@const t = selected.kind}
-      {@const family = fonts.families.find((f) => f.name === t.style.font)}
-      <FontPicker value={t.style.font} onpick={setFont} compact />
-      <select title={fr.size} value={String(t.style.size_pt)} onchange={(e) => setSize(Number(e.currentTarget.value))}>
+      {@const family = fonts.families.find((f) => f.name === currentFont(t))}
+      <FontPicker value={currentFont(t)} onpick={setFont} compact />
+      <select title={fr.size} value={String(currentSize(t))} onchange={(e) => setSize(Number(e.currentTarget.value))}>
         {#each FONT_SIZES as s (s)}<option value={String(s)}>{s}</option>{/each}
       </select>
       <span class="sep"></span>

@@ -74,9 +74,10 @@
         },
       },
       onBlur: ({ event }) => {
-        // Un clic dans le panneau de droite (police, couleur...) ne termine pas l'édition.
+        // Un clic dans le panneau de droite ou la barre flottante (police, couleur...) ne termine pas l'édition :
+        // la mise en forme s'applique au passage sélectionné.
         const next = event.relatedTarget as HTMLElement | null;
-        if (next?.closest(".right")) return;
+        if (next?.closest(".right, .ctx")) return;
         finish();
       },
       // Différé : la fermeture de l'éditeur provoque une transaction pendant le rendu de Svelte.

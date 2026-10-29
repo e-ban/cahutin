@@ -101,4 +101,6 @@ Le workflow « Construction » lance les tests sous Windows et Linux, construit 
 
 ## Licence
 
-Carnet sera un logiciel libre. La licence n'est pas encore choisie ; le dépôt reste privé d'ici là.
+Cahutin est un logiciel libre, sous [Licence publique de l'Union européenne (EUPL) 1.2](LICENSE), texte officiel en français. Toute version modifiée et diffusée doit rester libre, sous la même licence ou une licence compatible.
+
+Les images, les polices et les mots-clés fournis gardent leur propre licence (voir Mentions).

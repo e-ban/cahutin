@@ -5,7 +5,7 @@ members = ["crates/carnet-core", "src-tauri"]
 [workspace.package]
 edition = "2024"
 version = "0.4.1"
-license = "MPL-2.0"
+license = "EUPL-1.2"
 
 # Le traitement d'images est très lent sans optimisation : seules ces bibliothèques sont optimisées
 # en développement (optimiser toutes les dépendances rendait la compilation très longue).

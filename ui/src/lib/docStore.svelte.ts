@@ -23,6 +23,8 @@ class Editor {
   carriedPending: string[] = [];
   /** Import en cours : photos traitées sur le total demandé. */
   importProgress = $state<{ done: number; total: number } | null>(null);
+  /** Import de fichier en cours (Fichier > Importer) : nom du fichier converti. */
+  fileImport = $state<{ name: string } | null>(null);
   /** Texte en cours d'édition. */
   editingText = $state<string | null>(null);
   /** Fusion en glissant (mode modèle) : cases couvertes, et si la fusion est possible. */

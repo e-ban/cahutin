@@ -6,7 +6,8 @@
   import { onMount } from "svelte";
   import Modal from "./components/Modal.svelte";
   import PrintRoot from "./components/PrintRoot.svelte";
-  import { confirmLeave, importPaths, openPath, save } from "./lib/fileActions";
+  import { cancelFileImport, confirmLeave, importPaths, openPath, save } from "./lib/fileActions";
+  import { fr } from "./lib/i18n/fr";
   import BoxSelect from "./components/BoxSelect.svelte";
   import ContextBar from "./components/ContextBar.svelte";
   import ContextMenu, { type ContextTarget } from "./components/layout/ContextMenu.svelte";
@@ -214,7 +215,12 @@
   {#if editor.showAbout}<About />{/if}
   {#if editor.showBackground}<BackgroundPanel />{/if}
   <Modal />
-  {#if editor.notice}
+  {#if editor.fileImport}
+    <div class="notice" role="status">
+      <pre>{fr.importingFile(editor.fileImport.name)}</pre>
+      <button onclick={cancelFileImport}>{fr.cancel}</button>
+    </div>
+  {:else if editor.notice}
     <div class="notice" role="alert">
       <pre>{editor.notice}</pre>
       <button onclick={() => (editor.notice = null)}>OK</button>

@@ -3,7 +3,7 @@
   import PageView from "../PageView.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { listExamples, openExample } from "../../lib/api";
-  import { openDoc, openExampleDoc, openPath } from "../../lib/fileActions";
+  import { importFiles, openDoc, openExampleDoc, openPath } from "../../lib/fileActions";
   import type { Document, ExampleInfo } from "../../lib/types";
   import { fr } from "../../lib/i18n/fr";
   import { modal } from "../../lib/modal.svelte";
@@ -49,6 +49,7 @@
       </button>
       <button class="choice" onclick={close}><b>📄</b><span>{fr.welcomeBlank}</span><small>{fr.welcomeBlankSub}</small></button>
       <button class="choice" onclick={() => openDoc()}><b>📂</b><span>{fr.welcomeResume}</span><small>{fr.welcomeResumeSub}</small></button>
+      <button class="choice" onclick={() => importFiles(undefined, { fresh: true })}><b>📥</b><span>{fr.welcomeImport}</span><small>{fr.welcomeImportSub}</small></button>
       <button class="choice" onclick={showExamples}><b>✨</b><span>{fr.welcomeExamples}</span><small>{fr.welcomeExamplesSub}</small></button>
     </div>
     <h2>{fr.recentDocs}</h2>

@@ -12,6 +12,7 @@
   const items = $derived<MenuItem[]>([
     { label: fr.newDoc, shortcut: "Ctrl+N", action: files.newDoc },
     { label: fr.openDoc, shortcut: "Ctrl+O", action: files.openDoc },
+    { label: fr.importFiles, action: () => files.importFiles() },
     { label: fr.save, shortcut: "Ctrl+S", action: files.save, separator: true },
     { label: fr.saveAs, action: files.saveAs },
     ...(editor.recents.length

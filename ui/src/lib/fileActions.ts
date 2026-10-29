@@ -7,11 +7,12 @@ import { confirmDiscardIfDirty, editor, type DiscardChoice } from "./docStore.sv
 import { newDocument, newId } from "./factory";
 import { fonts } from "./fonts.svelte";
 import { fr } from "./i18n/fr";
+import { importReportText, insertImported, newDocumentFrom } from "./importPages";
 import { summarizeImport } from "./importSummary";
 import { pendingPaths } from "./photoLibrary";
 import { addRecent, writeRecents } from "./recents";
 import { missingFamilies } from "./fontNames";
-import type { Document, ImportOutcome } from "./types";
+import type { Document, ImportedPages, ImportOutcome } from "./types";
 import { modal } from "./modal.svelte";
 
 const baseName = () => (editor.doc.title.trim() || "Sans titre").replace(/[\\/:*?"<>|]/g, "-");
@@ -123,6 +124,67 @@ export async function openPath(path: string, confirm = true) {
   // Photos en attente : celles qui existent encore sont réimportées, sans message pour les autres.
   const pending = await api.existingPaths(opened.doc.pending_photos).catch(() => []);
   if (pending.length) void importPaths(pending, { quiet: true });
+}
+
+const IMPORTABLE = ["carnet", "docx", "doc", "odt", "odg", "pdf", "pub"];
+let importCancelled = false;
+
+/**
+ * Fichier > Importer : chaque fichier est converti tour à tour, puis toutes les pages sont ajoutées
+ * après la page courante en un seul pas d'annulation. `fresh` (accueil) : un document neuf avec ces pages.
+ */
+export async function importFiles(paths?: string[], opts: { fresh?: boolean } = {}) {
+  if (!paths) {
+    const picked = await open({ multiple: true, filters: [{ name: fr.importFilter, extensions: IMPORTABLE }] });
+    if (!picked) return;
+    paths = Array.isArray(picked) ? picked : [picked];
+  }
+  if (!paths.length || editor.fileImport) return;
+  if (opts.fresh && !(await confirmLeave())) return;
+  editor.flushPending();
+  importCancelled = false;
+  const parts: ImportedPages[] = [];
+  const notes: string[] = [];
+  const offered = new Set<string>();
+  try {
+    for (const path of paths) {
+      const name = fileName(path);
+      editor.fileImport = { name };
+      try {
+        const part = await api.importFile(path);
+        parts.push(part);
+        notes.push(importReportText(name, part.report));
+        part.offered_fonts.forEach((f) => offered.add(f));
+      } catch (e) {
+        notes.push(`${name} : ${String(e)}`);
+      }
+      if (importCancelled) break;
+    }
+  } finally {
+    editor.fileImport = null;
+  }
+  if (parts.length) {
+    if (opts.fresh) {
+      editor.reset(newDocumentFrom(parts), null);
+      editor.carriedPending = [];
+      editor.showWelcome = false;
+      editor.templateMode = false;
+    } else {
+      const next = insertImported(editor.doc, editor.pageIndex, parts);
+      editor.commit(next.doc);
+      editor.pageIndex = next.pageIndex;
+      editor.selection = [];
+    }
+    editor.addPhotos(parts.flatMap((p) => p.assets.map((meta) => ({ meta, path: "", folder: "" }))));
+    if (offered.size) await checkDocumentFonts(editor.doc, [...offered]);
+  }
+  editor.notice = [...notes, editor.notice].filter(Boolean).join("\n");
+}
+
+/** Arrête la conversion en cours ; les fichiers suivants ne sont pas importés. */
+export async function cancelFileImport() {
+  importCancelled = true;
+  await guard(() => api.cancelImport());
 }
 
 function remember(path: string, title: string) {

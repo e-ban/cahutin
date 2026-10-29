@@ -189,6 +189,30 @@ pub fn convert_to_odg(soffice: &Path, input: &Path, work: &Path, timeout: Durati
     if odg.is_file() { Ok(odg) } else { Err(ImportError::Conversion) }
 }
 
+/// Dossier de travail d'un import (copie du fichier, profil LibreOffice), supprimé à la fin, réussite ou
+/// non. Juste après l'arrêt de LibreOffice, Windows peut encore tenir des fichiers ouverts : la
+/// suppression réessaie pendant 2 s.
+struct WorkDir(PathBuf);
+
+impl WorkDir {
+    fn new() -> Result<WorkDir, ImportError> {
+        let dir = tempfile::Builder::new().prefix("carnet-import").tempdir().map_err(|_| ImportError::Conversion)?;
+        Ok(WorkDir(dir.keep()))
+    }
+}
+
+impl Drop for WorkDir {
+    fn drop(&mut self) {
+        for _ in 0..20 {
+            match std::fs::remove_dir_all(&self.0) {
+                Ok(()) => return,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+                Err(_) => std::thread::sleep(Duration::from_millis(100)),
+            }
+        }
+    }
+}
+
 /// Un fichier à importer : `.carnet` directement, les autres par LibreOffice (dossier temporaire supprimé à la fin).
 pub fn import_file(path: &Path, soffice: Option<&Path>, known_fonts: &[String], cancel: &AtomicBool) -> Result<Imported, ImportError> {
     let ext = extension(path);
@@ -200,8 +224,8 @@ pub fn import_file(path: &Path, soffice: Option<&Path>, known_fonts: &[String], 
         return Err(ImportError::Unsupported);
     }
     let soffice = soffice.ok_or(ImportError::NoLibreOffice)?;
-    let work = tempfile::tempdir().map_err(|_| ImportError::Conversion)?;
-    let odg = convert_to_odg(soffice, path, work.path(), TIMEOUT, cancel)?;
+    let work = WorkDir::new()?;
+    let odg = convert_to_odg(soffice, path, &work.0, TIMEOUT, cancel)?;
     let file = std::fs::File::open(odg).map_err(|_| ImportError::Unreadable)?;
     read_odg(file, known_fonts)
 }
@@ -320,6 +344,27 @@ mod tests {
         });
         assert_eq!(err, ImportError::Cancelled);
         assert!(start.elapsed() < Duration::from_secs(2), "{:?}", start.elapsed());
+    }
+
+    /// Fichiers encore tenus un instant après l'arrêt de LibreOffice (Windows) : la suppression réessaie.
+    #[cfg(unix)]
+    #[test]
+    fn work_dir_is_removed_even_when_briefly_locked() {
+        use std::os::unix::fs::PermissionsExt;
+        let parent = tempfile::tempdir().unwrap();
+        let work = parent.path().join("travail");
+        let locked = work.join("profil");
+        std::fs::create_dir_all(&locked).unwrap();
+        std::fs::write(locked.join("source.docx"), b"PK").unwrap();
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o500)).unwrap();
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                std::thread::sleep(Duration::from_millis(150));
+                std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
+            });
+            drop(WorkDir(work.clone()));
+        });
+        assert!(!work.exists());
     }
 
     #[cfg(unix)]

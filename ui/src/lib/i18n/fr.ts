@@ -1,6 +1,6 @@
-// Tous les textes de l'interface. Le nom de l'application est provisoire.
+// Tous les textes de l'interface.
 export const fr = {
-  appName: "Carnet",
+  appName: "Cahutin",
   untitled: "Sans titre",
   undo: "Annuler",
   redo: "Rétablir",
@@ -150,7 +150,7 @@ export const fr = {
   noUserFonts: "Aucune pour l'instant.",
   exportWarning: "⚠ export",
   restrictedFontExplain:
-    "La licence de cette police interdit de l'intégrer à un fichier : elle s'affiche dans Carnet, mais l'export pour LibreOffice ne l'emporte pas et LibreOffice la remplacera sur un poste où elle n'est pas installée.",
+    "La licence de cette police interdit de l'intégrer à un fichier : elle s'affiche dans Cahutin, mais l'export pour LibreOffice ne l'emporte pas et LibreOffice la remplacera sur un poste où elle n'est pas installée.",
   removeFont: "Supprimer cette police",
   confirmRemoveFont: (name: string) => `Supprimer la police « ${name} » ? Les textes qui l'utilisent s'afficheront en Andika.`,
   fontAdded: (name: string) => `Police ajoutée : ${name}`,
@@ -204,7 +204,7 @@ export const fr = {
   welcomeResumeSub: "Ouvrir un fichier .carnet",
   chooseLayout: "Choisissez une mise en page",
   welcomeImport: "Importer un fichier",
-  welcomeImportSub: "Word, PDF, Publisher, LibreOffice ou Carnet",
+  welcomeImportSub: "Word, PDF, Publisher, LibreOffice ou un autre carnet",
   welcomeExamples: "Découvrir un exemple",
   welcomeExamplesSub: "Des pages prêtes à modifier",
   chooseExample: "Choisissez un exemple",
@@ -268,8 +268,8 @@ export const fr = {
   friezeBottom: "En bas",
   friezeAround: "Tout autour",
   openmojiCreditPage: "Pictogrammes : OpenMoji, CC BY-SA 4.0",
-  about: "À propos de Carnet…",
-  aboutTitle: "À propos de Carnet",
+  about: "À propos de Cahutin…",
+  aboutTitle: "À propos de Cahutin",
   aboutVersion: (v: string) => `Version ${v}`,
   aboutFree: "Logiciel libre et gratuit pour l'école.",
   aboutOpenmoji: "Pictogrammes : OpenMoji (openmoji.org), licence CC BY-SA 4.0.",

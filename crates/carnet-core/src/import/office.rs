@@ -279,7 +279,7 @@ mod tests {
         std::fs::write(&docx, b"PK").unwrap();
         let err = import_file(&docx, None, &[], &AtomicBool::new(false)).err().unwrap();
         assert_eq!(err, ImportError::NoLibreOffice);
-        assert_eq!(err.message_fr(), "Pour importer ce fichier, installez LibreOffice (gratuit), puis recommencez. Les documents Carnet s'importent sans LibreOffice.");
+        assert_eq!(err.message_fr(), "Pour importer ce fichier, installez LibreOffice (gratuit), puis recommencez. Les carnets s'importent sans LibreOffice.");
     }
 
     /// Faux soffice : écrit ses arguments, un par ligne, dans `log`, puis exécute `body`.

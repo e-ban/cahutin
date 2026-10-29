@@ -59,7 +59,7 @@ pub enum ImportError {
 impl ImportError {
     pub fn message_fr(&self) -> String {
         match self {
-            ImportError::NoLibreOffice => "Pour importer ce fichier, installez LibreOffice (gratuit), puis recommencez. Les documents Carnet s'importent sans LibreOffice.".into(),
+            ImportError::NoLibreOffice => "Pour importer ce fichier, installez LibreOffice (gratuit), puis recommencez. Les carnets s'importent sans LibreOffice.".into(),
             ImportError::Unsupported => "Ce type de fichier ne peut pas être importé.".into(),
             ImportError::Conversion => "LibreOffice n'a pas pu lire ce fichier (abîmé ou protégé par un mot de passe ?).".into(),
             ImportError::Timeout => "La conversion a pris trop de temps (plus de 2 minutes).".into(),

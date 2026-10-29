@@ -4,7 +4,7 @@
 
 ## 1. Construire l'installeur
 
-**Le plus simple :** télécharger l'installeur `Carnet_<version>_x64-setup.exe` de la dernière version sur la page « Releases » du dépôt. Pour essayer une construction plus récente : à chaque envoi sur `main`, GitHub construit l'installeur (workflow « Construction ») ; ouvrir « Actions », puis le dernier run réussi « Construction », et télécharger l'artefact `carnet-installeur-windows-…`. On peut aussi relancer la construction à la main avec « Run workflow ».
+**Le plus simple :** télécharger l'installeur `Cahutin_<version>_x64-setup.exe` de la dernière version sur la page « Releases » du dépôt. Pour essayer une construction plus récente : à chaque envoi sur `main`, GitHub construit l'installeur (workflow « Construction ») ; ouvrir « Actions », puis le dernier run réussi « Construction », et télécharger l'artefact `carnet-installeur-windows-…`. On peut aussi relancer la construction à la main avec « Run workflow ».
 
 **Sur le poste Windows lui-même :**
 
@@ -15,7 +15,7 @@
 
    WebView2 est déjà présent sur Windows 11.
 2. Dans le dossier du projet : `npm ci`, puis `npm run tauri build`.
-3. Résultat attendu : `target\release\bundle\nsis\Carnet_<version>_x64-setup.exe`.
+3. Résultat attendu : `target\release\bundle\nsis\Cahutin_<version>_x64-setup.exe`.
 
 ## 2. Point de contrôle (en développement)
 
@@ -40,12 +40,12 @@ Avec `npm run tauri dev` :
 3. Importer un dossier de photos de téléphone contenant des photos en portrait, en paysage et une HEIC. Attendu : les photos sont droites et la HEIC est signalée par un message clair.
 4. Créer une page depuis « Grille de photos », avec 4 photos et 2 textes. L'exporter pour LibreOffice, puis ouvrir le fichier `.odg` sur un poste **sans** les polices installées. Attendu : même apparence, objets modifiables.
 5. Utiliser « Exporter en PDF », puis « Imprimer » vers « Microsoft Print to PDF ». Attendu : rendu identique à l'écran, aucune zone vide ni texte d'invite visible. Recommencer avec un document dont la première page est en paysage : vérifier que la page du PDF est bien A4 paysage, sans être tournée deux fois. Un document qui mélange portrait et paysage ne prend qu'une orientation à l'export PDF ; il passe par « Imprimer ».
-6. Créer un modèle personnel, copier son fichier `.carnet-modele` sur un autre poste, dans `%APPDATA%\fr.carnet.app\modeles`, et l'utiliser.
+6. Créer un modèle personnel, copier son fichier `.carnet-modele` sur un autre poste, dans `%APPDATA%\fr.cahutin.app\modeles`, et l'utiliser.
 7. Modifier un document, puis fermer la fenêtre. Attendu : l'application demande « Enregistrer les modifications ? ». Recommencer en fermant la fenêtre **pendant la saisie** d'un texte : la question doit aussi apparaître, et le texte tapé doit être enregistré.
 8. Utiliser Aide > Signaler un problème. Attendu : le fichier ne contient ni chemin, ni texte de document, ni nom d'enfant.
 9. **150 photos sans figer** : dans le tiroir Photos, « 📁 Dossier » sur un dossier d'environ 150 photos de téléphone. Attendu : la barre « Import en cours : n / 150 » avance, les vignettes apparaissent au fil de l'eau, et pendant l'import un clic sur une autre icône de la colonne (Texte, Formes) ouvre son tiroir tout de suite. Le défilement des vignettes reste fluide. Enregistrer avec 4 photos placées, fermer, rouvrir le document : les 146 autres reviennent dans « Non utilisées ».
-10. **Cache des photos** : après la fermeture de l'application, le dossier `%LOCALAPPDATA%\fr.carnet.app\images` est vide (ou absent).
-11. **Ajouter une police, l'exporter** : tiroir Polices, « ＋ Ajouter une police », choisir un `.ttf` libre (par exemple une police OFL téléchargée **avant** de couper le réseau). Écrire un texte dans cette police, l'exporter pour LibreOffice, puis ouvrir l'ODG sur un autre poste où la police n'est pas installée. Attendu : le texte garde la police. Ouvrir aussi le `.carnet` sur cet autre poste : Carnet propose « Ce document utilise la police X : l'ajouter ? ».
+10. **Cache des photos** : après la fermeture de l'application, le dossier `%LOCALAPPDATA%\fr.cahutin.app\images` est vide (ou absent).
+11. **Ajouter une police, l'exporter** : tiroir Polices, « ＋ Ajouter une police », choisir un `.ttf` libre (par exemple une police OFL téléchargée **avant** de couper le réseau). Écrire un texte dans cette police, l'exporter pour LibreOffice, puis ouvrir l'ODG sur un autre poste où la police n'est pas installée. Attendu : le texte garde la police. Ouvrir aussi le `.carnet` sur cet autre poste : Cahutin propose « Ce document utilise la police X : l'ajouter ? ».
 12. **Police à licence restreinte** : ajouter une police dont la licence interdit l'intégration (de nombreuses polices commerciales installées avec Windows sont dans ce cas). Attendu : la mention « ⚠ export » et sa phrase d'explication dans le tiroir ; l'ODG ne l'emporte pas.
 13. **Test des 5 minutes, à refaire après la refonte**, avec au moins un collègue qui découvre l'outil. Chronométrer, depuis le lancement (écran d'accueil), la création d'une page avec 4 photos et 2 textes, exportée en PDF. Noter les hésitations, en particulier : trouve-t-il la barre flottante, le clic droit, le tiroir Photos ?
 14. **Grouper, agrandir, dissocier** : sélectionner au cadre trois images et un texte, Ctrl+G. Attendu : un clic sélectionne tout le groupe ; agrandir par un coin agrandit aussi le texte, sans déformer les images ; double-clic sur le texte pour l'écrire sans dissocier, Échap revient au groupe ; Ctrl+Maj+G dissocie. L'ODG ouvert dans LibreOffice montre un groupe (menu Forme > Groupe > Dissocier disponible).
@@ -54,7 +54,7 @@ Avec `npm run tauri dev` :
 17. **Document avec images ouvert par l'ancienne version** : ouvrir ce `.carnet` avec une version antérieure de Carnet. Attendu : le message « créé par une version plus récente » (et non « fichier abîmé »).
 18. **Légende** : sélectionner une photo, bouton « Légende ». Attendu : un texte sous la photo, prêt à écrire ; déplacer la photo déplace la légende ; recliquer « Légende » sélectionne la légende existante.
 19. **Fonds de page** : bouton « Fond » de la bande des pages, puis Seyès, petits carreaux, lignes, pointillés et papier kraft ; « Appliquer à toutes les pages ». Attendu : le fond ne se sélectionne jamais ; il est identique à l'écran, à l'impression, dans le PDF et dans l'ODG (dans LibreOffice, il ne se sélectionne pas non plus) ; une page en paysage est couverte jusqu'aux bords.
-20. **Exemples** : écran d'accueil, « Découvrir un exemple », ouvrir chacun des cinq. Attendu : une copie sans nom (« Enregistrer » demande un nom), photos à déposer dans les zones ; si le document en cours est modifié, Carnet demande d'abord d'enregistrer.
+20. **Exemples** : écran d'accueil, « Découvrir un exemple », ouvrir chacun des cinq. Attendu : une copie sans nom (« Enregistrer » demande un nom), photos à déposer dans les zones ; si le document en cours est modifié, Cahutin demande d'abord d'enregistrer.
 21. **Alignement vertical et marge** : un texte de deux mots dans un grand cadre ; menu d'alignement de la barre flottante, rangée du bas : en haut, au milieu, en bas. Réglages : marge intérieure à 6 mm. Attendu : même position à l'écran, à l'impression et dans l'ODG ouvert dans LibreOffice ; un texte trop long reste lisible depuis le haut et affiche « Texte trop long ».
 22. **Cadre de texte** : bouton « Cadre » d'un texte : fond jaune pâle, bordure de 1 mm en tirets, coins de 8 mm. Attendu : identique dans LibreOffice, où le texte se modifie d'un double-clic ; un texte vide encadré (étiquette) garde son cadre à l'export.
 23. **Bordures en tirets et pointillés** : une photo avec bordure en pointillés, une forme et un trait en tirets. Attendu : mêmes tirets à l'écran, à l'impression et dans LibreOffice.
@@ -70,4 +70,4 @@ Avec `npm run tauri dev` :
     - le compte rendu donne, pour chaque fichier, les pages, textes, images et formes repris, et les dessins non repris.
 
     Recommencer depuis l'écran d'accueil (« Importer un fichier ») : un document neuf avec ces seules pages. Pendant l'import d'un gros PDF (plus de 20 pages), cliquer Annuler : la conversion s'arrête, le Gestionnaire des tâches ne montre plus de `soffice.bin`, et `%TEMP%` ne contient plus de dossier `carnet-import…`. Désinstaller (ou renommer) LibreOffice : l'import d'un .docx affiche « Pour importer ce fichier, installez LibreOffice (gratuit), puis recommencez… », celui d'un `.carnet` marche toujours.
-30. **Visite guidée et astuces** : sur un poste neuf (ou après avoir supprimé les données de Carnet), lancer Carnet et fermer l'écran d'accueil. Attendu : la visite démarre ; chaque étape met en lumière la bonne zone ; Échap la ferme ; elle ne revient pas au lancement suivant. Pendant le test des 5 minutes, noter si la collègue suit la visite jusqu'au bout et ce qu'elle en retient. Menu Aide : Astuces ouvre le panneau ; décocher « Afficher les astuces pendant le travail » fait disparaître les bulles ; Visite guidée la relance.
+30. **Visite guidée et astuces** : sur un poste neuf (ou après avoir supprimé les données de Cahutin), lancer Cahutin et fermer l'écran d'accueil. Attendu : la visite démarre ; chaque étape met en lumière la bonne zone ; Échap la ferme ; elle ne revient pas au lancement suivant. Pendant le test des 5 minutes, noter si la collègue suit la visite jusqu'au bout et ce qu'elle en retient. Menu Aide : Astuces ouvre le panneau ; décocher « Afficher les astuces pendant le travail » fait disparaître les bulles ; Visite guidée la relance.

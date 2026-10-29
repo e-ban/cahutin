@@ -62,3 +62,11 @@ fn html5_drag_and_drop_is_not_captured_by_the_window() {
 fn version_comes_from_cargo() {
     assert!(config().get("version").is_none(), "retirer \"version\" de tauri.conf.json");
 }
+
+#[test]
+fn app_is_named_cahutin() {
+    let c = config();
+    assert_eq!(c["productName"], "Cahutin");
+    assert_eq!(c["identifier"], "fr.cahutin.app");
+    assert_eq!(c["app"]["windows"][0]["title"], "Cahutin");
+}

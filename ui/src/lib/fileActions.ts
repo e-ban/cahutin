@@ -54,7 +54,7 @@ async function write(path: string): Promise<boolean> {
 
 export async function saveAs(): Promise<boolean> {
   editor.flushPending();
-  const picked = await saveDialog({ defaultPath: `${baseName()}.carnet`, filters: [{ name: "Document Carnet", extensions: ["carnet"] }] });
+  const picked = await saveDialog({ defaultPath: `${baseName()}.carnet`, filters: [{ name: "Carnet (Cahutin)", extensions: ["carnet"] }] });
   if (!picked) return false;
   return write(withExt(picked, "carnet"));
 }
@@ -98,7 +98,7 @@ export async function openExampleDoc(id: string) {
 
 export async function openDoc() {
   if (!(await confirmLeave())) return;
-  const picked = await open({ filters: [{ name: "Document Carnet", extensions: ["carnet"] }] });
+  const picked = await open({ filters: [{ name: "Carnet (Cahutin)", extensions: ["carnet"] }] });
   if (typeof picked === "string") await openPath(picked, false);
 }
 

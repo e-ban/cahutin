@@ -32,7 +32,7 @@ export const TIPS: Tip[] = [
   { id: "save-template", theme: "Pages et modèles", icon: "💾", title: "Vos propres modèles", text: "Bouton « Modèle » en haut, puis « Enregistrer comme modèle » : la mise en page devient un modèle à réutiliser ou à partager. Les photos et les textes écrits ne sont pas gardés." },
   { id: "background", theme: "Pages et modèles", icon: "📒", title: "Fond de page", text: "Le bouton « Fond » de la bande des pages donne une couleur, des lignes Seyès, des petits carreaux ou du papier kraft." },
   { id: "landscape", theme: "Pages et modèles", icon: "🔄", title: "Paysage", text: "Le bouton « Paysage » de la bande des pages tourne la page courante." },
-  { id: "import", theme: "Fichiers", icon: "📥", title: "Reprendre une ancienne fiche", text: "Fichier > Importer reprend une fiche Word, PDF ou Publisher (LibreOffice doit être installé) ou les pages d'un autre document Carnet." },
+  { id: "import", theme: "Fichiers", icon: "📥", title: "Reprendre une ancienne fiche", text: "Fichier > Importer reprend une fiche Word, PDF ou Publisher (LibreOffice doit être installé) ou les pages d'un autre carnet." },
   { id: "odg", theme: "Fichiers", icon: "📤", title: "Exporter pour LibreOffice", text: "« Imprimer / Exporter » crée un fichier LibreOffice Draw où chaque texte et chaque photo restent modifiables. Les polices voyagent avec le fichier, sauf celles marquées « ⚠ export »." },
   { id: "undo", theme: "Fichiers", icon: "↶", title: "Revenir en arrière", text: "Ctrl+Z annule la dernière action, Ctrl+Y la rétablit." },
 ];

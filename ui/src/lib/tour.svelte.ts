@@ -10,7 +10,7 @@ export interface TourStep {
 }
 
 export const TOUR_STEPS: TourStep[] = [
-  { target: null, title: "Bienvenue dans Carnet", text: "En une minute, voici où trouver chaque chose. Vous pourrez revoir cette visite depuis le menu Aide." },
+  { target: null, title: "Bienvenue dans Cahutin", text: "En une minute, voici où trouver chaque chose. Vous pourrez revoir cette visite depuis le menu Aide." },
   { target: ".rail", title: "Les outils", text: "Modèles, photos, textes, formes, polices et décors : tout ce que l'on ajoute à la page se trouve dans cette colonne." },
   { target: "main.stage .page", title: "La page", text: "Glissez une photo sur une zone pour la placer. Double-cliquez sur un texte pour écrire." },
   {

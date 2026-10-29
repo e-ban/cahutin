@@ -68,7 +68,7 @@ jobs:
       - name: Publier l'installeur
         uses: actions/upload-artifact@v7
         with:
-          name: carnet-installeur-windows-${{ github.sha }}
+          name: cahutin-installeur-windows-${{ github.sha }}
           path: target/release/bundle/nsis/*.exe
           if-no-files-found: error
           retention-days: 30
@@ -111,7 +111,7 @@ jobs:
       - name: Publier les paquets
         uses: actions/upload-artifact@v7
         with:
-          name: carnet-linux-${{ github.sha }}
+          name: cahutin-linux-${{ github.sha }}
           path: |
             target/release/bundle/appimage/*.AppImage
             target/release/bundle/deb/*.deb
@@ -138,9 +138,9 @@ jobs:
           version=${GITHUB_REF_NAME#v}
           # Les paquets Linux arrivent dans des sous-dossiers (appimage/, deb/) : on les cherche par leur nom.
           files=()
-          for name in "Carnet_${version}_x64-setup.exe" "Carnet_${version}_amd64.AppImage" "Carnet_${version}_amd64.deb"; do
+          for name in "Cahutin_${version}_x64-setup.exe" "Cahutin_${version}_amd64.AppImage" "Cahutin_${version}_amd64.deb"; do
             f=$(find dist -type f -name "$name" | head -1)
             test -n "$f" || { echo "::error::$name introuvable"; find dist -type f; exit 1; }
             files+=("$f")
           done
-          gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --title "Carnet $version" --notes-file "$(find dist -type f -name notes.md | head -1)" --prerelease
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --title "Cahutin $version (bêta)" --notes-file "$(find dist -type f -name notes.md | head -1)" --prerelease

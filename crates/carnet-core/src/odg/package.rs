@@ -39,7 +39,7 @@ pub(crate) fn meta_xml(openmoji: bool) -> String {
     x.open("office:document-meta", &root);
     x.open("office:meta", &[]);
     x.open("meta:generator", &[]);
-    x.text(concat!("carnet/", env!("CARGO_PKG_VERSION")));
+    x.text(concat!("cahutin/", env!("CARGO_PKG_VERSION")));
     x.close();
     if openmoji {
         x.open("meta:user-defined", &[("meta:name", "Crédits"), ("meta:value-type", "string")]);

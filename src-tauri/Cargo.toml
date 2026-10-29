@@ -8,7 +8,7 @@ license.workspace = true
 name = "carnet_app"
 
 [[bin]]
-name = "carnet"
+name = "cahutin"
 path = "src/main.rs"
 
 [build-dependencies]

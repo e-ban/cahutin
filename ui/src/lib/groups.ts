@@ -9,6 +9,11 @@ type Rect = { x_mm: number; y_mm: number; w_mm: number; h_mm: number };
 
 const isCell = (page: Page, id: string) => !!page.grid?.cells.some((c) => c.element_id === id);
 
+/** Les ids encore présents sur la page, dans le même ordre. */
+export function existingIds(page: Page, ids: string[]): string[] {
+  return ids.filter((id) => page.elements.some((e) => e.id === id));
+}
+
 /** Ids du groupe de l'élément, ou l'élément seul. */
 export function groupOf(page: Page, id: string): string[] {
   const g = page.elements.find((e) => e.id === id)?.group;

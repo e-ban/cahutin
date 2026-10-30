@@ -17,7 +17,7 @@
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
   import { isStrokeOnly } from "../lib/shapePaths";
-  import { selectedTable } from "../lib/table";
+  import { isTableCell, selectedTable } from "../lib/table";
   import { alignUnits, arrangeUnits, expandSelection, isLockedSelection } from "../lib/groups";
   import { blockFrieze } from "../lib/decor";
   import { friezeMotifs } from "../lib/friezeMotifs.svelte";
@@ -125,7 +125,8 @@
   /** Bloc seul et libre (ni case de grille, ni verrouillé, ni trait) : une frise peut l'entourer. */
   const canFrieze = $derived.by(() => {
     const e = selected;
-    if (many || !e || e.locked || inGrid(e.id)) return false;
+    // Une case de tableau n'en a pas : la frise rejoindrait le groupe du tableau.
+    if (many || !e || e.locked || inGrid(e.id) || isTableCell(editor.page, e.id)) return false;
     const k = e.kind;
     return k.type === "Text" || (k.type === "Photo" && !!k.asset) || (k.type === "Shape" && !isStrokeOnly(k.shape));
   });

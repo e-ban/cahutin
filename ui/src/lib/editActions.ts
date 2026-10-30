@@ -1,7 +1,7 @@
 // Actions d'édition sur la sélection, communes aux raccourcis, au clic droit et à la barre flottante.
 import { copyElements, duplicateElements, pasteElements, removeElements, reorder } from "./clipboard";
 import { editor } from "./docStore.svelte";
-import { expandSelection, groupElements, rotateElements, scaleElements, ungroup } from "./groups";
+import { existingIds, expandSelection, groupElements, rotateElements, scaleElements, ungroup } from "./groups";
 import { newId } from "./factory";
 import { elementAssets } from "./photoLibrary";
 import { textFrame } from "./elementEdit";
@@ -89,6 +89,11 @@ export async function runOnPage(op: (p: Page) => Promise<Page>) {
   try {
     const page = await op(editor.page);
     editor.updatePageById(id, () => page);
+    // Une case retirée (ligne ou colonne) ne reste pas sélectionnée.
+    if (editor.page.id === id) {
+      editor.selection = existingIds(page, editor.selection);
+      if (editor.focusedMember && !editor.selection.includes(editor.focusedMember)) editor.focusedMember = null;
+    }
   } catch (e) {
     editor.notice = String(e);
   }

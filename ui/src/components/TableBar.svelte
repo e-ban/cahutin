@@ -64,11 +64,20 @@
     };
   });
 
+  // Une opération à la fois : un second clic pendant l'appel au moteur repartirait de l'ancienne page.
+  let busy = $state(false);
+
   /** Fin de l'écriture d'abord : le texte tapé est enregistré avant que la page change. */
   async function run(op: Parameters<typeof runOnPage>[0]) {
-    editor.editingText = null;
-    await tick();
-    await runOnPage(op);
+    if (busy) return;
+    busy = true;
+    try {
+      editor.editingText = null;
+      await tick();
+      await runOnPage(op);
+    } finally {
+      busy = false;
+    }
   }
 
   function setContent(content: CellContent) {
@@ -90,7 +99,7 @@
 </script>
 
 {#if visible && cell}
-  <div class="ctx" role="toolbar" tabindex="-1" aria-label={fr.tableBar} bind:this={barEl} style:left={pos ? `${pos.left}px` : "-9999px"} style:top={pos ? `${pos.top}px` : "-9999px"}>
+  <div class="ctx" class:busy role="toolbar" tabindex="-1" aria-label={fr.tableBar} aria-busy={busy} bind:this={barEl} style:left={pos ? `${pos.left}px` : "-9999px"} style:top={pos ? `${pos.top}px` : "-9999px"}>
     <button title={fr.rowAbove} aria-label={fr.rowAbove} onclick={withCell((id) => (p) => tableInsertRow(p, id, false))}>⤒ {fr.row}</button>
     <button title={fr.rowBelow} aria-label={fr.rowBelow} onclick={withCell((id) => (p) => tableInsertRow(p, id, true))}>⤓ {fr.row}</button>
     <button title={fr.colLeft} aria-label={fr.colLeft} onclick={withCell((id) => (p) => tableInsertCol(p, id, false))}>⇤ {fr.col}</button>
@@ -133,6 +142,10 @@
   }
   .on {
     background: #e8f1fb;
+  }
+  .busy {
+    opacity: 0.6;
+    pointer-events: none;
   }
   .sep {
     width: 1px;

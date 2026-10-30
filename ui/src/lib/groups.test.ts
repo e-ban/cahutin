@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { alignFrames, distributeFrames } from "./align";
-import { alignableIds, alignUnits, arrangeUnits, boundsOf, elementsInRect, expandSelection, groupElements, isLockedSelection, rotateElements, scaleElements, ungroup } from "./groups";
+import { alignableIds, alignUnits, arrangeUnits, boundsOf, elementsInRect, existingIds, expandSelection, groupElements, isLockedSelection, rotateElements, scaleElements, ungroup } from "./groups";
 import type { Element, Page } from "./types";
 
 const shape = (id: string, x = 0, extra: Partial<Element> = {}): Element => ({
@@ -53,6 +53,11 @@ test("a table and its cells are never grouped with other blocks", () => {
   const r = groupElements(p, ["t", "free", "other"]);
   expect(r.page.elements.find((e) => e.id === "c")?.group).toBe("g");
   expect(r.page.elements.find((e) => e.id === "free")?.group).toBe(r.group);
+});
+
+test("existingIds drops ids no longer on the page", () => {
+  const p = page([shape("a"), shape("b")]);
+  expect(existingIds(p, ["b", "gone", "a"])).toEqual(["b", "a"]);
 });
 
 test("ungroup leaves a table's group alone", () => {

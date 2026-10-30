@@ -12,7 +12,11 @@ pub enum TableError {
     NotSpanned,
     LastLine,
     Locked,
+    TooMany,
 }
+
+/// Lignes ou colonnes d'un tableau, au plus.
+pub const MAX_LINES: u8 = 50;
 
 impl TableError {
     pub fn message_fr(&self) -> &'static str {
@@ -25,6 +29,7 @@ impl TableError {
             TableError::NotSpanned => "Cette case n'est pas fusionnée.",
             TableError::LastLine => "Un tableau garde au moins une ligne et une colonne.",
             TableError::Locked => "Ce tableau est verrouillé : déverrouillez-le pour le modifier.",
+            TableError::TooMany => "Un tableau a au plus 50 lignes et 50 colonnes.",
         }
     }
 }
@@ -74,7 +79,7 @@ fn new_cell(group: &Id) -> Element {
 /// Pose un tableau de cases texte vides dans `frame` ; rend l'id de l'élément `Table`, placé au-dessus de
 /// ses cases pour que leur fond ne cache pas les traits.
 pub fn add_table(page: &mut Page, frame: Frame, cols: u8, rows: u8) -> Id {
-    let (cols, rows) = (cols.max(1), rows.max(1));
+    let (cols, rows) = (cols.clamp(1, MAX_LINES), rows.clamp(1, MAX_LINES));
     let group = new_id();
     let mut cells = Vec::new();
     let mut elements = Vec::new();
@@ -127,9 +132,15 @@ pub fn layout(page: &mut Page, table: &str) {
     let ys = edges(&props.rows, f.y_mm, f.h_mm);
     let cells = props.cells.clone();
     for c in &cells {
+        // Une case hors de la grille (fichier abîmé) reste où elle est.
+        let (c0, c1) = (c.col as usize, c.col as usize + c.col_span as usize);
+        let (r0, r1) = (c.row as usize, c.row as usize + c.row_span as usize);
+        if c0 >= c1 || c1 >= xs.len() || r0 >= r1 || r1 >= ys.len() {
+            continue;
+        }
         let Some(e) = page.elements.iter_mut().find(|e| e.id == c.element_id) else { continue };
-        let (x0, x1) = (xs[c.col as usize], xs[(c.col + c.col_span) as usize]);
-        let (y0, y1) = (ys[c.row as usize], ys[(c.row + c.row_span) as usize]);
+        let (x0, x1) = (xs[c0], xs[c1]);
+        let (y0, y1) = (ys[r0], ys[r1]);
         let inset = if matches!(e.kind, ElementKind::Text(_)) { 0.0 } else { TEXT_PADDING_MM.min((x1 - x0) / 4.0).min((y1 - y0) / 4.0) };
         let (mut w, mut h) = (x1 - x0 - 2.0 * inset, y1 - y0 - 2.0 * inset);
         if matches!(e.kind, ElementKind::Image(_)) {
@@ -216,15 +227,27 @@ impl Axis {
             Axis::Col => f.w_mm,
         }
     }
+    /// Place jusqu'au bord de la page, depuis le début du tableau.
+    fn room(self, f: &Frame, page: PageSize) -> f64 {
+        match self {
+            Axis::Row => page.height_mm - f.y_mm,
+            Axis::Col => page.width_mm - f.x_mm,
+        }
+    }
 }
 
 /// Insère une ligne ou une colonne à côté de la case, de la taille de celle qu'elle touche ; les cases
-/// fusionnées qu'elle traverse s'allongent.
+/// fusionnées qu'elle traverse s'allongent. Le tableau grandit jusqu'au bord de la page, pas au-delà :
+/// ensuite ses lignes (ou colonnes) se resserrent.
 fn insert(page: &mut Page, cell: &str, axis: Axis, after: bool) -> Result<(), TableError> {
     let i = table_of(page, cell)?;
     let group = page.elements[i].group.clone().unwrap_or_else(new_id);
     let frame = page.elements[i].frame;
+    let page_size = page.size;
     let t = props_mut(page, i);
+    if axis.sizes(t).len() >= MAX_LINES as usize {
+        return Err(TableError::TooMany);
+    }
     let c = t.cells.iter().find(|c| c.element_id == cell).unwrap().clone();
     let reference = if after { axis.pos(&c) + axis.span(&c) - 1 } else { axis.pos(&c) };
     let at = if after { reference + 1 } else { reference };
@@ -255,7 +278,8 @@ fn insert(page: &mut Page, cell: &str, axis: Axis, after: bool) -> Result<(), Ta
         t.cells.push(GridCell { element_id: e.id.clone(), ..axis.cell(at, other) });
         added.push(e);
     }
-    axis.grow(&mut page.elements[i].frame, added_mm);
+    let len = axis.len(&frame);
+    axis.grow(&mut page.elements[i].frame, (len + added_mm).min(axis.room(&frame, page_size).max(len)) - len);
     let table = page.elements[i].id.clone();
     page.elements.splice(i..i, added);
     layout(page, &table);
@@ -589,11 +613,12 @@ mod tests {
         let c0 = cell_at(&p, &t, 0, 0);
         insert_col(&mut p, &c0, false).unwrap();
         assert_eq!(props(&p, &t).cols.len(), 3);
-        assert!(close(el(&p, &t).frame.w_mm, 225.0));
+        // 150 + 75 mm dépasserait la page (210 mm, tableau en x = 30) : il s'arrête au bord.
+        assert!(close(el(&p, &t).frame.w_mm, 180.0));
         let c0 = cell_at(&p, &t, 0, 1);
         remove_col(&mut p, &c0).unwrap();
         assert_eq!(props(&p, &t).cells.len(), 4);
-        assert!(close(el(&p, &t).frame.w_mm, 150.0));
+        assert!(close(el(&p, &t).frame.w_mm, 120.0));
     }
 
     #[test]
@@ -660,6 +685,51 @@ mod tests {
         assert_eq!(set_cell_content(&mut p, &c0, CellContent::Photo), Err(TableError::Locked));
         assert_eq!(dissolve(&mut p, &t), Err(TableError::Locked));
         assert_eq!(props(&p, &t).cells.len(), 4);
+    }
+
+    #[test]
+    fn insert_stays_on_the_page() {
+        // 150 × 90 mm en (30, 103,5) : 3 lignes de 30 mm ; la page s'arrête à 297 mm.
+        let (mut p, t) = table(3, 3);
+        for _ in 0..6 {
+            let c = cell_at(&p, &t, 0, 0);
+            insert_row(&mut p, &c, true).unwrap();
+        }
+        let f = el(&p, &t).frame;
+        assert!(f.y_mm + f.h_mm <= 297.0 + 1e-6, "{f:?}");
+        assert_eq!(props(&p, &t).rows.len(), 9);
+        // Les lignes restent égales : le tableau occupe la place jusqu'au bas de la page.
+        assert!(close(f.h_mm, 297.0 - 103.5), "{f:?}");
+        let c = cell_at(&p, &t, 0, 0);
+        assert!(close(el(&p, &c).frame.h_mm, (297.0 - 103.5) / 9.0));
+        for _ in 0..3 {
+            let c = cell_at(&p, &t, 0, 0);
+            insert_col(&mut p, &c, true).unwrap();
+        }
+        let f = el(&p, &t).frame;
+        assert!(f.x_mm + f.w_mm <= 210.0 + 1e-6, "{f:?}");
+    }
+
+    #[test]
+    fn lines_are_capped() {
+        let mut p = Page::new(A4_PORTRAIT);
+        let t = add_table(&mut p, TABLE_FRAME, 200, 1);
+        assert_eq!(props(&p, &t).cols.len(), MAX_LINES as usize);
+        let c = cell_at(&p, &t, 0, 0);
+        assert_eq!(insert_col(&mut p, &c, true), Err(TableError::TooMany));
+    }
+
+    #[test]
+    fn layout_skips_cells_outside_the_grid() {
+        // Fichier abîmé : une case hors de la grille ne fait pas planter la mise en page.
+        let (mut p, t) = table(2, 1);
+        if let Some(ElementKind::Table(tp)) = p.elements.iter_mut().find(|e| e.id == t).map(|e| &mut e.kind) {
+            tp.cells[1].col = 250;
+            tp.cells[1].col_span = 10;
+        }
+        layout(&mut p, &t);
+        let tp = props(&p, &t);
+        let _ = border_segments(&tp, &el(&p, &t).frame);
     }
 
     #[test]

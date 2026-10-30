@@ -1,0 +1,109 @@
+// Classe ouverte et liste des classes du dossier. Chaque modification s'enregistre seule, un peu après
+// (un enregistrement à la fois). Le chemin de la dernière classe est gardé dans les préférences du poste.
+import { classCreate, classList, classOpen, classSave } from "./api";
+import { editor } from "./docStore.svelte";
+import { readPref, writePref } from "./prefs";
+import type { Class, ClassFileInfo, Level, OpenedClass, Student } from "./types";
+
+const SAVE_DELAY_MS = 500;
+
+/** Élèves d'un niveau ou d'un groupe ; sans critère, tous. */
+export function filterStudents(students: Student[], f: { level?: Level | null; group?: string | null }): Student[] {
+  return students.filter((s) => (!f.level || s.level === f.level) && (!f.group || s.group === f.group));
+}
+
+/** Groupes de la classe, une fois chacun, triés. */
+export function groups(students: Student[]): string[] {
+  return [...new Set(students.map((s) => s.group.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));
+}
+
+/** Année scolaire d'une date : elle change le 1er août. */
+export function schoolYear(d: Date): string {
+  const start = d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1;
+  return `${start}-${start + 1}`;
+}
+
+class Classes {
+  current = $state<OpenedClass | null>(null);
+  list = $state.raw<ClassFileInfo[]>([]);
+  #timer: ReturnType<typeof setTimeout> | null = null;
+  #saving: Promise<void> | null = null;
+  #dirty = false;
+
+  async refresh() {
+    try {
+      this.list = await classList();
+    } catch (e) {
+      editor.notice = String(e);
+    }
+  }
+
+  #opened(c: OpenedClass) {
+    editor.registerAssets(Object.values(c.class.photos).filter((m) => !!m));
+    this.current = c;
+    writePref("lastClass", c.path);
+  }
+
+  async create(name: string, year: string) {
+    try {
+      this.#opened(await classCreate(name, year));
+      await this.refresh();
+    } catch (e) {
+      editor.notice = String(e);
+    }
+  }
+
+  async open(path: string) {
+    await this.flush();
+    try {
+      this.#opened(await classOpen(path));
+    } catch (e) {
+      editor.notice = String(e);
+    }
+  }
+
+  /** Rouvre la dernière classe, si son fichier est toujours là. */
+  async restore() {
+    const path = readPref<string | null>("lastClass", null);
+    if (!path) return;
+    try {
+      this.#opened(await classOpen(path));
+    } catch {
+      writePref("lastClass", null);
+    }
+  }
+
+  async close() {
+    await this.flush();
+    this.current = null;
+    writePref("lastClass", null);
+    await this.refresh();
+  }
+
+  update(fn: (c: Class) => Class) {
+    if (!this.current) return;
+    this.current = { ...this.current, class: fn(this.current.class) };
+    this.#dirty = true;
+    if (this.#timer) clearTimeout(this.#timer);
+    this.#timer = setTimeout(() => void this.flush(), SAVE_DELAY_MS);
+  }
+
+  /** Enregistre maintenant ce qui attend ; un seul enregistrement en vol. */
+  async flush() {
+    if (this.#timer) clearTimeout(this.#timer);
+    this.#timer = null;
+    while (this.#saving) await this.#saving;
+    if (!this.#dirty || !this.current) return;
+    this.#dirty = false;
+    const { path, class: cls } = this.current;
+    this.#saving = classSave(path, cls)
+      .catch((e) => {
+        this.#dirty = true;
+        editor.notice = String(e);
+      })
+      .finally(() => (this.#saving = null));
+    await this.#saving;
+  }
+}
+
+export const classes = new Classes();

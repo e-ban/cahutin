@@ -1,7 +1,7 @@
 // Modifications de l'élément sélectionné, partagées par la barre flottante et le panneau de droite.
 import { editor } from "./docStore.svelte";
 import { TEXT_PADDING_MM } from "./richtext";
-import type { Element, PhotoProps, ShapeProps, TextFrame, TextStyle } from "./types";
+import type { Element, PhotoProps, ShapeProps, TableProps, TextFrame, TextStyle } from "./types";
 
 export function updateSelected(fn: (e: Element) => Element) {
   const e = editor.selected;
@@ -11,11 +11,14 @@ export function updateSelected(fn: (e: Element) => Element) {
 /** Curseur que l'on fait glisser : aperçu en direct, un seul pas d'annulation à `endPreview`. */
 export function previewSelected(fn: (e: Element) => Element) {
   const sel = editor.selected;
-  if (!sel) return;
+  if (sel) previewElement(sel.id, fn);
+}
+
+function previewElement(id: string, fn: (e: Element) => Element) {
   const doc = editor.doc;
   editor.preview({
     ...doc,
-    pages: doc.pages.map((p, i) => (i === editor.pageIndex ? { ...p, elements: p.elements.map((e) => (e.id === sel.id ? fn(e) : e)) } : p)),
+    pages: doc.pages.map((p, i) => (i === editor.pageIndex ? { ...p, elements: p.elements.map((e) => (e.id === id ? fn(e) : e)) } : p)),
   });
 }
 
@@ -23,6 +26,12 @@ export const endPreview = () => editor.endPreview();
 
 const photo = (patch: Partial<PhotoProps>) => (e: Element): Element => (e.kind.type === "Photo" ? { ...e, kind: { ...e.kind, ...patch } } : e);
 const shape = (patch: Partial<ShapeProps>) => (e: Element): Element => (e.kind.type === "Shape" ? { ...e, kind: { ...e.kind, ...patch } } : e);
+
+const table = (patch: Partial<TableProps>) => (e: Element): Element => (e.kind.type === "Table" ? { ...e, kind: { ...e.kind, ...patch } } : e);
+
+/** Traits d'un tableau, sélectionné avec toutes ses cases. */
+export const updateTable = (id: string, patch: Partial<TableProps>) => editor.updateElement(id, table(patch));
+export const previewTable = (id: string, patch: Partial<TableProps>) => previewElement(id, table(patch));
 
 export const updatePhoto = (patch: Partial<PhotoProps>) => updateSelected(photo(patch));
 export const previewPhoto = (patch: Partial<PhotoProps>) => previewSelected(photo(patch));

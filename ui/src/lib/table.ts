@@ -45,3 +45,11 @@ export function tableOf(page: Page, id: string): Element | undefined {
 }
 
 export const isTableCell = (page: Page, id: string) => tableOf(page, id)?.id !== id && !!tableOf(page, id);
+
+/** Le tableau dont la sélection est exactement le groupe (tableau et toutes ses cases). */
+export function selectedTable(page: Page, selection: string[]): Element | undefined {
+  const t = selection.map((id) => page.elements.find((e) => e.id === id)).find((e) => e?.kind.type === "Table");
+  if (!t?.group) return undefined;
+  const members = page.elements.filter((e) => e.group === t.group);
+  return members.length === selection.length && members.every((e) => selection.includes(e.id)) ? t : undefined;
+}

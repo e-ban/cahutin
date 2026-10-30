@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { borderSegments, isTableCell, tableOf } from "./table";
+import { borderSegments, isTableCell, selectedTable, tableOf } from "./table";
 import type { Element, GridCell, Page, TableProps } from "./types";
 
 const frame = { x_mm: 0, y_mm: 0, w_mm: 20, h_mm: 10, rotation_deg: 0 };
@@ -45,4 +45,8 @@ test("tableOf and isTableCell find the table of a cell", () => {
   expect(isTableCell(page, "a")).toBe(true);
   expect(isTableCell(page, "t")).toBe(false);
   expect(isTableCell(page, "x")).toBe(false);
+  expect(selectedTable(page, ["a", "t"])?.id).toBe("t");
+  expect(selectedTable(page, ["t", "a"])?.id).toBe("t");
+  expect(selectedTable(page, ["a"])).toBeUndefined();
+  expect(selectedTable(page, ["a", "t", "x"])).toBeUndefined();
 });

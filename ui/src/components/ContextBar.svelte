@@ -12,11 +12,12 @@
   import { editor } from "../lib/docStore.svelte";
   import { addCaption, deleteSelection, groupSelection, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
   import { assetUrl } from "../lib/api";
-  import { endPreview, previewPhoto, previewShape, previewTextFrame, previewTextStyle, updatePhoto, updateShape, updateTextFrame } from "../lib/elementEdit";
+  import { endPreview, previewPhoto, previewShape, previewTable, updateTable, previewTextFrame, previewTextStyle, updatePhoto, updateShape, updateTextFrame } from "../lib/elementEdit";
   import { textPadding } from "../lib/richtext";
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
   import { isStrokeOnly } from "../lib/shapePaths";
+  import { selectedTable } from "../lib/table";
   import { alignUnits, arrangeUnits, expandSelection, isLockedSelection } from "../lib/groups";
   import { blockFrieze } from "../lib/decor";
   import { friezeMotifs } from "../lib/friezeMotifs.svelte";
@@ -42,6 +43,7 @@
   const canGroup = $derived(!editor.selection.some(inGrid));
   const selected = $derived(editor.selected);
   const many = $derived(editor.selection.length > 1);
+  const table = $derived(selectedTable(editor.page, editor.selection));
   // En mode modèle, une case de grille a sa propre barre (CellBar).
   const cellInTemplate = $derived(editor.templateMode && editor.selection.some((id) => inGrid(id)));
   const visible = $derived(editor.selection.length > 0 && !editor.gesture && !editor.cropping && !cellInTemplate && !editor.printing);
@@ -163,6 +165,35 @@
         <button class="main" title="Ctrl+G" disabled={!canGroup} onclick={groupSelection}>⊞ {fr.group}</button>
       {/if}
       <span class="sep"></span>
+      {#if table?.kind.type === "Table"}
+        {@const t = table.kind}
+        {@const id = table.id}
+        <div class="wrap">
+          <button class:on={!!t.border} onclick={() => toggle("stroke")}>▦ {fr.tableBorders}</button>
+          {#if pop === "stroke"}
+            <div class="pop">
+              <span>{t.border ? `${t.border.width_mm} mm` : fr.noStroke}</span>
+              <input
+                type="range"
+                min="0"
+                max="3"
+                step="0.5"
+                value={t.border?.width_mm ?? 0}
+                oninput={(e) => {
+                  const w = Number(e.currentTarget.value);
+                  previewTable(id, { border: w === 0 ? null : { width_mm: w, color: t.border?.color ?? "#333333", style: t.border?.style ?? null } });
+                }}
+                onchange={endPreview}
+              />
+              {#if t.border}
+                <ColorPicker value={t.border.color} onchange={(c) => updateTable(id, { border: { ...t.border!, color: c ?? "#333333" } })} />
+                <StrokeStylePicker value={t.border.style} onpick={(style) => updateTable(id, { border: { ...t.border!, style: style === "Solid" ? null : style } })} />
+              {/if}
+            </div>
+          {/if}
+        </div>
+        <span class="sep"></span>
+      {/if}
       <div class="wrap">
         <button onclick={() => toggle("alignMany")} disabled={units() < 2}>{fr.alignMenu} ▾</button>
         {#if pop === "alignMany"}

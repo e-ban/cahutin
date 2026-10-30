@@ -44,6 +44,7 @@ Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvell
 - **Exemples** à découvrir depuis l'écran d'accueil : Sortie à la ferme, Joyeux anniversaire, La météo de la semaine, J'écris mon prénom, Les saisons.
 - **Photos** : import d'un dossier entier, photothèque du document, recadrage, coins arrondis, bordure, ombre, légende.
 - **Textes** : gras, italique, souligné, couleurs, alignement ; polices lisibles pour l'école fournies (Andika, Atkinson Hyperlegible, OpenDyslexic, Playwrite FR Moderne pour la cursive), polices ajoutées et polices installées sur l'ordinateur.
+- **Tableaux** : cases avec texte, pictogramme ou photo, lignes et colonnes à ajouter ou retirer, cases fusionnées, traits réglables.
 - **Formes** : rectangle, ellipse, trait, flèche, étoile, cœur, bulle de parole, nuage.
 - **Décors** : plus de 2 000 images OpenMoji avec recherche en français, cadres de page et frises.
 - **Fonds de page** : couleur, Seyès, petits carreaux, lignes, pointillés, papier kraft.

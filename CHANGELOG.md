@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- Liste de la classe (tiroir « Classe ») : prénoms collés en une fois, et pour chaque élève niveau, groupe, photo portrait avec la case d'autorisation des parents, et symbole. Elle reste sur l'ordinateur, dans Documents/Cahutin/Classes, et s'enregistre seule.
+- « Générer pour la classe » : à partir de la page courante, une page par élève ou la planche remplie (étiquettes, cartes), avec les zones « Prénom », les mots {prénom}, {nom}, {groupe} et les zones photo (photo de l'élève seulement avec l'autorisation, sinon son symbole). Bouton « Prénom » pendant l'écriture pour insérer {prénom}.
 - Lettres à repasser : styles prêts « À repasser (gris clair) » et « Lettres creuses » dans le tiroir Texte, et bouton « A » creux dans la barre flottante pour n'importe quel texte. Les lettres creuses s'exportent avec l'effet « contour » de LibreOffice ; un document qui en contient est refusé par Cahutin 0.5.
 - Repères de découpe (barre flottante, « Découpe ») : traits aux coins ou pointillés avec des ciseaux, autour de chaque bloc ou groupe sélectionné, pour découper étiquettes et cartes. Ils suivent le bloc, s'impriment et s'exportent.
 - Tableaux (tiroir Texte) : une case contient un texte, un pictogramme ou une photo. Double-cliquer dans une case ouvre une barre pour ajouter ou retirer des lignes et des colonnes, fusionner ou diviser des cases. Le tableau sélectionné s'étire librement en largeur ou en hauteur, par les coins et par les bords, sans changer la taille du texte ; les traits se règlent (épaisseur, couleur, tirets, pointillés, aucun). « Dissocier » rend des cases libres et des traits. Un document qui contient un tableau est refusé par Cahutin 0.5 (« version plus récente »).

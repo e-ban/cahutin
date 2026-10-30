@@ -19,6 +19,7 @@
   import GridDrawer from "./components/drawers/GridDrawer.svelte";
   import DecorDrawer from "./components/drawers/DecorDrawer.svelte";
   import ClassDrawer from "./components/drawers/ClassDrawer.svelte";
+  import GenerateDialog from "./components/GenerateDialog.svelte";
   import { classes } from "./lib/classStore.svelte";
   import About from "./components/layout/About.svelte";
   import BackgroundPanel from "./components/BackgroundPanel.svelte";
@@ -246,6 +247,7 @@
   <UpdateBanner />
   {#if editor.showBackground}<BackgroundPanel />{/if}
   <Modal />
+  {#if generateOpen && classes.current}<GenerateDialog onclose={() => (generateOpen = false)} />{/if}
   {#if editor.fileImport}
     <div class="notice" role="status">
       <pre>{fr.importingFile(editor.fileImport.name)}</pre>

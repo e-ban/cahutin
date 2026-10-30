@@ -1,5 +1,5 @@
 // Astuces à feuilleter (menu Aide > Astuces), rangées par thème. Chacune décrit une fonction qui existe.
-export type TipTheme = "Photos" | "Texte" | "Mise en page" | "Pages et modèles" | "Fichiers";
+export type TipTheme = "Photos" | "Texte" | "Mise en page" | "Pages et modèles" | "Classe" | "Fichiers";
 
 export interface Tip {
   id: string;
@@ -9,7 +9,7 @@ export interface Tip {
   text: string;
 }
 
-export const TIP_THEMES: TipTheme[] = ["Photos", "Texte", "Mise en page", "Pages et modèles", "Fichiers"];
+export const TIP_THEMES: TipTheme[] = ["Photos", "Texte", "Mise en page", "Pages et modèles", "Classe", "Fichiers"];
 
 export const TIPS: Tip[] = [
   { id: "drop-photo", theme: "Photos", icon: "🖼️", title: "Placer une photo", text: "Importez vos photos dans le tiroir Photos, puis glissez-les sur une zone de la page." },
@@ -35,6 +35,9 @@ export const TIPS: Tip[] = [
   { id: "save-template", theme: "Pages et modèles", icon: "💾", title: "Vos propres modèles", text: "Bouton « Modèle » en haut, puis « Enregistrer comme modèle » : la mise en page devient un modèle à réutiliser ou à partager. Les photos et les textes écrits ne sont pas gardés." },
   { id: "background", theme: "Pages et modèles", icon: "📒", title: "Fond de page", text: "Le bouton « Fond » de la bande des pages donne une couleur, des lignes Seyès, des petits carreaux ou du papier kraft." },
   { id: "landscape", theme: "Pages et modèles", icon: "🔄", title: "Paysage", text: "Le bouton « Paysage » de la bande des pages tourne la page courante." },
+  { id: "class", theme: "Classe", icon: "🧒", title: "Votre classe", text: "Tiroir Classe : créez la classe, collez la liste des prénoms, puis réglez chaque élève (photo et autorisation, symbole, niveau, groupe). Elle reste sur l'ordinateur, dans Documents/Cahutin/Classes." },
+  { id: "class-generate", theme: "Classe", icon: "✨", title: "Une page pour chaque élève", text: "Faites une page avec une zone « Prénom » (modèles Étiquettes) ou le mot {prénom}, puis « Générer pour la classe » : une page par élève, ou la planche remplie élève après élève." },
+  { id: "class-consent", theme: "Classe", icon: "🦊", title: "Sans autorisation photo", text: "Une photo d'élève n'est utilisée que si la case d'autorisation est cochée. Sinon, c'est son symbole qui va dans la zone photo : donnez un symbole à chaque enfant." },
   { id: "import", theme: "Fichiers", icon: "📥", title: "Reprendre une ancienne fiche", text: "Fichier > Importer reprend une fiche Word, PDF ou Publisher (LibreOffice doit être installé) ou les pages d'un autre carnet." },
   { id: "odg", theme: "Fichiers", icon: "📤", title: "Exporter pour LibreOffice", text: "« Imprimer / Exporter » crée un fichier LibreOffice Draw où chaque texte et chaque photo restent modifiables. Les polices voyagent avec le fichier, sauf celles marquées « ⚠ export »." },
   { id: "undo", theme: "Fichiers", icon: "↶", title: "Revenir en arrière", text: "Ctrl+Z annule la dernière action, Ctrl+Y la rétablit." },

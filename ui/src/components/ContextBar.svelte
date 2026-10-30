@@ -22,7 +22,7 @@
   import { blockFrieze } from "../lib/decor";
   import { cutMarks, type CutStyle } from "../lib/cutMarks";
   import { friezeMotifs } from "../lib/friezeMotifs.svelte";
-  import { ALIGNS, VALIGNS, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
+  import { ALIGNS, VALIGNS, currentFont, currentSize, insertAtCursor, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
   import type { Frame } from "../lib/types";
 
   let { pageEl, stageEl }: { pageEl: HTMLElement | undefined; stageEl: HTMLElement | undefined } = $props();
@@ -275,6 +275,9 @@
       <button title={fr.bold} class:on={isMarkActive("bold", t)} disabled={family && !family.has_bold} onclick={() => toggleMark("bold")}><b>G</b></button>
       <button title={fr.italic} class:on={isMarkActive("italic", t)} disabled={family && !family.has_italic} onclick={() => toggleMark("italic")}><i>I</i></button>
       <button title={fr.underline} class:on={isMarkActive("underline", t)} onclick={() => toggleMark("underline")}><u>S</u></button>
+      {#if editor.editingText === selected.id}
+        <button title={fr.insertFirstNameHint} onclick={() => insertAtCursor("{prénom}")}>＋ {fr.insertFirstName}</button>
+      {/if}
       <button title={fr.outlineHint} class:on={!!t.style.outline} aria-pressed={!!t.style.outline} onclick={() => updateTextStyle({ outline: !t.style.outline })}><span class="hollow-a">A</span></button>
       <div class="wrap">
         <button title={fr.color} aria-label={fr.color} onclick={() => toggle("color")}><span class="dot" style:background={t.style.color}></span></button>

@@ -8,7 +8,7 @@
   import { editor } from "../lib/docStore.svelte";
   import { GUIDE_MARGIN_MM, SNAP_MM, rectPxToFrame, settleMove, settleResize, snapLines, type RectPx } from "../lib/geometry";
   import { boundsOf } from "../lib/groups";
-  import { isTableCell } from "../lib/table";
+  import { isPlacedCell } from "../lib/table";
   import { PX_PER_MM, mmToPx } from "../lib/units";
 
   let { pageEl, zoom }: { pageEl: HTMLElement | undefined; zoom: number } = $props();
@@ -21,8 +21,7 @@
     const e = editor.selected;
     if (!e || e.locked || editor.cropping === e.id || editor.editingText === e.id) return null;
     // Une case de grille ou de tableau reste à sa place : la grille la place.
-    const inGrid = editor.page.grid?.cells.some((c) => c.element_id === e.id) || isTableCell(editor.page, e.id);
-    return inGrid ? null : e;
+    return isPlacedCell(editor.page, e.id) ? null : e;
   });
 
   function start() {

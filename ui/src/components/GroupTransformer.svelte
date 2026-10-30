@@ -2,6 +2,7 @@
   // Poignées d'un groupe ou d'une sélection de plusieurs éléments : déplacer, agrandir (toujours
   // proportionnel, depuis les coins) et tourner autour du centre. Pendant le geste seul le DOM bouge ;
   // à la fin, une seule modification du document (un pas d'annulation).
+  import { inTableGroup } from "../lib/table";
   import Moveable from "moveable";
   import { onDestroy, tick } from "svelte";
   import { editor } from "../lib/docStore.svelte";
@@ -73,7 +74,8 @@
       target: targets,
       draggable: true,
       resizable: true,
-      rotatable: true,
+      // Un tableau ne tourne pas : sa grille et son export restent droits.
+      rotatable: !ids?.some((id) => inTableGroup(editor.page, id)),
       keepRatio: true,
       renderDirections: ["nw", "ne", "sw", "se"],
       snappable: true,

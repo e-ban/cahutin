@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { borderSegments, clearTextCell, isTableCell, selectedTable, tableOf } from "./table";
+import { borderSegments, clearTextCell, inTableGroup, isPlacedCell, isTableCell, remapTables, selectedTable, tableOf } from "./table";
 import type { Element, GridCell, Page, TableProps } from "./types";
 
 const frame = { x_mm: 0, y_mm: 0, w_mm: 20, h_mm: 10, rotation_deg: 0 };
@@ -64,4 +64,27 @@ test("clearTextCell empties a text cell and keeps its style", () => {
   const out = clearTextCell(page, "a").elements[0];
   expect(out.kind.type === "Text" && out.kind.content.paragraphs).toEqual([]);
   expect(out.kind.type === "Text" && out.kind.style.size_pt).toBe(20);
+});
+
+const tableFixture = (): Page => {
+  const cellEl = (id: string): Element => ({ id, frame, locked: false, zone: false, group: "g", kind: { type: "Text", content: { paragraphs: [] }, style: { font: "Andika", size_pt: 14, color: "#222222", align: "Left" }, prompt: null } });
+  const t: Element = { id: "t", frame, locked: false, zone: false, group: "g", kind: { type: "Table", cols: [1, 1], rows: [1], cells: [cell("a", 0, 0), cell("b", 1, 0)], border: null } };
+  return { id: "p", size: { width_mm: 210, height_mm: 297 }, grid: { cols: 1, rows: 1, margin_mm: 10, gap_mm: 4, cells: [cell("z", 0, 0)] }, elements: [cellEl("a"), cellEl("b"), t, { ...cellEl("z"), group: null }] };
+};
+
+test("remapTables follows new ids and drops cells left behind", () => {
+  const p = tableFixture();
+  const out = remapTables(p.elements, new Map([["a", "A"], ["t", "T"]]));
+  const t = out.find((e) => e.kind.type === "Table")!;
+  expect(t.kind.type === "Table" && t.kind.cells.map((c) => c.element_id)).toEqual(["A"]);
+});
+
+test("isPlacedCell covers grid cells and table cells", () => {
+  const p = tableFixture();
+  expect(["a", "z", "t"].map((id) => isPlacedCell(p, id))).toEqual([true, true, false]);
+});
+
+test("inTableGroup finds any member of a table", () => {
+  const p = tableFixture();
+  expect(["a", "t", "z"].map((id) => inTableGroup(p, id))).toEqual([true, true, false]);
 });

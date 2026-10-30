@@ -23,7 +23,8 @@
   const grid = $derived(table?.kind.type === "Table" && table.id !== cellId ? table.kind : null);
   const cell = $derived(grid?.cells.find((c) => c.element_id === cellId));
   const element = $derived(cellId ? editor.page.elements.find((e) => e.id === cellId) : undefined);
-  const visible = $derived(!!cell && !editor.gesture && !editor.printing);
+  // Un tableau ou une case verrouillés ne se modifient pas.
+  const visible = $derived(!!cell && !table?.locked && !element?.locked && !editor.gesture && !editor.printing);
 
   /** Case voisine à droite ou en dessous, pour fusionner. */
   function neighbour(dir: "right" | "below"): GridCell | undefined {

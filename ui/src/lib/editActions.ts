@@ -6,7 +6,7 @@ import { newId } from "./factory";
 import { elementAssets } from "./photoLibrary";
 import { textFrame } from "./elementEdit";
 import { tableDissolve, tableSetCell } from "./api";
-import { clearTextCell, isTableCell, selectedTable } from "./table";
+import { clearTextCell, inTableGroup, isTableCell } from "./table";
 import type { AssetMeta, Background, Element, Frame, Page } from "./types";
 
 let clipboard: Element[] = [];
@@ -105,15 +105,21 @@ export function groupSelection() {
 /** Dissocier (Ctrl+Maj+G) : les éléments restent sélectionnés. */
 export function ungroupSelection() {
   if (!editor.page.elements.some((e) => editor.selection.includes(e.id) && e.group)) return;
-  // Un tableau dissocié rend ses cases et ses traits, devenus des formes « trait ».
-  const table = selectedTable(editor.page, expandSelection(editor.page, editor.selection));
-  if (table) {
-    runOnPage((p) => tableDissolve(p, table.id)).then(() => {
-      editor.selection = editor.page.elements.filter((e) => e.group && e.group === table.group).map((e) => e.id);
+  // Un tableau dissocié rend ses cases et ses traits, devenus des formes « trait » ; les autres groupes de
+  // la sélection sont dissous comme d'habitude.
+  const ids = selected();
+  const tables = editor.page.elements.filter((e) => e.kind.type === "Table" && expandSelection(editor.page, ids).includes(e.id));
+  if (tables.length) {
+    const groups = new Set(tables.map((t) => t.group));
+    const others = ids.filter((id) => !inTableGroup(editor.page, id));
+    runOnPage(async (p) => {
+      for (const t of tables) p = await tableDissolve(p, t.id);
+      return ungroup(p, others);
+    }).then(() => {
+      editor.selection = editor.page.elements.filter((e) => ids.includes(e.id) || (e.group && groups.has(e.group))).map((e) => e.id);
     });
     return;
   }
-  const ids = selected();
   editor.updatePage((p) => ungroup(p, ids));
   editor.selection = ids;
 }

@@ -4,6 +4,7 @@
   import { nextZoom } from "../../lib/units";
   import { newPage } from "../../lib/factory";
   import { pageSetSize } from "../../lib/api";
+  import { remapTables } from "../../lib/table";
   import { deletePage } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
   import type { Page } from "../../lib/types";
@@ -24,7 +25,7 @@
     insert({
       ...structuredClone(p),
       id: crypto.randomUUID(),
-      elements: p.elements.map((e) => ({ ...structuredClone(e), id: ids.get(e.id)! })),
+      elements: remapTables(p.elements.map((e) => ({ ...structuredClone(e), id: ids.get(e.id)! })), ids),
       grid: p.grid ? { ...p.grid, cells: p.grid.cells.map((c) => ({ ...c, element_id: ids.get(c.element_id)! })) } : null,
     });
   }

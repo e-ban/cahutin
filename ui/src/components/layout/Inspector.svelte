@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isPlacedCell } from "../../lib/table";
   import AlignIcon from "../AlignIcon.svelte";
   import VAlignIcon from "../VAlignIcon.svelte";
   import ColorPicker from "../ColorPicker.svelte";
@@ -41,8 +42,9 @@
 
   const tip = $derived(selected ? activeTip() : null);
 
-  // Position et taille exactes : une case de grille se règle en mode modèle, un élément verrouillé ne bouge pas.
-  const frameFixed = $derived(!!selected && (selected.locked || !!editor.page.grid?.cells.some((c) => c.element_id === selected.id)));
+  // Position et taille exactes : une case de grille se règle en mode modèle, une case de tableau suit son
+  // tableau, un élément verrouillé ne bouge pas.
+  const frameFixed = $derived(!!selected && (selected.locked || isPlacedCell(editor.page, selected.id)));
 
   function setFrame(key: keyof Frame, raw: string) {
     setSelectedFrame(key, Number(raw.replace(",", ".")));

@@ -1,3 +1,4 @@
+import { isPlacedCell } from "./table";
 import { editor } from "./docStore.svelte";
 import { copySelection, cutSelection, deleteSelection, duplicateSelection, groupSelection, paste, ungroupSelection } from "./editActions";
 import { newDoc, openDoc, print, save } from "./fileActions";
@@ -70,7 +71,7 @@ export function handleShortcut(ev: KeyboardEvent) {
     editor.selection = groupOf(editor.page, id);
   } else if (ev.key.startsWith("Arrow")) {
     const ids = editor.selection;
-    const inGrid = ids.some((id) => editor.page.grid?.cells.some((c) => c.element_id === id));
+    const inGrid = ids.some((id) => isPlacedCell(editor.page, id));
     if (ids.length === 0 || inGrid || isLockedSelection(editor.page, ids)) return;
     ev.preventDefault();
     editor.updatePage((p) => ({ ...p, elements: p.elements.map((el) => (ids.includes(el.id) ? { ...el, frame: nudge(el.frame, ev.key as ArrowKey, ev.shiftKey) } : el)) }));

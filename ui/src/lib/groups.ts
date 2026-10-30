@@ -37,9 +37,10 @@ export function groupElements(page: Page, ids: string[]): { page: Page; group: s
   return { page: { ...page, elements: [...rest.slice(0, before), ...grouped, ...rest.slice(before)] }, group };
 }
 
-/** Dissout les groupes des éléments désignés. */
+/** Dissout les groupes des éléments désignés ; le groupe d'un tableau reste (il se dissocie par le moteur). */
 export function ungroup(page: Page, ids: string[]): Page {
-  const groups = new Set(page.elements.filter((e) => ids.includes(e.id) && e.group).map((e) => e.group));
+  const tables = new Set(page.elements.filter((e) => e.kind.type === "Table" && e.group).map((e) => e.group));
+  const groups = new Set(page.elements.filter((e) => ids.includes(e.id) && e.group && !tables.has(e.group)).map((e) => e.group));
   return { ...page, elements: page.elements.map((e) => (e.group && groups.has(e.group) ? { ...e, group: null } : e)) };
 }
 

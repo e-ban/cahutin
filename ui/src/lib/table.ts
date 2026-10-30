@@ -58,3 +58,20 @@ export function selectedTable(page: Page, selection: string[]): Element | undefi
 export function clearTextCell(page: Page, id: string): Page {
   return { ...page, elements: page.elements.map((e) => (e.id === id && e.kind.type === "Text" ? { ...e, kind: { ...e.kind, content: { paragraphs: [] } } } : e)) };
 }
+
+/** Tableaux recopiés avec de nouveaux ids : leurs cases désignent les copies ; une case restée en arrière
+ *  (copie partielle) n'est plus désignée. */
+export function remapTables(elements: Element[], ids: Map<string, string>): Element[] {
+  return elements.map((e) =>
+    e.kind.type === "Table" ? { ...e, kind: { ...e.kind, cells: e.kind.cells.filter((c) => ids.has(c.element_id)).map((c) => ({ ...c, element_id: ids.get(c.element_id)! })) } } : e,
+  );
+}
+
+/** Case placée par une grille (mode modèle) ou par un tableau : elle ne bouge ni ne change de taille seule. */
+export const isPlacedCell = (page: Page, id: string) => !!page.grid?.cells.some((c) => c.element_id === id) || isTableCell(page, id);
+
+/** Vrai si l'élément est un tableau ou l'une de ses cases (même groupe qu'un tableau). */
+export function inTableGroup(page: Page, id: string): boolean {
+  const g = page.elements.find((e) => e.id === id)?.group;
+  return !!g && page.elements.some((e) => e.group === g && e.kind.type === "Table");
+}

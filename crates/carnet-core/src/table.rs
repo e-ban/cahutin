@@ -11,6 +11,7 @@ pub enum TableError {
     NotRectangular,
     NotSpanned,
     LastLine,
+    Locked,
 }
 
 impl TableError {
@@ -23,6 +24,7 @@ impl TableError {
             }
             TableError::NotSpanned => "Cette case n'est pas fusionnée.",
             TableError::LastLine => "Un tableau garde au moins une ligne et une colonne.",
+            TableError::Locked => "Ce tableau est verrouillé : déverrouillez-le pour le modifier.",
         }
     }
 }
@@ -132,12 +134,17 @@ pub fn layout(page: &mut Page, table: &str) {
     }
 }
 
-/// Index de l'élément `Table` qui contient la case.
+/// Index de l'élément `Table` qui contient la case ; un tableau verrouillé ne se modifie pas.
 fn table_of(page: &Page, cell: &str) -> Result<usize, TableError> {
-    page.elements
+    let i = page
+        .elements
         .iter()
         .position(|e| matches!(&e.kind, ElementKind::Table(t) if t.cells.iter().any(|c| c.element_id == cell)))
-        .ok_or(TableError::UnknownCell)
+        .ok_or(TableError::UnknownCell)?;
+    if page.elements[i].locked {
+        return Err(TableError::Locked);
+    }
+    Ok(i)
 }
 
 fn props_mut(page: &mut Page, i: usize) -> &mut TableProps {
@@ -359,11 +366,19 @@ pub fn split(page: &mut Page, cell: &str) -> Result<(), TableError> {
     Ok(())
 }
 
-/// Change le contenu d'une case (vide) ; la case garde son id, son groupe et sa place.
+/// Change le contenu d'une case (vide) ; la case garde son id, son groupe et sa place. Une case qui a déjà
+/// ce type de contenu reste telle quelle.
 pub fn set_cell_content(page: &mut Page, cell: &str, content: CellContent) -> Result<(), TableError> {
     let i = table_of(page, cell)?;
     let table = page.elements[i].id.clone();
     let e = page.elements.iter_mut().find(|e| e.id == cell).ok_or(TableError::UnknownCell)?;
+    let same = matches!(
+        (&e.kind, &content),
+        (ElementKind::Text(_), CellContent::Text) | (ElementKind::Image(_), CellContent::Picto(_)) | (ElementKind::Photo(_), CellContent::Photo)
+    );
+    if same {
+        return Ok(());
+    }
     e.kind = cell_kind(content);
     layout(page, &table);
     Ok(())
@@ -416,6 +431,9 @@ const LINE_FRAME_MM: f64 = 2.0;
 /// groupées avec elles à la place de l'élément `Table`.
 pub fn dissolve(page: &mut Page, table: &str) -> Result<(), TableError> {
     let i = page.elements.iter().position(|e| e.id == table && matches!(e.kind, ElementKind::Table(_))).ok_or(TableError::UnknownTable)?;
+    if page.elements[i].locked {
+        return Err(TableError::Locked);
+    }
     let t = page.elements.remove(i);
     let ElementKind::Table(props) = &t.kind else { unreachable!() };
     let lines: Vec<Element> = match &props.border {
@@ -607,6 +625,34 @@ mod tests {
         set_cell_content(&mut p, &c, CellContent::Photo).unwrap();
         assert!(matches!(&el(&p, &c).kind, ElementKind::Photo(ph) if ph.asset.is_none()));
         assert_eq!(set_cell_content(&mut p, "inconnue", CellContent::Text), Err(TableError::UnknownCell));
+    }
+
+    #[test]
+    fn same_content_keeps_the_cell() {
+        let (mut p, t) = table(2, 1);
+        let c = cell_at(&p, &t, 0, 0);
+        if let Some(ElementKind::Text(tx)) = p.elements.iter_mut().find(|e| e.id == c).map(|e| &mut e.kind) {
+            tx.content = RichText::plain("Lundi");
+        }
+        set_cell_content(&mut p, &c, CellContent::Text).unwrap();
+        assert!(matches!(&el(&p, &c).kind, ElementKind::Text(tx) if !tx.content.is_blank()));
+        set_cell_content(&mut p, &c, CellContent::Picto("1F98A".into())).unwrap();
+        set_cell_content(&mut p, &c, CellContent::Picto("2B50".into())).unwrap();
+        assert_eq!(el(&p, &c).kind, ElementKind::Image(ImageProps { code: "1F98A".into() }));
+    }
+
+    #[test]
+    fn a_locked_table_refuses_changes() {
+        let (mut p, t) = table(2, 2);
+        p.elements.iter_mut().find(|e| e.id == t).unwrap().locked = true;
+        let c0 = cell_at(&p, &t, 0, 0);
+        let c1 = cell_at(&p, &t, 1, 0);
+        assert_eq!(insert_row(&mut p, &c0, true), Err(TableError::Locked));
+        assert_eq!(remove_col(&mut p, &c0), Err(TableError::Locked));
+        assert_eq!(merge(&mut p, &c0, &c1), Err(TableError::Locked));
+        assert_eq!(set_cell_content(&mut p, &c0, CellContent::Photo), Err(TableError::Locked));
+        assert_eq!(dissolve(&mut p, &t), Err(TableError::Locked));
+        assert_eq!(props(&p, &t).cells.len(), 4);
     }
 
     #[test]

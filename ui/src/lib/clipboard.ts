@@ -2,6 +2,7 @@
 // Le presse-papiers est interne à l'application : rien ne passe par celui du système.
 import { newId } from "./factory";
 import { dissolveSmallGroups, expandSelection } from "./groups";
+import { remapTables } from "./table";
 import type { Element, Page } from "./types";
 
 export const PASTE_OFFSET_MM = 5;
@@ -36,10 +37,8 @@ export function pasteElements(page: Page, copied: Element[], offsetMm = PASTE_OF
     frame: { ...e.frame, x_mm: e.frame.x_mm + offsetMm, y_mm: e.frame.y_mm + offsetMm },
   }));
   // Un tableau collé désigne ses cases collées.
-  for (const e of pasted) {
-    if (e.kind.type === "Table") e.kind = { ...e.kind, cells: e.kind.cells.map((c) => ({ ...c, element_id: ids.get(c.element_id) ?? c.element_id })) };
-  }
-  return { page: { ...page, elements: [...page.elements, ...pasted] }, ids: pasted.map((e) => e.id) };
+  const elements = remapTables(pasted, ids);
+  return { page: { ...page, elements: [...page.elements, ...elements] }, ids: elements.map((e) => e.id) };
 }
 
 export function duplicateElements(page: Page, ids: string[]): { page: Page; ids: string[] } {

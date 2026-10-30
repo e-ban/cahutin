@@ -5,6 +5,7 @@
   import { assetUrl } from "../../lib/api";
   import { alignToCss, textPadding } from "../../lib/richtext";
   import { dashArray } from "../../lib/strokes";
+  import { onFontsLoaded } from "../../lib/fontsLoaded";
   import type { Element, RichText, Run, TextProps } from "../../lib/types";
 
   let {
@@ -39,7 +40,9 @@
     void element.frame;
     if (!box) return;
     const el = box;
-    requestAnimationFrame(() => (overflow = el.scrollHeight > el.clientHeight + 1));
+    const measure = () => requestAnimationFrame(() => (overflow = el.scrollHeight > el.clientHeight + 1));
+    measure();
+    return onFontsLoaded(document.fonts, measure);
   });
 </script>
 

@@ -117,7 +117,8 @@ fn edges(sizes: &[f64], start: f64, len: f64) -> Vec<f64> {
     out
 }
 
-/// Recalcule les cadres des cases ; une case picto ou photo garde une marge pour laisser voir les traits.
+/// Recalcule les cadres des cases ; une case picto ou photo garde une marge pour laisser voir les traits,
+/// et un picto reste carré, centré dans sa case.
 pub fn layout(page: &mut Page, table: &str) {
     let Some(t) = page.elements.iter().find(|e| e.id == table) else { return };
     let ElementKind::Table(props) = &t.kind else { return };
@@ -130,7 +131,11 @@ pub fn layout(page: &mut Page, table: &str) {
         let (x0, x1) = (xs[c.col as usize], xs[(c.col + c.col_span) as usize]);
         let (y0, y1) = (ys[c.row as usize], ys[(c.row + c.row_span) as usize]);
         let inset = if matches!(e.kind, ElementKind::Text(_)) { 0.0 } else { TEXT_PADDING_MM.min((x1 - x0) / 4.0).min((y1 - y0) / 4.0) };
-        e.frame = Frame { x_mm: x0 + inset, y_mm: y0 + inset, w_mm: x1 - x0 - 2.0 * inset, h_mm: y1 - y0 - 2.0 * inset, rotation_deg: 0.0 };
+        let (mut w, mut h) = (x1 - x0 - 2.0 * inset, y1 - y0 - 2.0 * inset);
+        if matches!(e.kind, ElementKind::Image(_)) {
+            (w, h) = (w.min(h), w.min(h));
+        }
+        e.frame = Frame { x_mm: (x0 + x1 - w) / 2.0, y_mm: (y0 + y1 - h) / 2.0, w_mm: w, h_mm: h, rotation_deg: 0.0 };
     }
 }
 
@@ -620,8 +625,10 @@ mod tests {
         let e = el(&p, &c);
         assert_eq!(e.kind, ElementKind::Image(ImageProps { code: "1F98A".into() }));
         assert_eq!(e.group, group);
+        // Case de 75 × 45 mm : un carré de 42 mm (marge de 1,5 mm), centré.
         let f = e.frame;
-        assert!(close(f.x_mm, 30.0 + TEXT_PADDING_MM) && close(f.w_mm, 75.0 - 2.0 * TEXT_PADDING_MM), "{f:?}");
+        assert!(close(f.w_mm, 42.0) && close(f.h_mm, 42.0), "{f:?}");
+        assert!(close(f.x_mm, 30.0 + (75.0 - 42.0) / 2.0) && close(f.y_mm, 103.5 + TEXT_PADDING_MM), "{f:?}");
         set_cell_content(&mut p, &c, CellContent::Photo).unwrap();
         assert!(matches!(&el(&p, &c).kind, ElementKind::Photo(ph) if ph.asset.is_none()));
         assert_eq!(set_cell_content(&mut p, "inconnue", CellContent::Text), Err(TableError::UnknownCell));

@@ -99,10 +99,10 @@ test("resizeTable stretches the table and lays its cells out again, text size un
   const [a, b, t] = out.elements;
   expect(t.frame).toEqual({ x_mm: 10, y_mm: 20, w_mm: 90, h_mm: 10, rotation_deg: 0 });
   expect(a.frame).toEqual({ x_mm: 10, y_mm: 20, w_mm: 30, h_mm: 10, rotation_deg: 0 });
-  // Picto : marge de 1,5 mm (au plus un quart de la case).
-  expect(b.frame.x_mm).toBeCloseTo(41.5);
-  expect(b.frame.w_mm).toBeCloseTo(57);
-  expect(b.frame.y_mm).toBeCloseTo(21.5);
+  // Picto : un carré centré, marge de 1,5 mm (case de 60 × 10 mm : carré de 7 mm).
+  expect(b.frame.w_mm).toBeCloseTo(7);
   expect(b.frame.h_mm).toBeCloseTo(7);
+  expect(b.frame.x_mm).toBeCloseTo(40 + (60 - 7) / 2);
+  expect(b.frame.y_mm).toBeCloseTo(21.5);
   expect(a.kind.type === "Text" && a.kind.style.size_pt).toBe(14);
 });

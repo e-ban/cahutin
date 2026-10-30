@@ -78,7 +78,8 @@ export function inTableGroup(page: Page, id: string): boolean {
 }
 
 /** Donne au tableau le cadre `frame` et y replace ses cases, comme carnet_core::table::layout : une case
- *  picto ou photo garde une marge pour laisser voir les traits. La taille des textes ne change pas. */
+ *  picto ou photo garde une marge pour laisser voir les traits, un picto reste carré et centré. La taille
+ *  des textes ne change pas. */
 export function resizeTable(page: Page, tableId: string, frame: Frame): Page {
   const t = page.elements.find((e) => e.id === tableId);
   if (t?.kind.type !== "Table") return page;
@@ -93,7 +94,9 @@ export function resizeTable(page: Page, tableId: string, frame: Frame): Page {
       if (!c) return e;
       const [x0, x1, y0, y1] = [xs[c.col], xs[c.col + c.col_span], ys[c.row], ys[c.row + c.row_span]];
       const inset = e.kind.type === "Text" ? 0 : Math.min(TEXT_PADDING_MM, (x1 - x0) / 4, (y1 - y0) / 4);
-      return { ...e, frame: { x_mm: x0 + inset, y_mm: y0 + inset, w_mm: x1 - x0 - 2 * inset, h_mm: y1 - y0 - 2 * inset, rotation_deg: 0 } };
+      let [w, h] = [x1 - x0 - 2 * inset, y1 - y0 - 2 * inset];
+      if (e.kind.type === "Image") w = h = Math.min(w, h);
+      return { ...e, frame: { x_mm: (x0 + x1 - w) / 2, y_mm: (y0 + y1 - h) / 2, w_mm: w, h_mm: h, rotation_deg: 0 } };
     }),
   };
 }

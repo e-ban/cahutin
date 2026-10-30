@@ -32,6 +32,7 @@ impl ImportReport {
                 ElementKind::Text(_) => r.texts += 1,
                 ElementKind::Photo(_) | ElementKind::Image(_) => r.images += 1,
                 ElementKind::Shape(_) => r.shapes += 1,
+                ElementKind::Table(_) => {}
             }
         }
         r

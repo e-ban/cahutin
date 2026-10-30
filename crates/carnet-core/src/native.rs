@@ -72,10 +72,13 @@ fn used_assets(doc: &Document) -> BTreeSet<String> {
     doc.pages.iter().flat_map(|p| &p.elements).flat_map(Element::asset_ids).cloned().collect()
 }
 
-/// 2 si le document contient une image (un Carnet plus ancien affiche alors « version plus récente »), sinon 1.
+/// 4 avec un tableau, 3 avec un réglage de la version 3, 2 avec une image (un Carnet plus ancien affiche
+/// alors « version plus récente »), sinon 1.
 pub fn written_version(doc: &Document) -> u32 {
     let elements = || doc.pages.iter().flat_map(|p| &p.elements);
-    if elements().any(uses_version_3) {
+    if elements().any(|e| matches!(e.kind, ElementKind::Table(_))) {
+        4
+    } else if elements().any(uses_version_3) {
         3
     } else if elements().any(|e| matches!(e.kind, ElementKind::Image(_))) {
         2
@@ -93,7 +96,7 @@ fn uses_version_3(e: &Element) -> bool {
         }
         ElementKind::Shape(s) => dashed(&s.stroke),
         ElementKind::Photo(p) => dashed(&p.border),
-        ElementKind::Image(_) => false,
+        ElementKind::Image(_) | ElementKind::Table(_) => false,
     }
 }
 
@@ -403,6 +406,21 @@ mod tests {
     }
 
     #[test]
+    fn table_documents_are_version_4() {
+        let (mut doc, _, _) = sample();
+        assert!(written_version(&doc) <= 3);
+        doc.pages[0].elements.push(Element {
+            id: "t".into(),
+            frame: Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 10.0, h_mm: 10.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Table(TableProps { cols: vec![1.0], rows: vec![1.0], cells: vec![], border: None }),
+        });
+        assert_eq!(written_version(&doc), 4);
+    }
+
+    #[test]
     fn written_version_is_2_only_with_images() {
         let mut doc = Document::new("v");
         assert_eq!(written_version(&doc), 1);
@@ -448,9 +466,9 @@ mod tests {
     }
 
     #[test]
-    fn newer_than_3_is_refused() {
+    fn newer_than_4_is_refused() {
         let mut doc = Document::new("futur");
-        doc.format_version = 4;
+        doc.format_version = 5;
         let json = serde_json::to_vec(&doc).unwrap();
         let mut buf = Cursor::new(Vec::new());
         {
@@ -461,7 +479,7 @@ mod tests {
         }
         buf.set_position(0);
         let err = load(buf).err().unwrap();
-        assert_eq!(err, NativeError::NewerVersion(4));
+        assert_eq!(err, NativeError::NewerVersion(5));
         assert!(err.message_fr().contains("plus récente"));
     }
 

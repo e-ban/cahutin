@@ -234,7 +234,7 @@
         <TextEl element={e} props={e.kind} {zoom} editing={e.id === editingText} ondone={(content) => ontextdone?.(e.id, content)} />
       {:else if e.kind.type === "Image"}
         <PictoEl code={e.kind.code} />
-      {:else}
+      {:else if e.kind.type === "Shape"}
         <ShapeEl props={e.kind} frame={e.frame} {zoom} />
       {/if}
     </div>

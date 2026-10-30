@@ -64,6 +64,7 @@ fn emptied_copy(e: &Element) -> Element {
         ElementKind::Text(t) => ElementKind::Text(TextProps { content: RichText::default(), ..t.clone() }),
         ElementKind::Shape(s) => ElementKind::Shape(s.clone()),
         ElementKind::Image(i) => ElementKind::Image(i.clone()),
+        ElementKind::Table(t) => ElementKind::Table(t.clone()),
     };
     Element { id: new_id(), kind, ..e.clone() }
 }

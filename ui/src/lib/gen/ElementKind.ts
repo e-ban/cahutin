@@ -2,6 +2,7 @@
 import type { ImageProps } from "./ImageProps";
 import type { PhotoProps } from "./PhotoProps";
 import type { ShapeProps } from "./ShapeProps";
+import type { TableProps } from "./TableProps";
 import type { TextProps } from "./TextProps";
 
-export type ElementKind = { "type": "Photo" } & PhotoProps | { "type": "Text" } & TextProps | { "type": "Shape" } & ShapeProps | { "type": "Image" } & ImageProps;
+export type ElementKind = { "type": "Photo" } & PhotoProps | { "type": "Text" } & TextProps | { "type": "Shape" } & ShapeProps | { "type": "Image" } & ImageProps | { "type": "Table" } & TableProps;

@@ -219,16 +219,23 @@ pub fn builtin() -> Vec<Template> {
 /// ou le nommer : il ne part pas dans un modèle destiné à être partagé.
 pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
     let mut page = page.clone();
-    page.elements.retain(|e| e.zone || e.locked || matches!(e.kind, ElementKind::Shape(_) | ElementKind::Image(_)));
+    // Les cases des tableaux restent, vidées comme des zones.
+    let cells: Vec<Id> = page
+        .elements
+        .iter()
+        .filter_map(|e| if let ElementKind::Table(t) = &e.kind { Some(t) } else { None })
+        .flat_map(|t| t.cells.iter().map(|c| c.element_id.clone()))
+        .collect();
+    page.elements.retain(|e| e.zone || e.locked || cells.contains(&e.id) || matches!(e.kind, ElementKind::Shape(_) | ElementKind::Image(_) | ElementKind::Table(_)));
     crate::groups::dissolve_small_groups(&mut page);
-    for e in page.elements.iter_mut().filter(|e| e.zone) {
+    for e in page.elements.iter_mut().filter(|e| e.zone || cells.contains(&e.id)) {
         match &mut e.kind {
             ElementKind::Photo(p) => {
                 p.asset = None;
                 p.crop = Crop::COVER;
             }
             ElementKind::Text(t) => t.content = RichText::default(),
-            ElementKind::Shape(_) | ElementKind::Image(_) => {}
+            ElementKind::Shape(_) | ElementKind::Image(_) | ElementKind::Table(_) => {}
         }
     }
     let mut assets: Vec<Asset> = Vec::new();

@@ -119,6 +119,7 @@ impl Writer<'_> {
                 Ok(())
             }
             ElementKind::Image(i) => self.picture(e, &i.code),
+            ElementKind::Table(_) => Ok(()),
         }
     }
 

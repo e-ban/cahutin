@@ -157,6 +157,8 @@ export function scaleElements(els: Element[], factor: number, origin: Point): El
           frame,
           kind: { ...k, corner_radius_mm: round(k.corner_radius_mm * factor), border: k.border && { ...k.border, width_mm: round(k.border.width_mm * factor) } },
         };
+      case "Table":
+        return { ...e, frame, kind: { ...k, border: k.border && { ...k.border, width_mm: round(k.border.width_mm * factor) } } };
       default:
         return { ...e, frame };
     }

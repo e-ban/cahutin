@@ -20,6 +20,7 @@ pub fn is_safe_id(id: &str) -> bool {
 pub fn renew_ids(page: &mut Page) {
     page.id = new_id();
     let mut groups = std::collections::HashMap::new();
+    let mut renamed = std::collections::HashMap::new();
     for e in &mut page.elements {
         if let Some(g) = &mut e.group {
             *g = groups.entry(g.clone()).or_insert_with(new_id).clone();
@@ -30,12 +31,22 @@ pub fn renew_ids(page: &mut Page) {
         {
             c.element_id = e.id.clone();
         }
+        renamed.insert(old, e.id.clone());
+    }
+    for e in &mut page.elements {
+        if let ElementKind::Table(t) = &mut e.kind {
+            for c in &mut t.cells {
+                if let Some(id) = renamed.get(&c.element_id) {
+                    c.element_id = id.clone();
+                }
+            }
+        }
     }
 }
 
 /// Version la plus récente que cette application sait lire (2 : élément image ; 3 : cadre de texte,
-/// alignement vertical, marge et bordures en tirets ou pointillés).
-pub const FORMAT_VERSION: u32 = 3;
+/// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau).
+pub const FORMAT_VERSION: u32 = 4;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -166,6 +177,20 @@ pub enum ElementKind {
     Text(TextProps),
     Shape(ShapeProps),
     Image(ImageProps),
+    Table(TableProps),
+}
+
+/// Tableau : grille et traits. Ses cases sont des éléments ordinaires de la page, dans le même groupe.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export)]
+pub struct TableProps {
+    /// Largeurs relatives des colonnes.
+    pub cols: Vec<f64>,
+    /// Hauteurs relatives des lignes.
+    pub rows: Vec<f64>,
+    pub cells: Vec<GridCell>,
+    /// Traits du contour et des séparations ; absent : aucun trait.
+    pub border: Option<Stroke>,
 }
 
 /// Image de la banque OpenMoji embarquée, désignée par son code (par exemple `1F98A`).
@@ -510,6 +535,33 @@ mod tests {
         let json = r#"{"format_version":1,"title":"Ancien","pages":[],"assets":{}}"#;
         let d: Document = serde_json::from_str(json).unwrap();
         assert!(d.pending_photos.is_empty());
+    }
+
+    #[test]
+    fn renew_ids_remaps_table_cells() {
+        let mut page = Page::new(A4_PORTRAIT);
+        let text = |id: &str| Element {
+            id: id.into(),
+            frame: Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 10.0, h_mm: 10.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: Some("g".into()),
+            kind: ElementKind::Text(TextProps { content: RichText::default(), style: TextStyle::default_zone(), prompt: None, frame: None }),
+        };
+        let cell = |id: &str, col| GridCell { element_id: id.into(), col, row: 0, col_span: 1, row_span: 1 };
+        let table = Element {
+            id: "t".into(),
+            kind: ElementKind::Table(TableProps { cols: vec![1.0, 1.0], rows: vec![1.0], cells: vec![cell("a", 0), cell("b", 1)], border: None }),
+            ..text("t")
+        };
+        page.elements = vec![table, text("a"), text("b")];
+        renew_ids(&mut page);
+        let ElementKind::Table(t) = &page.elements[0].kind else { panic!() };
+        for c in &t.cells {
+            assert!(c.element_id != "a" && c.element_id != "b");
+            assert!(page.elements.iter().any(|e| e.id == c.element_id));
+        }
+        assert_eq!(t.cells[0].element_id, page.elements[1].id);
     }
 
     #[test]

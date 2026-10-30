@@ -28,6 +28,19 @@ test("copyElements returns deep copies in page order", () => {
   expect(p.elements[0].frame.x_mm).toBe(10);
 });
 
+test("pasting a table remaps its cells", () => {
+  const cell = (id: string) => el(id, 10, { group: "g" });
+  const table: Element = {
+    ...el("t", 10, { group: "g" }),
+    kind: { type: "Table", cols: [1, 1], rows: [1], cells: ["a", "b"].map((element_id, col) => ({ element_id, col, row: 0, col_span: 1, row_span: 1 })), border: null },
+  };
+  const p = page([cell("a"), cell("b"), table]);
+  const r = pasteElements(p, copyElements(p, ["a", "b", "t"]));
+  const pasted = r.page.elements.filter((e) => r.ids.includes(e.id));
+  const t = pasted.find((e) => e.kind.type === "Table")!;
+  expect(t.kind.type === "Table" && t.kind.cells.map((c) => c.element_id)).toEqual(pasted.slice(0, 2).map((e) => e.id));
+});
+
 test("pasteElements with an empty clipboard leaves the page unchanged", () => {
   const p = page([el("a")]);
   const r = pasteElements(p, []);

@@ -27,6 +27,7 @@ export const TIPS: Tip[] = [
   { id: "box-select", theme: "Mise en page", icon: "⬚", title: "Sélectionner plusieurs éléments", text: "Tracez un cadre autour des éléments, même en partant de la marge grise, ou cliquez en maintenant Maj." },
   { id: "nudge", theme: "Mise en page", icon: "⌨️", title: "Déplacer au clavier", text: "Les flèches déplacent l'élément choisi de 1 mm, de 5 mm avec Maj." },
   { id: "lock", theme: "Mise en page", icon: "🔒", title: "Verrouiller", text: "Un élément verrouillé (clic droit ou Réglages) ne bouge plus par mégarde." },
+  { id: "table", theme: "Mise en page", icon: "▦", title: "Tableaux", text: "Tiroir Texte > « Ajouter un tableau ». Double-cliquez dans une case pour écrire ; la barre sous la case ajoute ou retire des lignes et des colonnes, fusionne des cases et y met un picto ou une photo." },
   { id: "frieze", theme: "Mise en page", icon: "🌸", title: "Frise autour d'un bloc", text: "Choisissez des images dans Décors, sélectionnez une photo ou un texte, puis « Frise » : les images l'entourent." },
   { id: "templates", theme: "Pages et modèles", icon: "▦", title: "Partir d'un modèle", text: "Le tiroir Modèles ajoute une page toute prête : grille de photos, récit, étiquettes, affiche." },
   { id: "save-template", theme: "Pages et modèles", icon: "💾", title: "Vos propres modèles", text: "Bouton « Modèle » en haut, puis « Enregistrer comme modèle » : la mise en page devient un modèle à réutiliser ou à partager. Les photos et les textes écrits ne sont pas gardés." },

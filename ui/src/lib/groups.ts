@@ -1,5 +1,6 @@
 // Groupes d'éléments : grouper, dissocier, développer une sélection, transformations d'ensemble,
-// sélection au cadre. Pas de groupe imbriqué ; les cases de grille ne sont jamais groupées.
+// sélection au cadre. Pas de groupe imbriqué ; les cases de grille ne sont jamais groupées, un tableau
+// garde son propre groupe.
 import { newId } from "./factory";
 import type { Element, Frame, Page } from "./types";
 
@@ -22,8 +23,10 @@ export function expandSelection(page: Page, ids: string[]): string[] {
 
 /** Un seul groupe avec tous les éléments (et les groupes qu'ils touchent), rassemblés à la place du plus haut. */
 export function groupElements(page: Page, ids: string[]): { page: Page; group: string | null } {
-  // Les cases de grille sont écartées ; le reste est groupé s'il reste au moins deux éléments.
-  const expanded = expandSelection(page, ids).filter((id) => !isCell(page, id));
+  // Les cases de grille et les tableaux sont écartés ; le reste est groupé s'il reste au moins deux éléments.
+  const tableGroups = new Set(page.elements.filter((e) => e.kind.type === "Table" && e.group).map((e) => e.group));
+  const inTable = (id: string) => tableGroups.has(page.elements.find((e) => e.id === id)?.group);
+  const expanded = expandSelection(page, ids).filter((id) => !isCell(page, id) && !inTable(id));
   if (expanded.length < 2) return { page, group: null };
   const group = newId();
   const members = new Set(expanded);

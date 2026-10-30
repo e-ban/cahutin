@@ -26,14 +26,19 @@ export function pasteElements(page: Page, copied: Element[], offsetMm = PASTE_OF
     if (!groups.has(g)) groups.set(g, newId());
     return groups.get(g)!;
   };
+  const ids = new Map(copied.map((e) => [e.id, newId()]));
   const pasted = copied.map((e) => ({
     ...plainCopy(e),
-    id: newId(),
+    id: ids.get(e.id)!,
     group: regroup(e.group),
     zone: false,
     locked: false,
     frame: { ...e.frame, x_mm: e.frame.x_mm + offsetMm, y_mm: e.frame.y_mm + offsetMm },
   }));
+  // Un tableau collé désigne ses cases collées.
+  for (const e of pasted) {
+    if (e.kind.type === "Table") e.kind = { ...e.kind, cells: e.kind.cells.map((c) => ({ ...c, element_id: ids.get(c.element_id) ?? c.element_id })) };
+  }
   return { page: { ...page, elements: [...page.elements, ...pasted] }, ids: pasted.map((e) => e.id) };
 }
 

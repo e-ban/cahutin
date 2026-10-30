@@ -46,6 +46,15 @@ test("grid cells are never grouped", () => {
   expect(groupElements(p, ["z1", "z2", "free"]).group).toBeNull();
 });
 
+test("a table and its cells are never grouped with other blocks", () => {
+  const table: Element = { ...shape("t", 0, { group: "g" }), kind: { type: "Table", cols: [1], rows: [1], cells: [{ element_id: "c", col: 0, row: 0, col_span: 1, row_span: 1 }], border: null } };
+  const p = page([shape("c", 0, { group: "g" }), table, shape("free"), shape("other")]);
+  expect(groupElements(p, ["c", "free"]).group).toBeNull();
+  const r = groupElements(p, ["t", "free", "other"]);
+  expect(r.page.elements.find((e) => e.id === "c")?.group).toBe("g");
+  expect(r.page.elements.find((e) => e.id === "free")?.group).toBe(r.group);
+});
+
 test("ungroup clears the whole group", () => {
   const p = page([shape("a", 0, { group: "g" }), shape("b", 0, { group: "g" }), shape("c", 0, { group: "h" }), shape("d", 0, { group: "h" })]);
   expect(ungroup(p, ["a"]).elements.map((e) => e.group ?? null)).toEqual([null, null, "h", "h"]);

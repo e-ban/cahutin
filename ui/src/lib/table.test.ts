@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { borderSegments, isTableCell, selectedTable, tableOf } from "./table";
+import { borderSegments, clearTextCell, isTableCell, selectedTable, tableOf } from "./table";
 import type { Element, GridCell, Page, TableProps } from "./types";
 
 const frame = { x_mm: 0, y_mm: 0, w_mm: 20, h_mm: 10, rotation_deg: 0 };
@@ -49,4 +49,19 @@ test("tableOf and isTableCell find the table of a cell", () => {
   expect(selectedTable(page, ["t", "a"])?.id).toBe("t");
   expect(selectedTable(page, ["a"])).toBeUndefined();
   expect(selectedTable(page, ["a", "t", "x"])).toBeUndefined();
+});
+
+test("clearTextCell empties a text cell and keeps its style", () => {
+  const cellEl: Element = {
+    id: "a",
+    frame,
+    locked: false,
+    zone: false,
+    group: "g",
+    kind: { type: "Text", content: { paragraphs: [{ align: null, runs: [{ text: "Lundi", bold: false, italic: false, underline: false, color: null, font: null, size_pt: null }] }] }, style: { font: "Andika", size_pt: 20, color: "#222222", align: "Center" }, prompt: null },
+  };
+  const page: Page = { id: "p", size: { width_mm: 210, height_mm: 297 }, grid: null, elements: [cellEl] };
+  const out = clearTextCell(page, "a").elements[0];
+  expect(out.kind.type === "Text" && out.kind.content.paragraphs).toEqual([]);
+  expect(out.kind.type === "Text" && out.kind.style.size_pt).toBe(20);
 });

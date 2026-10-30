@@ -13,6 +13,7 @@
   import ContextMenu, { type ContextTarget } from "./components/layout/ContextMenu.svelte";
   import PageView from "./components/PageView.svelte";
   import CellBar from "./components/CellBar.svelte";
+  import TableBar from "./components/TableBar.svelte";
   import GridDragMerge from "./components/GridDragMerge.svelte";
   import TemplateBanner from "./components/layout/TemplateBanner.svelte";
   import GridDrawer from "./components/drawers/GridDrawer.svelte";
@@ -225,6 +226,7 @@
     <ContextBar {pageEl} {stageEl} />
     <BoxSelect {pageEl} {stageEl} zoom={editor.effectiveZoom} />
     <CellBar {pageEl} {stageEl} />
+  <TableBar {pageEl} {stageEl} />
     <GridDragMerge {pageEl} />
     {#if contextTarget}<ContextMenu target={contextTarget} onclose={() => (contextTarget = null)} />{/if}
   </main>

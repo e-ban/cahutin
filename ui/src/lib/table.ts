@@ -53,3 +53,8 @@ export function selectedTable(page: Page, selection: string[]): Element | undefi
   const members = page.elements.filter((e) => e.group === t.group);
   return members.length === selection.length && members.every((e) => selection.includes(e.id)) ? t : undefined;
 }
+
+/** Vide une case texte ; sa police, sa taille et son cadre restent. */
+export function clearTextCell(page: Page, id: string): Page {
+  return { ...page, elements: page.elements.map((e) => (e.id === id && e.kind.type === "Text" ? { ...e, kind: { ...e.kind, content: { paragraphs: [] } } } : e)) };
+}

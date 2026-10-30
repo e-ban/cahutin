@@ -5,7 +5,9 @@ import { expandSelection, groupElements, rotateElements, scaleElements, ungroup 
 import { newId } from "./factory";
 import { elementAssets } from "./photoLibrary";
 import { textFrame } from "./elementEdit";
-import type { AssetMeta, Background, Element, Frame } from "./types";
+import { tableDissolve, tableSetCell } from "./api";
+import { clearTextCell, isTableCell, selectedTable } from "./table";
+import type { AssetMeta, Background, Element, Frame, Page } from "./types";
 
 let clipboard: Element[] = [];
 // Images des photos copiées : collées dans un autre document, elles doivent rejoindre ses images.
@@ -66,10 +68,30 @@ export function toggleLockSelection() {
   editor.updatePage((p) => ({ ...p, elements: p.elements.map((e) => (ids.includes(e.id) ? { ...e, locked: lock } : e)) }));
 }
 
-/** Les éléments verrouillés restent. */
+/** Les éléments verrouillés restent. Une case de tableau modifiée seule est vidée, pas retirée : on retire
+ *  sa ligne ou sa colonne. */
 export function deleteSelection() {
-  const next = removeElements(editor.page, selected());
+  const ids = selected();
+  const cell = ids.length === 1 && isTableCell(editor.page, ids[0]) ? editor.page.elements.find((e) => e.id === ids[0]) : undefined;
+  if (cell) {
+    if (cell.locked) return;
+    if (cell.kind.type === "Text") editor.updatePage((p) => clearTextCell(p, cell.id));
+    else runOnPage((p) => tableSetCell(p, cell.id, "Text"));
+    return;
+  }
+  const next = removeElements(editor.page, ids);
   if (next !== editor.page) editor.updatePage(() => next);
+}
+
+/** Opération du moteur sur la page courante ; son erreur s'affiche dans le bandeau. */
+export async function runOnPage(op: (p: Page) => Promise<Page>) {
+  const id = editor.page.id;
+  try {
+    const page = await op(editor.page);
+    editor.updatePageById(id, () => page);
+  } catch (e) {
+    editor.notice = String(e);
+  }
 }
 
 /** Grouper la sélection (Ctrl+G) : un seul pas d'annulation. */
@@ -83,6 +105,14 @@ export function groupSelection() {
 /** Dissocier (Ctrl+Maj+G) : les éléments restent sélectionnés. */
 export function ungroupSelection() {
   if (!editor.page.elements.some((e) => editor.selection.includes(e.id) && e.group)) return;
+  // Un tableau dissocié rend ses cases et ses traits, devenus des formes « trait ».
+  const table = selectedTable(editor.page, expandSelection(editor.page, editor.selection));
+  if (table) {
+    runOnPage((p) => tableDissolve(p, table.id)).then(() => {
+      editor.selection = editor.page.elements.filter((e) => e.group && e.group === table.group).map((e) => e.id);
+    });
+    return;
+  }
   const ids = selected();
   editor.updatePage((p) => ungroup(p, ids));
   editor.selection = ids;

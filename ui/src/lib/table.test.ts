@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { borderSegments, clearTextCell, inTableGroup, isPlacedCell, isTableCell, remapTables, selectedTable, tableOf } from "./table";
+import { borderSegments, clearTextCell, inTableGroup, isPlacedCell, isTableCell, remapTables, resizeTable, selectedTable, tableOf } from "./table";
 import type { Element, GridCell, Page, TableProps } from "./types";
 
 const frame = { x_mm: 0, y_mm: 0, w_mm: 20, h_mm: 10, rotation_deg: 0 };
@@ -87,4 +87,22 @@ test("isPlacedCell covers grid cells and table cells", () => {
 test("inTableGroup finds any member of a table", () => {
   const p = tableFixture();
   expect(["a", "t", "z"].map((id) => inTableGroup(p, id))).toEqual([true, true, false]);
+});
+
+// Mêmes valeurs que carnet_core::table::tests (layout_uses_relative_sizes, cell_content_picto).
+test("resizeTable stretches the table and lays its cells out again, text size unchanged", () => {
+  const p = tableFixture();
+  const picto: Element = { ...p.elements[1], kind: { type: "Image", code: "2B50" } };
+  const page = { ...p, elements: [p.elements[0], picto, p.elements[2]] };
+  if (page.elements[2].kind.type === "Table") page.elements[2].kind.cols = [1, 2];
+  const out = resizeTable(page, "t", { x_mm: 10, y_mm: 20, w_mm: 90, h_mm: 10, rotation_deg: 0 });
+  const [a, b, t] = out.elements;
+  expect(t.frame).toEqual({ x_mm: 10, y_mm: 20, w_mm: 90, h_mm: 10, rotation_deg: 0 });
+  expect(a.frame).toEqual({ x_mm: 10, y_mm: 20, w_mm: 30, h_mm: 10, rotation_deg: 0 });
+  // Picto : marge de 1,5 mm (au plus un quart de la case).
+  expect(b.frame.x_mm).toBeCloseTo(41.5);
+  expect(b.frame.w_mm).toBeCloseTo(57);
+  expect(b.frame.y_mm).toBeCloseTo(21.5);
+  expect(b.frame.h_mm).toBeCloseTo(7);
+  expect(a.kind.type === "Text" && a.kind.style.size_pt).toBe(14);
 });

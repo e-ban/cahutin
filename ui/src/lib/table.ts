@@ -1,5 +1,6 @@
 // Tableaux : un élément `Table` (grille et traits) et ses cases, éléments ordinaires du même groupe.
 // Les opérations sont dans le moteur (carnet_core::table) ; ici, ce que l'affichage doit savoir tout de suite.
+import { TEXT_PADDING_MM } from "./richtext";
 import type { Element, Frame, GridCell, Page, TableProps } from "./types";
 
 type Segment = [number, number, number, number];
@@ -74,4 +75,25 @@ export const isPlacedCell = (page: Page, id: string) => !!page.grid?.cells.some(
 export function inTableGroup(page: Page, id: string): boolean {
   const g = page.elements.find((e) => e.id === id)?.group;
   return !!g && page.elements.some((e) => e.group === g && e.kind.type === "Table");
+}
+
+/** Donne au tableau le cadre `frame` et y replace ses cases, comme carnet_core::table::layout : une case
+ *  picto ou photo garde une marge pour laisser voir les traits. La taille des textes ne change pas. */
+export function resizeTable(page: Page, tableId: string, frame: Frame): Page {
+  const t = page.elements.find((e) => e.id === tableId);
+  if (t?.kind.type !== "Table") return page;
+  const xs = edges(t.kind.cols, frame.x_mm, frame.w_mm);
+  const ys = edges(t.kind.rows, frame.y_mm, frame.h_mm);
+  const cells = new Map(t.kind.cells.map((c) => [c.element_id, c]));
+  return {
+    ...page,
+    elements: page.elements.map((e) => {
+      if (e.id === tableId) return { ...e, frame };
+      const c = cells.get(e.id);
+      if (!c) return e;
+      const [x0, x1, y0, y1] = [xs[c.col], xs[c.col + c.col_span], ys[c.row], ys[c.row + c.row_span]];
+      const inset = e.kind.type === "Text" ? 0 : Math.min(TEXT_PADDING_MM, (x1 - x0) / 4, (y1 - y0) / 4);
+      return { ...e, frame: { x_mm: x0 + inset, y_mm: y0 + inset, w_mm: x1 - x0 - 2 * inset, h_mm: y1 - y0 - 2 * inset, rotation_deg: 0 } };
+    }),
+  };
 }

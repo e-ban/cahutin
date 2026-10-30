@@ -1,8 +1,8 @@
 <script lang="ts">
-  // Poignées d'un groupe ou d'une sélection de plusieurs éléments : déplacer, agrandir (toujours
-  // proportionnel, depuis les coins) et tourner autour du centre. Pendant le geste seul le DOM bouge ;
+  // Poignées d'un groupe ou d'une sélection de plusieurs éléments : déplacer, agrandir (proportionnel,
+  // depuis les coins ; un tableau s'étire librement, aussi par les bords) et tourner autour du centre. Pendant le geste seul le DOM bouge ;
   // à la fin, une seule modification du document (un pas d'annulation).
-  import { inTableGroup } from "../lib/table";
+  import { inTableGroup, resizeTable, selectedTable } from "../lib/table";
   import Moveable from "moveable";
   import { onDestroy, tick } from "svelte";
   import { editor } from "../lib/docStore.svelte";
@@ -15,7 +15,10 @@
 
   let moveable: Moveable | null = null;
   let key = "";
-  let gesture: { ids: string[]; box: { x_mm: number; y_mm: number; w_mm: number; h_mm: number }; styles: string[]; dx: number; dy: number; factor: number; dir: number[]; deg: number } | null = null;
+  let gesture: { ids: string[]; box: { x_mm: number; y_mm: number; w_mm: number; h_mm: number }; styles: string[]; dx: number; dy: number; factor: number; w_px: number; h_px: number; dir: number[]; deg: number } | null = null;
+
+  /** Plus petite case d'un tableau étiré (mm). */
+  const MIN_CELL_MM = 5;
 
   const inGrid = (id: string) => !!editor.page.grid?.cells.some((c) => c.element_id === id);
 
@@ -26,11 +29,14 @@
     return [...sel];
   });
 
+  // Tableau sélectionné en entier : il s'étire librement.
+  const table = $derived(ids ? selectedTable(editor.page, ids) : undefined);
+
   function begin(targets: HTMLElement[]) {
     if (!ids) return;
     editor.gesture = true;
     const frames = editor.page.elements.filter((e) => ids.includes(e.id)).map((e) => e.frame);
-    gesture = { ids, box: boundsOf(frames), styles: targets.map((t) => t.style.cssText), dx: 0, dy: 0, factor: 1, dir: [1, 1], deg: 0 };
+    gesture = { ids, box: boundsOf(frames), styles: targets.map((t) => t.style.cssText), dx: 0, dy: 0, factor: 1, w_px: 0, h_px: 0, dir: [1, 1], deg: 0 };
   }
 
   function end(targets: HTMLElement[]) {
@@ -41,6 +47,10 @@
     targets.forEach((t, i) => (t.style.cssText = g.styles[i]));
     const k = PX_PER_MM * zoom;
     const { box } = g;
+    if (table?.kind.type === "Table" && g.w_px > 0) {
+      stretchTable(g, table.id, table.kind.cols.length, table.kind.rows.length, k);
+      return;
+    }
     const changed = g.dx !== 0 || g.dy !== 0 || Math.abs(g.factor - 1) > 0.001 || Math.abs(g.deg) > 0.05;
     if (!changed) return;
     // Comme pour un bloc seul : poser exactement sur la ligne touchée à un pixel près.
@@ -69,6 +79,16 @@
     });
   }
 
+  /** Nouveau cadre du tableau étiré : le bord ou le coin opposé à la poignée ne bouge pas. */
+  function stretchTable(g: NonNullable<typeof gesture>, id: string, cols: number, rows: number, k: number) {
+    const { box, dir } = g;
+    const w = Math.max(cols * MIN_CELL_MM, Math.round((g.w_px / k) * 10) / 10);
+    const h = Math.max(rows * MIN_CELL_MM, Math.round((g.h_px / k) * 10) / 10);
+    if (Math.abs(w - box.w_mm) < 0.05 && Math.abs(h - box.h_mm) < 0.05) return;
+    const frame = { x_mm: dir[0] < 0 ? box.x_mm + box.w_mm - w : box.x_mm, y_mm: dir[1] < 0 ? box.y_mm + box.h_mm - h : box.y_mm, w_mm: w, h_mm: h, rotation_deg: 0 };
+    editor.updatePage((p) => resizeTable(p, id, frame));
+  }
+
   function create(targets: HTMLElement[]): Moveable {
     const m = new Moveable(pageEl!, {
       target: targets,
@@ -76,8 +96,8 @@
       resizable: true,
       // Un tableau ne tourne pas : sa grille et son export restent droits.
       rotatable: !ids?.some((id) => inTableGroup(editor.page, id)),
-      keepRatio: true,
-      renderDirections: ["nw", "ne", "sw", "se"],
+      keepRatio: !table,
+      renderDirections: table ? ["nw", "n", "ne", "w", "e", "sw", "s", "se"] : ["nw", "ne", "sw", "se"],
       snappable: true,
       isDisplaySnapDigit: false,
       snapThreshold: 6,
@@ -106,6 +126,8 @@
         });
         if (gesture) {
           gesture.factor = ev.width / (gesture.box.w_mm * PX_PER_MM * zoom);
+          gesture.w_px = ev.width;
+          gesture.h_px = ev.height;
           gesture.dir = ev.direction;
         }
       })

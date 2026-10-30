@@ -620,7 +620,7 @@ mod tests {
         let mut d = Document::new("essai");
         let page = &mut d.pages[0];
         let t = crate::table::add_table(page, frame(20.0, 20.0, 100.0, 50.0), 2, 2);
-        if let ElementKind::Text(tx) = &mut page.elements[1].kind {
+        if let ElementKind::Text(tx) = &mut page.elements[0].kind {
             tx.content = RichText::plain("Lundi");
         }
         let content = export(&d, &AssetStore::default()).xml("content.xml");

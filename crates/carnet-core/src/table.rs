@@ -69,7 +69,8 @@ fn new_cell(group: &Id) -> Element {
     }
 }
 
-/// Pose un tableau de cases texte vides dans `frame` ; rend l'id de l'élément `Table`, placé sous ses cases.
+/// Pose un tableau de cases texte vides dans `frame` ; rend l'id de l'élément `Table`, placé au-dessus de
+/// ses cases pour que leur fond ne cache pas les traits.
 pub fn add_table(page: &mut Page, frame: Frame, cols: u8, rows: u8) -> Id {
     let (cols, rows) = (cols.max(1), rows.max(1));
     let group = new_id();
@@ -96,8 +97,8 @@ pub fn add_table(page: &mut Page, frame: Frame, cols: u8, rows: u8) -> Id {
         }),
     };
     let id = table.id.clone();
-    page.elements.push(table);
     page.elements.extend(elements);
+    page.elements.push(table);
     layout(page, &id);
     id
 }
@@ -244,7 +245,7 @@ fn insert(page: &mut Page, cell: &str, axis: Axis, after: bool) -> Result<(), Ta
     }
     axis.grow(&mut page.elements[i].frame, added_mm);
     let table = page.elements[i].id.clone();
-    page.elements.extend(added);
+    page.elements.splice(i..i, added);
     layout(page, &table);
     Ok(())
 }
@@ -353,7 +354,7 @@ pub fn split(page: &mut Page, cell: &str) -> Result<(), TableError> {
         }
     }
     let table = page.elements[i].id.clone();
-    page.elements.extend(added);
+    page.elements.splice(i..i, added);
     layout(page, &table);
     Ok(())
 }
@@ -481,7 +482,7 @@ mod tests {
     fn add_table_3x3() {
         let (p, t) = table(3, 3);
         assert_eq!(p.elements.len(), 10);
-        assert_eq!(p.elements[0].id, t);
+        assert_eq!(p.elements[9].id, t);
         let group = p.elements[0].group.clone().unwrap();
         assert!(p.elements.iter().all(|e| e.group.as_ref() == Some(&group)));
         let f = el(&p, &cell_at(&p, &t, 1, 1)).frame;
@@ -496,7 +497,7 @@ mod tests {
     fn layout_uses_relative_sizes() {
         let mut p = Page::new(A4_PORTRAIT);
         let t = add_table(&mut p, Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 90.0, h_mm: 10.0, rotation_deg: 0.0 }, 2, 1);
-        if let ElementKind::Table(tp) = &mut p.elements[0].kind {
+        if let ElementKind::Table(tp) = &mut p.elements[2].kind {
             tp.cols = vec![1.0, 2.0];
         }
         layout(&mut p, &t);
@@ -517,6 +518,7 @@ mod tests {
         assert!(close(el(&p, &t).frame.h_mm, 135.0));
         assert!(close(el(&p, &below).frame.y_mm, 103.5 + 90.0));
         assert_eq!(p.elements.len(), 7);
+        assert_eq!(p.elements[6].id, t, "le tableau reste au-dessus de ses cases");
     }
 
     #[test]
@@ -643,7 +645,7 @@ mod tests {
     #[test]
     fn dissolve_without_border_keeps_only_cells() {
         let (mut p, t) = table(2, 1);
-        if let ElementKind::Table(tp) = &mut p.elements[0].kind {
+        if let ElementKind::Table(tp) = &mut p.elements[2].kind {
             tp.border = None;
         }
         dissolve(&mut p, &t).unwrap();

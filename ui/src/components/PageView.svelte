@@ -1,6 +1,7 @@
 <script lang="ts">
   import PhotoEl from "./elements/PhotoEl.svelte";
   import ShapeEl from "./elements/ShapeEl.svelte";
+  import TableEl from "./elements/TableEl.svelte";
   import TextEl from "./elements/TextEl.svelte";
   import { dragCrop, wheelCrop } from "../lib/crop";
   import { editor } from "../lib/docStore.svelte";
@@ -76,7 +77,8 @@
   }
 
   // Forme vide (sans remplissage) : seul son contour se clique, l'intérieur laisse passer vers la page.
-  const isHollow = (e: Element) => e.kind.type === "Shape" && e.kind.fill === null && e.kind.shape !== "Line" && e.kind.shape !== "Arrow";
+  // Un tableau laisse passer tous les clics vers ses cases.
+  const isHollow = (e: Element) => e.kind.type === "Table" || (e.kind.type === "Shape" && e.kind.fill === null && e.kind.shape !== "Line" && e.kind.shape !== "Arrow");
 
   function frameStyle(e: Element): string {
     return rectStyle(e.frame);
@@ -236,6 +238,8 @@
         <PictoEl code={e.kind.code} />
       {:else if e.kind.type === "Shape"}
         <ShapeEl props={e.kind} frame={e.frame} {zoom} />
+      {:else if e.kind.type === "Table"}
+        <TableEl props={e.kind} frame={e.frame} {zoom} />
       {/if}
     </div>
   {/each}

@@ -119,7 +119,10 @@ impl Writer<'_> {
                 Ok(())
             }
             ElementKind::Image(i) => self.picture(e, &i.code),
-            ElementKind::Table(_) => Ok(()),
+            ElementKind::Table(t) => {
+                self.table(e, t);
+                Ok(())
+            }
         }
     }
 
@@ -315,6 +318,18 @@ impl Writer<'_> {
         self.body.close();
         self.body.close();
         Ok(())
+    }
+
+    /// Traits d'un tableau : une ligne par segment ; les cases sont des éléments à part.
+    fn table(&mut self, e: &Element, t: &TableProps) {
+        let Some(border) = &t.border else { return };
+        let props = stroke(self.reg, Some(border));
+        let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", props)]);
+        for [x1, y1, x2, y2] in crate::table::border_segments(t, &e.frame) {
+            let r = |v: f64| mm((v * 1000.0).round() / 1000.0 + 0.0);
+            let a = [("draw:style-name", style.clone()), ("svg:x1", r(x1)), ("svg:y1", r(y1)), ("svg:x2", r(x2)), ("svg:y2", r(y2))];
+            self.body.empty("draw:line", &attrs(&a));
+        }
     }
 
     fn shape(&mut self, e: &Element, s: &ShapeProps) {

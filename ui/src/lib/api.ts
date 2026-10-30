@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { Document, ExampleInfo, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
+import type { CellContent, Document, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -22,6 +22,15 @@ export const gridSetKind = (page: Page, cell: string, kind: ZoneKind) => invoke<
 export const pageSetSize = (page: Page, widthMm: number, heightMm: number) => invoke<Page>("page_set_size", { page, widthMm, heightMm });
 export const gridLiberate = (page: Page) => invoke<Page>("grid_liberate", { page });
 export const gridPreset = (page: Page, preset: GridPreset) => invoke<Page>("grid_preset", { page, preset });
+export const tableAdd = (page: Page, frame: Frame, cols: number, rows: number) => invoke<[Page, string]>("table_add", { page, frame, cols, rows });
+export const tableInsertRow = (page: Page, cell: string, below: boolean) => invoke<Page>("table_insert_row", { page, cell, below });
+export const tableInsertCol = (page: Page, cell: string, right: boolean) => invoke<Page>("table_insert_col", { page, cell, right });
+export const tableRemoveRow = (page: Page, cell: string) => invoke<Page>("table_remove_row", { page, cell });
+export const tableRemoveCol = (page: Page, cell: string) => invoke<Page>("table_remove_col", { page, cell });
+export const tableMerge = (page: Page, a: string, b: string) => invoke<Page>("table_merge", { page, a, b });
+export const tableSplit = (page: Page, cell: string) => invoke<Page>("table_split", { page, cell });
+export const tableSetCell = (page: Page, cell: string, content: CellContent) => invoke<Page>("table_set_cell", { page, cell, content });
+export const tableDissolve = (page: Page, table: string) => invoke<Page>("table_dissolve", { page, table });
 export const listTemplates = () => invoke<TemplateInfo[]>("list_templates");
 export const instantiateTemplate = (id: string) => invoke<InstantiatedPage>("instantiate_template", { id });
 export const savePageAsTemplate = (name: string, page: Page) => invoke<TemplateInfo>("save_page_as_template", { name, page });

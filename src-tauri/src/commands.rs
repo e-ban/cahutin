@@ -6,7 +6,7 @@ use carnet_core::fonts::{self, FontFamilyInfo};
 use carnet_core::photo;
 use carnet_core::templates::{self, TemplateInfo};
 use carnet_core::import::{self, ImportError, ImportReport};
-use carnet_core::{AssetMeta, Document, Page, PageSize, ZoneKind, examples, grid, native, odg, report};
+use carnet_core::{AssetMeta, Document, Frame, Page, PageSize, ZoneKind, examples, grid, native, odg, report, table};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -281,6 +281,58 @@ pub fn grid_liberate(mut page: Page) -> Page {
     page
 }
 
+/// Pose un tableau ; rend la page et l'id de l'élément `Table`.
+#[tauri::command]
+pub fn table_add(mut page: Page, frame: Frame, cols: u8, rows: u8) -> (Page, String) {
+    let id = table::add_table(&mut page, frame, cols, rows);
+    (page, id)
+}
+
+fn table_op(mut page: Page, op: impl FnOnce(&mut Page) -> Result<(), table::TableError>) -> Result<Page, String> {
+    op(&mut page).map_err(|e| e.message_fr().to_string())?;
+    Ok(page)
+}
+
+#[tauri::command]
+pub fn table_insert_row(page: Page, cell: String, below: bool) -> Result<Page, String> {
+    table_op(page, |p| table::insert_row(p, &cell, below))
+}
+
+#[tauri::command]
+pub fn table_insert_col(page: Page, cell: String, right: bool) -> Result<Page, String> {
+    table_op(page, |p| table::insert_col(p, &cell, right))
+}
+
+#[tauri::command]
+pub fn table_remove_row(page: Page, cell: String) -> Result<Page, String> {
+    table_op(page, |p| table::remove_row(p, &cell))
+}
+
+#[tauri::command]
+pub fn table_remove_col(page: Page, cell: String) -> Result<Page, String> {
+    table_op(page, |p| table::remove_col(p, &cell))
+}
+
+#[tauri::command]
+pub fn table_merge(page: Page, a: String, b: String) -> Result<Page, String> {
+    table_op(page, |p| table::merge(p, &a, &b))
+}
+
+#[tauri::command]
+pub fn table_split(page: Page, cell: String) -> Result<Page, String> {
+    table_op(page, |p| table::split(p, &cell))
+}
+
+#[tauri::command]
+pub fn table_set_cell(page: Page, cell: String, content: table::CellContent) -> Result<Page, String> {
+    table_op(page, |p| table::set_cell_content(p, &cell, content))
+}
+
+#[tauri::command]
+pub fn table_dissolve(page: Page, table: String) -> Result<Page, String> {
+    table_op(page, |p| table::dissolve(p, &table))
+}
+
 /// Exécutée hors du fil principal : la fenêtre reste réactive.
 #[tauri::command(async)]
 pub fn list_templates(state: State<'_, AppState>) -> Result<Vec<TemplateInfo>, String> {
@@ -458,6 +510,16 @@ mod tests {
     use carnet_core::photo::AssetStore;
     use carnet_core::templates::Library;
     use carnet_core::{A4_PORTRAIT, Page, grid};
+
+    #[test]
+    fn table_remove_last_row_error_is_french() {
+        let frame = carnet_core::Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 20.0, h_mm: 10.0, rotation_deg: 0.0 };
+        let (page, id) = table_add(Page::new(A4_PORTRAIT), frame, 2, 1);
+        let carnet_core::ElementKind::Table(t) = &page.elements.iter().find(|e| e.id == id).unwrap().kind else { panic!() };
+        let cell = t.cells[0].element_id.clone();
+        let err = table_remove_row(page, cell).unwrap_err();
+        assert_eq!(err, carnet_core::table::TableError::LastLine.message_fr());
+    }
 
     #[test]
     fn grid_merge_error_is_french() {

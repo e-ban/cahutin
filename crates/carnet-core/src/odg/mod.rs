@@ -616,6 +616,26 @@ mod tests {
     }
 
     #[test]
+    fn table_borders_are_lines() {
+        let mut d = Document::new("essai");
+        let page = &mut d.pages[0];
+        let t = crate::table::add_table(page, frame(20.0, 20.0, 100.0, 50.0), 2, 2);
+        if let ElementKind::Text(tx) = &mut page.elements[1].kind {
+            tx.content = RichText::plain("Lundi");
+        }
+        let content = export(&d, &AssetStore::default()).xml("content.xml");
+        let g = content.split("<draw:g>").nth(1).expect("draw:g").split("</draw:g>").next().unwrap();
+        assert_eq!(g.matches("<draw:line").count(), 6);
+        assert_eq!(g.matches("<draw:frame").count(), 1, "la case écrite, les cases vides disparaissent");
+        assert!(g.contains(r#"svg:x1="70.000mm" svg:y1="20.000mm" svg:x2="70.000mm" svg:y2="70.000mm""#), "{g}");
+        if let ElementKind::Table(tp) = &mut d.pages[0].elements.iter_mut().find(|e| e.id == t).unwrap().kind {
+            tp.border = None;
+        }
+        let content = export(&d, &AssetStore::default()).xml("content.xml");
+        assert_eq!(content.matches("<draw:line").count(), 0);
+    }
+
+    #[test]
     fn group_members_are_wrapped_in_draw_g() {
         let d = doc_with(vec![picture_el("1F98A", Some("g")), shape_el(ShapeKind::Star, frame(60.0, 20.0, 20.0, 20.0)), picture_el("2600", None)]);
         let mut grouped = d.clone();

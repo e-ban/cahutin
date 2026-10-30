@@ -283,12 +283,21 @@ mod tests {
     }
 
     /// Faux soffice : écrit ses arguments, un par ligne, dans `log`, puis exécute `body`.
+    /// Le script est écrit par un `sh` à part : si ce processus de tests le gardait ouvert en écriture, un
+    /// programme lancé au même moment par un autre test en hériterait, et son exécution échouerait (ETXTBSY).
     #[cfg(unix)]
     fn fake_soffice(dir: &Path, log: &Path, body: &str) -> PathBuf {
-        use std::os::unix::fs::PermissionsExt;
+        use std::io::Write;
         let script = dir.join("soffice");
-        std::fs::write(&script, format!("#!/bin/sh\nfor a in \"$@\"; do echo \"$a\" >> '{}'; done\n{body}\n", log.display())).unwrap();
-        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut sh = Command::new("sh")
+            .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
+            .arg(&script)
+            .stdin(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let text = format!("#!/bin/sh\nfor a in \"$@\"; do echo \"$a\" >> '{}'; done\n{body}\n", log.display());
+        sh.stdin.take().unwrap().write_all(text.as_bytes()).unwrap();
+        assert!(sh.wait().unwrap().success());
         script
     }
 

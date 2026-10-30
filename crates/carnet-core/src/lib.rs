@@ -4,6 +4,7 @@ pub mod background;
 pub mod class;
 pub mod crop;
 pub mod examples;
+pub mod fill;
 pub mod fonts;
 mod fsutil;
 pub mod grid;

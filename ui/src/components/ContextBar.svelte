@@ -20,6 +20,7 @@
   import { isTableCell, selectedTable } from "../lib/table";
   import { alignUnits, arrangeUnits, expandSelection, isLockedSelection } from "../lib/groups";
   import { blockFrieze } from "../lib/decor";
+  import { cutMarks, type CutStyle } from "../lib/cutMarks";
   import { friezeMotifs } from "../lib/friezeMotifs.svelte";
   import { ALIGNS, VALIGNS, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
   import type { Frame } from "../lib/types";
@@ -28,7 +29,7 @@
 
   const ROTATION_HANDLE_GAP = 44;
 
-  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame";
+  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut";
   let pop = $state<Pop | null>(null);
   let barEl = $state<HTMLElement>();
   let pos = $state<{ left: number; top: number } | null>(null);
@@ -130,6 +131,18 @@
     const k = e.kind;
     return k.type === "Text" || (k.type === "Photo" && !!k.asset) || (k.type === "Shape" && !isStrokeOnly(k.shape));
   });
+
+  /** Repères de découpe : pas sur une case de grille ou de tableau, ni sur un bloc verrouillé. */
+  const canCut = $derived(
+    editor.selection.length > 0 && !editor.selection.some((id) => inGrid(id) || isTableCell(editor.page, id)) && !isLockedSelection(editor.page, editor.selection),
+  );
+
+  function setCutMarks(style: CutStyle | null) {
+    editor.updatePage((p) => cutMarks(p, editor.selection, style));
+    editor.focusedMember = null;
+    editor.selection = expandSelection(editor.page, editor.selection.filter((id) => editor.page.elements.some((e) => e.id === id)));
+    pop = null;
+  }
 
   function addBlockFrieze() {
     const id = selected?.id;
@@ -377,6 +390,18 @@
     {/if}
     {#if canFrieze}
       <button title={fr.blockFriezeHint} onclick={addBlockFrieze}>❀ {fr.blockFrieze}</button>
+    {/if}
+    {#if canCut}
+      <div class="wrap">
+        <button title={fr.cutMarksHint} onclick={() => toggle("cut")}>✂ {fr.cutMarks} ▾</button>
+        {#if pop === "cut"}
+          <div class="pop list">
+            <button onclick={() => setCutMarks("corners")}>⌜ ⌝ {fr.cutCorners}</button>
+            <button onclick={() => setCutMarks("dashed")}>✂ ┄ {fr.cutDashed}</button>
+            <button onclick={() => setCutMarks(null)}>{fr.cutNone}</button>
+          </div>
+        {/if}
+      </div>
     {/if}
     {#if !many}
       <span class="sep"></span>

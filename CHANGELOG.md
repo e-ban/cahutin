@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Repères de découpe (barre flottante, « Découpe ») : traits aux coins ou pointillés avec des ciseaux, autour de chaque bloc ou groupe sélectionné, pour découper étiquettes et cartes. Ils suivent le bloc, s'impriment et s'exportent.
 - Tableaux (tiroir Texte) : une case contient un texte, un pictogramme ou une photo. Double-cliquer dans une case ouvre une barre pour ajouter ou retirer des lignes et des colonnes, fusionner ou diviser des cases. Le tableau sélectionné s'étire librement en largeur ou en hauteur, par les coins et par les bords, sans changer la taille du texte ; les traits se règlent (épaisseur, couleur, tirets, pointillés, aucun). « Dissocier » rend des cases libres et des traits. Un document qui contient un tableau est refusé par Cahutin 0.5 (« version plus récente »).
 
 ## 0.5.2

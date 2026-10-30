@@ -1,5 +1,6 @@
 //! Application de bureau : expose le moteur `carnet-core` à l'interface.
 
+mod class_commands;
 pub mod commands;
 mod legacy;
 #[cfg(windows)]
@@ -56,7 +57,9 @@ pub fn run() {
             if let Ok(c) = cache {
                 app.manage(CacheGuard(c));
             }
-            app.manage(AppState::new(store, Library::open(data.join("modeles"))?, data.join("polices")));
+            // Classes : un dossier visible, que l'enseignant peut sauvegarder lui-même.
+            let classes = app.path().document_dir().map(|d| d.join("Cahutin").join("Classes")).unwrap_or_else(|_| data.join("Classes"));
+            app.manage(AppState::new(store, Library::open(data.join("modeles"))?, data.join("polices"), classes));
             // Polices du poste : lues en arrière-plan pour ne pas retarder l'ouverture de la fenêtre.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
@@ -79,6 +82,14 @@ pub fn run() {
             commands::export_odg,
             commands::grid_set,
             commands::grid_merge,
+            class_commands::class_dir,
+            class_commands::class_list,
+            class_commands::class_create,
+            class_commands::class_open,
+            class_commands::class_save,
+            class_commands::class_import_photo,
+            class_commands::class_parse_list,
+            class_commands::class_generate,
             commands::table_add,
             commands::table_insert_row,
             commands::table_insert_col,

@@ -115,7 +115,7 @@ mod tests {
         std::fs::create_dir(&sys).unwrap();
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../crates/carnet-core/tests/fixtures/CarnetTest-Regular.ttf");
         std::fs::copy(fixture, sys.join("carnettest.ttf")).unwrap();
-        let state = AppState::new(Default::default(), carnet_core::templates::Library::open(dir.path().join("m")).unwrap(), dir.path().join("p"));
+        let state = AppState::new(Default::default(), carnet_core::templates::Library::open(dir.path().join("m")).unwrap(), dir.path().join("p"), dir.path().join("c"));
         state.set_system_fonts(fonts::scan_font_dirs(&[sys.as_path()]));
         let r = system_font_response(&state, "0");
         assert_eq!(r.status(), StatusCode::OK);

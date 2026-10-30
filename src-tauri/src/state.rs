@@ -19,10 +19,12 @@ pub struct AppState {
     pub pending_fonts: Mutex<Vec<(String, Vec<u8>)>>,
     /// Demande d'annulation de l'import de fichier en cours.
     pub import_cancel: AtomicBool,
+    /// Dossier des listes de classe (`Documents/Cahutin/Classes`).
+    pub classes_dir: PathBuf,
 }
 
 impl AppState {
-    pub fn new(store: AssetStore, library: Library, fonts_dir: PathBuf) -> AppState {
+    pub fn new(store: AssetStore, library: Library, fonts_dir: PathBuf, classes_dir: PathBuf) -> AppState {
         AppState {
             store: Mutex::new(store),
             library,
@@ -31,6 +33,7 @@ impl AppState {
             system_fonts: RwLock::new(Vec::new()),
             pending_fonts: Mutex::new(Vec::new()),
             import_cancel: AtomicBool::new(false),
+            classes_dir,
         }
     }
 

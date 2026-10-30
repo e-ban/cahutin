@@ -578,7 +578,7 @@ mod tests {
     }
 
     fn test_state(dir: &Path) -> AppState {
-        AppState::new(AssetStore::default(), Library::open(dir.join("modeles")).unwrap(), dir.join("polices"))
+        AppState::new(AssetStore::default(), Library::open(dir.join("modeles")).unwrap(), dir.join("polices"), dir.join("Classes"))
     }
 
     fn fixture(name: &str) -> PathBuf {

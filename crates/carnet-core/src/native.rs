@@ -61,7 +61,7 @@ impl From<zip::result::ZipError> for NativeError {
     }
 }
 
-fn extension(mime: Mime) -> &'static str {
+pub(crate) fn extension(mime: Mime) -> &'static str {
     match mime {
         Mime::Jpeg => "jpg",
         Mime::Png => "png",
@@ -160,7 +160,7 @@ pub(crate) fn read_capped(entry: &mut impl Read, max: u64) -> Option<Vec<u8>> {
     (buf.len() as u64 <= max).then_some(buf)
 }
 
-fn read_entry<R: Read + Seek>(zip: &mut ZipArchive<R>, name: &str) -> Result<Vec<u8>, NativeError> {
+pub(crate) fn read_entry<R: Read + Seek>(zip: &mut ZipArchive<R>, name: &str) -> Result<Vec<u8>, NativeError> {
     let mut entry = zip.by_name(name)?;
     read_capped(&mut entry, MAX_ENTRY_BYTES).ok_or(NativeError::Corrupt)
 }

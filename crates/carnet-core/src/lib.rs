@@ -1,6 +1,7 @@
 //! Moteur de l'application : modèle de document, import, formats et export.
 
 pub mod background;
+pub mod class;
 pub mod crop;
 pub mod examples;
 pub mod fonts;

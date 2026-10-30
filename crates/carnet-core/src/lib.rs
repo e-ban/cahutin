@@ -15,6 +15,7 @@ pub mod photo;
 pub mod picto;
 pub mod report;
 pub mod shapes;
+pub mod table;
 pub mod templates;
 
 pub use crop::{SourceRect, source_rect};

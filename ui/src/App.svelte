@@ -18,6 +18,8 @@
   import TemplateBanner from "./components/layout/TemplateBanner.svelte";
   import GridDrawer from "./components/drawers/GridDrawer.svelte";
   import DecorDrawer from "./components/drawers/DecorDrawer.svelte";
+  import ClassDrawer from "./components/drawers/ClassDrawer.svelte";
+  import { classes } from "./lib/classStore.svelte";
   import About from "./components/layout/About.svelte";
   import BackgroundPanel from "./components/BackgroundPanel.svelte";
   import Hint from "./components/layout/Hint.svelte";
@@ -54,6 +56,9 @@
   editor.showWelcome = true;
   fonts.load();
   templates.refresh();
+  void classes.restore();
+  // Dialogue « Générer pour la classe ».
+  let generateOpen = $state(false);
   // Nouvelles versions : seulement si l'utilisateur l'a accepté, au plus une fois par jour.
   void updates.checkIfDue();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
@@ -84,6 +89,8 @@
       win
         .onCloseRequested(async (event) => {
           editor.flushPending();
+          // La classe s'enregistre un peu après chaque modification : ce qui attend part maintenant.
+          await classes.flush();
           if (!editor.dirty) return;
           event.preventDefault();
           if (await confirmLeave()) await win.destroy();
@@ -181,6 +188,7 @@
   {:else if editor.drawer === "fonts"}<FontsDrawer />
   {:else if editor.drawer === "grid"}<GridDrawer />
   {:else if editor.drawer === "decor"}<DecorDrawer />
+  {:else if editor.drawer === "class"}<ClassDrawer ongenerate={() => (generateOpen = true)} />
   {/if}
   <main
     class="stage"

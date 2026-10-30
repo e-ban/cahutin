@@ -10,6 +10,7 @@
     { id: "shapes", icon: "◯", label: fr.shapes },
     { id: "fonts", icon: "Aa", label: fr.fonts },
     { id: "decor", icon: "✿", label: fr.decor },
+    { id: "class", icon: "🧒", label: fr.classDrawer },
   ];
   const template: { id: DrawerId; icon: string; label: string }[] = [
     { id: "grid", icon: "▦", label: fr.grid },

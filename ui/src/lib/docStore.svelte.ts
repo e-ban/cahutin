@@ -7,7 +7,7 @@ import { readPref, writePref } from "./prefs";
 import type { AssetMeta, Document, Element, Page } from "./types";
 
 export type Zoom = number | "fit";
-export type DrawerId = "templates" | "photos" | "text" | "shapes" | "fonts" | "grid" | "decor";
+export type DrawerId = "templates" | "photos" | "text" | "shapes" | "fonts" | "grid" | "decor" | "class";
 
 class Editor {
   doc = $state.raw<Document>(newDocument());

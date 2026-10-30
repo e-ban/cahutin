@@ -221,17 +221,19 @@ impl Writer<'_> {
     fn text_props(&mut self, run: &Run, style: &TextStyle) -> Props {
         let family = run.font.as_deref().unwrap_or(&style.font);
         let font_name = self.reg.font(family, run.bold, run.italic);
-        vec![(
-            "style:text-properties",
-            vec![
-                ("style:font-name", font_name),
-                ("fo:font-size", format!("{}pt", run.size_pt.unwrap_or(style.size_pt))),
-                ("fo:font-weight", if run.bold { "bold" } else { "normal" }.into()),
-                ("fo:font-style", if run.italic { "italic" } else { "normal" }.into()),
-                ("style:text-underline-style", if run.underline { "solid" } else { "none" }.into()),
-                ("fo:color", run.color.clone().unwrap_or_else(|| style.color.clone())),
-            ],
-        )]
+        let mut props = vec![
+            ("style:font-name", font_name),
+            ("fo:font-size", format!("{}pt", run.size_pt.unwrap_or(style.size_pt))),
+            ("fo:font-weight", if run.bold { "bold" } else { "normal" }.into()),
+            ("fo:font-style", if run.italic { "italic" } else { "normal" }.into()),
+            ("style:text-underline-style", if run.underline { "solid" } else { "none" }.into()),
+            ("fo:color", run.color.clone().unwrap_or_else(|| style.color.clone())),
+        ];
+        // Lettres creuses : l'effet « contour » de LibreOffice, dessiné dans la couleur du texte.
+        if style.outline == Some(true) {
+            props.push(("style:text-outline", "true".into()));
+        }
+        vec![("style:text-properties", props)]
     }
 
     fn text(&mut self, e: &Element, t: &TextProps) -> Result<(), OdgError> {

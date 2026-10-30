@@ -24,3 +24,10 @@ test("the default margin and top alignment are stored as absent", () => {
   const back = textStyle({ padding_mm: 1.5, valign: "Top" })(textStyle({ padding_mm: 4, valign: "Middle" })(text));
   expect(back.kind.type === "Text" && [back.kind.style.padding_mm, back.kind.style.valign]).toEqual([null, null]);
 });
+
+test("hollow letters off are stored as absent, so the format does not change", () => {
+  const on = textStyle({ outline: true })(text);
+  expect(on.kind.type === "Text" && on.kind.style.outline).toBe(true);
+  const off = textStyle({ outline: false })(on);
+  expect(off.kind.type === "Text" && off.kind.style.outline).toBeNull();
+});

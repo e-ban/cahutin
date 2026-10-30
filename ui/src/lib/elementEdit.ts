@@ -38,12 +38,14 @@ export const previewPhoto = (patch: Partial<PhotoProps>) => previewSelected(phot
 export const updateShape = (patch: Partial<ShapeProps>) => updateSelected(shape(patch));
 export const previewShape = (patch: Partial<ShapeProps>) => previewSelected(shape(patch));
 
-/** Réglages du texte ; la marge par défaut et l'alignement en haut sont enregistrés comme absents (format inchangé). */
+/** Réglages du texte ; la marge par défaut, l'alignement en haut et les lettres pleines sont enregistrés
+ *  comme absents (format inchangé). */
 export const textStyle = (patch: Partial<TextStyle>) => (e: Element): Element => {
   if (e.kind.type !== "Text") return e;
   const style = { ...e.kind.style, ...patch };
   if (style.padding_mm === TEXT_PADDING_MM) style.padding_mm = null;
   if (style.valign === "Top") style.valign = null;
+  if (!style.outline) style.outline = null;
   return { ...e, kind: { ...e.kind, style } };
 };
 /** Cadre d'un texte ; un cadre sans fond, sans bordure et sans image disparaît (le document reste lisible par la 0.4). */

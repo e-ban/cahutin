@@ -45,7 +45,7 @@ pub fn renew_ids(page: &mut Page) {
 }
 
 /// Version la plus récente que cette application sait lire (2 : élément image ; 3 : cadre de texte,
-/// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau).
+/// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau, lettres creuses).
 pub const FORMAT_VERSION: u32 = 4;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
@@ -296,6 +296,10 @@ pub struct TextStyle {
     #[serde(default)]
     #[ts(optional = nullable)]
     pub padding_mm: Option<f64>,
+    /// Lettres creuses (contour seul, à repasser) ; absent : lettres pleines.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub outline: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
@@ -316,7 +320,7 @@ impl TextStyle {
     }
 
     pub fn default_zone() -> TextStyle {
-        TextStyle { font: "Andika".into(), size_pt: 14.0, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None }
+        TextStyle { font: "Andika".into(), size_pt: 14.0, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None, outline: None }
     }
 }
 

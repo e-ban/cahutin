@@ -76,7 +76,8 @@ fn used_assets(doc: &Document) -> BTreeSet<String> {
 /// alors « version plus récente »), sinon 1.
 pub fn written_version(doc: &Document) -> u32 {
     let elements = || doc.pages.iter().flat_map(|p| &p.elements);
-    if elements().any(|e| matches!(e.kind, ElementKind::Table(_))) {
+    let outlined = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if t.style.outline == Some(true));
+    if elements().any(|e| matches!(e.kind, ElementKind::Table(_)) || outlined(e)) {
         4
     } else if elements().any(uses_version_3) {
         3
@@ -403,6 +404,17 @@ mod tests {
             group: group.map(String::from),
             kind: ElementKind::Image(ImageProps { code: "1F98A".into() }),
         }
+    }
+
+    #[test]
+    fn outlined_text_is_version_4() {
+        let mut doc = Document::new("v");
+        let mut style = TextStyle::default_zone();
+        doc.pages[0].elements.push(text_el(style.clone(), None));
+        assert!(written_version(&doc) < 4);
+        style.outline = Some(true);
+        doc.pages[0].elements.push(text_el(style, None));
+        assert_eq!(written_version(&doc), 4);
     }
 
     #[test]

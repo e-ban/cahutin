@@ -10,4 +10,8 @@ valign?: VAlign | null,
 /**
  * Marge intérieure ; absente : `TEXT_PADDING_MM`.
  */
-padding_mm?: number | null, };
+padding_mm?: number | null, 
+/**
+ * Lettres creuses (contour seul, à repasser) ; absent : lettres pleines.
+ */
+outline?: boolean | null, };

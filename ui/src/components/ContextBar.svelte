@@ -12,7 +12,7 @@
   import { editor } from "../lib/docStore.svelte";
   import { addCaption, deleteSelection, groupSelection, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
   import { assetUrl } from "../lib/api";
-  import { endPreview, previewPhoto, previewShape, previewTable, updateTable, previewTextFrame, previewTextStyle, updatePhoto, updateShape, updateTextFrame } from "../lib/elementEdit";
+  import { endPreview, previewPhoto, previewShape, previewTable, updateTable, previewTextFrame, previewTextStyle, updatePhoto, updateShape, updateTextFrame, updateTextStyle } from "../lib/elementEdit";
   import { textPadding } from "../lib/richtext";
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
@@ -275,6 +275,7 @@
       <button title={fr.bold} class:on={isMarkActive("bold", t)} disabled={family && !family.has_bold} onclick={() => toggleMark("bold")}><b>G</b></button>
       <button title={fr.italic} class:on={isMarkActive("italic", t)} disabled={family && !family.has_italic} onclick={() => toggleMark("italic")}><i>I</i></button>
       <button title={fr.underline} class:on={isMarkActive("underline", t)} onclick={() => toggleMark("underline")}><u>S</u></button>
+      <button title={fr.outlineHint} class:on={!!t.style.outline} aria-pressed={!!t.style.outline} onclick={() => updateTextStyle({ outline: !t.style.outline })}><span class="hollow-a">A</span></button>
       <div class="wrap">
         <button title={fr.color} aria-label={fr.color} onclick={() => toggle("color")}><span class="dot" style:background={t.style.color}></span></button>
         {#if pop === "color"}<div class="pop"><ColorPicker value={t.style.color} onchange={(c) => (setColor(c), (pop = null))} /></div>{/if}
@@ -411,6 +412,11 @@
 {/if}
 
 <style>
+  .hollow-a {
+    -webkit-text-fill-color: transparent;
+    -webkit-text-stroke: 1px currentColor;
+    font-weight: 700;
+  }
   .ctx {
     position: fixed;
     display: flex;

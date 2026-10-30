@@ -88,6 +88,7 @@
   style:font-size="{props.style.size_pt}pt"
   style:color={props.style.color}
   style:text-align={alignToCss(props.style.align)}
+  class:outline={props.style.outline}
 >
   <!-- Alignement vertical par marges automatiques : un texte trop long part du haut, sans déborder vers le haut. -->
   <div class="flow" class:middle={props.style.valign === "Middle"} class:bottom={props.style.valign === "Bottom"}>
@@ -148,6 +149,12 @@
   }
   .text :global(p) {
     margin: 0;
+  }
+  /* Lettres creuses : contour dans la couleur du texte (celle de chaque passage), sans remplissage. */
+  .text.outline {
+    -webkit-text-fill-color: transparent;
+    -webkit-text-stroke-width: 0.035em;
+    -webkit-text-stroke-color: currentColor;
   }
   .text.overflow {
     outline: 2px solid #e74c3c;

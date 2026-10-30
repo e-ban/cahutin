@@ -616,6 +616,18 @@ mod tests {
     }
 
     #[test]
+    fn outlined_text_uses_the_native_outline() {
+        let mut e = text(RichText::plain("Léa"), None);
+        if let ElementKind::Text(t) = &mut e.kind {
+            t.style.outline = Some(true);
+        }
+        let content = export(&doc_with(vec![e]), &AssetStore::default()).xml("content.xml");
+        assert!(content.contains(r#"style:text-outline="true""#), "{content}");
+        let plain = export(&doc_with(vec![text(RichText::plain("Léa"), None)]), &AssetStore::default()).xml("content.xml");
+        assert!(!plain.contains("text-outline"));
+    }
+
+    #[test]
     fn table_borders_are_lines() {
         let mut d = Document::new("essai");
         let page = &mut d.pages[0];

@@ -19,6 +19,7 @@ export const TIPS: Tip[] = [
   { id: "library", theme: "Photos", icon: "📚", title: "Photothèque", text: "Les photos importées mais pas encore placées restent dans le tiroir Photos. À la réouverture du document, elles reviennent si leurs fichiers sont toujours sur l'ordinateur." },
   { id: "write", theme: "Texte", icon: "✏️", title: "Écrire", text: "Double-cliquez dans un texte pour écrire. Échap ou un clic ailleurs termine." },
   { id: "fonts-mix", theme: "Texte", icon: "🔤", title: "Plusieurs polices dans un texte", text: "Pendant l'écriture, sélectionnez un mot et choisissez une police : seul ce mot change. Pratique pour un prénom en cursive et en script." },
+  { id: "trace", theme: "Texte", icon: "✍️", title: "Lettres à repasser", text: "Tiroir Texte : « À repasser (gris clair) » ou « Lettres creuses », en cursive. Le bouton « A » creux de la barre flottante rend creuses les lettres de n'importe quel texte." },
   { id: "valign", theme: "Texte", icon: "↕️", title: "En haut, au milieu, en bas", text: "Le menu d'alignement de la barre flottante place aussi le texte en haut, au milieu ou en bas de son cadre." },
   { id: "label", theme: "Texte", icon: "🪧", title: "Étiquettes", text: "Le bouton « Cadre » donne au texte un fond, une bordure, des coins arrondis, ou une image de fond." },
   { id: "system-fonts", theme: "Texte", icon: "💻", title: "Polices de l'ordinateur", text: "Le choix de police propose aussi les polices installées sur l'ordinateur, avec une recherche." },

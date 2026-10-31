@@ -236,6 +236,16 @@ impl FontSet {
     }
 }
 
+/// Largeur d'un texte sur une ligne, en mm, dans une police fournie (avances des glyphes, sans crénage).
+/// `None` : police inconnue ou illisible.
+pub fn builtin_text_width_mm(family: &str, bold: bool, italic: bool, size_pt: f64, text: &str) -> Option<f64> {
+    let face = builtin_faces().iter().filter(|f| f.family == family).find(|f| f.bold == bold && f.italic == italic).or_else(|| builtin_faces().iter().find(|f| f.family == family))?;
+    let FontData::Loaded(bytes) = &face.data else { return None };
+    let font = ttf_parser::Face::parse(bytes, 0).ok()?;
+    let units: f64 = text.chars().map(|c| font.glyph_index(c).and_then(|g| font.glyph_hor_advance(g)).unwrap_or(font.units_per_em() / 2) as f64).sum();
+    Some(units / font.units_per_em() as f64 * size_pt * 25.4 / 72.0)
+}
+
 /// Polices installées sur le poste (dossiers de polices de Windows, de l'utilisateur, ou du système sous Linux).
 pub fn scan_system_fonts() -> Vec<FontFace> {
     let mut db = fontdb::Database::new();
@@ -363,6 +373,16 @@ pub fn remove_user_family(dir: &Path, family: &str) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn builtin_text_is_measured() {
+        let one = builtin_text_width_mm("Andika", false, false, 12.0, "Sortie").unwrap();
+        let two = builtin_text_width_mm("Andika", false, false, 24.0, "Sortie").unwrap();
+        assert!(one > 5.0 && one < 25.0, "{one}");
+        assert!((two - 2.0 * one).abs() < 1e-9);
+        assert!(builtin_text_width_mm("Andika", true, false, 12.0, "Sortie").unwrap() >= one);
+        assert!(builtin_text_width_mm("Inconnue", false, false, 12.0, "x").is_none());
+    }
 
     #[test]
     fn every_face_parses_and_has_its_family_name() {

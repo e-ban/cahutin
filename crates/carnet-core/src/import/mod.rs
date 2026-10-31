@@ -24,6 +24,8 @@ pub struct ImportReport {
     pub skipped: usize,
     /// Tracés (courbes, polygones) repris dans une image fixe, au fond de leur page.
     pub drawn: usize,
+    /// Lignes en plus petit : leur police manque sur ce poste, la police de remplacement est plus large.
+    pub shrunk: usize,
 }
 
 impl ImportReport {

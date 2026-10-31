@@ -7,4 +7,8 @@ export type ImportReport = { pages: number, texts: number, images: number, shape
 /**
  * Tracés (courbes, polygones) repris dans une image fixe, au fond de leur page.
  */
-drawn: number, };
+drawn: number, 
+/**
+ * Lignes en plus petit : leur police manque sur ce poste, la police de remplacement est plus large.
+ */
+shrunk: number, };

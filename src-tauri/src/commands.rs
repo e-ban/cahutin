@@ -166,7 +166,7 @@ fn log_kind(path: &Path) -> &'static str {
 /// Ligne du journal d'un import : type de fichier et compteurs, jamais le nom ni le texte.
 fn import_log_line(kind: &str, result: Result<&ImportReport, ImportError>, ms: u128) -> String {
     match result {
-        Ok(r) => format!("import_file kind={kind} pages={} texts={} images={} shapes={} skipped={} ms={ms}", r.pages, r.texts, r.images, r.shapes, r.skipped),
+        Ok(r) => format!("import_file kind={kind} pages={} texts={} images={} shapes={} skipped={} drawn={} shrunk={} ms={ms}", r.pages, r.texts, r.images, r.shapes, r.skipped, r.drawn, r.shrunk),
         Err(e) => format!("import_file_failed kind={kind} error={e:?} ms={ms}"),
     }
 }

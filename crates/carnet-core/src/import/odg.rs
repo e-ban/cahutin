@@ -49,6 +49,8 @@ fn read_entry<R: Read + Seek>(zip: &mut ZipArchive<R>, name: &str) -> Option<Vec
 #[derive(Clone, Default)]
 struct SpanStyle {
     font: Option<String>,
+    /// La police d'origine manque, ni elle ni un équivalent de même largeur : remplacée par la police de repli.
+    substituted: bool,
     size_pt: Option<f64>,
     color: Option<String>,
     bold: bool,
@@ -74,9 +76,15 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String]) -> Styles {
             faces.insert(name.to_string(), family.trim_matches(|c| c == '\'' || c == '"').to_string());
         }
     }
-    let resolve = |name: &str| -> String {
+    // La police elle-même, sinon une police de même largeur (les textes gardent leur longueur), sinon la police de repli.
+    let resolve = |name: &str| -> (String, bool) {
         let family = faces.get(name).map(String::as_str).unwrap_or(name);
-        known_fonts.iter().find(|k| k.eq_ignore_ascii_case(family)).cloned().unwrap_or_else(|| FALLBACK_FONT.to_string())
+        let known = |f: &str| known_fonts.iter().find(|k| k.eq_ignore_ascii_case(f)).cloned();
+        let equivalent = || same_width_fonts(family).iter().find_map(|f| known(f));
+        match known(family).or_else(equivalent) {
+            Some(f) => (f, false),
+            None => (FALLBACK_FONT.to_string(), !family.eq_ignore_ascii_case(FALLBACK_FONT)),
+        }
     };
     let mut styles = Styles { text: HashMap::new(), graphic: HashMap::new() };
     for s in doc.descendants().filter(|n| n.has_tag_name((STYLE, "style"))) {
@@ -85,7 +93,8 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String]) -> Styles {
             styles.text.insert(
                 name.to_string(),
                 SpanStyle {
-                    font: t.attribute((STYLE, "font-name")).map(resolve),
+                    font: t.attribute((STYLE, "font-name")).map(|n| resolve(n).0),
+                    substituted: t.attribute((STYLE, "font-name")).is_some_and(|n| resolve(n).1),
                     size_pt: t.attribute((FO, "font-size")).and_then(|v| v.strip_suffix("pt")).and_then(|v| v.parse().ok()),
                     color: t.attribute((FO, "color")).map(String::from),
                     bold: t.attribute((FO, "font-weight")) == Some("bold"),
@@ -105,6 +114,20 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String]) -> Styles {
         }
     }
     styles
+}
+
+/// Polices de même largeur qu'une police courante absente du poste (familles métriquement compatibles).
+fn same_width_fonts(family: &str) -> &'static [&'static str] {
+    let f = family.to_lowercase();
+    let f = f.split(['-', ',']).next().unwrap_or("").trim();
+    match f {
+        "helvetica" | "helvetica neue" | "arial" | "arialmt" | "arimo" | "nimbus sans" | "liberation sans" => &["Arial", "Liberation Sans", "Arimo", "Nimbus Sans", "Nimbus Sans L"],
+        "times" | "times new roman" | "timesnewroman" | "timesnewromanps" | "tinos" | "liberation serif" => &["Times New Roman", "Liberation Serif", "Tinos", "Nimbus Roman"],
+        "courier" | "courier new" | "couriernew" | "cousine" | "liberation mono" => &["Courier New", "Liberation Mono", "Cousine", "Nimbus Mono PS"],
+        "calibri" | "carlito" => &["Calibri", "Carlito"],
+        "cambria" | "caladea" => &["Cambria", "Caladea"],
+        _ => &[],
+    }
 }
 
 /// Tailles des pages maîtresses de `styles.xml` (page maîtresse → mise en page), au dixième de mm,
@@ -151,6 +174,8 @@ struct PageReader<'a, R: Read + Seek> {
     assets: Vec<Asset>,
     skipped: usize,
     drawings: Vec<Drawing>,
+    /// Lignes rétrécies parce que leur police manquait.
+    shrunk: usize,
 }
 
 /// Cadre d'un objet : `svg:x`, `svg:y`, ou un `draw:transform` fait d'une rotation puis d'une translation
@@ -268,10 +293,12 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 .cloned()
                 .unwrap_or_default();
             let mut runs: Vec<Run> = Vec::new();
+            let mut substituted: Vec<bool> = Vec::new();
             let mut push = |text: String, st: &SpanStyle| {
                 if text.is_empty() {
                     return;
                 }
+                substituted.push(st.substituted);
                 runs.push(Run {
                     text,
                     bold: st.bold,
@@ -302,6 +329,18 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 continue;
             }
             let h = frame.h_mm / n;
+            // Police remplacée par la police de repli, plus large : le texte rétrécit jusqu'à tenir dans la
+            // largeur qu'il avait dans l'original (la moitié de sa taille au plus).
+            if substituted.iter().any(|s| *s) {
+                let width: f64 = runs.iter().filter_map(|r| crate::fonts::builtin_text_width_mm(r.font.as_deref().unwrap_or(FALLBACK_FONT), r.bold, r.italic, r.size_pt.unwrap_or(12.0), &r.text)).sum();
+                let factor = (frame.w_mm / width).clamp(0.5, 1.0);
+                if width > 0.0 && factor < 0.99 {
+                    for r in &mut runs {
+                        r.size_pt = r.size_pt.map(|s| (s * factor * 10.0).floor() / 10.0);
+                    }
+                    self.shrunk += 1;
+                }
+            }
             let line = Line {
                 x_mm: frame.x_mm,
                 y_mm: frame.y_mm + i as f64 * h,
@@ -399,7 +438,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
         }
     }
 
-    fn finish(self) -> (Vec<Element>, Vec<Asset>, usize, Vec<Drawing>) {
+    fn finish(self) -> (Vec<Element>, Vec<Asset>, usize, Vec<Drawing>, usize) {
         let obstacles: Vec<Frame> = self.items.iter().filter_map(|it| if let Item::Element(e) = it { Some(e.frame) } else { None }).collect();
         let blocks = merge_lines(&obstacles, self.lines);
         let mut by_last: HashMap<usize, Element> = blocks.iter().map(|b| (b.last, block_element(b))).collect();
@@ -411,7 +450,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 Item::Line(i) => by_last.remove(&i),
             })
             .collect();
-        (elements, self.assets, self.skipped, self.drawings)
+        (elements, self.assets, self.skipped, self.drawings, self.shrunk)
     }
 }
 
@@ -426,13 +465,14 @@ pub fn read_odg(input: impl Read + Seek, known_fonts: &[String]) -> Result<Impor
     let mut pages = Vec::new();
     let mut assets = Vec::new();
     let mut skipped = 0;
-    let (mut drawn, mut drawn_pages) = (0, 0);
+    let (mut drawn, mut drawn_pages, mut shrunk) = (0, 0, 0);
     for page_node in doc.descendants().filter(|n| n.has_tag_name((DRAW, "page"))) {
-        let mut reader = PageReader { styles: &styles, zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, drawings: Vec::new() };
+        let mut reader = PageReader { styles: &styles, zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, drawings: Vec::new(), shrunk: 0 };
         for c in page_node.children() {
             reader.node(c);
         }
-        let (elements, page_assets, page_skipped, drawings) = reader.finish();
+        let (elements, page_assets, page_skipped, drawings, page_shrunk) = reader.finish();
+        shrunk += page_shrunk;
         let size = page_node.attribute((DRAW, "master-page-name")).and_then(|m| sizes.by_master.get(m)).copied().unwrap_or(sizes.default);
         let mut page = Page { elements, ..Page::new(size) };
         super::tidy::full_page_rect_to_background(&mut page);
@@ -454,7 +494,7 @@ pub fn read_odg(input: impl Read + Seek, known_fonts: &[String]) -> Result<Impor
         skipped += page_skipped;
     }
     let counted = ImportReport::count(&pages);
-    let report = ImportReport { skipped, drawn, images: counted.images - drawn_pages, ..counted };
+    let report = ImportReport { skipped, drawn, shrunk, images: counted.images - drawn_pages, ..counted };
     Ok(Imported { pages, assets, fonts: Vec::new(), report })
 }
 
@@ -482,6 +522,7 @@ mod tests {
 <style:font-face style:name="Liberation Serif" svg:font-family="&apos;Liberation Serif&apos;"/>
 <style:font-face style:name="Liberation Sans" svg:font-family="&apos;Liberation Sans&apos;" style:font-family-generic="roman"/>
 <style:font-face style:name="Comic Inconnue" svg:font-family="&apos;Comic Inconnue&apos;"/>
+<style:font-face style:name="Helvetica" svg:font-family="Helvetica"/>
 </office:font-face-decls>
 <office:automatic-styles>
 <style:style style:name="gr1" style:family="graphic"><style:graphic-properties draw:stroke="solid" svg:stroke-width="0cm" svg:stroke-color="#3465a4" draw:fill="solid" draw:fill-color="#729fcf"/></style:style>
@@ -491,6 +532,7 @@ mod tests {
 <style:style style:name="T2" style:family="text"><style:text-properties fo:color="#c0392b" style:font-name="Liberation Sans" fo:font-size="24pt" fo:font-weight="bold"/></style:style>
 <style:style style:name="T3" style:family="text"><style:text-properties fo:color="#000000" style:font-name="Liberation Serif" fo:font-size="12pt" fo:font-weight="bold"/></style:style>
 <style:style style:name="T4" style:family="text"><style:text-properties fo:color="#000000" style:font-name="Comic Inconnue" fo:font-size="12pt" fo:font-style="italic" style:text-underline-style="solid"/></style:style>
+<style:style style:name="T5" style:family="text"><style:text-properties fo:color="#000000" style:font-name="Helvetica" fo:font-size="12pt"/></style:style>
 </office:automatic-styles>
 <office:body><office:drawing>{pages}</office:drawing></office:body></office:document-content>"##
         );
@@ -684,6 +726,28 @@ mod tests {
         assert_eq!(sizes, [(210.0, 148.0), (215.9, 279.4)]);
     }
 
+    /// Police absente sans équivalent : la police de repli, plus large, rétrécit jusqu'à la largeur d'origine.
+    #[test]
+    fn a_missing_font_shrinks_to_the_width_it_had() {
+        let imported = read(&text_frame("2cm", "2cm", "3cm", r#"<text:span text:style-name="T4">Sortie à la ferme pédagogique</text:span>"#));
+        let t = texts(&imported.pages[0])[0];
+        assert_eq!(t.style.font, FALLBACK_FONT);
+        let size = t.content.paragraphs[0].runs[0].size_pt.unwrap_or(t.style.size_pt);
+        assert!((6.0..12.0).contains(&size), "{size}");
+        assert_eq!(imported.report.shrunk, 1);
+        // Une ligne qui tient déjà garde sa taille.
+        let short = read(&text_frame("2cm", "2cm", "8cm", r#"<text:span text:style-name="T4">Oui</text:span>"#));
+        assert_eq!((texts(&short.pages[0])[0].style.size_pt, short.report.shrunk), (12.0, 0));
+    }
+
+    /// Helvetica absente : Liberation Sans, de même largeur, la remplace sans rien rétrécir.
+    #[test]
+    fn a_missing_font_takes_one_of_the_same_width() {
+        let imported = read(&text_frame("2cm", "2cm", "3cm", r#"<text:span text:style-name="T5">Notre semaine à l'école</text:span>"#));
+        let t = texts(&imported.pages[0])[0];
+        assert_eq!((t.style.font.as_str(), t.style.size_pt, imported.report.shrunk), ("Liberation Sans", 12.0, 0));
+    }
+
     #[test]
     fn report_counts_everything() {
         let body = text_frame("2cm", "2cm", "5cm", r#"<text:span text:style-name="T1">Un</text:span>"#)
@@ -691,6 +755,6 @@ mod tests {
             + r#"<draw:path draw:style-name="gr1" svg:width="2cm" svg:height="2cm" svg:x="5cm" svg:y="2cm" svg:viewBox="0 0 2000 2000" svg:d="M 0 0 L 2000 2000"/>"#
             + r#"<draw:frame svg:width="2cm" svg:height="2cm" svg:x="9cm" svg:y="9cm"><draw:image xlink:href="Pictures/img.png"/></draw:frame>"#;
         let imported = read_odg(Cursor::new(odg_fixture(&body, A4_LAYOUT, &[("img.png", png())])), &known()).unwrap();
-        assert_eq!(imported.report, ImportReport { pages: 1, texts: 1, images: 1, shapes: 1, skipped: 0, drawn: 1 });
+        assert_eq!(imported.report, ImportReport { pages: 1, texts: 1, images: 1, shapes: 1, skipped: 0, drawn: 1, shrunk: 0 });
     }
 }

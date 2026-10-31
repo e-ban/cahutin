@@ -94,7 +94,7 @@ mod tests {
     fn report_counts_elements() {
         let r = pages_from(loaded()).report;
         // Grille de deux cases (zones photo), un texte, un rectangle, une image OpenMoji, une photo.
-        assert_eq!(r, crate::import::ImportReport { pages: 2, texts: 1, images: 4, shapes: 1, skipped: 0 });
+        assert_eq!(r, crate::import::ImportReport { pages: 2, texts: 1, images: 4, shapes: 1, skipped: 0, drawn: 0 });
     }
 
     #[test]

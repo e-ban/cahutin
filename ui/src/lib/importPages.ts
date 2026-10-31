@@ -44,6 +44,7 @@ export function importReportText(name: string, r: ImportReport): string {
     r.shapes && count(r.shapes, "forme", "formes"),
   ].filter(Boolean);
   let text = `${name} : ${count(r.pages, "page importée", "pages importées")}${details.length ? ` (${details.join(", ")})` : ""}.`;
+  if (r.drawn) text += r.drawn > 1 ? ` ${r.drawn} tracés repris en image fixe, au fond de la page.` : " 1 tracé repris en image fixe, au fond de la page.";
   if (r.skipped) text += r.skipped > 1 ? ` ${r.skipped} dessins n'ont pas pu être repris.` : " 1 dessin n'a pas pu être repris.";
   return text;
 }

@@ -5,6 +5,7 @@ pub mod odg;
 pub mod office;
 pub mod paragraphs;
 pub mod tidy;
+mod vector;
 
 use crate::model::{ElementKind, Page};
 use crate::native::NativeError;
@@ -21,6 +22,8 @@ pub struct ImportReport {
     pub images: usize,
     pub shapes: usize,
     pub skipped: usize,
+    /// Tracés (courbes, polygones) repris dans une image fixe, au fond de leur page.
+    pub drawn: usize,
 }
 
 impl ImportReport {

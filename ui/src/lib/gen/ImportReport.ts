@@ -3,4 +3,8 @@
 /**
  * Compte rendu d'un import : ce qui a été repris, et les dessins qui ne l'ont pas été.
  */
-export type ImportReport = { pages: number, texts: number, images: number, shapes: number, skipped: number, };
+export type ImportReport = { pages: number, texts: number, images: number, shapes: number, skipped: number, 
+/**
+ * Tracés (courbes, polygones) repris dans une image fixe, au fond de leur page.
+ */
+drawn: number, };

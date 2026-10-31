@@ -2,6 +2,7 @@
 //! images et formes simples deviennent des éléments Carnet ; le reste est compté comme non repris.
 
 use super::paragraphs::{Line, block_element, merge_lines};
+use super::vector::{self, Drawing};
 use super::{ImportError, ImportReport, Imported};
 use crate::model::*;
 use crate::photo::{Asset, import_bytes};
@@ -98,7 +99,7 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String]) -> Styles {
             let stroke = matches!(g.attribute((DRAW, "stroke")), Some("solid") | Some("dash")).then(|| Stroke {
                 width_mm: attr_mm(g, SVG, "stroke-width").filter(|w| *w > 0.0).unwrap_or(HAIRLINE_MM),
                 color: g.attribute((SVG, "stroke-color")).unwrap_or("#000000").to_string(),
-                style: None,
+                style: (g.attribute((DRAW, "stroke")) == Some("dash")).then_some(StrokeStyle::Dashed),
             });
             styles.graphic.insert(name.to_string(), GraphicStyle { fill, stroke });
         }
@@ -149,6 +150,7 @@ struct PageReader<'a, R: Read + Seek> {
     lines: Vec<Line>,
     assets: Vec<Asset>,
     skipped: usize,
+    drawings: Vec<Drawing>,
 }
 
 /// Cadre d'un objet : `svg:x`, `svg:y`, ou un `draw:transform` fait d'une rotation puis d'une translation
@@ -365,6 +367,20 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 Some(f) => self.shape(n, f, if tag.name() == "rect" { ShapeKind::Rect } else { ShapeKind::Ellipse }),
                 None => self.skipped += 1,
             },
+            // Courbes et polygones quelconques : redessinés ensemble dans une image fixe (voir `vector`).
+            "path" | "polygon" | "polyline" => {
+                let g = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s)).cloned().unwrap_or_default();
+                let view_box = n.attribute((SVG, "viewBox"));
+                let drawing = frame_of(n).and_then(|f| match (tag.name(), n.attribute((SVG, "d")), n.attribute((DRAW, "points"))) {
+                    ("path", Some(d), _) => Drawing::from_svg_path(d, &f, view_box, g.fill.as_deref(), g.stroke.as_ref()),
+                    (kind, _, Some(points)) if kind != "path" => Drawing::from_points(points, kind == "polygon", &f, view_box, g.fill.as_deref(), g.stroke.as_ref()),
+                    _ => None,
+                });
+                match drawing {
+                    Some(d) => self.drawings.push(d),
+                    None => self.skipped += 1,
+                }
+            }
             "custom-shape" => match (frame_of(n), custom_shape_kind(n)) {
                 (Some(f), Some(kind)) => self.shape(n, f, kind),
                 _ => self.skipped += 1,
@@ -383,7 +399,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
         }
     }
 
-    fn finish(self) -> (Vec<Element>, Vec<Asset>, usize) {
+    fn finish(self) -> (Vec<Element>, Vec<Asset>, usize, Vec<Drawing>) {
         let obstacles: Vec<Frame> = self.items.iter().filter_map(|it| if let Item::Element(e) = it { Some(e.frame) } else { None }).collect();
         let blocks = merge_lines(&obstacles, self.lines);
         let mut by_last: HashMap<usize, Element> = blocks.iter().map(|b| (b.last, block_element(b))).collect();
@@ -395,7 +411,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 Item::Line(i) => by_last.remove(&i),
             })
             .collect();
-        (elements, self.assets, self.skipped)
+        (elements, self.assets, self.skipped, self.drawings)
     }
 }
 
@@ -410,21 +426,35 @@ pub fn read_odg(input: impl Read + Seek, known_fonts: &[String]) -> Result<Impor
     let mut pages = Vec::new();
     let mut assets = Vec::new();
     let mut skipped = 0;
+    let (mut drawn, mut drawn_pages) = (0, 0);
     for page_node in doc.descendants().filter(|n| n.has_tag_name((DRAW, "page"))) {
-        let mut reader = PageReader { styles: &styles, zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0 };
+        let mut reader = PageReader { styles: &styles, zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, drawings: Vec::new() };
         for c in page_node.children() {
             reader.node(c);
         }
-        let (elements, page_assets, page_skipped) = reader.finish();
+        let (elements, page_assets, page_skipped, drawings) = reader.finish();
         let size = page_node.attribute((DRAW, "master-page-name")).and_then(|m| sizes.by_master.get(m)).copied().unwrap_or(sizes.default);
         let mut page = Page { elements, ..Page::new(size) };
         super::tidy::full_page_rect_to_background(&mut page);
         super::tidy::group_fragments(&mut page);
+        // Les tracés au fond de la page, sous les textes et les photos, fixés : un clic sur la page ne les déplace pas.
+        match (drawings.is_empty(), vector::render(&drawings)) {
+            (true, _) => {}
+            (false, Some((frame, asset))) => {
+                let photo = PhotoProps { asset: Some(asset.meta.id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false };
+                page.elements.insert(0, Element { locked: true, ..element(frame, ElementKind::Photo(photo)) });
+                assets.push(asset);
+                drawn += drawings.len();
+                drawn_pages += 1;
+            }
+            (false, None) => skipped += drawings.len(),
+        }
         pages.push(page);
         assets.extend(page_assets);
         skipped += page_skipped;
     }
-    let report = ImportReport { skipped, ..ImportReport::count(&pages) };
+    let counted = ImportReport::count(&pages);
+    let report = ImportReport { skipped, drawn, images: counted.images - drawn_pages, ..counted };
     Ok(Imported { pages, assets, fonts: Vec::new(), report })
 }
 
@@ -589,19 +619,24 @@ mod tests {
     }
 
     #[test]
-    fn other_drawings_are_counted_as_skipped_and_rotated_ones_are_read() {
+    fn curves_become_a_fixed_picture_and_rotated_shapes_are_read() {
         let body = r#"<draw:polygon draw:style-name="gr1" svg:width="2cm" svg:height="2cm" svg:x="2cm" svg:y="2cm" svg:viewBox="0 0 2000 2000" draw:points="0,2000 1000,0 2000,2000"/>
 <draw:path draw:style-name="gr1" svg:width="2cm" svg:height="2cm" svg:x="5cm" svg:y="2cm" svg:viewBox="0 0 2000 2000" svg:d="M 0 0 C 500 2000 1500 2000 2000 0"/>
 <draw:rect draw:style-name="gr1" svg:width="2cm" svg:height="1cm" draw:transform="rotate (0.5) translate (8cm 2cm)"/>
 <draw:g><draw:ellipse draw:style-name="gr1" svg:width="2cm" svg:height="1cm" svg:x="2cm" svg:y="8cm"/><draw:line draw:style-name="gr1" svg:x1="2cm" svg:y1="12cm" svg:x2="6cm" svg:y2="12cm"/></draw:g>"#;
         let imported = read(body);
-        assert_eq!(imported.report.skipped, 2);
+        // Le triangle et la courbe : redessinés ensemble dans une image fixe, au fond de la page.
+        assert_eq!((imported.report.skipped, imported.report.drawn, imported.report.images), (0, 2, 0));
+        let back = &imported.pages[0].elements[0];
+        assert!(back.locked && matches!(back.kind, ElementKind::Photo(_)), "{back:?}");
+        assert!((back.frame.x_mm - 20.0).abs() < 1.0 && (back.frame.w_mm - 50.0).abs() < 2.0, "{:?}", back.frame);
+        assert_eq!(imported.assets.len(), 1);
         let kinds: Vec<ShapeKind> = imported.pages[0].elements.iter().filter_map(|e| if let ElementKind::Shape(s) = &e.kind { Some(s.shape) } else { None }).collect();
         assert_eq!(kinds, [ShapeKind::Rect, ShapeKind::Ellipse, ShapeKind::Line]);
         // Tourné de 0,5 radian dans le sens ODF (inverse des aiguilles) : 331,4° dans Cahutin.
-        let rect = &imported.pages[0].elements[0].frame;
+        let rect = &imported.pages[0].elements[1].frame;
         assert!((rect.rotation_deg - (360.0 - 0.5f64.to_degrees())).abs() < 0.01 && (rect.w_mm - 20.0).abs() < 0.01, "{rect:?}");
-        let line = &imported.pages[0].elements[2].frame;
+        let line = &imported.pages[0].elements[3].frame;
         assert!((line.x_mm - 20.0).abs() < 0.01 && (line.w_mm - 40.0).abs() < 0.01 && (line.y_mm + line.h_mm / 2.0 - 120.0).abs() < 0.01, "{line:?}");
     }
 
@@ -656,6 +691,6 @@ mod tests {
             + r#"<draw:path draw:style-name="gr1" svg:width="2cm" svg:height="2cm" svg:x="5cm" svg:y="2cm" svg:viewBox="0 0 2000 2000" svg:d="M 0 0 L 2000 2000"/>"#
             + r#"<draw:frame svg:width="2cm" svg:height="2cm" svg:x="9cm" svg:y="9cm"><draw:image xlink:href="Pictures/img.png"/></draw:frame>"#;
         let imported = read_odg(Cursor::new(odg_fixture(&body, A4_LAYOUT, &[("img.png", png())])), &known()).unwrap();
-        assert_eq!(imported.report, ImportReport { pages: 1, texts: 1, images: 1, shapes: 1, skipped: 1 });
+        assert_eq!(imported.report, ImportReport { pages: 1, texts: 1, images: 1, shapes: 1, skipped: 0, drawn: 1 });
     }
 }

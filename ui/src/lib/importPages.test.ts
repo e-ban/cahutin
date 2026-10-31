@@ -3,7 +3,7 @@ import { newDocument, newPage } from "./factory";
 import { importReportText, insertImported, newDocumentFrom, placeImported, replacePage } from "./importPages";
 import type { AssetMeta, ImportedPages, ImportReport } from "./types";
 
-const report = (r: Partial<ImportReport> = {}): ImportReport => ({ pages: 1, texts: 0, images: 0, shapes: 0, skipped: 0, ...r });
+const report = (r: Partial<ImportReport> = {}): ImportReport => ({ pages: 1, texts: 0, images: 0, shapes: 0, skipped: 0, drawn: 0, ...r });
 const meta = (id: string): AssetMeta => ({ id, width_px: 10, height_px: 10, mime: "Png" });
 const part = (n: number, assets: AssetMeta[] = []): ImportedPages => ({ pages: Array.from({ length: n }, newPage), assets, offered_fonts: [], report: report({ pages: n }) });
 
@@ -53,6 +53,7 @@ test("report text with skipped drawings", () => {
 test("report text singular and zero counts", () => {
   expect(importReportText("a.pdf", report({ texts: 1, shapes: 1, skipped: 1 }))).toBe("a.pdf : 1 page importée (1 texte, 1 forme). 1 dessin n'a pas pu être repris.");
   expect(importReportText("vide.pdf", report())).toBe("vide.pdf : 1 page importée.");
+  expect(importReportText("graphisme.pdf", report({ texts: 2, drawn: 31 }))).toBe("graphisme.pdf : 1 page importée (2 textes). 31 tracés repris en image fixe, au fond de la page.");
 });
 
 test("a welcome import replaces the untouched document", () => {

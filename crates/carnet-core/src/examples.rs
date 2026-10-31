@@ -433,7 +433,7 @@ fn emotions() -> Page {
         ("1F632", "surpris"), ("1F971", "fatigué"), ("1F970", "amoureux"), ("1F914", "pensif"),
         ("1F60C", "calme"), ("1F62D", "chagrin"), ("1F97A", "timide"), ("1F642", "content"),
     ];
-    let (w, h, gap) = (58.0, 62.0, 5.0);
+    let (w, h, gap) = (58.0, 57.0, 5.0);
     let x0 = (210.0 - (3.0 * w + 2.0 * gap)) / 2.0;
     let mut els = vec![title("Le loto des émotions", 10.0, 26.0, "#6a3d9a")];
     for (i, (code, word)) in cards.iter().enumerate() {
@@ -442,7 +442,7 @@ fn emotions() -> Page {
         if let ElementKind::Shape(s) = &mut card.kind {
             s.stroke = Some(Stroke { width_mm: 0.5, color: "#9b7be0".into(), style: Some(StrokeStyle::Dashed) });
         }
-        els.extend(grouped(vec![card, picto(code, x + 12.0, y + 6.0, 34.0), text(frame(x + 3.0, y + 43.0, w - 6.0, 14.0), word, "Andika", 18.0, INK, Align::Center)]));
+        els.extend(grouped(vec![card, picto(code, x + 14.0, y + 5.0, 30.0), text(frame(x + 3.0, y + 38.0, w - 6.0, 14.0), word, "Andika", 18.0, INK, Align::Center)]));
     }
     page("#f6f0fd", None, els)
 }

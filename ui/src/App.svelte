@@ -34,6 +34,9 @@
   import { modal } from "./lib/modal.svelte";
   import Welcome from "./components/layout/Welcome.svelte";
   import ClassPage from "./components/layout/ClassPage.svelte";
+  import WhatsNew from "./components/layout/WhatsNew.svelte";
+  import { shouldShowWhatsNew, WHATS_NEW } from "./lib/whatsNew";
+  import { readPref, writePref } from "./lib/prefs";
   import UpdateBanner from "./components/layout/UpdateBanner.svelte";
   import { updates } from "./lib/updates.svelte";
   import Transformer from "./components/Transformer.svelte";
@@ -63,6 +66,12 @@
   fonts.load();
   templates.refresh();
   void classes.restore();
+  // Après une mise à jour : les nouveautés, une fois, pour qui utilisait déjà Cahutin.
+  if (shouldShowWhatsNew(readPref<string | null>("whatsNewSeen", null), readPref("tourDone", false))) editor.showWhatsNew = true;
+  function closeWhatsNew() {
+    editor.showWhatsNew = false;
+    writePref("whatsNewSeen", WHATS_NEW.version);
+  }
   // Dialogue « Générer pour la classe ».
   let generateOpen = $state(false);
   // Nouvelles versions : seulement si l'utilisateur l'a accepté, au plus une fois par jour.
@@ -274,6 +283,7 @@
   {/if}
 </div>
 {#if editor.showTips}<TipsPanel />{/if}
+{#if editor.showWhatsNew}<WhatsNew onclose={closeWhatsNew} />{/if}
 <Tour />
 {#if editor.printing}<PrintRoot />{/if}
 

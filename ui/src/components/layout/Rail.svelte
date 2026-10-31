@@ -23,7 +23,7 @@
 
 <nav class="rail" aria-label="Outils">
   {#each items as item (item.id)}
-    <button class="item" class:on={editor.drawer === item.id} aria-pressed={editor.drawer === item.id} onclick={() => editor.toggleDrawer(item.id)}>
+    <button class="item" data-tour={item.id} class:on={editor.drawer === item.id} aria-pressed={editor.drawer === item.id} onclick={() => editor.toggleDrawer(item.id)}>
       <b>{item.icon}</b>{item.label}
     </button>
   {/each}

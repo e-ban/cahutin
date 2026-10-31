@@ -10,6 +10,7 @@
   import { fr } from "../../lib/i18n/fr";
   import { modal } from "../../lib/modal.svelte";
   import { pictoUrl, pictos, searchPictos } from "../../lib/pictos.svelte";
+  import { readPref, writePref } from "../../lib/prefs";
   import type { Level, Student } from "../../lib/types";
 
   const LEVELS: Level[] = ["PS", "MS", "GS"];
@@ -22,6 +23,12 @@
   // Création d'une autre classe alors qu'une classe est ouverte.
   let creating = $state(false);
   let pageEl = $state<HTMLElement>();
+  // Explication de la page, à la première ouverture (et rouvrable par « Comment ça marche ? »).
+  let intro = $state(!readPref("classIntroSeen", false));
+  function closeIntro() {
+    intro = false;
+    writePref("classIntroSeen", true);
+  }
 
   $effect(() => void classes.refresh());
   $effect(() => void pictos.load());
@@ -131,6 +138,21 @@
       </select>
     {/if}
   </div>
+
+  {#if intro}
+    <section class="intro" aria-labelledby="class-intro-title">
+      <h2 id="class-intro-title">{fr.classIntroTitle}</h2>
+      <ol>
+        <li><b>{fr.classIntro1Title}</b> {fr.classIntro1}</li>
+        <li><b>{fr.classIntro2Title}</b> {fr.classIntro2}</li>
+        <li><b>{fr.classIntro3Title}</b> {fr.classIntro3}</li>
+      </ol>
+      <p class="hint">{fr.classPrivacy}</p>
+      <button class="primary" onclick={closeIntro}>{fr.classIntroOk}</button>
+    </section>
+  {:else}
+    <button class="link how" onclick={() => (intro = true)}>{fr.classIntroAgain}</button>
+  {/if}
 
   {#if showCreate}
     <section class="create">
@@ -302,6 +324,28 @@
     box-sizing: border-box;
     font: inherit;
     resize: vertical;
+  }
+  .intro {
+    background: #eaf2fb;
+    border: 1px solid #c9dcf2;
+    border-radius: 10px;
+    padding: 14px 20px;
+    margin-bottom: 18px;
+    color: #1f3a5f;
+    max-width: 760px;
+  }
+  .intro h2 {
+    margin: 0 0 8px;
+  }
+  .intro ol {
+    margin: 0 0 10px;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .how {
+    margin-bottom: 8px;
   }
   .create {
     max-width: 560px;

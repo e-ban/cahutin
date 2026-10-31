@@ -1,6 +1,7 @@
-// Visite guidée : 7 étapes, une zone de l'écran mise en lumière et une bulle d'explication. Montrée au
+// Visite guidée : 8 étapes, une zone de l'écran mise en lumière et une bulle d'explication. Montrée au
 // premier lancement, à la fermeture de l'écran d'accueil ; relançable depuis le menu Aide.
 import { readPref, writePref } from "./prefs";
+import { WHATS_NEW } from "./whatsNew";
 
 export interface TourStep {
   /** Zone mise en lumière (sélecteur CSS) ; aucune : bulle seule, au centre. */
@@ -20,6 +21,11 @@ export const TOUR_STEPS: TourStep[] = [
   },
   { target: ".right, button.tab", title: "Les réglages", text: "Ce panneau, à ouvrir ou fermer, règle la position, la taille, les marges et l'alignement au millimètre près." },
   { target: ".pagebar", title: "Les pages", text: "Ajoutez, dupliquez ou supprimez une page, changez son fond ou passez-la en paysage." },
+  {
+    target: '.rail [data-tour="class"]',
+    title: "Votre classe",
+    text: "Collez une fois la liste des prénoms de votre classe : Cahutin remplit ensuite les étiquettes et les pages qui attendent des prénoms. Photos et autorisations des familles se règlent sur la page « Ma classe ».",
+  },
   {
     target: ".top",
     title: "Enregistrer et imprimer",
@@ -87,11 +93,12 @@ class Tour {
     if (this.step !== null && this.step > 0) this.step--;
   }
 
-  /** Fin ou « Passer » : la visite ne revient plus d'elle-même. */
+  /** Fin ou « Passer » : la visite ne revient plus d'elle-même ; elle vaut les nouveautés de cette version. */
   end() {
     this.step = null;
     this.done = true;
     writePref("tourDone", true);
+    writePref("whatsNewSeen", WHATS_NEW.version);
   }
 }
 

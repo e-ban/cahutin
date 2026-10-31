@@ -12,6 +12,7 @@
   const items = $derived<MenuItem[]>([
     { label: fr.tourMenu, action: () => tour.start() },
     { label: fr.tips, action: () => (editor.showTips = true) },
+    { label: fr.whatsNewMenu, action: () => (editor.showWhatsNew = true) },
     { label: `${hints.enabled ? "✓" : "   "} ${fr.hintsWhileWorking}`, action: () => hints.toggle() },
     { label: `${updates.consent === true ? "✓" : "   "} ${fr.updatesMenu}`, action: () => updates.setConsent(updates.consent !== true), separator: true },
     { label: fr.reportProblem, action: files.problemReport, separator: true },

@@ -587,7 +587,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
         let is_marker = |l: &Line| {
             let t = text(l);
             let mut c = t.chars();
-            matches!((c.next(), c.next()), (Some('•' | '◦' | '▪' | '■' | '●' | '○' | '–' | '✓' | '➢' | '➤' | '-'), None))
+            matches!((c.next(), c.next()), (Some('•' | '◦' | '▪' | '■' | '●' | '○' | '\u{2013}' | '✓' | '➢' | '➤' | '-'), None))
                 || (t.len() > 1 && t.len() <= 3 && t.ends_with(['.', ')']) && t[..t.len() - 1].chars().all(|c| c.is_ascii_digit() || c.is_ascii_lowercase()))
         };
         let mut gone = vec![false; self.lines.len()];

@@ -345,6 +345,9 @@ export const fr = {
   emptyCell: "Vider",
   isZone: "Zone à remplir",
   // Accueil, documents récents, astuces
+  homeMenu: "Page d'accueil",
+  homeHint: "Page d'accueil (le document reste ouvert)",
+  welcomeBackToDoc: (title: string) => (title ? `← Retour à « ${title} »` : "← Retour au document"),
   welcomeTitle: "Bonjour ! Que voulez-vous faire ?",
   welcomeTemplate: "Partir d'un modèle",
   welcomeTemplateSub: "Cahier de vie, fiche, affiche… ou créer le vôtre",

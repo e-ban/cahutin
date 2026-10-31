@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Accueil depuis l'éditeur : un clic sur le logo Cahutin (ou Fichier > Page d'accueil) l'ouvre par-dessus le document, avec un bouton pour y revenir. Un modèle, une page vierge ou un nouveau modèle choisis depuis là partent d'un nouveau document, après avoir proposé d'enregistrer.
 - Six nouveaux exemples : Notre semaine (emploi du temps en tableau), Le loto des émotions, J'écris les jours, Les règles de la classe (affiche A3), Mes cinq sens, Étiquettes de porte-manteau. Les exemples « J'écris mon prénom », « Joyeux anniversaire » et « Les saisons » profitent des lignes d'écriture, des lettres creuses et du champ {âge}.
 - Les miniatures des pages en paysage ou en A3 tiennent entières dans le choix des modèles et des exemples.
 - Six modèles « Pour la classe », à remplir d'un clic avec la classe : Memory des prénoms (paires photo et prénom), Loto des prénoms, Lettres mobiles du prénom (une case par lettre, en capitales, en script et en cursive), J'écris mon prénom (modèle à repasser et lignes Seyès), Tableau des présences, Affiche des anniversaires (une seule affiche pour toute la classe, avec le nouveau champ {anniversaires mars}).

@@ -81,7 +81,29 @@ export async function newDoc() {
   editor.carriedPending = [];
   editor.templateMode = false;
   if (editor.drawer === "grid") editor.drawer = null;
+  editor.welcomeOverDoc = false;
   editor.showWelcome = true;
+}
+
+/** L'accueil, par-dessus le document ouvert : on y revient sans rien perdre. */
+export function goHome() {
+  editor.flushPending();
+  editor.selection = [];
+  editor.editingText = null;
+  editor.welcomeOverDoc = true;
+  editor.showWelcome = true;
+}
+
+/** Avant un choix de l'accueil qui crée quelque chose : un document neuf, si l'accueil était ouvert par-dessus
+ *  un document (enregistrement proposé). Faux : l'enseignant a annulé. */
+export async function freshFromHome(): Promise<boolean> {
+  if (!editor.welcomeOverDoc) return true;
+  if (!(await confirmLeave())) return false;
+  editor.reset(newDocument(), null);
+  editor.carriedPending = [];
+  editor.templateMode = false;
+  editor.welcomeOverDoc = false;
+  return true;
 }
 
 /** Ouvre une copie sans nom d'un exemple (rien n'écrase l'exemple ; on enregistre sous un nouveau nom). */

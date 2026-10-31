@@ -51,6 +51,8 @@ class Editor {
   showTips = $state(false);
   /** Écran d'accueil : au démarrage et pour un nouveau document. */
   showWelcome = $state(false);
+  /** L'accueil est ouvert par-dessus un document (logo, Fichier > Page d'accueil) : il garde ce document. */
+  welcomeOverDoc = $state(false);
   /** Page « Ma classe », par-dessus le document (et l'accueil). */
   showClassPage = $state(false);
   /** Fenêtre des nouveautés de la version. */

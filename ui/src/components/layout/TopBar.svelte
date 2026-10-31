@@ -2,6 +2,7 @@
   import FileMenu from "./FileMenu.svelte";
   import HelpMenu from "./HelpMenu.svelte";
   import OutputMenu from "./OutputMenu.svelte";
+  import { goHome } from "../../lib/fileActions";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
 
@@ -13,7 +14,7 @@
 </script>
 
 <header class="top">
-  <span class="logo"><img src="/logo/cahutin.svg" alt="" />{fr.appName}</span>
+  <button class="logo" title={fr.homeHint} onclick={goHome}><img src="/logo/cahutin.svg" alt="" />{fr.appName}</button>
   <FileMenu />
   <HelpMenu />
   <input
@@ -42,12 +43,20 @@
     border-bottom: 1px solid var(--line);
   }
   .logo {
+    border: none;
+    background: none;
+    padding: 2px 6px;
+    border-radius: 8px;
+    cursor: pointer;
     display: flex;
     align-items: center;
     gap: 6px;
     font: 700 18px var(--title-font);
     color: var(--accent-strong);
     margin-right: 4px;
+  }
+  .logo:hover {
+    background: var(--bg);
   }
   .logo img {
     width: 30px;

@@ -5,7 +5,7 @@
   import PageView from "../PageView.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { listExamples, openExample, previewDocument } from "../../lib/api";
-  import { importFiles, openDoc, openExampleDoc, openPath } from "../../lib/fileActions";
+  import { freshFromHome, importFiles, openDoc, openExampleDoc, openPath } from "../../lib/fileActions";
   import type { Document, ExampleInfo } from "../../lib/types";
   import { fr } from "../../lib/i18n/fr";
   import { modal } from "../../lib/modal.svelte";
@@ -42,12 +42,19 @@
   }
 
   async function chooseLayout(id: string) {
+    if (!(await freshFromHome())) return;
     await templates.addPage(id, true);
     close();
   }
 
+  async function blankPage() {
+    if (!(await freshFromHome())) return;
+    close();
+  }
+
   /** Un modèle à soi : une page vierge en mode modèle (grille, cases à fusionner, puis « Enregistrer comme modèle »). */
-  function createTemplate() {
+  async function createTemplate() {
+    if (!(await freshFromHome())) return;
     close();
     editor.templateMode = true;
     editor.drawer = "grid";
@@ -56,6 +63,7 @@
 
   function close() {
     editor.showWelcome = false;
+    editor.welcomeOverDoc = false;
     step = "choices";
   }
 
@@ -83,12 +91,15 @@
         {#if version}<small>{fr.aboutVersion(version)}</small>{/if}
       </div>
       <h1>{fr.welcomeTitle}</h1>
+      {#if editor.welcomeOverDoc}
+        <button class="back-doc" onclick={close}>{fr.welcomeBackToDoc(editor.doc.title)}</button>
+      {/if}
     </header>
     <div class="choices">
       <button class="choice main" onclick={() => (step = "layouts")}>
         <b>📐</b><span>{fr.welcomeTemplate}</span><small>{fr.welcomeTemplateSub}</small>
       </button>
-      <button class="choice" onclick={close}><b>📄</b><span>{fr.welcomeBlank}</span><small>{fr.welcomeBlankSub}</small></button>
+      <button class="choice" onclick={blankPage}><b>📄</b><span>{fr.welcomeBlank}</span><small>{fr.welcomeBlankSub}</small></button>
       <button class="choice" onclick={() => openDoc()}><b>📂</b><span>{fr.welcomeResume}</span><small>{fr.welcomeResumeSub}</small></button>
       <button class="choice" onclick={() => importFiles(undefined, { fresh: true })}><b>📥</b><span>{fr.welcomeImport}</span><small>{fr.welcomeImportSub}</small></button>
       <button class="choice" onclick={showExamples}><b>✨</b><span>{fr.welcomeExamples}</span><small>{fr.welcomeExamplesSub}</small></button>
@@ -183,6 +194,12 @@
   h1 {
     font: 600 26px var(--ui-font);
     margin: 0 0 24px;
+  }
+  .back-doc {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    font-weight: 600;
   }
   .band h1 {
     margin: 0;

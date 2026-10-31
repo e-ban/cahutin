@@ -20,6 +20,8 @@ const XLINK: &str = "http://www.w3.org/1999/xlink";
 
 /// Police mise à la place d'une police absente du poste.
 const FALLBACK_FONT: &str = "Andika";
+/// Au plus autant de tracés sur une page pour les reprendre en formes modifiables ; au-delà, une image fixe.
+const EDITABLE_TRACES: usize = 60;
 /// Trait « fin » d'une forme dont l'épaisseur vaut 0.
 const HAIRLINE_MM: f64 = 0.2;
 
@@ -736,7 +738,14 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
         let mut page = Page { elements, background, ..Page::new(size) };
         super::tidy::full_page_rect_to_background(&mut page);
         super::tidy::group_fragments(&mut page);
-        // Les tracés au fond de la page, sous les textes et les photos, fixés : un clic sur la page ne les déplace pas.
+        // Les tracés au fond de la page, sous les textes et les photos. Peu nombreux (une fiche de graphisme) : des
+        // formes modifiables ; nombreux (une illustration) : une image fixe, verrouillée, plus fidèle.
+        let editable = (!drawings.is_empty() && drawings.len() <= EDITABLE_TRACES).then(|| drawings.iter().map(Drawing::to_shape).collect::<Option<Vec<_>>>()).flatten();
+        if let Some(shapes) = editable {
+            for (i, (frame, props)) in shapes.into_iter().enumerate() {
+                page.elements.insert(i, element(frame, ElementKind::Shape(props)));
+            }
+        } else {
         match (drawings.is_empty(), vector::render(&drawings)) {
             (true, _) => {}
             (false, Some((frame, asset))) => {
@@ -747,6 +756,7 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
                 drawn_pages += 1;
             }
             (false, None) => skipped += drawings.len(),
+        }
         }
         pages.push(page);
         assets.extend(page_assets);
@@ -920,25 +930,39 @@ mod tests {
     }
 
     #[test]
-    fn curves_become_a_fixed_picture_and_rotated_shapes_are_read() {
+    fn a_few_curves_become_editable_paths_and_rotated_shapes_are_read() {
         let body = r#"<draw:polygon draw:style-name="gr1" svg:width="2cm" svg:height="2cm" svg:x="2cm" svg:y="2cm" svg:viewBox="0 0 2000 2000" draw:points="0,2000 1000,0 2000,2000"/>
 <draw:path draw:style-name="gr1" svg:width="2cm" svg:height="2cm" svg:x="5cm" svg:y="2cm" svg:viewBox="0 0 2000 2000" svg:d="M 0 0 C 500 2000 1500 2000 2000 0"/>
 <draw:rect draw:style-name="gr1" svg:width="2cm" svg:height="1cm" draw:transform="rotate (0.5) translate (8cm 2cm)"/>
 <draw:g><draw:ellipse draw:style-name="gr1" svg:width="2cm" svg:height="1cm" svg:x="2cm" svg:y="8cm"/><draw:line draw:style-name="gr1" svg:x1="2cm" svg:y1="12cm" svg:x2="6cm" svg:y2="12cm"/></draw:g>"#;
         let imported = read(body);
-        // Le triangle et la courbe : redessinés ensemble dans une image fixe, au fond de la page.
-        assert_eq!((imported.report.skipped, imported.report.drawn, imported.report.images), (0, 2, 0));
+        // Le triangle et la courbe : deux tracés libres modifiables, au fond de la page, à leur place.
+        assert_eq!((imported.report.skipped, imported.report.drawn, imported.report.images, imported.assets.len()), (0, 0, 0, 0));
+        let kinds: Vec<ShapeKind> = imported.pages[0].elements.iter().filter_map(|e| if let ElementKind::Shape(s) = &e.kind { Some(s.shape) } else { None }).collect();
+        assert_eq!(kinds, [ShapeKind::Path, ShapeKind::Path, ShapeKind::Rect, ShapeKind::Ellipse, ShapeKind::Line]);
+        let (tri, curve) = (&imported.pages[0].elements[0], &imported.pages[0].elements[1]);
+        assert!((tri.frame.x_mm - 20.0).abs() < 0.1 && (tri.frame.w_mm - 20.0).abs() < 0.1, "{:?}", tri.frame);
+        assert!((curve.frame.x_mm - 50.0).abs() < 0.1, "{:?}", curve.frame);
+        let ElementKind::Shape(t) = &tri.kind else { unreachable!() };
+        assert_eq!(t.path.as_deref(), Some("M 0 1000 L 500 0 L 1000 1000 Z"));
+        assert!(crate::shapes::valid_path(match &curve.kind { ElementKind::Shape(c) => c.path.as_deref().unwrap(), _ => unreachable!() }));
+        // Tourné de 0,5 radian dans le sens ODF (inverse des aiguilles) : 331,4° dans Cahutin.
+        let rect = &imported.pages[0].elements[2].frame;
+        assert!((rect.rotation_deg - (360.0 - 0.5f64.to_degrees())).abs() < 0.01 && (rect.w_mm - 20.0).abs() < 0.01, "{rect:?}");
+        let line = &imported.pages[0].elements[4].frame;
+        assert!((line.x_mm - 20.0).abs() < 0.01 && (line.w_mm - 40.0).abs() < 0.01 && (line.y_mm + line.h_mm / 2.0 - 120.0).abs() < 0.01, "{line:?}");
+    }
+
+    /// Beaucoup de tracés (une illustration) : redessinés ensemble dans une image fixe, au fond de la page.
+    #[test]
+    fn many_curves_become_one_fixed_picture() {
+        let body: String = (0..EDITABLE_TRACES + 1)
+            .map(|i| format!(r#"<draw:path draw:style-name="gr1" svg:width="1cm" svg:height="1cm" svg:x="{}cm" svg:y="2cm" svg:viewBox="0 0 1000 1000" svg:d="M 0 0 C 300 1000 700 1000 1000 0"/>"#, 1 + i % 15))
+            .collect();
+        let imported = read(&body);
+        assert_eq!((imported.report.drawn, imported.report.shapes, imported.assets.len()), (EDITABLE_TRACES + 1, 0, 1));
         let back = &imported.pages[0].elements[0];
         assert!(back.locked && matches!(back.kind, ElementKind::Photo(_)), "{back:?}");
-        assert!((back.frame.x_mm - 20.0).abs() < 1.0 && (back.frame.w_mm - 50.0).abs() < 2.0, "{:?}", back.frame);
-        assert_eq!(imported.assets.len(), 1);
-        let kinds: Vec<ShapeKind> = imported.pages[0].elements.iter().filter_map(|e| if let ElementKind::Shape(s) = &e.kind { Some(s.shape) } else { None }).collect();
-        assert_eq!(kinds, [ShapeKind::Rect, ShapeKind::Ellipse, ShapeKind::Line]);
-        // Tourné de 0,5 radian dans le sens ODF (inverse des aiguilles) : 331,4° dans Cahutin.
-        let rect = &imported.pages[0].elements[1].frame;
-        assert!((rect.rotation_deg - (360.0 - 0.5f64.to_degrees())).abs() < 0.01 && (rect.w_mm - 20.0).abs() < 0.01, "{rect:?}");
-        let line = &imported.pages[0].elements[3].frame;
-        assert!((line.x_mm - 20.0).abs() < 0.01 && (line.w_mm - 40.0).abs() < 0.01 && (line.y_mm + line.h_mm / 2.0 - 120.0).abs() < 0.01, "{line:?}");
     }
 
     /// Puce par défaut de LibreOffice (OpenSymbol, zone privée U+F095) : un « • » lisible dans toute police.
@@ -1045,6 +1069,6 @@ mod tests {
             + r#"<draw:path draw:style-name="gr1" svg:width="2cm" svg:height="2cm" svg:x="5cm" svg:y="2cm" svg:viewBox="0 0 2000 2000" svg:d="M 0 0 L 2000 2000"/>"#
             + r#"<draw:frame svg:width="2cm" svg:height="2cm" svg:x="9cm" svg:y="9cm"><draw:image xlink:href="Pictures/img.png"/></draw:frame>"#;
         let imported = read_odg(Cursor::new(odg_fixture(&body, A4_LAYOUT, &[("img.png", png())])), &known()).unwrap();
-        assert_eq!(imported.report, ImportReport { pages: 1, texts: 1, images: 1, shapes: 1, skipped: 0, drawn: 1, shrunk: 0 });
+        assert_eq!(imported.report, ImportReport { pages: 1, texts: 1, images: 1, shapes: 2, skipped: 0, drawn: 0, shrunk: 0 });
     }
 }

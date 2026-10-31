@@ -2,12 +2,12 @@
 //! ensemble, page par page, dans une image fixe posée au fond de la page. Une fiche de graphisme ou un
 //! cadre arrondi s'impriment ainsi comme dans l'original ; ils ne se modifient plus trait par trait.
 
-use crate::model::{Frame, Mime, Stroke, StrokeStyle};
+use crate::model::{Frame, Mime, ShapeKind, ShapeProps, Stroke, StrokeStyle};
 use crate::photo::{Asset, asset_from_image};
 use image::{DynamicImage, RgbaImage};
 use svgtypes::{SimplePathSegment, SimplifyingPathParser};
 use tiny_skia::{
-    Color, FillRule, LineCap, Paint, Path, PathBuilder, Pixmap, StrokeDash, Transform,
+    Color, FillRule, LineCap, Paint, Path, PathBuilder, PathSegment, Pixmap, StrokeDash, Transform,
 };
 
 /// Résolution de l'image : celle d'une impression soignée.
@@ -19,6 +19,8 @@ pub(super) struct Drawing {
     /// Tracé en mm, dans le repère de la page.
     path: Path,
     fill: Option<Color>,
+    /// Couleur de remplissage telle que le document la donne (« #rrggbb »).
+    fill_hex: Option<String>,
     stroke: Option<Stroke>,
     /// Motif du pointillé tel que le document le donne (trait, espace, en mm) ; sinon un motif d'après le style.
     dash: Option<(f32, f32)>,
@@ -71,13 +73,63 @@ impl Drawing {
         stroke: Option<&Stroke>,
     ) -> Option<Drawing> {
         let path = path.transform(placement(frame, view_box)?)?;
+        let fill_hex = fill.filter(|f| color(f).is_some()).map(str::to_string);
         let fill = fill.and_then(color);
         (fill.is_some() || stroke.is_some()).then(|| Drawing {
             path,
             fill,
+            fill_hex,
             stroke: stroke.cloned(),
             dash: None,
         })
+    }
+
+    /// Le tracé en forme modifiable de Cahutin (tracé libre) : son cadre en mm et ses propriétés. Un pointillé
+    /// devient « points » s'il est court (au plus une fois et demie l'épaisseur), sinon « tirets ».
+    pub(super) fn to_shape(&self) -> Option<(Frame, ShapeProps)> {
+        let b = self.path.bounds();
+        let (w, h) = ((b.width() as f64).max(0.5), (b.height() as f64).max(0.5));
+        let (x0, y0) = (b.left() as f64, b.top() as f64);
+        let px = |x: f32| ((x as f64 - x0) / w * 1000.0).round() as i64;
+        let py = |y: f32| ((y as f64 - y0) / h * 1000.0).round() as i64;
+        let mut d: Vec<String> = Vec::new();
+        let mut last = (0.0f32, 0.0f32);
+        for seg in self.path.segments() {
+            match seg {
+                PathSegment::MoveTo(p) => {
+                    d.push(format!("M {} {}", px(p.x), py(p.y)));
+                    last = (p.x, p.y);
+                }
+                PathSegment::LineTo(p) => {
+                    d.push(format!("L {} {}", px(p.x), py(p.y)));
+                    last = (p.x, p.y);
+                }
+                // Quadratique : la cubique équivalente (points de contrôle aux deux tiers).
+                PathSegment::QuadTo(c, p) => {
+                    let (c1x, c1y) = (last.0 + 2.0 / 3.0 * (c.x - last.0), last.1 + 2.0 / 3.0 * (c.y - last.1));
+                    let (c2x, c2y) = (p.x + 2.0 / 3.0 * (c.x - p.x), p.y + 2.0 / 3.0 * (c.y - p.y));
+                    d.push(format!("C {} {} {} {} {} {}", px(c1x), py(c1y), px(c2x), py(c2y), px(p.x), py(p.y)));
+                    last = (p.x, p.y);
+                }
+                PathSegment::CubicTo(c1, c2, p) => {
+                    d.push(format!("C {} {} {} {} {} {}", px(c1.x), py(c1.y), px(c2.x), py(c2.y), px(p.x), py(p.y)));
+                    last = (p.x, p.y);
+                }
+                PathSegment::Close => d.push("Z".into()),
+            }
+        }
+        let path = d.join(" ");
+        if !crate::shapes::valid_path(&path) {
+            return None;
+        }
+        let stroke = self.stroke.clone().map(|mut s| {
+            if let Some((on, _)) = self.dash {
+                s.style = Some(if (on as f64) <= 1.5 * s.width_mm { StrokeStyle::Dotted } else { StrokeStyle::Dashed });
+            }
+            s
+        });
+        let frame = Frame { x_mm: x0, y_mm: y0, w_mm: w, h_mm: h, rotation_deg: 0.0 };
+        Some((frame, ShapeProps { shape: ShapeKind::Path, fill: self.fill_hex.clone(), stroke, corner_radius_mm: 0.0, path: Some(path) }))
     }
 
     /// Le motif de pointillé du document (trait, espace, en mm).

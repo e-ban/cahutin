@@ -38,7 +38,8 @@
   const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 </script>
 
-<svelte:window onkeydown={(e) => e.key === "Escape" && modal.message === null && (step !== "choices" ? (step = "choices") : close())} />
+<!-- La page « Ma classe », par-dessus, garde Échap pour elle. -->
+<svelte:window onkeydown={(e) => e.key === "Escape" && modal.message === null && !editor.showClassPage && (step !== "choices" ? (step = "choices") : close())} />
 
 <div class="welcome">
   {#if step === "choices"}
@@ -51,6 +52,7 @@
       <button class="choice" onclick={() => openDoc()}><b>📂</b><span>{fr.welcomeResume}</span><small>{fr.welcomeResumeSub}</small></button>
       <button class="choice" onclick={() => importFiles(undefined, { fresh: true })}><b>📥</b><span>{fr.welcomeImport}</span><small>{fr.welcomeImportSub}</small></button>
       <button class="choice" onclick={showExamples}><b>✨</b><span>{fr.welcomeExamples}</span><small>{fr.welcomeExamplesSub}</small></button>
+      <button class="choice" onclick={() => (editor.showClassPage = true)}><b>🧒</b><span>{fr.welcomeClass}</span><small>{fr.welcomeClassSub}</small></button>
     </div>
     <h2>{fr.recentDocs}</h2>
     {#if editor.recents.length === 0}

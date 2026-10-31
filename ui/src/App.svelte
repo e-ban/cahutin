@@ -32,6 +32,7 @@
   import { shouldStartTour, tour, tourMayStart } from "./lib/tour.svelte";
   import { modal } from "./lib/modal.svelte";
   import Welcome from "./components/layout/Welcome.svelte";
+  import ClassPage from "./components/layout/ClassPage.svelte";
   import UpdateBanner from "./components/layout/UpdateBanner.svelte";
   import { updates } from "./lib/updates.svelte";
   import Transformer from "./components/Transformer.svelte";
@@ -252,6 +253,7 @@
   <Inspector />
   <BottomBar />
   {#if editor.showWelcome}<Welcome />{/if}
+  {#if editor.showClassPage}<ClassPage />{/if}
   {#if editor.showAbout}<About />{/if}
   <UpdateBanner />
   {#if editor.showBackground}<BackgroundPanel />{/if}

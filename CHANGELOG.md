@@ -2,7 +2,7 @@
 
 ## Non publié
 
-- Liste de la classe (tiroir « Classe ») : il suffit de coller les prénoms. Pour chaque élève : photo avec la case d'autorisation des parents, symbole, et si besoin nom, niveau, groupe. Elle reste sur l'ordinateur, dans Documents/Cahutin/Classes, et s'enregistre seule.
+- Page « Ma classe » (bouton de l'accueil, ou « Modifier la classe… » dans le tiroir Classe) : il suffit de coller les prénoms ; chaque élève tient sur une ligne, avec sa photo, la case d'autorisation des parents, son symbole, et si besoin nom, niveau et groupe. Le tiroir Classe, à côté du document, garde le choix de la classe et le remplissage de la page. Elle reste sur l'ordinateur, dans Documents/Cahutin/Classes, et s'enregistre seule.
 - Remplir avec la classe : sur une page qui attend des prénoms, un bandeau propose de la remplir. Une planche d'étiquettes reçoit un enfant par étiquette, dans toutes ses écritures (capitales, script, cursive) ; une autre page est déclinée en une page par enfant. Les pages remplies remplacent la page modèle (Ctrl+Z pour revenir). Les zones photo reçoivent la photo de l'enfant seulement avec l'autorisation, sinon son symbole. Bouton « Prénom » pendant l'écriture pour insérer {prénom}.
 - Nouveau modèle « Étiquettes 3 écritures ».
 - Photos de la classe ajoutées d'un coup, chacune attribuée à l'enfant dont elle porte le prénom, avec une seule question pour l'autorisation.

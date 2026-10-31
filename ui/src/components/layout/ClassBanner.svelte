@@ -1,6 +1,6 @@
 <script lang="ts">
   // Une page qui attend des prénoms (modèles Étiquettes, {prénom}) : on propose de la remplir avec la classe,
-  // là où le besoin apparaît. Sans classe, le bandeau mène à la liste à coller.
+  // là où le besoin apparaît. Sans classe (ou classe vide), le bandeau ouvre la page « Ma classe ».
   import { classes } from "../../lib/classStore.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
@@ -9,7 +9,7 @@
 
   function go() {
     if (classes.current?.class.students.length) ongenerate();
-    else editor.drawer = "class";
+    else editor.showClassPage = true;
   }
 </script>
 

@@ -45,6 +45,8 @@ class Editor {
   showTips = $state(false);
   /** Écran d'accueil : au démarrage et pour un nouveau document. */
   showWelcome = $state(false);
+  /** Page « Ma classe », par-dessus le document (et l'accueil). */
+  showClassPage = $state(false);
   /** Documents récents (sur le poste seulement). */
   recents = $state.raw<Recent[]>(readRecents());
   /** Message à afficher (erreurs d'import, d'enregistrement...). */

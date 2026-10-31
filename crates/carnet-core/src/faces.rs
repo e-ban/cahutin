@@ -23,7 +23,7 @@ const INPUT_PX: usize = 640;
 const MIN_SCORE: f32 = 0.6;
 const MAX_OVERLAP: f64 = 0.3;
 
-type Model = TypedRunnableModel<TypedModel>;
+type Model = Arc<TypedRunnableModel>;
 
 /// Le modèle, préparé une fois au premier repérage.
 fn model() -> Result<&'static Model, ImportError> {
@@ -60,7 +60,7 @@ pub fn detect_faces(asset: &Asset) -> Result<Vec<FaceBox>, ImportError> {
     let mut found: Vec<(f32, FaceBox)> = Vec::new();
     // Sorties : scores de classe, d'objet et cadres, pour les pas 8, 16 et 32.
     for (k, stride) in [8usize, 16, 32].into_iter().enumerate() {
-        let slice = |i: usize| out[i].as_slice::<f32>().map_err(|_| ImportError::Decode);
+        let slice = |i: usize| out[i].try_as_plain_ram().and_then(|v| v.as_slice::<f32>()).map_err(|_| ImportError::Decode);
         let (cls, obj, bbox) = (slice(k)?, slice(3 + k)?, slice(6 + k)?);
         let cols = INPUT_PX / stride;
         let s = stride as f32;

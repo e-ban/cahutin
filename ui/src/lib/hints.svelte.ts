@@ -2,10 +2,15 @@
 import { readPref, writePref } from "./prefs";
 
 export const HINT_MAX_SHOWS = 3;
-export type HintId = "dblclick-crop" | "drop-photo" | "dblclick-text" | "rightclick";
+export type HintId = "dblclick-crop" | "drop-photo" | "dblclick-text" | "rightclick" | "blur-faces" | "table-cell";
 
 export function nextHint(counts: Record<string, number>, wanted: HintId): HintId | null {
   return (counts[wanted] ?? 0) < HINT_MAX_SHOWS ? wanted : null;
+}
+
+/** La première astuce de la liste pas encore montrée 3 fois : après le recadrage, le flou des visages. */
+export function firstHint(enabled: boolean, counts: Record<string, number>, wanted: HintId[]): HintId | null {
+  return enabled ? (wanted.find((id) => nextHint(counts, id)) ?? null) : null;
 }
 
 /** Astuce à montrer : aucune quand elles sont coupées (menu Aide). */

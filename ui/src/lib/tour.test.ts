@@ -4,10 +4,10 @@ import { placeBubble, shouldStartTour, tour, tourMayStart, TOUR_STEPS } from "./
 const bubble = { width: 300, height: 150 };
 const viewport = { width: 1000, height: 700 };
 
-test("seven steps, the first without target", () => {
-  expect(TOUR_STEPS).toHaveLength(7);
+test("eight steps, the first without target, one for the class", () => {
+  expect(TOUR_STEPS).toHaveLength(8);
   expect(TOUR_STEPS[0].target).toBeNull();
-  expect(TOUR_STEPS.map((s) => s.target)).toEqual([null, ".rail", "main.stage .page", "main.stage .page", ".right, button.tab", ".pagebar", ".top"]);
+  expect(TOUR_STEPS.map((s) => s.target)).toEqual([null, ".rail", "main.stage .page", "main.stage .page", ".right, button.tab", ".pagebar", '.rail [data-tour="class"]', ".top"]);
   expect(TOUR_STEPS.every((s) => s.title && s.text && !/[–—]/.test(s.title + s.text))).toBe(true);
 });
 

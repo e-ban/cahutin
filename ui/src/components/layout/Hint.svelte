@@ -2,7 +2,8 @@
   // Astuce discrète en bas de la page, liée à ce que l'on fait ; chacune au plus 3 fois.
   import { untrack } from "svelte";
   import { editor } from "../../lib/docStore.svelte";
-  import { hintFor, hints, type HintId } from "../../lib/hints.svelte";
+  import { firstHint, hints, type HintId } from "../../lib/hints.svelte";
+  import { selectedTable } from "../../lib/table";
   import { fr } from "../../lib/i18n/fr";
 
   const TEXTS: Record<HintId, string> = {
@@ -10,6 +11,8 @@
     "drop-photo": fr.hintDropPhoto,
     "dblclick-text": fr.hintDblclickText,
     rightclick: fr.hintRightclick,
+    "blur-faces": fr.hintBlurFaces,
+    "table-cell": fr.hintTableCell,
   };
 
   // Nombre d'éléments différents sélectionnés depuis le lancement.
@@ -23,23 +26,26 @@
     }
   });
 
-  const wanted = $derived.by((): HintId | null => {
-    if (editor.templateMode || editor.cropping || editor.editingText || editor.showWelcome || editor.printing) return null;
+  // Les astuces possibles, dans l'ordre : la première pas encore vue 3 fois est montrée.
+  const wanted = $derived.by((): HintId[] => {
+    if (editor.templateMode || editor.cropping || editor.editingText || editor.showWelcome || editor.printing) return [];
+    if (selectedTable(editor.page, editor.selection)) return ["table-cell"];
     const e = editor.selected;
-    if (e && selectedCount === 3) return "rightclick";
-    if (e?.kind.type === "Photo" && e.kind.asset) return "dblclick-crop";
-    if (e?.kind.type === "Text" && e.zone) return "dblclick-text";
+    if (e && selectedCount === 3) return ["rightclick"];
+    if (e?.kind.type === "Photo" && e.kind.asset) return ["dblclick-crop", "blur-faces"];
+    if (e?.kind.type === "Text" && e.zone) return ["dblclick-text"];
     const emptyZone = editor.page.elements.some((x) => x.zone && x.kind.type === "Photo" && !x.kind.asset);
-    if (!e && editor.photos.length > 0 && emptyZone) return "drop-photo";
-    return null;
+    if (!e && editor.photos.length > 0 && emptyZone) return ["drop-photo"];
+    return [];
   });
 
   let current = $state<HintId | null>(null);
   $effect(() => {
-    const w = hints.enabled ? wanted : null;
+    const w = wanted;
+    const enabled = hints.enabled;
     untrack(() => {
-      if (w === current) return;
-      current = w && hintFor(hints.enabled, hints.counts, w);
+      if (current && w.includes(current)) return;
+      current = firstHint(enabled, hints.counts, w);
       if (current) hints.shown(current);
     });
   });

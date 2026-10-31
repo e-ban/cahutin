@@ -235,6 +235,7 @@
         <button onclick={() => addCaption(selected.id)}>✎ {fr.caption}</button>
       {:else}
         <button onclick={() => (editor.cropping = selected.id)}>✂ {fr.crop}</button>
+        <button title={fr.blurHint} onclick={() => (editor.blurring = ph.asset)}>◍ {fr.blurButton}</button>
         <div class="wrap">
           <button class:on={pop === "corners"} onclick={() => toggle("corners")}>◜ {fr.corners}</button>
           {#if pop === "corners"}

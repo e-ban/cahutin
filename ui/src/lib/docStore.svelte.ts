@@ -47,6 +47,8 @@ class Editor {
   showWelcome = $state(false);
   /** Page « Ma classe », par-dessus le document (et l'accueil). */
   showClassPage = $state(false);
+  /** Photo dont on floute des visages (id de l'image). */
+  blurring = $state<string | null>(null);
   /** Documents récents (sur le poste seulement). */
   recents = $state.raw<Recent[]>(readRecents());
   /** Message à afficher (erreurs d'import, d'enregistrement...). */

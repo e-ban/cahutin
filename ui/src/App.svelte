@@ -23,6 +23,7 @@
   import DecorDrawer from "./components/drawers/DecorDrawer.svelte";
   import ClassDrawer from "./components/drawers/ClassDrawer.svelte";
   import GenerateDialog from "./components/GenerateDialog.svelte";
+  import FaceBlurDialog from "./components/FaceBlurDialog.svelte";
   import { classes } from "./lib/classStore.svelte";
   import About from "./components/layout/About.svelte";
   import BackgroundPanel from "./components/BackgroundPanel.svelte";
@@ -258,6 +259,7 @@
   <UpdateBanner />
   {#if editor.showBackground}<BackgroundPanel />{/if}
   <Modal />
+  {#if editor.blurring}<FaceBlurDialog assetId={editor.blurring} onclose={() => (editor.blurring = null)} />{/if}
   {#if generateOpen && classes.current}<GenerateDialog onclose={() => (generateOpen = false)} />{/if}
   {#if editor.fileImport}
     <div class="notice" role="status">

@@ -32,6 +32,8 @@ Chaque étape apporte quelque chose d'utilisable seul. Taille estimée : S (quel
 
 ### Étape A : compléter l'éditeur (0.6)
 
+> Faite (0.6 à 0.8). Écarté : l'import d'ARASAAC, dont la licence (CC BY-NC-SA) interdit l'usage commercial, incompatible avec l'EUPL ; à la place, des catégories de la classe dans OpenMoji.
+
 Ce qui manque le plus pour les fiches et affiches, indépendamment de la classe.
 
 | Fonction | Pourquoi | Taille |
@@ -48,6 +50,8 @@ Ce qui manque le plus pour les fiches et affiches, indépendamment de la classe.
 | Rotation libre des blocs, miroir des photos | Mise en page plus libre | S |
 
 ### Étape B : la liste de la classe (0.7)
+
+> Faite (0.6 à 0.8).
 
 Reprend la tâche déjà prévue « Liste de la classe et pages par enfant » (T-28) et l'élargit.
 

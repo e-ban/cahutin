@@ -1,5 +1,11 @@
 # Journal des versions
 
+## Non publié
+
+- Nouveau logo : un lutin qui écrit dans son cahier, à l'abri d'un livre ouvert en tente.
+- Accueil : le nom et la version de Cahutin en tête, les choix sur toute la largeur, et les documents récents avec l'aperçu de leur première page.
+- « Partir d'un modèle » propose aussi « Créer un modèle » : une page vierge en mode modèle, à enregistrer pour la réutiliser.
+
 ## 0.6.0
 
 - Page « Ma classe » (bouton de l'accueil, ou « Modifier la classe… » dans le tiroir Classe) : il suffit de coller les prénoms ; chaque élève tient sur une ligne, avec sa photo, la case d'autorisation des parents, son symbole, et si besoin nom, niveau et groupe. Le tiroir Classe, à côté du document, garde le choix de la classe et le remplissage de la page. Elle reste sur l'ordinateur, dans Documents/Cahutin/Classes, et s'enregistre seule.

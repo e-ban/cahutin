@@ -12,6 +12,7 @@ export const existingPaths = (paths: string[]) => invoke<string[]>("existing_pat
 export const listImportableIn = (dir: string) => invoke<string[]>("list_importable_in", { dir });
 export const saveDocument = (path: string, doc: Document) => invoke<void>("save_document", { path, doc });
 export const openDocument = (path: string) => invoke<OpenedDocument>("open_document", { path });
+export const previewDocument = (path: string) => invoke<Document>("preview_document", { path });
 export const importFile = (path: string) => invoke<ImportedPages>("import_file", { path });
 export const cancelImport = () => invoke<void>("cancel_import");
 export const exportOdg = (path: string, doc: Document) => invoke<void>("export_odg", { path, doc });

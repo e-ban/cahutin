@@ -12,6 +12,7 @@
 
 <div class="backdrop" role="presentation" onclick={() => (editor.showAbout = false)}>
   <div class="box" role="dialog" aria-label={fr.aboutTitle} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
+    <img class="logo" src="/logo/cahutin.svg" alt="" />
     <h2>{fr.appName}</h2>
     {#if version}<p>{fr.aboutVersion(version)}</p>{/if}
     <p>{fr.aboutFree}</p>
@@ -25,6 +26,12 @@
 </div>
 
 <style>
+  .logo {
+    display: block;
+    width: 110px;
+    height: 110px;
+    margin: 0 auto 4px;
+  }
   .backdrop {
     position: fixed;
     inset: 0;

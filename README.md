@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/logo.svg" width="160" alt="Le logo de Cahutin : un lutin écrit dans son cahier, abrité sous un livre ouvert en forme de tente."></p>
+
 # Cahutin
 
 Cahutin aide les enseignants de l'école primaire à faire leurs fiches, leurs affiches, leurs étiquettes et leurs pages de cahier de vie : on part d'un modèle, on dépose ses photos, on écrit, et la page est prête à imprimer. Gratuit, libre, et **hors ligne** : aucun document ne quitte l'ordinateur.

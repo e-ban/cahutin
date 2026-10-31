@@ -13,7 +13,7 @@
 </script>
 
 <header class="top">
-  <span class="logo">{fr.appName}</span>
+  <span class="logo"><img src="/logo/cahutin.svg" alt="" />{fr.appName}</span>
   <FileMenu />
   <HelpMenu />
   <input
@@ -42,9 +42,16 @@
     border-bottom: 1px solid var(--line);
   }
   .logo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font: 700 18px var(--title-font);
     color: var(--accent-strong);
     margin-right: 4px;
+  }
+  .logo img {
+    width: 30px;
+    height: 30px;
   }
   .title {
     width: 240px;

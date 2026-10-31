@@ -1,0 +1,186 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="couv" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d7a55"/><stop offset="1" stop-color="#245238"/>
+    </linearGradient>
+    <linearGradient id="bonnet" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#c9531f"/><stop offset="1" stop-color="#a53f14"/>
+    </linearGradient>
+    <!-- Un pan du toit, le faîte à l'origine : les pages dessous, la couverture dessus -->
+    <g id="pages">
+      <rect x="-262" y="4" width="246" height="28" rx="6" fill="#fff6e2"/>
+      <path d="M-258 12 H-20 M-258 19 H-20 M-258 26 H-20" stroke="#e6d3ae" stroke-width="2.5"/>
+    </g>
+    <rect id="couvPleine" x="-280" y="-16" width="282" height="26" rx="10"/>
+    <linearGradient id="dosLivre" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d7a55"/><stop offset="1" stop-color="#245238"/>
+    </linearGradient>
+    <g id="couverture">
+      <rect x="-280" y="-16" width="282" height="26" rx="10" fill="url(#couv)"/>
+      <path d="M-262 -6 H-30" stroke="#f0c25a" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+    </g>
+    <linearGradient id="dosCouv" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1c4430"/><stop offset="1" stop-color="#2a5c40"/>
+    </linearGradient>
+    <filter id="fond"><feColorMatrix type="matrix" values="0.72 0 0 0 0  0 0.72 0 0 0  0 0 0.72 0 0  0 0 0 1 0"/></filter>
+  </defs>
+<g transform="translate(256 256) scale(1.2) translate(-246 -326)">
+
+  <!-- Sol -->
+  <ellipse cx="256" cy="448" rx="150" ry="16" fill="#c97c45" opacity="0.3"/>
+
+  <!-- Toit : un livre ouvert posé à l'envers, tourné un peu vers la droite -->
+  <g transform="translate(256 205) scale(1.065) translate(-256 -92)">
+    <!-- Pan droit du fond, dans l'ombre -->
+    <g filter="url(#fond)">
+      <use href="#pages" transform="translate(-34 -13) translate(256 92) scale(-1 1) rotate(-56)"/>
+      <use href="#couverture" transform="translate(-34 -13) translate(256 92) scale(-1 1) rotate(-56)"/>
+    </g>
+    <!-- Intérieur de la tente, dans le noir -->
+    <path d="M256 109.4 L134.4 326.0 L377.6 326.0 Z" fill="#1e1612"/>
+    <!-- Épaisseur : la couverture gauche et le dos du livre, prolongés vers l'arrière -->
+    <g fill="#1f4a33">
+      <use href="#couvPleine" transform="translate(-34.00 -13.00) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-32.30 -12.35) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-30.60 -11.70) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-28.90 -11.05) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-27.20 -10.40) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-25.50 -9.75) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-23.80 -9.10) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-22.10 -8.45) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-20.40 -7.80) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-18.70 -7.15) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-17.00 -6.50) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-15.30 -5.85) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-13.60 -5.20) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-11.90 -4.55) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-10.20 -3.90) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-8.50 -3.25) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-6.80 -2.60) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-5.10 -1.95) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-3.40 -1.30) translate(256 92) rotate(-56)"/>
+      <use href="#couvPleine" transform="translate(-1.70 -0.65) translate(256 92) rotate(-56)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-34.00 -13.00)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-32.30 -12.35)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-30.60 -11.70)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-28.90 -11.05)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-27.20 -10.40)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-25.50 -9.75)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-23.80 -9.10)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-22.10 -8.45)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-20.40 -7.80)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-18.70 -7.15)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-17.00 -6.50)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-15.30 -5.85)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-13.60 -5.20)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-11.90 -4.55)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-10.20 -3.90)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-8.50 -3.25)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-6.80 -2.60)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-5.10 -1.95)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-3.40 -1.30)"/>
+      <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" transform="translate(-1.70 -0.65)"/>
+    </g>
+    <path d="M195.3 89.9 L61.1 288.9" stroke="#d9b34f" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+    <use href="#pages" transform="translate(256 92) rotate(-56)"/>
+    <use href="#pages" transform="translate(256 92) scale(-1 1) rotate(-56)"/>
+    <use href="#couverture" transform="translate(256 92) rotate(-56)"/>
+    <use href="#couverture" transform="translate(256 92) scale(-1 1) rotate(-56)"/>
+    <!-- Dos du livre : la couverture se plie sur le faîte -->
+    <path d="M234.9 94.7 Q256 61.1 277.1 94.7 L256 104 Z" fill="url(#dosLivre)"/>
+    <path d="M247.7 85.1 Q256 73.1 264.3 85.1" fill="none" stroke="#d9b34f" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+  </g>
+
+  <!-- Lutin -->
+  <defs>
+    <linearGradient id="tunique" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9cc086"/><stop offset="1" stop-color="#76a062"/>
+    </linearGradient>
+  </defs>
+  <path d="M190 446 V418 Q190 388 222 380 Q238 376 256 376 Q274 376 290 380 Q322 388 322 418 V446 Z" fill="url(#tunique)"/>
+  <rect x="246" y="360" width="20" height="22" rx="8" fill="#eec3a2"/>
+  <path d="M226 378 L234 398 L245 384 L256 402 L267 384 L278 398 L286 378 Q256 370 226 378 Z" fill="#e98b4f"/>
+  <!-- Tête penchée vers la droite, autour du cou -->
+  <g transform="rotate(12 256 372)">
+  <!-- Oreilles pointues -->
+  <path d="M212 316 Q192 300 178 294 Q184 322 214 338 Z" fill="#f2c2a0"/>
+  <path d="M300 316 Q320 300 334 294 Q328 322 298 338 Z" fill="#f2c2a0"/>
+  <path d="M206 318 Q194 310 188 306 Q194 322 208 330" fill="none" stroke="#e3a283" stroke-width="3" stroke-linecap="round"/>
+  <path d="M306 318 Q318 310 324 306 Q318 322 304 330" fill="none" stroke="#e3a283" stroke-width="3" stroke-linecap="round"/>
+  <!-- Visage : joues rondes, menton doux -->
+  <path d="M208 318 Q208 284 256 284 Q304 284 304 318 Q306 356 282 372 Q256 386 230 372 Q206 356 208 318 Z" fill="#f7d6b8"/>
+  <!-- Mèches sous le bonnet -->
+  <path d="M211 308 Q203 320 212 332 Q212 318 220 312 Z M301 308 Q309 320 300 332 Q300 318 292 312 Z" fill="#9a5f2c"/>
+  <ellipse cx="228" cy="348" rx="11" ry="8" fill="#f19a8c" opacity="0.55"/>
+  <ellipse cx="284" cy="348" rx="11" ry="8" fill="#f19a8c" opacity="0.55"/>
+  <path d="M228 312 Q237 306 246 311 M266 311 Q275 306 284 312" fill="none" stroke="#7a4a26" stroke-width="3.5" stroke-linecap="round"/>
+  <ellipse cx="238" cy="326" rx="6.5" ry="8.5" fill="#3a2418"/><circle cx="240" cy="322" r="2.4" fill="#fff"/>
+  <ellipse cx="274" cy="326" rx="6.5" ry="8.5" fill="#3a2418"/><circle cx="276" cy="322" r="2.4" fill="#fff"/>
+  <path d="M250 336 Q256 332 262 336 Q264 344 256 345 Q248 344 250 336 Z" fill="#eeae8c"/>
+  <path d="M243 354 Q256 360 269 354 Q264 368 256 368 Q248 368 243 354 Z" fill="#8a3b2c"/>
+  <path d="M249 363 Q256 359 263 363 Q260 367 256 367 Q252 367 249 363 Z" fill="#e88a7a"/>
+  <!-- Bonnet bombé, plis tracés, pompon sur la pointe -->
+  <path d="M205 315 C212 262 230 212 260 194 C288 178 320 196 330 228 C312 212 294 214 286 234 C280 256 292 290 308 315 Q256 292 205 315 Z" fill="url(#bonnet)"/>
+  <path d="M226 290 Q238 282 242 266 M286 290 Q276 282 274 268 M258 206 Q268 214 268 228 M298 196 Q304 204 302 212" fill="none" stroke="#2b1a12" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M208 311 Q256 288 305 311" fill="none" stroke="#e98b4f" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="330" cy="232" r="15" fill="#fff8ec" stroke="#d9c7a8" stroke-width="2.5"/>
+  <path d="M320 238 Q330 246 340 238" fill="none" stroke="#e6dccb" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <!-- Cahier d'écolier ouvert : pages Seyès, marge rouge, épaisseur des feuilles, ombre de la reliure -->
+  <defs>
+    <linearGradient id="couvCahier" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a8cc6"/><stop offset="1" stop-color="#2d669e"/>
+    </linearGradient>
+    <linearGradient id="creuxG" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8a6a3a" stop-opacity="0"/><stop offset="1" stop-color="#8a6a3a" stop-opacity="0.22"/>
+    </linearGradient>
+    <linearGradient id="creuxD" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#8a6a3a" stop-opacity="0"/><stop offset="1" stop-color="#8a6a3a" stop-opacity="0.22"/>
+    </linearGradient>
+    <clipPath id="pageG"><path d="M144 410 Q200 396 252 414 V470 Q200 454 138 466 Z"/></clipPath>
+    <clipPath id="pageD"><path d="M260 414 Q312 396 368 410 L374 466 Q312 454 260 470 Z"/></clipPath>
+  </defs>
+  <path d="M130 418 Q196 402 256 422 Q316 402 382 418 L392 478 Q316 462 256 484 Q196 462 120 478 Z" fill="url(#couvCahier)"/>
+  <path d="M144 410 Q200 396 252 414 V470 Q200 454 138 466 Z" transform="translate(-6 6)" fill="#e2d2b0"/>
+  <path d="M144 410 Q200 396 252 414 V470 Q200 454 138 466 Z" transform="translate(-3 3)" fill="#efe4cb"/>
+  <path d="M260 414 Q312 396 368 410 L374 466 Q312 454 260 470 Z" transform="translate(6 6)" fill="#e2d2b0"/>
+  <path d="M260 414 Q312 396 368 410 L374 466 Q312 454 260 470 Z" transform="translate(3 3)" fill="#efe4cb"/>
+  <path d="M144 410 Q200 396 252 414 V470 Q200 454 138 466 Z" fill="#fffbf2"/>
+  <path d="M260 414 Q312 396 368 410 L374 466 Q312 454 260 470 Z" fill="#fffbf2"/>
+  <g clip-path="url(#pageG)" fill="none">
+    <path d="M134 426 Q198 412 254 430 M134 430 Q198 416 254 434 M134 434 Q198 420 254 438 M134 442 Q198 428 254 446 M134 446 Q198 432 254 450 M134 450 Q198 436 254 454 M134 458 Q198 444 254 462 M134 462 Q198 448 254 466 M134 466 Q198 452 254 470" stroke="#cfdff0" stroke-width="1.1"/>
+    <path d="M134 422 Q198 408 254 426 M134 438 Q198 424 254 442 M134 454 Q198 440 254 458" stroke="#8fb3dc" stroke-width="1.8"/>
+    <path d="M168 400 L163 470" stroke="#e88b8b" stroke-width="1.8"/>
+    <rect x="218" y="390" width="40" height="90" fill="url(#creuxG)"/>
+  </g>
+  <g clip-path="url(#pageD)" fill="none">
+    <path d="M258 430 Q314 412 378 426 M258 434 Q314 416 378 430 M258 438 Q314 420 378 434 M258 446 Q314 428 378 442 M258 450 Q314 432 378 446 M258 454 Q314 436 378 450 M258 462 Q314 444 378 458 M258 466 Q314 448 378 462 M258 470 Q314 452 378 466" stroke="#cfdff0" stroke-width="1.1"/>
+    <path d="M258 426 Q314 408 378 422 M258 442 Q314 424 378 438 M258 458 Q314 440 378 454" stroke="#8fb3dc" stroke-width="1.8"/>
+    <path d="M284 400 L283 472" stroke="#e88b8b" stroke-width="1.8"/>
+    <rect x="256" y="390" width="40" height="90" fill="url(#creuxD)"/>
+  </g>
+  <!-- Écriture attachée : une ligne écrite à gauche, une ligne en cours sous la pointe du crayon -->
+  <g fill="none" stroke="#2b4f8f" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+    <path transform="translate(172 447) scale(0.55)" d="M0 0 c3 -9 9 -9 8 0 c-1 6 4 6 7 -2 c2 -7 7 -7 7 0 c0 6 5 5 8 -3 l2 -10 c1 7 -2 13 2 11 c4 -2 6 -8 8 -4 c2 5 6 4 9 -2 c3 -9 9 -9 8 0 c0 6 5 5 8 -3"/>
+    <path transform="translate(212 431) scale(0.55)" d="M0 0 c3 -9 9 -9 8 0 c0 6 5 5 8 -3 c2 -7 6 -6 6 0 c0 5 6 5 9 -1"/>
+    <path transform="translate(292 451) scale(0.55)" d="M0 0 c3 -9 9 -9 8 0 c0 6 5 5 8 -3 c2 -7 6 -6 6 0 c0 5 6 5 9 -1 c3 -8 8 -8 7 0 c0 5 4 4 6 2"/>
+  </g>
+  <path d="M256 420 Q255 452 256 484" stroke="#cdbf9f" stroke-width="2" fill="none"/>
+
+  <!-- Crayon et mains -->
+  <g transform="translate(316 450) rotate(35)">
+    <rect x="-12" y="-112" width="24" height="88" rx="3" fill="#f2b632"/>
+    <rect x="-4" y="-112" width="8" height="88" fill="#f7c95a"/>
+    <rect x="-12" y="-126" width="24" height="18" rx="6" fill="#f19a9a"/>
+    <rect x="-12" y="-112" width="24" height="7" fill="#c9c3b8"/>
+    <path d="M-12 -24 L0 0 L12 -24 Z" fill="#f6dcb0"/>
+    <path d="M-4 -8 L0 0 L4 -8 Z" fill="#3a2418"/>
+  </g>
+  <path d="M204 394 Q188 402 190 418 M308 394 Q330 396 336 414" fill="none" stroke="#86ad70" stroke-width="24" stroke-linecap="round"/>
+  <ellipse cx="190" cy="414" rx="14" ry="6" fill="#e98b4f" transform="rotate(-10 190 414)"/>
+  <ellipse cx="335" cy="410" rx="14" ry="6" fill="#e98b4f" transform="rotate(30 335 410)"/>
+  <circle cx="338" cy="420" r="13" fill="#f7d6b8"/>
+  <circle cx="192" cy="422" r="13" fill="#f7d6b8"/>
+</g>
+</svg>

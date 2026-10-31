@@ -217,6 +217,28 @@ pub fn open_document(state: State<'_, AppState>, path: String) -> Result<OpenedD
     open_document_in(&state, Path::new(&path))
 }
 
+/// Aperçu d'un document récent : sa première page seulement, avec les images qu'elle montre (les autres ne
+/// sont pas chargées). Le document courant n'est pas touché.
+fn preview_document_in(state: &AppState, path: &Path) -> Result<Document, String> {
+    let native::LoadedDocument { mut doc, assets, .. } = native::load_from_path(path).map_err(|e| {
+        log::error!("preview_document_failed kind={e:?}");
+        e.message_fr()
+    })?;
+    doc.pages.truncate(1);
+    let shown: std::collections::BTreeSet<_> = doc.pages.iter().flat_map(|p| &p.elements).flat_map(carnet_core::Element::asset_ids).cloned().collect();
+    doc.assets.retain(|id, _| shown.contains(id));
+    let mut store = state.store.lock().unwrap();
+    for a in assets.into_iter().filter(|a| shown.contains(&a.meta.id)) {
+        store.insert(a).map_err(|e| e.message_fr())?;
+    }
+    Ok(doc)
+}
+
+#[tauri::command(async)]
+pub fn preview_document(state: State<'_, AppState>, path: String) -> Result<Document, String> {
+    preview_document_in(&state, Path::new(&path))
+}
+
 /// Exécutée hors du fil principal : la fenêtre reste réactive.
 #[tauri::command(async)]
 pub fn export_odg(state: State<'_, AppState>, path: String, doc: Document) -> Result<(), String> {
@@ -747,6 +769,42 @@ mod tests {
         let report = carnet_core::import::ImportReport { pages: 2, texts: 14, images: 1, shapes: 6, skipped: 3 };
         assert_eq!(import_log_line("docx", Ok(&report), 1234), "import_file kind=docx pages=2 texts=14 images=1 shapes=6 skipped=3 ms=1234");
         assert_eq!(import_log_line("pdf", Err(carnet_core::import::ImportError::Timeout), 120000), "import_file_failed kind=pdf error=Timeout ms=120000");
+    }
+
+    #[test]
+    fn preview_keeps_the_first_page_and_its_images() {
+        let dir = tempfile::tempdir().unwrap();
+        let author = test_state(&dir.path().join("auteur"));
+        let asset = photo::import_path(&fixture("gps.jpg")).unwrap();
+        let meta = asset.meta.clone();
+        author.store.lock().unwrap().insert(asset).unwrap();
+        let mut doc = Document::new("sortie");
+        doc.pages.push(doc.pages[0].clone());
+        doc.pages[1].elements.push(carnet_core::Element {
+            id: carnet_core::new_id(),
+            frame: carnet_core::Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 50.0, h_mm: 20.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: carnet_core::ElementKind::Photo(carnet_core::PhotoProps { asset: Some(meta.id.clone()), crop: carnet_core::Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false }),
+        });
+        doc.assets.insert(meta.id.clone(), meta.clone());
+        let path = dir.path().join("sortie.carnet");
+        save_document_in(&author, &path, &doc).unwrap();
+
+        // La photo n'est que sur la page 2 : l'aperçu ne la charge pas.
+        let reader = test_state(&dir.path().join("lecteur"));
+        let preview = preview_document_in(&reader, &path).unwrap();
+        assert_eq!(preview.pages.len(), 1);
+        assert!(preview.assets.is_empty());
+        assert!(reader.store.lock().unwrap().get(&meta.id).is_none());
+
+        // Sur la page 1, elle est chargée pour la vignette.
+        doc.pages.swap(0, 1);
+        save_document_in(&author, &path, &doc).unwrap();
+        let preview = preview_document_in(&reader, &path).unwrap();
+        assert_eq!(preview.assets.keys().collect::<Vec<_>>(), [&meta.id]);
+        assert!(reader.store.lock().unwrap().get(&meta.id).is_some());
     }
 
     #[test]

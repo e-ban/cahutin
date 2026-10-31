@@ -39,6 +39,10 @@ class Editor {
   printing = $state(false);
   /** Impression des pages A3 en deux moitiés sur A4. */
   printTiles = $state(false);
+  /** Impression recto-verso de cartes : les pages paires (versos) inversées de gauche à droite. */
+  printDuplex = $state(false);
+  /** Pages en vis-à-vis dans la vue d'édition. */
+  spread = $state(false);
   /** Panneau du fond de page. */
   showBackground = $state(false);
   /** Écran À propos (menu Aide). */

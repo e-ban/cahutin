@@ -12,6 +12,7 @@
   import BoxSelect from "./components/BoxSelect.svelte";
   import ContextBar from "./components/ContextBar.svelte";
   import ContextMenu, { type ContextTarget } from "./components/layout/ContextMenu.svelte";
+  import { facingOf } from "./lib/spread";
   import PageView from "./components/PageView.svelte";
   import CellBar from "./components/CellBar.svelte";
   import TableBar from "./components/TableBar.svelte";
@@ -135,9 +136,12 @@
     if (!id) editor.selection = [];
     contextTarget = { id, xMm, yMm, clientX, clientY };
   }
+  const facing = $derived(editor.spread ? facingOf(editor.pageIndex, editor.doc.pages.length) : null);
+
   // « Ajuster » : la page entière est visible, marges de la scène comprises.
   $effect(() => {
-    const byWidth = (stageWidth - 64) / mmToPx(editor.page.size.width_mm, 1);
+    const pages = editor.spread && facingOf(editor.pageIndex, editor.doc.pages.length) ? 2 : 1;
+    const byWidth = (stageWidth - 64) / mmToPx(editor.page.size.width_mm * pages, 1);
     const byHeight = (stageHeight - 64) / mmToPx(editor.page.size.height_mm, 1);
     editor.fitZoom = Math.max(0.2, Math.min(byWidth, byHeight));
   });
@@ -195,6 +199,12 @@
   }
 </script>
 
+{#snippet facingPage(index: number)}
+  <button class="facing" title={fr.pageN(index + 1)} onclick={() => ((editor.pageIndex = index), (editor.selection = []))}>
+    <PageView page={editor.doc.pages[index]} doc={editor.doc} zoom={editor.effectiveZoom} />
+  </button>
+{/snippet}
+
 <svelte:window onkeydown={handleShortcut} />
 
 <!-- Pendant la visite ou le panneau Astuces, l'application est inerte : ni clic ni clavier ne l'atteignent. -->
@@ -221,6 +231,7 @@
       if (ev.target === ev.currentTarget && !ev.shiftKey && !editor.cropping) select(null, false);
     }}
   >
+    {#if facing?.side === "left"}{@render facingPage(facing.index)}{/if}
     <PageView
       page={editor.page}
       doc={editor.doc}
@@ -250,6 +261,7 @@
       }}
       bind:pageEl
     />
+    {#if facing?.side === "right"}{@render facingPage(facing.index)}{/if}
     <Transformer {pageEl} zoom={editor.effectiveZoom} />
     <GroupTransformer {pageEl} zoom={editor.effectiveZoom} onpick={select} />
     <ContextBar {pageEl} {stageEl} />
@@ -366,6 +378,21 @@
     margin: 0;
     font: inherit;
     white-space: pre-wrap;
+  }
+  /* Page d'en face : visible, pas modifiable ; un clic l'ouvre. */
+  .facing {
+    flex: none;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    opacity: 0.92;
+  }
+  .facing:hover {
+    opacity: 1;
+  }
+  .facing :global(*) {
+    pointer-events: none;
   }
   .stage {
     grid-area: stage;

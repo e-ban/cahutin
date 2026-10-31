@@ -228,6 +228,16 @@ export async function printTiled() {
   }
 }
 
+/** Cartes en recto-verso : chaque page paire est le verso de la précédente. */
+export async function printDuplex() {
+  editor.printDuplex = true;
+  try {
+    await print();
+  } finally {
+    editor.printDuplex = false;
+  }
+}
+
 export async function print() {
   // Selon le moteur, window.print() bloque ou rend la main tout de suite : on garde les pages
   // jusqu'à la fin de l'impression.

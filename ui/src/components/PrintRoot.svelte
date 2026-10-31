@@ -4,10 +4,11 @@
   import PageView from "./PageView.svelte";
   import { editor } from "../lib/docStore.svelte";
   import { a3Tiles, formatOf, printPageName } from "../lib/pageFormat";
+  import { mirrorLayout } from "../lib/spread";
 </script>
 
 <div class="print-root">
-  {#each editor.doc.pages as p (p.id)}
+  {#each editor.doc.pages.map((p, i) => (editor.printDuplex && i % 2 === 1 ? mirrorLayout(p) : p)) as p (p.id)}
     {#if editor.printTiles && formatOf(p.size) === "A3"}
       {#each a3Tiles(p.size) as t, i (i)}
         <div class="print-page tile" style:page={printPageName(t.sheet)} style:width="{t.sheet.width_mm}mm" style:height="{t.sheet.height_mm}mm">

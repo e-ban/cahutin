@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- Pages en vis-à-vis (bande des pages, « Vis-à-vis ») : les pages deux par deux, comme un cahier ouvert ; un clic sur la page d'en face l'ouvre.
+- « Imprimer en recto-verso (cartes) » : les pages 2, 4, 6… sont les versos, inversées de gauche à droite pour que chaque carte tombe derrière la sienne.
 - Styles de texte (bouton « Style » de la barre d'écriture) : Titre, Consigne, Texte, Prénom, et les vôtres. Un texte modifié peut mettre son style à jour : tous les textes de ce style, dans tout le document, changent avec lui. Un document qui utilise des styles est refusé par Cahutin 0.7 et avant.
 - Répéter un bloc en grille (barre de la sélection, « Répéter ») : colonnes × lignes, ou « Remplir la page ». Chaque exemplaire forme un groupe et garde ses zones à remplir : une planche d'étiquettes ou de cartes en deux clics, prête pour la classe.
 - Formats A5, A4 et A3 (bande des pages) : le contenu suit la taille de la page. Chaque page s'imprime sur une feuille de son format, et le PDF prend le format de la première page. « Imprimer les affiches A3 sur deux feuilles A4 » sort chaque page A3 en deux moitiés qui se recouvrent de 1 cm, à coller.

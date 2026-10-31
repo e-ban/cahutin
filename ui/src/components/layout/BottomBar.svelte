@@ -71,6 +71,7 @@
     <option value="A4">A4</option>
     <option value="A3">A3</option>
   </select>
+  <button class="ghost" class:on={editor.spread} aria-pressed={editor.spread} title={fr.spreadHint} onclick={() => (editor.spread = !editor.spread)}>📖 {fr.spread}</button>
   <button class="ghost" onclick={rotate}>⟳ {editor.page.size.width_mm > editor.page.size.height_mm ? fr.portrait : fr.landscape}</button>
   <button class="ghost" disabled={editor.doc.pages.length === 1} onclick={() => deletePage(editor.pageIndex)}>🗑 {fr.deletePage}</button>
   <span class="spacer"></span>
@@ -97,7 +98,21 @@
     gap: 8px;
     overflow-x: auto;
     max-width: 50vw;
+    min-width: 60px;
+    flex-shrink: 1;
     padding: 2px;
+  }
+  /* Les boutons gardent leur libellé sur une ligne ; la bande des miniatures cède la place. */
+  .pagebar > button,
+  .pagebar > select {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  @media (max-width: 1150px) {
+    .pagebar > button {
+      padding-left: 6px;
+      padding-right: 6px;
+    }
   }
   .thumb {
     padding: 2px;

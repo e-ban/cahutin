@@ -11,6 +11,7 @@
 
   const items = $derived<MenuItem[]>([
     { label: fr.print, shortcut: "Ctrl+P", action: files.print },
+    ...(editor.doc.pages.length > 1 ? [{ label: fr.printDuplex, title: fr.printDuplexHint, action: files.printDuplex }] : []),
     ...(editor.doc.pages.some((p) => formatOf(p.size) === "A3") ? [{ label: fr.printTiles, title: fr.printTilesHint, action: files.printTiled }] : []),
     ...(pdf ? [{ label: fr.exportPdf, action: files.exportPdf }] : []),
     { label: fr.exportOdg, title: fr.exportOdgHint, action: files.exportOdg, separator: true },

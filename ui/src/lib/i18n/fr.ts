@@ -504,7 +504,8 @@ export const fr = {
   myImagesWhere: "Elles sont gardées sur cet ordinateur, dans Documents › Cahutin › Images. Les photos des enfants vont plutôt dans la photothèque de la classe.",
   myImagesHint: "Cliquez une image pour la poser, ou glissez-la sur la page.",
   myImagesRemove: "Retirer de mes images",
-  myImagesRemoveConfirm: (name: string) => `Retirer « ${name} » de vos images ? Les documents où elle est déjà posée la gardent.`,
+  myImagesRemoveConfirm: (name: string) =>
+    `Retirer « ${name} » de vos images ? Les documents où elle est déjà posée la gardent. Le fichier n'est pas effacé : il est rangé dans Documents › Cahutin › Images › Retirées.`,
   myImagesRefused: (n: number) => (n > 1 ? `${n} fichiers ne sont pas des images et n'ont pas été ajoutés.` : "Un fichier n'est pas une image et n'a pas été ajouté."),
   myImagesFailed: "Cette image ne peut pas être posée : le fichier est peut-être abîmé.",
   myImagesNone: "Aucune de vos images ne correspond.",

@@ -102,15 +102,25 @@ pub fn my_images_add(state: State<'_, AppState>, paths: Vec<String>) -> Result<M
     add_in(&images_dir(&state), &paths).map(|(images, refused)| MyImagesAdded { images, refused })
 }
 
-/// Retire une image du dossier (les documents qui l'utilisent gardent leur copie).
-#[tauri::command(async)]
-pub fn my_images_remove(state: State<'_, AppState>, name: String) -> Result<Vec<MyImage>, String> {
-    let dir = images_dir(&state);
-    if !is_image_name(&name) {
+/// Sous-dossier des images retirées : rien n'est effacé, l'image peut y être reprise.
+const REMOVED: &str = "Retirées";
+
+/// Retire une image de la liste en la rangeant dans « Retirées » (les documents qui l'utilisent gardent leur
+/// copie ; le fichier était peut-être le seul exemplaire).
+pub fn remove_in(dir: &Path, name: &str) -> Result<Vec<MyImage>, String> {
+    if !is_image_name(name) {
         return Err("Image inconnue.".into());
     }
-    std::fs::remove_file(dir.join(&name)).map_err(|_| "L'image n'a pas pu être retirée.".to_string())?;
-    Ok(list_in(&dir))
+    let removed = dir.join(REMOVED);
+    std::fs::create_dir_all(&removed)
+        .and_then(|_| std::fs::rename(dir.join(name), removed.join(free_name(&removed, name))))
+        .map_err(|_| "L'image n'a pas pu être retirée.".to_string())?;
+    Ok(list_in(dir))
+}
+
+#[tauri::command(async)]
+pub fn my_images_remove(state: State<'_, AppState>, name: String) -> Result<Vec<MyImage>, String> {
+    remove_in(&images_dir(&state), &name)
 }
 
 /// L'image prête à poser : importée dans les images de l'application (une seule fois tant qu'elle n'a pas
@@ -171,6 +181,12 @@ mod tests {
         assert_eq!((a.width_px, a.height_px), (2000, 1000));
         assert_eq!(use_in(&s, "vache.svg").unwrap(), a, "une seule copie");
         assert!(use_in(&s, "../vache.svg").is_err());
+        // Retirée deux fois sous le même nom : les deux fichiers sont gardés à part, rien n'est effacé.
+        assert_eq!(remove_in(&dir, "vache.svg").unwrap().len(), 1);
+        std::fs::rename(dir.join("vache (2).svg"), dir.join("vache.svg")).unwrap();
+        assert!(remove_in(&dir, "vache.svg").unwrap().is_empty());
+        assert!(dir.join(REMOVED).join("vache.svg").exists() && dir.join(REMOVED).join("vache (2).svg").exists());
+        assert!(remove_in(&dir, "../x.svg").is_err());
     }
 
     #[test]

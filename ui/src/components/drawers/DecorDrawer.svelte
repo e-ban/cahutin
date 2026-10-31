@@ -56,7 +56,8 @@
   pictos.load();
   myImages.load();
 
-  const mine = $derived(category === MINE && !picking);
+  // Pendant le choix des motifs d'une frise ou un « Remplacer », seules les images fournies comptent.
+  const mine = $derived(category === MINE && !picking && !editor.replacingPictos);
   const shownMine = $derived(searchMyImages(myImages.images, query));
 
   async function addMine() {
@@ -108,9 +109,9 @@
   <h3>{fr.pictures}</h3>
   {#if picking}<p class="picking">{fr.friezePickHint}</p>{:else if editor.replacingPictos}<p class="picking">{fr.pictureReplacing}</p>{/if}
   <input class="search" type="search" bind:value={query} placeholder={fr.searchPicture} aria-label={fr.searchPicture} />
-  {#if !query}
+  {#if !query || mine}
     <div class="chips">
-      {#if !picking}<button class="mine" class:on={category === MINE} onclick={() => (category = MINE)}>{fr.myImages}</button>{/if}
+      {#if !picking && !editor.replacingPictos}<button class="mine" class:on={category === MINE} onclick={() => (category = MINE)}>{fr.myImages}</button>{/if}
       <button class:on={category === null} onclick={() => (category = null)}>{fr.allPictures}</button>
       {#each Object.keys(CLASS_PICTO_GROUPS) as g (g)}
         <button class="classe" class:on={category === g} onclick={() => (category = g)}>{fr.pictureGroups[g]}</button>

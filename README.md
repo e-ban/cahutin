@@ -78,7 +78,7 @@ Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvell
 | `.carnet` | Carnet fait avec Cahutin : pages, photos, polices ajoutées dont la licence le permet. |
 | `.carnet-modele` | Modèle personnel, à copier dans `%APPDATA%\fr.cahutin.app\modeles` (Windows) ou `~/.local/share/fr.cahutin.app/modeles` (Linux) sur un autre poste. |
 | `.cahutin-classe` | Liste d'une classe (prénoms, photos et autorisations), rangée dans `Documents/Cahutin/Classes`. |
-| Images (`.png`, `.jpg`, `.webp`, `.svg`) | « Mes images » : dans `Documents/Cahutin/Images` ; on peut aussi y déposer des fichiers avec l'explorateur. Posée sur une page, une image est copiée dans le carnet. |
+| Images (`.png`, `.jpg`, `.webp`, `.svg`) | « Mes images » : dans `Documents/Cahutin/Images` ; on peut aussi y déposer des fichiers avec l'explorateur. Une image retirée n'est pas effacée : elle va dans le sous-dossier `Retirées`. Posée sur une page, une image est copiée dans le carnet. |
 | `phototheque.json` | Photothèque d'une classe : dans `Documents/Cahutin/Photos/<classe>`, à côté des photos, les élèves présents et les activités de chacune. |
 | `.odg` | Export pour LibreOffice Draw. |
 

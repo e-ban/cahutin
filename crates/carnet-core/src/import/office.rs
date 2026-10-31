@@ -2,7 +2,7 @@
 //! LibreOffice Draw en fait un ODG, lu par `read_odg`. Profil à part, sans interface, délai limite.
 
 use super::carnet::read_carnet;
-use super::odg::read_odg;
+use super::odg::{read_drawing, read_odg};
 use super::{ImportError, Imported};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -227,7 +227,7 @@ pub fn import_file(path: &Path, soffice: Option<&Path>, known_fonts: &[String], 
     // découperait en tracés et en lettres isolées. Par le PDF seulement s'il saute plus qu'il ne garde.
     if ext == "odg" {
         let file = std::fs::File::open(path).map_err(|_| ImportError::Unreadable)?;
-        let direct = read_odg(file, known_fonts);
+        let direct = read_drawing(file, known_fonts);
         let usable = |r: &Imported| r.report.skipped <= r.report.texts + r.report.images + r.report.shapes;
         match (direct, soffice) {
             (Ok(r), _) if usable(&r) => return Ok(r),

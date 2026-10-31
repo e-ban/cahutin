@@ -463,14 +463,21 @@ fn examples_render_in_libreoffice() {
         let doc = carnet_core::examples::document(&info.id).unwrap();
         let (_dir, pdf) = render(&doc, &AssetStore::default());
         let text: String = run(Command::new("pdftotext").arg(&pdf).arg("-")).split_whitespace().collect();
-        let first_title_word = match info.id.as_str() {
-            "ferme" => "Notre",
-            "anniversaire" => "Joyeux",
-            "meteo" => "météo",
-            "prenom" => "J'écris",
-            _ => "saisons",
-        };
-        assert!(text.contains(first_title_word), "{} : {text}", info.id);
+        // Le titre : premier mot du plus grand texte de l'exemple.
+        let title = doc
+            .pages
+            .iter()
+            .flat_map(|p| &p.elements)
+            .filter_map(|e| match &e.kind {
+                carnet_core::ElementKind::Text(t) if !t.content.is_blank() => Some((t.style.size_pt, t.content.paragraphs.iter().flat_map(|p| p.runs.iter().map(|r| r.text.as_str())).collect::<Vec<_>>().join(" "))),
+                _ => None,
+            })
+            .max_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, t)| t);
+        // Un exemple fait seulement de zones à remplir (étiquettes) n'a pas de titre écrit.
+        if let Some(word) = title.as_deref().and_then(|t| t.split_whitespace().next()) {
+            assert!(text.contains(word), "{} : {word:?} absent de {text}", info.id);
+        }
         assert!(text.contains("OpenMoji"), "{} : mention absente", info.id);
     }
 }

@@ -223,13 +223,42 @@ mod tests {
             let mut buf = Cursor::new(Vec::new());
             export_odg(&doc, &AssetStore::default(), &fonts, &mut buf).unwrap();
             buf.set_position(0);
-            let back = crate::import::odg::read_odg(buf, &known).unwrap();
+            let back = crate::import::odg::read_drawing(buf, &known).unwrap();
             assert_eq!(back.report.skipped, 0, "{} : {:?}", info.id, back.report);
             let (before, after) = (texts(&doc.pages), texts(&back.pages));
             for t in &before {
                 assert!(after.contains(t), "{} : {t:?} perdu, relu {after:?}", info.id);
             }
             assert_eq!(pictos(&back.pages), pictos(&doc.pages), "{}", info.id);
+            // Le crédit OpenMoji ajouté par l'export ne revient pas.
+            assert!(!after.iter().any(|t| t.contains("OpenMoji")) || before.iter().any(|t| t.contains("OpenMoji")), "{} : {after:?}", info.id);
+            for (p, q) in doc.pages.iter().zip(&back.pages) {
+                assert_eq!(p.background.as_ref().map(|b| &b.color), q.background.as_ref().map(|b| &b.color), "{} : fond de page", info.id);
+            }
+            // Chaque texte garde ses alignements, ses lettres creuses, sa police, sa taille et le fond de son cadre.
+            let styled = |pages: &[Page]| -> Vec<String> {
+                let mut v: Vec<String> = pages
+                    .iter()
+                    .flat_map(|p| &p.elements)
+                    .filter_map(|e| match &e.kind {
+                        ElementKind::Text(t) if !t.content.is_blank() => Some(format!(
+                            "{:?} {:?} {:?} {:?} {} {} {:?}",
+                            t.content.paragraphs.iter().map(|p| p.runs.iter().map(|r| r.text.as_str()).collect::<String>()).collect::<Vec<_>>(),
+                            t.style.align,
+                            t.style.valign.unwrap_or_default(),
+                            t.style.outline.unwrap_or(false),
+                            t.style.font,
+                            t.style.size_pt,
+                            t.frame.as_ref().and_then(|f| f.fill.clone())
+                        )),
+                        _ => None,
+                    })
+                    .filter(|s| !s.contains("OpenMoji"))
+                    .collect();
+                v.sort();
+                v
+            };
+            assert_eq!(styled(&back.pages), styled(&doc.pages), "{}", info.id);
         }
     }
 

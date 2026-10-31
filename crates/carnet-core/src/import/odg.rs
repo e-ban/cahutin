@@ -51,22 +51,30 @@ struct SpanStyle {
     font: Option<String>,
     /// La police d'origine manque, ni elle ni un équivalent de même largeur : remplacée par la police de repli.
     substituted: bool,
+    /// La police d'origine manque, remplacée par une police de même largeur : ses lignes sont un peu plus hautes.
+    equivalent: bool,
     size_pt: Option<f64>,
     color: Option<String>,
     bold: bool,
     italic: bool,
     underline: bool,
+    /// Lettres creuses (contour de LibreOffice).
+    outline: bool,
 }
 
 #[derive(Clone, Default)]
 struct GraphicStyle {
     fill: Option<String>,
     stroke: Option<Stroke>,
+    valign: Option<VAlign>,
+    padding_mm: Option<f64>,
 }
 
 struct Styles {
     text: HashMap<String, SpanStyle>,
     graphic: HashMap<String, GraphicStyle>,
+    /// Alignement des styles de paragraphe.
+    align: HashMap<String, Align>,
 }
 
 fn read_styles(doc: &roxmltree::Document, known_fonts: &[String]) -> Styles {
@@ -77,16 +85,19 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String]) -> Styles {
         }
     }
     // La police elle-même, sinon une police de même largeur (les textes gardent leur longueur), sinon la police de repli.
-    let resolve = |name: &str| -> (String, bool) {
+    // Police retenue, remplacée par la police de repli, remplacée par une police de même largeur.
+    let resolve = |name: &str| -> (String, bool, bool) {
         let family = faces.get(name).map(String::as_str).unwrap_or(name);
         let known = |f: &str| known_fonts.iter().find(|k| k.eq_ignore_ascii_case(f)).cloned();
-        let equivalent = || same_width_fonts(family).iter().find_map(|f| known(f));
-        match known(family).or_else(equivalent) {
-            Some(f) => (f, false),
-            None => (FALLBACK_FONT.to_string(), !family.eq_ignore_ascii_case(FALLBACK_FONT)),
+        if let Some(f) = known(family) {
+            return (f, false, false);
+        }
+        match same_width_fonts(family).iter().find_map(|f| known(f)) {
+            Some(f) => (f, false, true),
+            None => (FALLBACK_FONT.to_string(), !family.eq_ignore_ascii_case(FALLBACK_FONT), false),
         }
     };
-    let mut styles = Styles { text: HashMap::new(), graphic: HashMap::new() };
+    let mut styles = Styles { text: HashMap::new(), graphic: HashMap::new(), align: HashMap::new() };
     for s in doc.descendants().filter(|n| n.has_tag_name((STYLE, "style"))) {
         let Some(name) = s.attribute((STYLE, "name")) else { continue };
         if let Some(t) = s.children().find(|n| n.has_tag_name((STYLE, "text-properties"))) {
@@ -95,13 +106,24 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String]) -> Styles {
                 SpanStyle {
                     font: t.attribute((STYLE, "font-name")).map(|n| resolve(n).0),
                     substituted: t.attribute((STYLE, "font-name")).is_some_and(|n| resolve(n).1),
+                    equivalent: t.attribute((STYLE, "font-name")).is_some_and(|n| resolve(n).2),
                     size_pt: t.attribute((FO, "font-size")).and_then(|v| v.strip_suffix("pt")).and_then(|v| v.parse().ok()),
                     color: t.attribute((FO, "color")).map(String::from),
                     bold: t.attribute((FO, "font-weight")) == Some("bold"),
                     italic: t.attribute((FO, "font-style")) == Some("italic"),
                     underline: t.attribute((STYLE, "text-underline-style")).is_some_and(|u| u != "none"),
+                    outline: t.attribute((STYLE, "text-outline")) == Some("true"),
                 },
             );
+        }
+        if let Some(a) = s.children().find(|n| n.has_tag_name((STYLE, "paragraph-properties"))).and_then(|p| p.attribute((FO, "text-align"))) {
+            let align = match a {
+                "center" => Align::Center,
+                "end" | "right" => Align::Right,
+                "justify" => Align::Justify,
+                _ => Align::Left,
+            };
+            styles.align.insert(name.to_string(), align);
         }
         if let Some(g) = s.children().find(|n| n.has_tag_name((STYLE, "graphic-properties"))) {
             let fill = (g.attribute((DRAW, "fill")) == Some("solid")).then(|| g.attribute((DRAW, "fill-color")).unwrap_or("#ffffff").to_string());
@@ -110,11 +132,20 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String]) -> Styles {
                 color: g.attribute((SVG, "stroke-color")).unwrap_or("#000000").to_string(),
                 style: (g.attribute((DRAW, "stroke")) == Some("dash")).then_some(StrokeStyle::Dashed),
             });
-            styles.graphic.insert(name.to_string(), GraphicStyle { fill, stroke });
+            let valign = g.attribute((DRAW, "textarea-vertical-align")).map(|v| match v {
+                "middle" => VAlign::Middle,
+                "bottom" => VAlign::Bottom,
+                _ => VAlign::Top,
+            });
+            styles.graphic.insert(name.to_string(), GraphicStyle { fill, stroke, valign, padding_mm: attr_mm(g, FO, "padding-left") });
         }
     }
     styles
 }
+
+/// Hauteur de ligne des polices de même largeur (Liberation, Arimo, Tinos : 1,15 ; Carlito : 1,22), en
+/// multiple de la taille : le cadre mesuré pour la police d'origine du PDF est souvent plus bas.
+const EQUIVALENT_LINE_HEIGHT: f64 = 1.22;
 
 /// Polices de même largeur qu'une police courante absente du poste (familles métriquement compatibles).
 fn same_width_fonts(family: &str) -> &'static [&'static str] {
@@ -134,11 +165,13 @@ fn same_width_fonts(family: &str) -> &'static [&'static str] {
 /// et la taille par défaut : la première mise en page, ou A4 portrait.
 struct PageSizes {
     by_master: HashMap<String, PageSize>,
+    /// Couleur de fond d'une page maîtresse (style `drawing-page` rempli).
+    background: HashMap<String, Background>,
     default: PageSize,
 }
 
 fn page_sizes(styles_xml: Option<&str>) -> PageSizes {
-    let mut sizes = PageSizes { by_master: HashMap::new(), default: A4_PORTRAIT };
+    let mut sizes = PageSizes { by_master: HashMap::new(), background: HashMap::new(), default: A4_PORTRAIT };
     let Some(doc) = styles_xml.and_then(|x| roxmltree::Document::parse(x).ok()) else { return sizes };
     let mut layouts: HashMap<&str, PageSize> = HashMap::new();
     for l in doc.descendants().filter(|n| n.has_tag_name((STYLE, "page-layout"))) {
@@ -152,9 +185,23 @@ fn page_sizes(styles_xml: Option<&str>) -> PageSizes {
             layouts.insert(name, size);
         }
     }
+    let fills: HashMap<&str, String> = doc
+        .descendants()
+        .filter(|n| n.has_tag_name((STYLE, "style")) && n.attribute((STYLE, "family")) == Some("drawing-page"))
+        .filter_map(|n| {
+            let p = n.children().find(|c| c.has_tag_name((STYLE, "drawing-page-properties")))?;
+            if p.attribute((DRAW, "fill")) != Some("solid") {
+                return None;
+            }
+            Some((n.attribute((STYLE, "name"))?, p.attribute((DRAW, "fill-color"))?.to_string()))
+        })
+        .collect();
     for m in doc.descendants().filter(|n| n.has_tag_name((STYLE, "master-page"))) {
         if let (Some(name), Some(size)) = (m.attribute((STYLE, "name")), m.attribute((STYLE, "page-layout-name")).and_then(|l| layouts.get(l))) {
             sizes.by_master.insert(name.to_string(), *size);
+        }
+        if let (Some(name), Some(color)) = (m.attribute((STYLE, "name")), m.attribute((DRAW, "style-name")).and_then(|d| fills.get(d))) {
+            sizes.background.insert(name.to_string(), Background { color: color.clone(), pattern: None });
         }
     }
     sizes
@@ -176,6 +223,9 @@ struct PageReader<'a, R: Read + Seek> {
     drawings: Vec<Drawing>,
     /// Lignes rétrécies parce que leur police manquait.
     shrunk: usize,
+    /// Un dessin LibreOffice lu tel quel (dont l'export de Cahutin) : chaque cadre de texte reste un texte, avec
+    /// ses alignements, sa marge et son fond. Sinon (import d'un PDF), un cadre par ligne, recollées ensuite.
+    whole_frames: bool,
 }
 
 /// Cadre d'un objet : `svg:x`, `svg:y`, ou un `draw:transform` fait d'une rotation puis d'une translation
@@ -283,6 +333,9 @@ impl<R: Read + Seek> PageReader<'_, R> {
     }
 
     fn text_box(&mut self, frame: Frame, frame_node: Node, text_box: Node) {
+        if self.whole_frames {
+            return self.whole_text_box(frame, frame_node, text_box);
+        }
         let paragraphs: Vec<Node> = text_box.descendants().filter(|n| n.has_tag_name((TEXT, "p"))).collect();
         let n = paragraphs.len().max(1) as f64;
         for (i, p) in paragraphs.iter().enumerate() {
@@ -294,11 +347,13 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 .unwrap_or_default();
             let mut runs: Vec<Run> = Vec::new();
             let mut substituted: Vec<bool> = Vec::new();
+            let mut equivalent = false;
             let mut push = |text: String, st: &SpanStyle| {
                 if text.is_empty() {
                     return;
                 }
                 substituted.push(st.substituted);
+                equivalent |= st.equivalent;
                 runs.push(Run {
                     text,
                     bold: st.bold,
@@ -345,6 +400,9 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 }
                 let line_h = runs.iter().filter_map(|r| crate::fonts::builtin_line_height_mm(&font(r), r.size_pt.unwrap_or(12.0))).fold(0.0, f64::max);
                 line_h_mm = h.max(line_h);
+            } else if equivalent {
+                let size = runs.iter().filter_map(|r| r.size_pt).fold(0.0, f64::max);
+                line_h_mm = h.max(size * EQUIVALENT_LINE_HEIGHT * 25.4 / 72.0);
             }
             let line = Line {
                 x_mm: frame.x_mm,
@@ -358,6 +416,85 @@ impl<R: Read + Seek> PageReader<'_, R> {
             self.items.push(Item::Line(self.lines.len()));
             self.lines.push(line);
         }
+    }
+
+    /// Un cadre de texte entier : ses paragraphes et leur alignement, l'alignement vertical, la marge, le fond,
+    /// la bordure et l'arrondi du cadre. La mention de licence OpenMoji, ajoutée par l'export, est laissée.
+    fn whole_text_box(&mut self, frame: Frame, frame_node: Node, text_box: Node) {
+        let g = frame_node.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s)).cloned().unwrap_or_default();
+        let mut paragraphs = Vec::new();
+        let mut outline = false;
+        for p in text_box.descendants().filter(|n| n.has_tag_name((TEXT, "p"))) {
+            let p_style = p.attribute((TEXT, "style-name"));
+            let base = p_style.and_then(|s| self.styles.text.get(s)).cloned().unwrap_or_default();
+            let mut runs: Vec<Run> = Vec::new();
+            for c in p.children() {
+                let st = if c.has_tag_name((TEXT, "span")) { c.attribute((TEXT, "style-name")).and_then(|s| self.styles.text.get(s)).cloned().unwrap_or_else(|| base.clone()) } else { base.clone() };
+                let mut t = String::new();
+                if c.is_text() {
+                    t.push_str(&readable(c.text().unwrap_or("")));
+                } else {
+                    node_text(c, &mut t);
+                }
+                if t.is_empty() {
+                    continue;
+                }
+                outline |= st.outline;
+                runs.push(Run {
+                    text: t,
+                    bold: st.bold,
+                    italic: st.italic,
+                    underline: st.underline,
+                    color: Some(st.color.clone().unwrap_or_else(|| "#000000".into())),
+                    font: Some(st.font.clone().or(base.font.clone()).unwrap_or_else(|| FALLBACK_FONT.into())),
+                    size_pt: Some(st.size_pt.or(base.size_pt).unwrap_or(12.0)),
+                });
+            }
+            // Le style du paragraphe donne la police d'une ligne vide.
+            let first = runs.first().cloned().unwrap_or(Run { font: base.font.clone(), size_pt: base.size_pt, color: base.color.clone(), ..Run::plain("") });
+            paragraphs.push((p_style.and_then(|s| self.styles.align.get(s)).copied(), runs, first));
+        }
+        let plain: String = paragraphs.iter().flat_map(|(_, r, _)| r.iter().map(|r| r.text.as_str())).collect();
+        if plain.trim() == crate::odg::OPENMOJI_CREDIT_PAGE || plain.trim() == crate::odg::OPENMOJI_CREDIT {
+            return;
+        }
+        let Some((align, _, first)) = paragraphs.first().cloned() else { return };
+        let style = TextStyle {
+            font: first.font.clone().unwrap_or_else(|| FALLBACK_FONT.into()),
+            size_pt: first.size_pt.unwrap_or(12.0),
+            color: first.color.clone().unwrap_or_else(|| "#000000".into()),
+            align: align.unwrap_or(Align::Left),
+            valign: g.valign,
+            padding_mm: g.padding_mm,
+            outline: outline.then_some(true),
+            named: None,
+        };
+        // Ce qui ne fait que répéter le style du texte est retiré des morceaux, comme dans un texte de Cahutin.
+        let paragraphs = paragraphs
+            .into_iter()
+            .map(|(a, runs, _)| Paragraph {
+                align: a.filter(|a| *a != style.align),
+                runs: runs
+                    .into_iter()
+                    .map(|mut r| {
+                        if r.font.as_deref() == Some(style.font.as_str()) {
+                            r.font = None;
+                        }
+                        if r.size_pt.is_some_and(|s| (s - style.size_pt).abs() < 0.01) {
+                            r.size_pt = None;
+                        }
+                        if r.color.as_deref() == Some(style.color.as_str()) {
+                            r.color = None;
+                        }
+                        r
+                    })
+                    .collect(),
+            })
+            .collect();
+        let radius = text_box.attribute((DRAW, "corner-radius")).and_then(length_mm).unwrap_or(0.0);
+        let text_frame = (g.fill.is_some() || g.stroke.is_some() || radius > 0.0).then(|| TextFrame { fill: g.fill.clone(), stroke: g.stroke.clone(), corner_radius_mm: radius, image: None, pattern: None });
+        let props = TextProps { content: RichText { paragraphs }, style, prompt: None, frame: text_frame };
+        self.items.push(Item::Element(Box::new(element(frame, ElementKind::Text(props)))));
     }
 
     fn image(&mut self, frame: Frame, image: Node) {
@@ -522,6 +659,16 @@ impl<R: Read + Seek> PageReader<'_, R> {
 
 /// Pages Carnet tirées de l'ODG produit par `draw_pdf_import`.
 pub fn read_odg(input: impl Read + Seek, known_fonts: &[String]) -> Result<Imported, ImportError> {
+    read(input, known_fonts, false)
+}
+
+/// Pages Carnet d'un dessin LibreOffice lu tel quel (dont un export de Cahutin) : chaque cadre de texte reste
+/// un texte entier.
+pub fn read_drawing(input: impl Read + Seek, known_fonts: &[String]) -> Result<Imported, ImportError> {
+    read(input, known_fonts, true)
+}
+
+fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> Result<Imported, ImportError> {
     let mut zip = ZipArchive::new(input).map_err(|_| ImportError::Unreadable)?;
     let content = read_entry(&mut zip, "content.xml").and_then(|b| String::from_utf8(b).ok()).ok_or(ImportError::Unreadable)?;
     let styles_xml = read_entry(&mut zip, "styles.xml").and_then(|b| String::from_utf8(b).ok());
@@ -533,14 +680,15 @@ pub fn read_odg(input: impl Read + Seek, known_fonts: &[String]) -> Result<Impor
     let mut skipped = 0;
     let (mut drawn, mut drawn_pages, mut shrunk) = (0, 0, 0);
     for page_node in doc.descendants().filter(|n| n.has_tag_name((DRAW, "page"))) {
-        let mut reader = PageReader { styles: &styles, zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, drawings: Vec::new(), shrunk: 0 };
+        let mut reader = PageReader { styles: &styles, zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, drawings: Vec::new(), shrunk: 0, whole_frames };
         for c in page_node.children() {
             reader.node(c);
         }
         let (elements, page_assets, page_skipped, drawings, page_shrunk) = reader.finish();
         shrunk += page_shrunk;
         let size = page_node.attribute((DRAW, "master-page-name")).and_then(|m| sizes.by_master.get(m)).copied().unwrap_or(sizes.default);
-        let mut page = Page { elements, ..Page::new(size) };
+        let background = page_node.attribute((DRAW, "master-page-name")).and_then(|m| sizes.background.get(m)).cloned();
+        let mut page = Page { elements, background, ..Page::new(size) };
         super::tidy::full_page_rect_to_background(&mut page);
         super::tidy::group_fragments(&mut page);
         // Les tracés au fond de la page, sous les textes et les photos, fixés : un clic sur la page ne les déplace pas.
@@ -815,6 +963,8 @@ mod tests {
         let imported = read(&text_frame("2cm", "2cm", "3cm", r#"<text:span text:style-name="T5">Notre semaine à l'école</text:span>"#));
         let t = texts(&imported.pages[0])[0];
         assert_eq!((t.style.font.as_str(), t.style.size_pt, imported.report.shrunk), ("Liberation Sans", 12.0, 0));
+        // Sa ligne a la hauteur de Liberation Sans, plus que le cadre mesuré pour Helvetica.
+        assert!(imported.pages[0].elements[0].frame.h_mm >= 12.0 * 1.15 * 25.4 / 72.0, "{:?}", imported.pages[0].elements[0].frame);
     }
 
     /// Une puce de liste, case à part dans le PDF : elle rejoint le début de sa ligne, dans la police de la ligne.

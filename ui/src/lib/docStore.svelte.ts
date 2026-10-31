@@ -65,6 +65,8 @@ class Editor {
   recents = $state.raw<Recent[]>(readRecents());
   /** Message à afficher (erreurs d'import, d'enregistrement...). */
   notice = $state<string | null>(null);
+  /** Travail en cours sans progression mesurable (export) : un message sans bouton. */
+  busy = $state<string | null>(null);
   /** Tiroir ouvert à côté de la colonne d'icônes (un seul à la fois). */
   drawer = $state<DrawerId | null>(null);
   #inspectorOpen = $state(readPref("inspectorOpen", false));

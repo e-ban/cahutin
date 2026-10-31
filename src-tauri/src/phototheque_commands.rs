@@ -9,7 +9,6 @@ use carnet_core::phototheque::{self, Phototheque, TagChange};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Mutex;
 use tauri::State;
 use tauri::ipc::Channel;
 use ts_rs::TS;
@@ -53,39 +52,48 @@ pub enum ClassPhotoAdded {
     Err { message: String },
 }
 
-/// Ajout d'un lot de photos, sur plusieurs fils ; chaque photo prête est annoncée, l'index est enregistré à la fin.
+/// Ajout d'un lot de photos, sur plusieurs fils : chaque photo prête entre dans l'index, enregistré
+/// aussitôt, puis elle est annoncée. Une fermeture en cours d'import garde les photos déjà ajoutées.
 pub fn add_in(state: &AppState, paths: &[String], on_each: impl Fn(ClassPhotoAdded) + Sync) -> Result<Phototheque, String> {
     let dir = with_open(state, |dir, _| Ok(dir.to_path_buf()))?;
     let files: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
-    let added = Mutex::new(Vec::new());
     let failures = AtomicUsize::new(0);
     let next = AtomicUsize::new(0);
     std::thread::scope(|s| {
         for _ in 0..ADD_THREADS.min(files.len()) {
             s.spawn(|| {
                 while let Some(f) = files.get(next.fetch_add(1, Ordering::Relaxed)) {
-                    match phototheque::add_file(&dir, f) {
-                        Ok(p) => {
-                            added.lock().unwrap().push(p.clone());
-                            on_each(ClassPhotoAdded::Ok { photo: p });
-                        }
-                        Err(e) => {
+                    match phototheque::add_file(&dir, f).map_err(|e| e.message_fr()).and_then(|p| record(state, &dir, p)) {
+                        Ok(p) => on_each(ClassPhotoAdded::Ok { photo: p }),
+                        Err(message) => {
                             failures.fetch_add(1, Ordering::Relaxed);
-                            on_each(ClassPhotoAdded::Err { message: e.message_fr() });
+                            on_each(ClassPhotoAdded::Err { message });
                         }
                     }
                 }
             });
         }
     });
-    let mut added = added.into_inner().unwrap();
-    added.sort_by(|a, b| a.taken.cmp(&b.taken));
     log::info!("phototheque_add total={} failures={}", files.len(), failures.into_inner());
-    with_open(state, |dir, index| {
-        index.photos.extend(added);
-        phototheque::save(dir, index)?;
-        Ok(index.clone())
-    })
+    with_open(state, |_, index| Ok(index.clone()))
+}
+
+/// Une photo ajoutée entre dans l'index de son dossier, enregistré : celui qui est ouvert, ou celui du
+/// disque si l'on a changé de classe pendant l'import.
+fn record(state: &AppState, dir: &Path, photo: phototheque::ClassPhoto) -> Result<phototheque::ClassPhoto, String> {
+    let mut lib = state.phototheque.lock().unwrap();
+    match lib.as_mut() {
+        Some((open, index)) if open == dir => {
+            index.photos.push(photo.clone());
+            phototheque::save(dir, index)?;
+        }
+        _ => {
+            let mut index = phototheque::open(dir)?;
+            index.photos.push(photo.clone());
+            phototheque::save(dir, &index)?;
+        }
+    }
+    Ok(photo)
 }
 
 #[tauri::command(async)]
@@ -173,8 +181,13 @@ mod tests {
         assert!(open_in(&s, &class).unwrap().photos.is_empty());
         let files = [jpeg(dir.path(), "a.jpg"), jpeg(dir.path(), "b.jpg"), dir.path().join("absent.jpg").to_string_lossy().into_owned()];
         let seen = AtomicUsize::new(0);
-        let lib = add_in(&s, &files, |_| {
+        let saved_dir = library_dir(&s.classes_dir, &class).unwrap();
+        let lib = add_in(&s, &files, |o| {
             seen.fetch_add(1, Ordering::Relaxed);
+            // Une photo annoncée est déjà dans l'index enregistré.
+            if let ClassPhotoAdded::Ok { photo } = o {
+                assert!(phototheque::open(&saved_dir).unwrap().photos.iter().any(|p| p.id == photo.id));
+            }
         })
         .unwrap();
         assert_eq!((lib.photos.len(), seen.into_inner()), (2, 3));

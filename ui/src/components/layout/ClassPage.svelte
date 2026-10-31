@@ -9,7 +9,7 @@
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { modal } from "../../lib/modal.svelte";
-  import { pictoUrl, pictos, searchPictos } from "../../lib/pictos.svelte";
+  import { assignSymbols, pictoUrl, pictos, searchPictos } from "../../lib/pictos.svelte";
   import { readPref, writePref } from "../../lib/prefs";
   import type { Level, Student } from "../../lib/types";
 
@@ -127,6 +127,17 @@
     editor.notice = fr.classPhotosAdded(r.added, r.missed);
   }
 
+  /** Autorisation pour toute la classe : tout cocher, ou tout décocher si tout est déjà coché. */
+  function setAllConsent(allowed: boolean) {
+    classes.update((c) => ({ ...c, students: c.students.map((s) => ({ ...s, photo_allowed: allowed })) }));
+  }
+
+  function giveSymbols() {
+    const before = cls?.students.filter((s) => !s.symbol).length ?? 0;
+    classes.update((c) => ({ ...c, students: assignSymbols(c.students) }));
+    editor.notice = fr.classSymbolsAssigned(before - (cls?.students.filter((s) => !s.symbol).length ?? 0));
+  }
+
   async function remove(s: Student) {
     if (!(await ask(fr.classRemoveStudent(s.first_name), fr.delete))) return;
     classes.update((c) => ({ ...c, students: c.students.filter((x) => x.id !== s.id) }));
@@ -202,6 +213,7 @@
       <span class="spacer"></span>
       <button onclick={() => (pasting = !pasting)}>📋 {fr.classPaste}</button>
       <button disabled={!cls.students.length} title={fr.classPhotosHint} onclick={addPhotos}>📷 {fr.classPhotosAdd}</button>
+      <button disabled={cls.students.every((s) => s.symbol)} title={fr.classSymbolsAssignHint} onclick={giveSymbols}>🐱 {fr.classSymbolsAssign}</button>
       <button title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}>🖼️ {fr.libraryTitle}</button>
     </div>
     {#if pasting}
@@ -221,7 +233,13 @@
           <th>{fr.classPhoto}</th>
           <th>{fr.classFirstName}</th>
           <th>{fr.classLastName}</th>
-          <th title={fr.classConsent}>📷 {fr.classConsentShort}</th>
+          <th title={fr.classConsent}>
+            📷 {fr.classConsentShort}
+            {#if cls.students.length > 1}
+              {@const all = cls.students.every((s) => s.photo_allowed)}
+              <label class="all"><input type="checkbox" checked={all} indeterminate={!all && cls.students.some((s) => s.photo_allowed)} onchange={(e) => setAllConsent(e.currentTarget.checked)} /> {fr.classConsentCheckAll}</label>
+            {/if}
+          </th>
           <th>{fr.classSymbol}</th>
           <th>{fr.classBirth}</th>
           <th>{fr.classLevel}</th>
@@ -291,6 +309,12 @@
 </div>
 
 <style>
+  .all {
+    display: block;
+    font-weight: normal;
+    font-size: 12px;
+    white-space: nowrap;
+  }
   .class-page {
     position: fixed;
     inset: 0;

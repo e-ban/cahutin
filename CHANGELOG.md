@@ -3,6 +3,13 @@
 ## Non publié
 
 - Photothèque de la classe (page « Ma classe », tiroir Photos ou tiroir Classe) : toutes les photos de l'année, rangées dans Documents/Cahutin/Photos, sans lieu ni appareil, avec leur date de prise de vue. On trie un lot à l'arrivée (qui est sur ces photos ? quelle activité ?), on retrouve les photos d'un enfant ou d'une sortie, sur le mois, trois mois ou l'année, et on les met dans le document. Un bandeau signale les enfants peu photographiés ; une pastille, les photos d'un enfant sans autorisation, et Cahutin rappelle de flouter son visage quand on en pose une. Aucun visage n'est reconnu : on indique les enfants d'un clic.
+- Pour une classe de 40 (essais avec 40 enfants et 300 photos) :
+  - Photothèque : un double-clic montre la photo en grand, avec les prénoms à cocher et les flèches pour passer à la suivante. « Marquer un enfant » : on choisit un prénom, puis on clique sur ses photos. Les photos sont rangées par jour (un clic sur la date choisit le jour), Ctrl+A les choisit toutes, les prénoms sont dans l'ordre alphabétique, et deux « Anna » se distinguent par l'initiale de leur nom (« Anna D. », « Anna M. »). Le bandeau des enfants peu photographiés en montre six, puis « et 12 autres ».
+  - Un lot de photos apparaît photo après photo pendant l'import, et chacune est enregistrée aussitôt : fermer Cahutin en cours de route garde celles déjà ajoutées.
+  - Page « Ma classe » : « Tout cocher » pour l'autorisation photo, et « Symboles pour tous » donne un symbole différent à chaque enfant qui n'en a pas.
+  - Document de 40 pages : le numéro de la page (à saisir pour y aller), Pg.Suiv. et Pg.Préc., une bande de miniatures plus large qui suit la page courante, et le prénom de l'enfant au survol de sa miniature.
+  - L'export pour LibreOffice affiche « Export en cours… » pendant qu'il travaille.
+  - Les raccourcis de la page (Suppr, flèches, Ctrl+Z) n'agissent plus sur le document caché derrière « Ma classe » ou la photothèque.
 - Mode modèle : « Zone photo » et « Zone texte » dans la barre de gauche, pour poser des zones où l'on veut, sans grille (une page partie de « Créer un modèle » n'en avait aucun moyen). « Logo » devient « Image fixe », avec une explication : elle reste sur chaque page faite avec le modèle. En mode modèle, une image ou une case fixée se déplace et se supprime encore.
 - Version Microsoft Store en préparation (paquet MSIX signé par Microsoft : plus d'avertissement « fichier peu téléchargé »). Elle ne consulte jamais GitHub : le Store fait les mises à jour.
 - Site : une page « Confidentialité ».

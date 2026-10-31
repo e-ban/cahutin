@@ -45,8 +45,9 @@ export function handleShortcut(ev: KeyboardEvent) {
     ev.preventDefault();
     return;
   }
-  // Sous l'écran d'accueil ou le panneau Astuces, la page n'est pas visible : rien ne doit la modifier.
-  if (typing(ev) || editor.showWelcome || editor.showTips) return;
+  // Sous l'écran d'accueil, le panneau Astuces, la classe ou la photothèque, la page n'est pas visible :
+  // rien ne doit la modifier.
+  if (typing(ev) || editor.showWelcome || editor.showTips || editor.showClassPage || editor.showPhototheque) return;
   const editActions: Partial<Record<ShortcutAction, () => void>> = {
     undo: () => editor.undo(),
     redo: () => editor.redo(),
@@ -60,6 +61,12 @@ export function handleShortcut(ev: KeyboardEvent) {
   if (action && editActions[action]) {
     ev.preventDefault();
     editActions[action]!();
+  } else if ((ev.key === "PageDown" || ev.key === "PageUp") && !ev.ctrlKey && !ev.metaKey) {
+    ev.preventDefault();
+    const next = editor.pageIndex + (ev.key === "PageDown" ? 1 : -1);
+    if (next < 0 || next >= editor.doc.pages.length) return;
+    editor.pageIndex = next;
+    editor.selection = [];
   } else if (ev.key === "Delete" || ev.key === "Backspace") {
     if (editor.selection.length === 0) return;
     ev.preventDefault();

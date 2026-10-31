@@ -1,5 +1,6 @@
 // Photothèque de la classe, côté interface : périodes, filtres, comptes par élève, équité des traces et
 // autorisations photo. Le moteur range les photos ; ici, rien que des calculs sur l'index.
+import { normalize } from "./fontSearch";
 import type { ClassPhoto, Student } from "./types";
 
 export type Period = "month" | "trimester" | "year" | "all";
@@ -80,4 +81,36 @@ export function withoutConsent(p: ClassPhoto, students: Student[]): Student[] {
 export function presence(photos: ClassPhoto[], studentId: string): "all" | "some" | "none" {
   const n = photos.filter((p) => p.students.includes(studentId)).length;
   return n === 0 ? "none" : n === photos.length ? "all" : "some";
+}
+
+/**
+ * Le nom affiché de chaque élève : son prénom, suivi de l'initiale du nom quand un autre élève porte le
+ * même prénom (sans accents ni capitales), du nom entier si l'initiale ne suffit pas, d'un numéro sinon.
+ */
+export function displayNames(students: Student[]): Map<string, string> {
+  const twins = new Map<string, Student[]>();
+  for (const s of students) twins.set(normalize(s.first_name), [...(twins.get(normalize(s.first_name)) ?? []), s]);
+  const names = new Map<string, string>();
+  for (const same of twins.values()) {
+    same.forEach((s, i) => {
+      const last = s.last_name.trim();
+      const alone = (f: (x: Student) => string) => !!f(s) && same.filter((x) => f(x) === f(s)).length === 1;
+      if (same.length === 1) names.set(s.id, s.first_name);
+      else if (alone((x) => normalize(x.last_name).charAt(0))) names.set(s.id, `${s.first_name} ${last.charAt(0).toUpperCase()}.`);
+      else if (alone((x) => normalize(x.last_name))) names.set(s.id, `${s.first_name} ${last}`);
+      else names.set(s.id, `${s.first_name} (${i + 1})`);
+    });
+  }
+  return names;
+}
+
+/** Les photos (déjà dans l'ordre) regroupées par jour de prise de vue. */
+export function byDay(photos: ClassPhoto[]): { day: string; photos: ClassPhoto[] }[] {
+  const days: { day: string; photos: ClassPhoto[] }[] = [];
+  for (const p of photos) {
+    const last = days.at(-1);
+    if (last?.day === dayOf(p)) last.photos.push(p);
+    else days.push({ day: dayOf(p), photos: [p] });
+  }
+  return days;
 }

@@ -9,22 +9,34 @@
   import { classes } from "../../lib/classStore.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
-  import { countsByStudent, filterLibrary, presence, studentsBehind, tagsOf, withoutConsent, type LibraryFilter, type Period } from "../../lib/phototheque";
+  import { byDay, countsByStudent, displayNames, filterLibrary, presence, studentsBehind, tagsOf, withoutConsent, type LibraryFilter, type Period } from "../../lib/phototheque";
   import { classLibrary } from "../../lib/phototheque.svelte";
+  import PhotoViewer from "./PhotoViewer.svelte";
 
   const EXTENSIONS = ["jpg", "jpeg", "png", "webp", "JPG", "JPEG", "PNG", "WEBP"];
   const PERIODS: Period[] = ["month", "trimester", "year", "all"];
+  /** Enfants nommés dans le bandeau d'équité avant « et N autres ». */
+  const BEHIND_SHOWN = 6;
 
   let filter = $state<LibraryFilter>({ period: "year" });
   let selected = $state<string[]>([]);
   let lastClicked = $state<string | null>(null);
   let newTag = $state("");
   let error = $state<string | null>(null);
+  // Photo vue en grand : la liste parcourue et la position de départ.
+  let viewing = $state<{ ids: string[]; start: number } | null>(null);
+  // Mode « un enfant, puis ses photos » : chaque clic sur une photo l'y ajoute ou l'en retire.
+  let marking = $state<string | null>(null);
+  let allBehind = $state(false);
 
   const today = new Date();
-  const students = $derived(classes.current?.class.students ?? []);
-  const nameOf = (id: string) => students.find((s) => s.id === id)?.first_name ?? "?";
+  // Par ordre alphabétique, pour retrouver vite un prénom parmi 40.
+  const students = $derived([...(classes.current?.class.students ?? [])].sort((a, b) => a.first_name.localeCompare(b.first_name, "fr", { sensitivity: "base" }) || a.last_name.localeCompare(b.last_name, "fr", { sensitivity: "base" })));
+  // Deux « Anna » se distinguent par l'initiale de leur nom, partout sur la page.
+  const names = $derived(displayNames(students));
+  const nameOf = (id: string) => names.get(id) ?? "?";
   const shown = $derived(filterLibrary(classLibrary.photos, filter, today));
+  const days = $derived(byDay(shown));
   const counts = $derived(countsByStudent(classLibrary.photos, students, filter.period, today));
   const behind = $derived(studentsBehind(counts));
   const tags = $derived(tagsOf(classLibrary.photos));
@@ -52,20 +64,29 @@
     const dir = await open({ directory: true });
     if (typeof dir === "string") await addPaths(await listImportableIn(dir));
   }
-  /** Un lot ajouté arrive choisi, dans « À trier » : on indique tout de suite qui est dessus. */
+  /** Un lot arrive dans « À trier », photo après photo ; à la fin il est choisi (si l'on n'a rien choisi
+   *  entre-temps) : on indique tout de suite qui est dessus. */
   async function addPaths(paths: string[]) {
     error = null;
+    if (!paths.length) return;
+    filter = { period: "all", untagged: true };
     try {
       const added = await classLibrary.add(paths);
-      filter = { period: "all", untagged: true };
-      selected = added;
+      if (!selected.length && !marking) selected = added;
     } catch (e) {
       error = String(e);
     }
   }
 
-  /** Clic : une photo ; Ctrl : en ajouter ou en retirer une ; Maj : toutes celles entre deux. */
+  /** Clic : une photo ; Ctrl : en ajouter ou en retirer une ; Maj : toutes celles entre deux. En mode
+   *  « marquer un enfant », le clic l'ajoute à la photo ou l'en retire. */
   function pick(id: string, ev: MouseEvent) {
+    if (marking) {
+      const p = classLibrary.photos.find((x) => x.id === id);
+      const on = !!p?.students.includes(marking);
+      void run(() => classLibrary.tag([id], on ? { remove_students: [marking!] } : { add_students: [marking!] }));
+      return;
+    }
     if (ev.shiftKey && lastClicked) {
       const ids = shown.map((p) => p.id);
       const [a, b] = [ids.indexOf(lastClicked), ids.indexOf(id)].sort((x, y) => x - y);
@@ -76,6 +97,29 @@
       selected = selected.length === 1 && selected[0] === id ? [] : [id];
     }
     lastClicked = id;
+  }
+
+  /** Tous les jours affichés, ou un seul : ajoutés au choix, retirés s'ils y sont déjà tous. */
+  function pickAll(ids: string[]) {
+    selected = ids.every((id) => selected.includes(id)) ? selected.filter((id) => !ids.includes(id)) : [...new Set([...selected, ...ids])];
+  }
+
+  function startMarking(id: string) {
+    marking = id || null;
+    selected = [];
+  }
+
+  function onkey(e: KeyboardEvent) {
+    if (viewing) return;
+    const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement;
+    if (e.key === "Escape") {
+      if (marking) marking = null;
+      else if (selected.length) selected = [];
+      else close();
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a" && !typing && !marking) {
+      e.preventDefault();
+      selected = shown.map((p) => p.id);
+    }
   }
 
   /** Un enfant sur toutes les photos choisies : on l'en retire ; sinon on l'y ajoute. */
@@ -116,7 +160,7 @@
   }
 </script>
 
-<svelte:window onkeydown={(e) => e.key === "Escape" && (selected.length ? (selected = []) : close())} />
+<svelte:window onkeydown={onkey} />
 
 <div class="library-page">
   <div class="top">
@@ -139,7 +183,8 @@
     {#if behind.length}
       <p class="equity" role="note">
         {fr.libraryBehind(filter.period)}
-        {#each behind as id (id)}<button class="kid" onclick={() => (filter = { ...filter, student: id, tag: null, untagged: false })}>{nameOf(id)} ({counts.get(id)})</button>{/each}
+        {#each allBehind ? behind : behind.slice(0, BEHIND_SHOWN) as id (id)}<button class="kid" onclick={() => (filter = { ...filter, student: id, tag: null, untagged: false })}>{nameOf(id)} ({counts.get(id)})</button>{/each}
+        {#if behind.length > BEHIND_SHOWN}<button class="link" onclick={() => (allBehind = !allBehind)}>{allBehind ? fr.libraryBehindLess : fr.libraryBehindMore(behind.length - BEHIND_SHOWN)}</button>{/if}
       </p>
     {/if}
 
@@ -156,7 +201,7 @@
         <h3>{fr.libraryChildren}</h3>
         {#each students as s (s.id)}
           <button class="child" class:on={filter.student === s.id} onclick={() => (filter = { period: filter.period, student: s.id })}>
-            <span>{s.first_name}{#if !s.photo_allowed}<span class="no-consent" title={fr.libraryNoConsentHint}> 🚫</span>{/if}</span>
+            <span>{nameOf(s.id)}{#if !s.photo_allowed}<span class="no-consent" title={fr.libraryNoConsentHint}> 🚫</span>{/if}</span>
             <span class="n">{counts.get(s.id) ?? 0}</span>
           </button>
         {/each}
@@ -166,28 +211,62 @@
         {/if}
       </aside>
 
-      <section class="grid" aria-label={fr.libraryTitle}>
+      <section class="photos" aria-label={fr.libraryTitle}>
+        {#if classLibrary.photos.length}
+          <div class="toolbar">
+            <label>
+              {fr.libraryMark}
+              <select value={marking ?? ""} onchange={(e) => startMarking(e.currentTarget.value)}>
+                <option value="">{fr.libraryMarkNone}</option>
+                {#each students as s (s.id)}<option value={s.id}>{nameOf(s.id)}</option>{/each}
+              </select>
+            </label>
+            {#if !marking && shown.length}<button onclick={() => pickAll(shown.map((p) => p.id))} title="Ctrl+A">{fr.librarySelectAll}</button>{/if}
+            <span class="hint">{marking ? fr.libraryMarkHint(nameOf(marking)) : fr.libraryZoomHint}</span>
+            {#if marking}<button onclick={() => (marking = null)}>{fr.libraryMarkDone}</button>{/if}
+          </div>
+        {/if}
         {#if shown.length === 0}
           <p class="hint">{classLibrary.photos.length ? fr.libraryNoneHere : fr.libraryEmpty}</p>
         {/if}
-        {#each shown as p (p.id)}
-          {@const missing = withoutConsent(p, students)}
-          <button class="thumb" class:on={selected.includes(p.id)} aria-pressed={selected.includes(p.id)} onclick={(e) => pick(p.id, e)} title={p.students.map(nameOf).join(", ")}>
-            <img src={classPhotoUrl(p.id)} alt="" loading="lazy" draggable="false" />
-            {#if missing.length}<span class="badge warn" title={fr.libraryNoConsent(missing.map((s) => s.first_name))}>🚫 {missing.length}</span>{/if}
-            {#if p.students.length}<span class="badge">🧒 {p.students.length}</span>{/if}
-          </button>
+        <div class="days">
+        {#each days as d (d.day)}
+          <div class="day">
+            <button class="day-head" disabled={!!marking} title={fr.librarySelectDay} onclick={() => pickAll(d.photos.map((p) => p.id))}>
+              {fr.libraryDayShort(d.day)} <span class="n">· {d.photos.length}</span>
+            </button>
+            <div class="grid">
+            {#each d.photos as p (p.id)}
+              {@const missing = withoutConsent(p, students)}
+              {@const on = marking ? p.students.includes(marking) : selected.includes(p.id)}
+              <button
+                class="thumb"
+                class:on
+                class:marking
+                aria-pressed={on}
+                onclick={(e) => pick(p.id, e)}
+                ondblclick={() => (viewing = { ids: shown.map((x) => x.id), start: shown.indexOf(p) })}
+                title={p.students.map(nameOf).join(", ")}
+              >
+                <img src={classPhotoUrl(p.id)} alt="" loading="lazy" draggable="false" />
+                {#if marking && on}<span class="badge mark">✓ {nameOf(marking)}</span>{:else if p.students.length}<span class="badge">🧒 {p.students.length}</span>{/if}
+                {#if missing.length}<span class="badge warn" title={fr.libraryNoConsent(missing.map((s) => nameOf(s.id)))}>🚫 {missing.length}</span>{/if}
+              </button>
+            {/each}
+            </div>
+          </div>
         {/each}
+        </div>
       </section>
 
-      {#if chosen.length}
+      {#if chosen.length && !marking}
         <aside class="panel">
           <h3>{fr.libraryChosen(chosen.length)}</h3>
           <p class="hint">{fr.libraryWhoHint}</p>
           <div class="kids">
             {#each students as s (s.id)}
               {@const here = presence(chosen, s.id)}
-              <button class="kid {here}" aria-pressed={here === "all"} onclick={() => toggleStudent(s.id)}>{s.first_name}</button>
+              <button class="kid {here}" aria-pressed={here === "all"} onclick={() => toggleStudent(s.id)}>{nameOf(s.id)}</button>
             {/each}
           </div>
           <h3>{fr.libraryActivities}</h3>
@@ -211,6 +290,10 @@
     <p class="hint">{fr.libraryPrivacy}</p>
   {/if}
 </div>
+
+{#if viewing}
+  <PhotoViewer ids={viewing.ids} start={viewing.start} {students} {names} onclose={() => (viewing = null)} onerror={(e) => (error = String(e))} />
+{/if}
 
 <style>
   .library-page {
@@ -280,14 +363,55 @@
     gap: 2px;
     margin-bottom: 8px;
   }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  .toolbar {
+    display: flex;
+    align-items: center;
     gap: 10px;
-    align-content: start;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .toolbar label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  /* Les jours s'enchaînent côte à côte : un jour d'une photo ne prend pas toute une ligne. */
+  .days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 18px;
+    align-items: flex-start;
+  }
+  .day {
+    max-width: 100%;
+  }
+  .day-head {
+    border: none;
+    background: none;
+    padding: 0 0 4px;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .day-head:not(:disabled):hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+  .link {
+    border: none;
+    background: none;
+    color: var(--accent);
+    padding: 0;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
   }
   .thumb {
     position: relative;
+    width: 150px;
     padding: 0;
     aspect-ratio: 4 / 3;
     overflow: hidden;
@@ -313,6 +437,13 @@
     border-radius: 10px;
     padding: 0 6px;
     font-size: 12px;
+  }
+  .thumb.marking.on {
+    border-color: #2e8b57;
+  }
+  .badge.mark {
+    background: #2e8b57;
+    color: white;
   }
   .badge.warn {
     left: auto;

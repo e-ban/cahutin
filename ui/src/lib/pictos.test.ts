@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { CLASS_PICTO_GROUPS, pageHasPictos, pictoElement, pictosOf, replacePictos, searchPictos, type PictoEntry } from "./pictos.svelte";
+import { assignSymbols, CLASS_PICTO_GROUPS, STUDENT_SYMBOLS, pageHasPictos, pictoElement, pictosOf, replacePictos, searchPictos, type PictoEntry } from "./pictos.svelte";
 import type { Page } from "./types";
 
 const index: PictoEntry[] = JSON.parse(readFileSync(fileURLToPath(new URL("../../../assets/openmoji/index.json", import.meta.url)), "utf8"));
@@ -41,4 +41,12 @@ test("class categories only name pictures of the bank, each once", () => {
     expect(pictosOf(index, g).map((p) => p.code)).toEqual(codes);
     expect(new Set(codes).size).toBe(codes.length);
   }
+});
+
+test("each child without a symbol gets one of their own, taken from the bank", () => {
+  const index: PictoEntry[] = JSON.parse(readFileSync(new URL("../../../assets/openmoji/index.json", import.meta.url), "utf8"));
+  expect(STUDENT_SYMBOLS.filter((c) => !index.some((p) => p.code === c))).toEqual([]);
+  expect(new Set(STUDENT_SYMBOLS).size).toBe(STUDENT_SYMBOLS.length);
+  const kids = [{ symbol: null }, { symbol: "1F436" }, { symbol: null }];
+  expect(assignSymbols(kids).map((k) => k.symbol)).toEqual(["1F431", "1F436", "1F42D"]);
 });

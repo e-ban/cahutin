@@ -8,9 +8,32 @@
   import { remapTables } from "../../lib/table";
   import { deletePage } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
+  import { classes } from "../../lib/classStore.svelte";
+  import { studentOfPage } from "../../lib/classFill";
   import type { Page } from "../../lib/types";
 
   const MINI = 0.07;
+
+  let strip = $state<HTMLElement>();
+  const count = $derived(editor.doc.pages.length);
+  const students = $derived(classes.current?.class.students ?? []);
+
+  // La miniature de la page courante reste visible dans la bande, même à la page 30.
+  $effect(() => {
+    strip?.children[editor.pageIndex]?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
+
+  function goTo(n: number) {
+    if (!Number.isFinite(n)) return;
+    editor.pageIndex = Math.min(count, Math.max(1, Math.round(n))) - 1;
+    editor.selection = [];
+  }
+
+  /** « Page 3 · Léa » pour une page faite pour un enfant. */
+  function thumbTitle(p: Page, i: number): string {
+    const who = studentOfPage(p, students);
+    return who ? fr.pageThumbFor(i + 1, who.first_name) : fr.pageN(i + 1);
+  }
 
   function insert(page: Page) {
     const pages = [...editor.doc.pages];
@@ -55,9 +78,15 @@
 </script>
 
 <footer class="pagebar">
-  <div class="pages">
+  {#if count > 1}
+    <label class="count" title={fr.pageGo}>
+      <input type="number" min="1" max={count} value={editor.pageIndex + 1} aria-label={fr.pageGo} onchange={(e) => goTo(e.currentTarget.valueAsNumber)} />
+      <span>/ {count}</span>
+    </label>
+  {/if}
+  <div class="pages" bind:this={strip}>
     {#each editor.doc.pages as p, i (p.id)}
-      <button class="thumb" class:current={i === editor.pageIndex} title={fr.pageN(i + 1)} onclick={() => ((editor.pageIndex = i), (editor.selection = []))}>
+      <button class="thumb" class:current={i === editor.pageIndex} title={thumbTitle(p, i)} onclick={() => ((editor.pageIndex = i), (editor.selection = []))}>
         <PageView page={p} doc={editor.doc} zoom={MINI} />
       </button>
     {/each}
@@ -98,9 +127,20 @@
     gap: 8px;
     overflow-x: auto;
     max-width: 50vw;
-    min-width: 60px;
-    flex-shrink: 1;
+    min-width: 150px;
+    flex: 0 1 auto;
     padding: 2px;
+  }
+  .count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .count input {
+    width: 3.5em;
   }
   /* Les boutons gardent leur libellé sur une ligne ; la bande des miniatures cède la place. */
   .pagebar > button,

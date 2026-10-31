@@ -47,3 +47,12 @@ export function matchPhotos(students: Student[], paths: string[]): { matched: { 
   }
   return { matched, unmatched };
 }
+
+/** L'enfant d'une page générée pour lui : le seul élève dont le prénom est écrit sur la page. */
+export function studentOfPage(page: Page, students: Student[]): Student | undefined {
+  const words = new Set(
+    page.elements.flatMap((e) => (e.kind.type === "Text" ? e.kind.content.paragraphs.flatMap((p) => p.runs.flatMap((r) => normalize(r.text).split(/[^\p{L}-]+/u))) : [])),
+  );
+  const found = students.filter((s) => s.first_name.trim() && words.has(normalize(s.first_name)));
+  return new Set(found.map((s) => normalize(s.first_name))).size === 1 ? found[0] : undefined;
+}

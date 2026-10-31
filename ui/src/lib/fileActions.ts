@@ -220,7 +220,12 @@ export async function exportOdg() {
   const picked = await saveDialog({ defaultPath: `${baseName()}.odg`, filters: [{ name: "LibreOffice Draw", extensions: ["odg"] }] });
   if (!picked) return;
   const path = withExt(picked, "odg");
-  if ((await guard(() => api.exportOdg(path, editor.doc))) !== undefined) editor.notice = `Exporté pour LibreOffice : ${fileName(path)}`;
+  editor.busy = fr.exportingOdg;
+  try {
+    if ((await guard(() => api.exportOdg(path, editor.doc))) !== undefined) editor.notice = `Exporté pour LibreOffice : ${fileName(path)}`;
+  } finally {
+    editor.busy = null;
+  }
 }
 
 /** Rend les pages d'impression, attend qu'elles soient affichées (polices, images), puis lance `action`. */

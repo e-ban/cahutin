@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { countsByStudent, filterLibrary, periodStart, presence, studentsBehind, tagsOf, withoutConsent } from "./phototheque";
+import { byDay, countsByStudent, displayNames, filterLibrary, periodStart, presence, studentsBehind, tagsOf, withoutConsent } from "./phototheque";
 import type { ClassPhoto, Student } from "./types";
 
 const photo = (id: string, taken: string, students: string[] = [], tags: string[] = []): ClassPhoto => ({ id, width_px: 10, height_px: 10, mime: "Jpeg", taken, added: "2026-10-31", students, tags });
@@ -41,4 +41,15 @@ test("consent and presence over a selection", () => {
   expect(withoutConsent(p, [student("lea"), student("noe", false)]).map((s) => s.id)).toEqual(["noe"]);
   const sel = [p, photo("y", "2026-10-02", ["lea"])];
   expect([presence(sel, "lea"), presence(sel, "noe"), presence(sel, "tom")]).toEqual(["all", "some", "none"]);
+});
+
+test("children with the same first name are told apart by their last name", () => {
+  const kid = (id: string, first_name: string, last_name: string): Student => ({ ...student(id), first_name, last_name });
+  const names = displayNames([kid("1", "Anna", "Durand"), kid("2", "anna", "Martin"), kid("3", "Léo", "Petit"), kid("4", "Noé", "Morel"), kid("5", "Noé", "Moulin"), kid("6", "Zoé", ""), kid("7", "Zoe", "")]);
+  expect([...names.values()]).toEqual(["Anna D.", "anna M.", "Léo", "Noé Morel", "Noé Moulin", "Zoé (1)", "Zoe (2)"]);
+});
+
+test("photos are grouped by day, in the order given", () => {
+  const photos = [photo("a", "2026-10-14"), photo("b", "2026-10-14"), photo("c", "2026-10-02")];
+  expect(byDay(photos).map((d) => [d.day, d.photos.map((p) => p.id)])).toEqual([["2026-10-14", ["a", "b"]], ["2026-10-02", ["c"]]]);
 });

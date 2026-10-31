@@ -24,6 +24,15 @@ export const CLASS_PICTO_GROUPS: Record<string, string[]> = {
   soins: ["1F9FC", "1F6B0", "1FAA5", "1F6BD", "1F9FB", "1F927", "1FA79", "1F964", "1F95B", "1F34E", "1F442", "1F441", "1F443", "1F444", "270B", "1F9E6", "1F45F", "1F9E4"],
 };
 
+/** Symboles faciles à reconnaître et à nommer, donnés aux élèves qui n'en ont pas (animaux, fruits, objets). */
+export const STUDENT_SYMBOLS = "1F436 1F431 1F42D 1F430 1F98A 1F43B 1F43C 1F428 1F42F 1F981 1F42E 1F437 1F438 1F435 1F414 1F427 1F426 1F986 1F989 1F434 1F984 1F41D 1F98B 1F40C 1F41E 1F422 1F419 1F420 1F42C 1F433 1F992 1F418 1F994 1F34E 1F350 1F34A 1F34B 1F34C 1F349 1F347 1F353 1F352 1F955 2B50 1F319 2600 1F308 1F338 1F33B 1F344 1F332 1F697 1F680 26F5 1F388 26BD 1F511 2602 1F381 1F3E0".split(" ");
+
+/** Un symbole différent pour chaque élève qui n'en a pas, parmi ceux que la classe n'utilise pas encore. */
+export function assignSymbols<S extends { symbol: string | null }>(students: S[]): S[] {
+  const free = STUDENT_SYMBOLS.filter((c) => !students.some((s) => s.symbol === c));
+  return students.map((s) => (s.symbol || !free.length ? s : { ...s, symbol: free.shift()! }));
+}
+
 /** Les images d'une catégorie : celles de la classe dans leur ordre, les autres d'après l'index. */
 export function pictosOf(index: PictoEntry[], group: string): PictoEntry[] {
   const chosen = CLASS_PICTO_GROUPS[group];

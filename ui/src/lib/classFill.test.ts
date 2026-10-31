@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { hasNameFields, matchPhotos, nameFieldsFilled } from "./classFill";
+import { hasNameFields, matchPhotos, nameFieldsFilled, studentOfPage } from "./classFill";
 import type { Element, Page, Student } from "./types";
 
 const frame = { x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 };
@@ -40,4 +40,14 @@ test("matchPhotos: by first name, accents and case aside, full name when first n
     { student: "4", path: "/p/Anna-Lou 2.png" },
   ]);
   expect(r.unmatched).toEqual(["/p/léa.jpg", "/p/inconnu.jpg"]);
+});
+
+test("a page made for one child is known by that child's first name", () => {
+  const kids = [s("1", "Léa"), s("2", "Noé"), s("3", "Anna", "Durand"), s("4", "Anna", "Martin")];
+  const page = (...texts: string[]): Page => ({ id: "p", size: { width_mm: 210, height_mm: 297 }, elements: texts.map((t) => text(null, t)), grid: null });
+  expect(studentOfPage(page("J'écris mon prénom", "LÉA"), kids)?.id).toBe("1");
+  expect(studentOfPage(page("Léa et Noé"), kids)).toBeUndefined();
+  expect(studentOfPage(page("Léandre"), kids)).toBeUndefined();
+  // Deux Anna : la page est bien celle d'une Anna, la première.
+  expect(studentOfPage(page("Anna"), kids)?.first_name).toBe("Anna");
 });

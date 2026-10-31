@@ -291,6 +291,8 @@
       <pre>{fr.importingFile(editor.fileImport.name)}</pre>
       <button onclick={cancelFileImport}>{fr.cancel}</button>
     </div>
+  {:else if editor.busy}
+    <div class="notice" role="status"><pre>{editor.busy}</pre></div>
   {:else if editor.notice}
     <div class="notice" role="alert">
       <pre>{editor.notice}</pre>

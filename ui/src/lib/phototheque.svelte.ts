@@ -19,7 +19,7 @@ class ClassLibrary {
     this.photos = lib.photos;
   }
 
-  /** Ajoute un lot ; rend les identifiants des photos ajoutées (à trier ensuite). */
+  /** Ajoute un lot, chaque photo visible dès qu'elle est prête ; rend les identifiants des photos ajoutées. */
   async add(paths: string[]): Promise<string[]> {
     if (!paths.length) return [];
     const added: string[] = [];
@@ -28,7 +28,10 @@ class ClassLibrary {
       const lib = await photothequeAdd(paths, (o) => {
         if (!this.progress) return;
         this.progress = { ...this.progress, done: this.progress.done + 1, failed: this.progress.failed + (o.type === "Err" ? 1 : 0) };
-        if (o.type === "Ok") added.push(o.photo.id);
+        if (o.type === "Ok") {
+          added.push(o.photo.id);
+          this.photos = [...this.photos, o.photo];
+        }
       });
       this.photos = lib.photos;
       return added;

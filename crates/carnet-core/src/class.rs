@@ -42,6 +42,10 @@ pub struct Student {
     pub photo_allowed: bool,
     /// Symbole de l'enfant : code d'une image OpenMoji.
     pub symbol: Option<String>,
+    /// Date de naissance, « 2022-03-12 » ; facultative (âge, anniversaires).
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub birth_date: Option<String>,
 }
 
 impl Student {
@@ -55,8 +59,64 @@ impl Student {
             photo: None,
             photo_allowed: false,
             symbol: None,
+            birth_date: None,
         }
     }
+}
+
+/// (année, mois, jour) d'une date « AAAA-MM-JJ ».
+pub fn ymd(date: &str) -> Option<(i32, u32, u32)> {
+    let mut it = date.split('-');
+    let (y, m, d) = (it.next()?.parse().ok()?, it.next()?.parse().ok()?, it.next()?.parse().ok()?);
+    (it.next().is_none() && (1..=12).contains(&m) && (1..=31).contains(&d)).then_some((y, m, d))
+}
+
+/// Âge en années révolues au jour donné.
+pub fn age_on(birth: &str, today: (i32, u32, u32)) -> Option<u32> {
+    let (y, m, d) = ymd(birth)?;
+    let age = today.0 - y - i32::from((today.1, today.2) < (m, d));
+    u32::try_from(age).ok()
+}
+
+/// La date du jour (heure universelle), sans dépendance de calendrier.
+pub fn today() -> (i32, u32, u32) {
+    let days = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() / 86_400).unwrap_or(0) as i64;
+    // Algorithme des jours civils (H. Hinnant).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    ((yoe + era * 400 + i64::from(m <= 2)) as i32, m, d)
+}
+
+pub const MONTHS: [&str; 12] = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+
+/// « 12 mars », « 1er avril ».
+pub fn birthday_text(birth: &str) -> Option<String> {
+    let (_, m, d) = ymd(birth)?;
+    let day = if d == 1 { "1er".to_string() } else { d.to_string() };
+    Some(format!("{day} {}", MONTHS[m as usize - 1]))
+}
+
+/// Une date écrite à la française (« 12/03/2022 », « 12-03-2022 », « 12.03.22 ») ou au format ISO, en
+/// « AAAA-MM-JJ ».
+pub fn parse_date(text: &str) -> Option<String> {
+    let t = text.trim();
+    if ymd(t).is_some() {
+        return Some(t.to_string());
+    }
+    let parts: Vec<&str> = t.split(['/', '-', '.']).collect();
+    let [d, m, y] = parts[..] else { return None };
+    let (d, m, mut y): (u32, u32, i32) = (d.parse().ok()?, m.parse().ok()?, y.parse().ok()?);
+    if y < 100 {
+        y += 2000;
+    }
+    let iso = format!("{y:04}-{m:02}-{d:02}");
+    ymd(&iso).map(|_| iso)
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -77,14 +137,88 @@ impl Class {
     }
 }
 
-/// Une ligne par élève : le prénom, puis le nom après le premier blanc. Lignes vides ignorées (copie
-/// d'une colonne de tableur, tabulations comprises).
+/// Colonne d'un tableau d'élèves, reconnue à son titre.
+#[derive(Clone, Copy, PartialEq)]
+enum Column {
+    FirstName,
+    LastName,
+    Birth,
+    Group,
+    Level,
+    Other,
+}
+
+fn column_of(title: &str) -> Column {
+    let t = fold(title.trim());
+    if t.contains("prenom") {
+        Column::FirstName
+    } else if t.contains("naissance") || t == "date" || t.contains("ne(e) le") || t.contains("ne le") {
+        Column::Birth
+    } else if t.contains("groupe") || t.contains("equipe") {
+        Column::Group
+    } else if t.contains("niveau") || t == "classe" || t == "section" {
+        Column::Level
+    } else if t == "nom" || t.starts_with("nom ") || t.contains("nom de famille") {
+        Column::LastName
+    } else {
+        Column::Other
+    }
+}
+
+/// Séparateur des colonnes d'un tableau collé ou d'un CSV : tabulation, point-virgule ou virgule ; aucun
+/// pour une simple liste de prénoms.
+fn separator(lines: &[&str]) -> Option<char> {
+    ['\t', ';', ','].into_iter().find(|&c| lines.iter().filter(|l| l.contains(c)).count() * 2 >= lines.len().max(1))
+}
+
+fn cell(c: &str) -> String {
+    c.trim().trim_matches('"').trim().to_string()
+}
+
+/// La liste de la classe, collée ou lue dans un fichier. Une colonne de prénoms : une ligne par élève, le
+/// prénom puis le nom après le premier blanc. Un tableau (tableur, CSV, export ONDE) : ses colonnes sont
+/// reconnues à leur titre (prénom, nom, date de naissance, groupe, niveau) ; sans ligne de titres, prénom
+/// puis nom. Lignes vides ignorées.
 pub fn parse_list(text: &str) -> Vec<Student> {
-    text.lines()
-        .map(|l| l.split_whitespace().collect::<Vec<_>>())
-        .filter(|words| !words.is_empty())
-        .map(|words| Student::new(words[0], &words[1..].join(" ")))
+    let lines: Vec<&str> = text.lines().filter(|l| !l.trim().trim_matches([';', ',', '\t']).trim().is_empty()).collect();
+    let Some(sep) = separator(&lines) else {
+        return lines.iter().map(|l| l.split_whitespace().collect::<Vec<_>>()).map(|w| Student::new(w[0], &w[1..].join(" "))).collect();
+    };
+    let rows: Vec<Vec<String>> = lines.iter().map(|l| l.split(sep).map(cell).collect()).collect();
+    let titles: Vec<Column> = rows[0].iter().map(|t| column_of(t)).collect();
+    let (columns, data) = if titles.contains(&Column::FirstName) {
+        (titles, &rows[1..])
+    } else {
+        (vec![Column::FirstName, Column::LastName], &rows[..])
+    };
+    data.iter()
+        .filter_map(|row| {
+            let get = |c: Column| columns.iter().position(|&x| x == c).and_then(|i| row.get(i)).map(String::as_str).unwrap_or("");
+            let first = get(Column::FirstName);
+            if first.is_empty() {
+                return None;
+            }
+            let mut s = Student::new(first, get(Column::LastName));
+            s.birth_date = parse_date(get(Column::Birth));
+            s.group = get(Column::Group).to_string();
+            s.level = match fold(get(Column::Level)).trim() {
+                l if l.contains("ps") || l.contains("petit") => Some(Level::PS),
+                l if l.contains("ms") || l.contains("moyen") => Some(Level::MS),
+                l if l.contains("gs") || l.contains("grand") => Some(Level::GS),
+                _ => None,
+            };
+            Some(s)
+        })
         .collect()
+}
+
+/// Texte d'un fichier de liste : UTF-8, sinon Windows-1252 (exports de tableurs et d'ONDE sous Windows).
+pub fn decode_list_file(bytes: &[u8]) -> String {
+    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    match std::str::from_utf8(bytes) {
+        Ok(s) => s.to_string(),
+        Err(_) => bytes.iter().map(|&b| char::from(b)).collect(),
+    }
 }
 
 /// Clé de tri : minuscules, sans accents.
@@ -244,6 +378,37 @@ mod tests {
         }
         buf.set_position(0);
         buf
+    }
+
+    #[test]
+    fn a_spreadsheet_is_read_by_column_titles() {
+        let csv = "Nom;Prénom;Né(e) le;Niveau;Groupe\nDurand;Léa;12/03/2022;MS;Les renards\n\nMartin;Noé;2021-11-01;Grande section;\n";
+        let s = parse_list(csv);
+        assert_eq!(s.len(), 2);
+        assert_eq!((s[0].first_name.as_str(), s[0].last_name.as_str()), ("Léa", "Durand"));
+        assert_eq!(s[0].birth_date.as_deref(), Some("2022-03-12"));
+        assert_eq!((s[0].level, s[0].group.as_str()), (Some(Level::MS), "Les renards"));
+        assert_eq!((s[1].birth_date.as_deref(), s[1].level), (Some("2021-11-01"), Some(Level::GS)));
+        // Collé d'un tableur, sans titres : prénom puis nom.
+        let s = parse_list("Léa\tDurand\nNoé\tMartin\n");
+        assert_eq!((s[1].first_name.as_str(), s[1].last_name.as_str()), ("Noé", "Martin"));
+    }
+
+    #[test]
+    fn a_windows_file_is_decoded() {
+        assert_eq!(decode_list_file(b"Pr\xe9nom\nL\xe9a"), "Prénom\nLéa");
+        assert_eq!(decode_list_file("\u{feff}Léa".as_bytes()), "Léa");
+    }
+
+    #[test]
+    fn age_and_birthday() {
+        assert_eq!(age_on("2022-03-12", (2026, 3, 11)), Some(3));
+        assert_eq!(age_on("2022-03-12", (2026, 3, 12)), Some(4));
+        assert_eq!(birthday_text("2022-04-01").as_deref(), Some("1er avril"));
+        assert_eq!(parse_date("12.03.22").as_deref(), Some("2022-03-12"));
+        assert!(parse_date("bonjour").is_none());
+        let (y, m, d) = today();
+        assert!(y >= 2026 && (1..=12).contains(&m) && (1..=31).contains(&d));
     }
 
     #[test]

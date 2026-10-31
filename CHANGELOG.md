@@ -1,5 +1,10 @@
 # Journal des versions
 
+## Non publié
+
+- Classe : date de naissance de chaque élève, et deux champs de plus pour les pages générées, {âge} (« 4 ans ») et {anniversaire} (« 12 mars »), à côté de {prénom}, {nom} et {groupe} (bouton ▾ à côté de « Prénom » pendant l'écriture).
+- Classe : la liste s'importe d'un tableur ou d'un export ONDE, collée ou ouverte en fichier .csv ; les colonnes prénom, nom, date de naissance, niveau et groupe sont reconnues à leur titre.
+
 ## 0.7.0
 
 - Nouveau logo : un lutin qui écrit dans son cahier, à l'abri d'un livre ouvert en tente.

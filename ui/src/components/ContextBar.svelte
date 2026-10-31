@@ -29,7 +29,9 @@
 
   const ROTATION_HANDLE_GAP = 44;
 
-  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut";
+  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields";
+  /** Champs de la classe, remplacés pour chaque élève quand on génère les pages. */
+  const CLASS_FIELDS = ["{prénom}", "{PRÉNOM}", "{nom}", "{groupe}", "{âge}", "{anniversaire}"];
   let pop = $state<Pop | null>(null);
   let barEl = $state<HTMLElement>();
   let pos = $state<{ left: number; top: number } | null>(null);
@@ -278,6 +280,16 @@
       <button title={fr.underline} class:on={isMarkActive("underline", t)} onclick={() => toggleMark("underline")}><u>S</u></button>
       {#if editor.editingText === selected.id}
         <button title={fr.insertFirstNameHint} onclick={() => insertAtCursor("{prénom}")}>＋ {fr.insertFirstName}</button>
+        <div class="wrap">
+          <button title={fr.insertFieldHint} aria-label={fr.insertFieldHint} onclick={() => toggle("fields")}>▾</button>
+          {#if pop === "fields"}
+            <div class="pop fields">
+              {#each CLASS_FIELDS as f (f)}
+                <button onclick={() => (insertAtCursor(f), (pop = null))}>{fr.classFields[f]}</button>
+              {/each}
+            </div>
+          {/if}
+        </div>
       {/if}
       <button title={fr.outlineHint} class:on={!!t.style.outline} aria-pressed={!!t.style.outline} onclick={() => updateTextStyle({ outline: !t.style.outline })}><span class="hollow-a">A</span></button>
       <div class="wrap">
@@ -416,6 +428,15 @@
 {/if}
 
 <style>
+  .pop.fields {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 200px;
+  }
+  .pop.fields button {
+    text-align: left;
+  }
   .hollow-a {
     -webkit-text-fill-color: transparent;
     -webkit-text-stroke: 1px currentColor;

@@ -17,4 +17,8 @@ photo_allowed: boolean,
 /**
  * Symbole de l'enfant : code d'une image OpenMoji.
  */
-symbol: string | null, };
+symbol: string | null, 
+/**
+ * Date de naissance, « 2022-03-12 » ; facultative (âge, anniversaires).
+ */
+birth_date?: string | null, };

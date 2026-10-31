@@ -1,11 +1,12 @@
 //! Pages pour la classe, à partir d'une page modèle : une page par élève, ou une planche dont les blocs
 //! reçoivent les élèves les uns après les autres.
 //!
-//! Champs : une zone de texte dont l'invite est « Prénom », « PRÉNOM », « Nom » ou « Groupe » ; les
-//! marqueurs `{prénom}`, `{PRÉNOM}`, `{nom}`, `{groupe}` dans n'importe quel texte ; une zone photo vide,
+//! Champs : une zone de texte dont l'invite est « Prénom », « PRÉNOM », « Nom », « Groupe », « Âge » ou
+//! « Anniversaire » ; les marqueurs `{prénom}`, `{PRÉNOM}`, `{nom}`, `{groupe}`, `{âge}` (« 4 ans ») et
+//! `{anniversaire}` (« 12 mars ») dans n'importe quel texte ; une zone photo vide,
 //! qui reçoit la photo de l'élève seulement si l'autorisation est donnée, sinon son symbole.
 
-use crate::class::Student;
+use crate::class::{self, Student};
 use crate::model::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -20,7 +21,7 @@ pub enum FillMode {
 /// Écart vertical (mm) en dessous duquel deux blocs sont sur la même rangée.
 const ROW_TOLERANCE_MM: f64 = 3.0;
 
-const MARKERS: [&str; 4] = ["{prénom}", "{PRÉNOM}", "{nom}", "{groupe}"];
+const MARKERS: [&str; 6] = ["{prénom}", "{PRÉNOM}", "{nom}", "{groupe}", "{âge}", "{anniversaire}"];
 
 fn field_value(field: &str, s: &Student) -> Option<String> {
     match field {
@@ -28,6 +29,9 @@ fn field_value(field: &str, s: &Student) -> Option<String> {
         "PRÉNOM" | "{PRÉNOM}" => Some(s.first_name.to_uppercase()),
         "Nom" | "{nom}" => Some(s.last_name.clone()),
         "Groupe" | "{groupe}" => Some(s.group.clone()),
+        // Sans date de naissance : vide.
+        "Âge" | "{âge}" => Some(s.birth_date.as_deref().and_then(|b| class::age_on(b, class::today())).map(|a| format!("{a} ans")).unwrap_or_default()),
+        "Anniversaire" | "{anniversaire}" => Some(s.birth_date.as_deref().and_then(class::birthday_text).unwrap_or_default()),
         _ => None,
     }
 }
@@ -345,6 +349,19 @@ mod tests {
         let s = Student { group: "Les loups".into(), ..student("Léa", None, false, None) };
         let out = fill_for(&p, &s);
         assert_eq!(out.elements.iter().map(plain).collect::<Vec<_>>(), ["LÉA", "Martin", "Les loups"]);
+    }
+
+    #[test]
+    fn age_and_birthday_markers() {
+        let mut p = Page::new(A4_PORTRAIT);
+        p.elements = vec![text(None, "{prénom} a {âge}, né le {anniversaire}.", false, frame(0.0, 0.0, 80.0, 10.0))];
+        let (y, m, d) = crate::class::today();
+        let born = format!("{:04}-{m:02}-{d:02}", y - 4);
+        let s = Student { birth_date: Some(born), ..student("Léa", None, false, None) };
+        let expected = format!("Léa a 4 ans, né le {}.", crate::class::birthday_text(s.birth_date.as_deref().unwrap()).unwrap());
+        assert_eq!(plain(&fill_for(&p, &s).elements[0]), expected);
+        // Sans date : les marqueurs s'effacent.
+        assert_eq!(plain(&fill_for(&p, &student("Noé", None, false, None)).elements[0]), "Noé a , né le .");
     }
 
     #[test]

@@ -3,7 +3,7 @@
   // autorisation, symbole, niveau, groupe). Ouverte depuis l'accueil ou par « Modifier la classe… » du
   // tiroir. Tout s'enregistre seul dans Documents/Cahutin/Classes.
   import { open } from "@tauri-apps/plugin-dialog";
-  import { assetUrl, classImportPhoto, classParseList } from "../../lib/api";
+  import { assetUrl, classImportPhoto, classParseList, classReadList } from "../../lib/api";
   import { ask } from "../../lib/ask";
   import { classes, groups, schoolYear } from "../../lib/classStore.svelte";
   import { editor } from "../../lib/docStore.svelte";
@@ -62,6 +62,27 @@
       const added = await classParseList(pasted);
       classes.update((c) => ({ ...c, students: [...c.students, ...added].sort(byName) }));
       pasted = "";
+      pasting = false;
+    } catch (e) {
+      editor.notice = String(e);
+    }
+  }
+
+  /** Une liste d'un tableur ou d'ONDE, enregistrée en CSV ; `create` : elle crée la classe. */
+  async function addFromFile(create: boolean) {
+    const picked = await open({ filters: [{ name: "Liste (CSV, texte)", extensions: ["csv", "txt", "tsv"] }] });
+    if (typeof picked !== "string") return;
+    try {
+      const added = await classReadList(picked);
+      if (!added.length) {
+        editor.notice = fr.classListEmpty;
+        return;
+      }
+      if (create) {
+        await classes.createNamed(fr.classDefaultName, schoolYear(new Date()));
+        creating = false;
+      }
+      classes.update((c) => ({ ...c, students: [...c.students, ...added].sort(byName) }));
       pasting = false;
     } catch (e) {
       editor.notice = String(e);
@@ -168,6 +189,7 @@
       <textarea rows="10" bind:value={pasted} placeholder={fr.classPastePlaceholder}></textarea>
       <div class="row-buttons">
         <button class="primary" disabled={!pasted.trim()} onclick={createFromPaste}>＋ {fr.classCreate}</button>
+        <button title={fr.classOpenFileHint} onclick={() => addFromFile(true)}>📄 {fr.classOpenFile}</button>
         {#if creating}<button onclick={() => (creating = false)}>{fr.cancel}</button>{/if}
       </div>
       <p class="hint">{fr.classPrivacy}</p>
@@ -186,6 +208,7 @@
         <textarea rows="5" bind:value={pasted} placeholder={fr.classPastePlaceholder}></textarea>
         <div class="row-buttons">
           <button class="primary" disabled={!pasted.trim()} onclick={addPasted}>{fr.classPasteAdd}</button>
+          <button title={fr.classOpenFileHint} onclick={() => addFromFile(false)}>📄 {fr.classOpenFile}</button>
           <button onclick={() => (pasting = false)}>{fr.cancel}</button>
         </div>
       </div>
@@ -199,6 +222,7 @@
           <th>{fr.classLastName}</th>
           <th title={fr.classConsent}>📷 {fr.classConsentShort}</th>
           <th>{fr.classSymbol}</th>
+          <th>{fr.classBirth}</th>
           <th>{fr.classLevel}</th>
           <th>{fr.classGroup}</th>
           <th></th>
@@ -222,6 +246,7 @@
                 {#if s.symbol}<img src={pictoUrl(s.symbol)} alt="" />{:else}＋{/if}
               </button>
             </td>
+            <td><input type="date" class="birth" value={s.birth_date ?? ""} onchange={(e) => setStudent(s.id, { birth_date: e.currentTarget.value || null })} /></td>
             <td>
               <select value={s.level ?? ""} onchange={(e) => setStudent(s.id, { level: (e.currentTarget.value || null) as Level | null })}>
                 <option value="">{fr.classNoLevel}</option>
@@ -233,7 +258,7 @@
           </tr>
           {#if symbolFor === s.id}
             <tr class="symbols-row">
-              <td colspan="8">
+              <td colspan="9">
                 <div class="symbols">
                   <!-- svelte-ignore a11y_autofocus -->
                   <input placeholder={fr.classSymbolSearch} bind:value={symbolQuery} autofocus />
@@ -250,7 +275,7 @@
         {/each}
         <tr class="add">
           <td></td>
-          <td colspan="7">
+          <td colspan="8">
             <input placeholder={fr.classAddOne} bind:value={newFirst} onkeydown={(e) => e.key === "Enter" && addOne()} />
             <button disabled={!newFirst.trim()} onclick={addOne}>＋ {fr.classAddOneButton}</button>
           </td>

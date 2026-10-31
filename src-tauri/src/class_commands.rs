@@ -176,6 +176,20 @@ pub fn class_parse_list(text: String) -> Vec<Student> {
     class::parse_list(&text)
 }
 
+/// Liste lue dans un fichier choisi (CSV, texte) : un export de tableur ou d'ONDE.
+#[tauri::command]
+pub fn class_read_list(path: String) -> Result<Vec<Student>, String> {
+    const MAX_BYTES: u64 = 2_000_000;
+    let too_big = std::fs::metadata(&path).map(|m| m.len() > MAX_BYTES).unwrap_or(false);
+    if too_big {
+        return Err("Ce fichier est trop gros pour une liste d'élèves.".into());
+    }
+    let bytes = std::fs::read(&path).map_err(|_| "Impossible de lire ce fichier.".to_string())?;
+    let students = class::parse_list(&class::decode_list_file(&bytes));
+    log::info!("class_read_list students={}", students.len());
+    Ok(students)
+}
+
 #[tauri::command]
 pub fn class_generate(state: State<'_, AppState>, page: Page, students: Vec<Student>, mode: FillMode, class_photos: Vec<String>) -> Result<ImportedPages, String> {
     let out = generate_with(&page, &students, mode, &class_photos, &state.store.lock().unwrap())?;

@@ -42,6 +42,7 @@ export const classSave = (path: string, cls: Class) => invoke<void>("class_save"
 export const classImportPhoto = (path: string) => invoke<AssetMeta>("class_import_photo", { path });
 export const classPlan = (page: Page) => invoke<GeneratePlan>("class_plan", { page });
 export const classParseList = (text: string) => invoke<Student[]>("class_parse_list", { text });
+export const classReadList = (path: string) => invoke<Student[]>("class_read_list", { path });
 export const classGenerate = (page: Page, students: Student[], mode: FillMode, classPhotos: string[]) => invoke<ImportedPages>("class_generate", { page, students, mode, classPhotos });
 export const listTemplates = () => invoke<TemplateInfo[]>("list_templates");
 export const instantiateTemplate = (id: string) => invoke<InstantiatedPage>("instantiate_template", { id });

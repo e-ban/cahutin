@@ -17,6 +17,8 @@
   import TableBar from "./components/TableBar.svelte";
   import GridDragMerge from "./components/GridDragMerge.svelte";
   import TemplateBanner from "./components/layout/TemplateBanner.svelte";
+  import ClassBanner from "./components/layout/ClassBanner.svelte";
+  import { hasNameFields, nameFieldsFilled } from "./lib/classFill";
   import GridDrawer from "./components/drawers/GridDrawer.svelte";
   import DecorDrawer from "./components/drawers/DecorDrawer.svelte";
   import ClassDrawer from "./components/drawers/ClassDrawer.svelte";
@@ -64,7 +66,7 @@
   // Nouvelles versions : seulement si l'utilisateur l'a accepté, au plus une fois par jour.
   void updates.checkIfDue();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
-  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath } });
+  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath, classes } });
 
   // Visite guidée : au premier lancement, quand l'écran d'accueil se ferme.
   let welcomeWasOpen = editor.showWelcome;
@@ -187,7 +189,7 @@
 <!-- Pendant la visite ou le panneau Astuces, l'application est inerte : ni clic ni clavier ne l'atteignent. -->
 <div class="app" inert={tour.step !== null || editor.showTips}>
   <TopBar />
-  {#if editor.templateMode}<TemplateBanner />{/if}
+  {#if editor.templateMode}<TemplateBanner />{:else if hasNameFields(editor.page) && !nameFieldsFilled(editor.page)}<ClassBanner ongenerate={() => (generateOpen = true)} />{/if}
   <Rail />
   {#if editor.drawer === "templates"}<TemplatesDrawer />
   {:else if editor.drawer === "photos"}<PhotosDrawer />

@@ -13,6 +13,13 @@ export function insertImported(doc: Document, pageIndex: number, parts: Imported
   return { doc: { ...doc, pages, assets: mergedAssets(doc.assets, parts) }, pageIndex: pageIndex + 1 };
 }
 
+/** Les pages remplies pour la classe prennent la place de la page modèle `pageIndex`. */
+export function replacePage(doc: Document, pageIndex: number, part: ImportedPages): { doc: Document; pageIndex: number } {
+  const pages = [...doc.pages];
+  pages.splice(pageIndex, 1, ...part.pages);
+  return { doc: { ...doc, pages, assets: mergedAssets(doc.assets, [part]) }, pageIndex };
+}
+
 /** Document neuf dont les pages sont uniquement les pages importées (import depuis l'accueil). */
 export function newDocumentFrom(parts: ImportedPages[]): Document {
   return { ...newDocument(), pages: parts.flatMap((p) => p.pages), assets: mergedAssets({}, parts) };

@@ -111,8 +111,47 @@ pub fn fill_for(page: &Page, s: &Student) -> Page {
     out
 }
 
-/// Blocs à remplir de la page, dans l'ordre de lecture : un groupe ou un élément seul qui contient un champ.
-/// Dans un tableau, chaque ligne est un bloc (une ligne par élève).
+/// Cadre (forme, texte encadré, image) qui entoure entièrement l'élément, le plus petit ; ni champ ni groupé.
+fn container_of(page: &Page, i: usize) -> Option<usize> {
+    const TOLERANCE_MM: f64 = 0.5;
+    let f = page.elements[i].frame;
+    let inside = |c: &Frame| {
+        f.x_mm >= c.x_mm - TOLERANCE_MM
+            && f.y_mm >= c.y_mm - TOLERANCE_MM
+            && f.x_mm + f.w_mm <= c.x_mm + c.w_mm + TOLERANCE_MM
+            && f.y_mm + f.h_mm <= c.y_mm + c.h_mm + TOLERANCE_MM
+    };
+    page.elements
+        .iter()
+        .enumerate()
+        .filter(|(j, c)| {
+            *j != i
+                && c.group.is_none()
+                && !is_field(c)
+                && c.frame.rotation_deg == 0.0
+                && match &c.kind {
+                    ElementKind::Shape(s) => !crate::shapes::is_stroke_only(s.shape),
+                    ElementKind::Text(t) => t.frame.is_some(),
+                    ElementKind::Image(_) | ElementKind::Photo(_) => true,
+                    ElementKind::Table(_) => false,
+                }
+                && inside(&c.frame)
+        })
+        .min_by(|a, b| (a.1.frame.w_mm * a.1.frame.h_mm).total_cmp(&(b.1.frame.w_mm * b.1.frame.h_mm)))
+        .map(|(j, _)| j)
+}
+
+/// Clé de bloc d'un élément : son groupe (et sa ligne s'il est la case d'un tableau), sinon le cadre qui
+/// l'entoure (une étiquette faite à la main : un rectangle et des textes posés dedans), sinon lui seul.
+#[derive(PartialEq)]
+enum BlockKey<'a> {
+    Group(&'a Id, Option<u8>),
+    Container(usize),
+    Alone(usize),
+}
+
+/// Blocs à remplir de la page, dans l'ordre de lecture. Un bloc reçoit un seul élève, dans tous ses champs
+/// (le prénom en capitales, en script et en cursive sur une même étiquette).
 fn blocks(page: &Page) -> Vec<Vec<usize>> {
     let mut row_of: std::collections::HashMap<&str, u8> = std::collections::HashMap::new();
     for e in &page.elements {
@@ -120,10 +159,14 @@ fn blocks(page: &Page) -> Vec<Vec<usize>> {
             row_of.extend(t.cells.iter().map(|c| (c.element_id.as_str(), c.row)));
         }
     }
-    let mut units: Vec<(Option<(&Id, Option<u8>)>, Vec<usize>)> = Vec::new();
+    let mut units: Vec<(BlockKey, Vec<usize>)> = Vec::new();
     for (i, e) in page.elements.iter().enumerate() {
-        let key = e.group.as_ref().map(|g| (g, row_of.get(e.id.as_str()).copied()));
-        match key.and_then(|k| units.iter_mut().find(|(u, _)| *u == Some(k))) {
+        let key = match &e.group {
+            Some(g) => BlockKey::Group(g, row_of.get(e.id.as_str()).copied()),
+            None if is_field(e) => container_of(page, i).map_or(BlockKey::Alone(i), BlockKey::Container),
+            None => BlockKey::Alone(i),
+        };
+        match units.iter_mut().find(|(u, _)| *u == key) {
             Some((_, members)) => members.push(i),
             None => units.push((key, vec![i])),
         }
@@ -175,6 +218,37 @@ pub fn fill_sheet(page: &Page, students: &[Student]) -> Vec<Page> {
             out
         })
         .collect()
+}
+
+/// Nombre d'étiquettes (blocs à remplir) de la page.
+pub fn block_count(page: &Page) -> usize {
+    blocks(page).len()
+}
+
+/// Un bloc qui se répète (mêmes champs, même taille à 1 mm près) : une planche d'étiquettes ou de cartes.
+/// Sinon (un prénom, une phrase et une photo sur la page), une page par élève.
+pub fn suggested_mode(page: &Page) -> FillMode {
+    let signature = |members: &Vec<usize>| {
+        let mut fields: Vec<String> = members
+            .iter()
+            .map(|&i| &page.elements[i])
+            .filter(|e| is_field(e))
+            .map(|e| match &e.kind {
+                ElementKind::Text(t) if is_field_zone(e) => format!("zone:{}", t.prompt.as_deref().unwrap_or("")),
+                ElementKind::Text(_) => "texte".to_string(),
+                _ => "photo".to_string(),
+            })
+            .collect();
+        fields.sort();
+        let w = members.iter().map(|&i| page.elements[i].frame.x_mm + page.elements[i].frame.w_mm).fold(f64::MIN, f64::max)
+            - members.iter().map(|&i| page.elements[i].frame.x_mm).fold(f64::MAX, f64::min);
+        let h = members.iter().map(|&i| page.elements[i].frame.y_mm + page.elements[i].frame.h_mm).fold(f64::MIN, f64::max)
+            - members.iter().map(|&i| page.elements[i].frame.y_mm).fold(f64::MAX, f64::min);
+        (fields, w.round() as i64, h.round() as i64)
+    };
+    let sigs: Vec<_> = blocks(page).iter().map(signature).collect();
+    let repeated = sigs.iter().enumerate().any(|(i, s)| sigs[i + 1..].contains(s));
+    if repeated { FillMode::Sheet } else { FillMode::PagePerStudent }
 }
 
 pub fn generate(page: &Page, students: &[Student], mode: FillMode) -> Vec<Page> {
@@ -340,6 +414,80 @@ mod tests {
         let mut names: Vec<(f64, String)> = pages[0].elements.iter().filter(|e| matches!(e.kind, ElementKind::Text(_))).map(|e| (e.frame.y_mm, plain(e))).filter(|(_, t)| !t.is_empty()).collect();
         names.sort_by(|a, b| a.0.total_cmp(&b.0));
         assert_eq!(names.into_iter().map(|n| n.1).collect::<Vec<_>>(), ["Léa", "Noé", "Zoé"]);
+    }
+
+    fn styled(prompt: Option<&str>, content: &str, font: &str, f: Frame) -> Element {
+        let mut e = text(prompt, content, prompt.is_some(), f);
+        if let ElementKind::Text(t) = &mut e.kind {
+            t.style.font = font.into();
+        }
+        e
+    }
+
+    fn font_of(e: &Element) -> &str {
+        match &e.kind {
+            ElementKind::Text(t) => t.content.paragraphs[0].runs[0].font.as_deref().unwrap_or(&t.style.font),
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn one_block_writes_the_name_in_each_style() {
+        let mut p = Page::new(A4_PORTRAIT);
+        let mut zones = vec![
+            styled(Some("PRÉNOM"), "", "Andika", frame(10.0, 10.0, 80.0, 10.0)),
+            styled(Some("Prénom"), "", "Andika", frame(10.0, 22.0, 80.0, 10.0)),
+            styled(Some("Prénom"), "", "Playwrite FR Moderne", frame(10.0, 34.0, 80.0, 10.0)),
+        ];
+        for z in &mut zones {
+            z.group = Some("g".into());
+        }
+        p.elements = zones;
+        let pages = fill_sheet(&p, &[student("Léa", None, false, None), student("Noé", None, false, None)]);
+        assert_eq!(pages.len(), 2);
+        let e = &pages[0].elements;
+        assert_eq!(e.iter().map(plain).collect::<Vec<_>>(), ["LÉA", "Léa", "Léa"]);
+        assert_eq!(e.iter().map(font_of).collect::<Vec<_>>(), ["Andika", "Andika", "Playwrite FR Moderne"]);
+    }
+
+    #[test]
+    fn ungrouped_fields_inside_a_frame_are_one_block() {
+        // Deux étiquettes faites à la main : un rectangle et trois textes posés dedans, sans groupe.
+        let mut p = Page::new(A4_PORTRAIT);
+        for x in [10.0, 110.0] {
+            p.elements.push(Element {
+                id: new_id(),
+                frame: frame(x, 10.0, 90.0, 40.0),
+                locked: false,
+                zone: false,
+                group: None,
+                kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 3.0 }),
+            });
+            p.elements.push(styled(None, "{PRÉNOM}", "Andika", frame(x + 5.0, 12.0, 80.0, 10.0)));
+            p.elements.push(styled(None, "{prénom}", "Andika", frame(x + 5.0, 24.0, 80.0, 10.0)));
+            p.elements.push(styled(None, "{prénom}", "Playwrite FR Moderne", frame(x + 5.0, 36.0, 80.0, 10.0)));
+        }
+        assert_eq!(block_count(&p), 2);
+        let pages = fill_sheet(&p, &[student("Léa", None, false, None), student("Noé", None, false, None)]);
+        assert_eq!(pages.len(), 1);
+        let texts: Vec<String> = pages[0].elements.iter().filter(|e| matches!(e.kind, ElementKind::Text(_))).map(plain).collect();
+        assert_eq!(texts, ["LÉA", "Léa", "Léa", "NOÉ", "Noé", "Noé"]);
+    }
+
+    #[test]
+    fn mode_follows_the_page() {
+        assert_eq!(suggested_mode(&card()), FillMode::PagePerStudent);
+        let labels = crate::templates::builtin().into_iter().find(|t| t.info.name == "Étiquettes").unwrap().page;
+        assert_eq!(suggested_mode(&labels), FillMode::Sheet);
+        assert_eq!(block_count(&labels), 12);
+    }
+
+    #[test]
+    fn three_scripts_template_fills_one_child_per_label() {
+        let page = crate::templates::builtin().into_iter().find(|t| t.info.name == "Étiquettes 3 écritures").unwrap().page;
+        let pages = fill_sheet(&page, &[student("Léa", None, false, None)]);
+        let filled: Vec<String> = pages[0].elements.iter().filter(|e| e.zone && matches!(e.kind, ElementKind::Text(_))).map(plain).filter(|t| !t.is_empty()).collect();
+        assert_eq!(filled, ["LÉA", "Léa", "Léa"]);
     }
 
     #[test]

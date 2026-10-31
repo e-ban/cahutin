@@ -1,9 +1,10 @@
 // Classe ouverte et liste des classes du dossier. Chaque modification s'enregistre seule, un peu après
 // (un enregistrement à la fois). Le chemin de la dernière classe est gardé dans les préférences du poste.
-import { classCreate, classList, classOpen, classSave } from "./api";
+import { classCreate, classImportPhoto, classList, classOpen, classSave } from "./api";
+import { matchPhotos } from "./classFill";
 import { editor } from "./docStore.svelte";
 import { readPref, writePref } from "./prefs";
-import type { Class, ClassFileInfo, Level, OpenedClass, Student } from "./types";
+import type { AssetMeta, Class, ClassFileInfo, Level, OpenedClass, Student } from "./types";
 
 const SAVE_DELAY_MS = 500;
 
@@ -53,6 +54,41 @@ class Classes {
     } catch (e) {
       editor.notice = String(e);
     }
+  }
+
+  /**
+   * Photos de plusieurs enfants d'un coup : chacune va à l'enfant dont elle porte le prénom. `consent` pose
+   * une seule fois la question de l'autorisation ; sans réponse positive, chaque case reste à cocher.
+   */
+  async addPhotos(paths: string[], consent: (n: number) => Promise<boolean>): Promise<{ added: number; missed: number }> {
+    if (!this.current) return { added: 0, missed: paths.length };
+    const { matched, unmatched } = matchPhotos(this.current.class.students, paths);
+    const metas = new Map<string, AssetMeta>();
+    let missed = unmatched.length;
+    for (const m of matched) {
+      try {
+        metas.set(m.student, await classImportPhoto(m.path));
+      } catch {
+        missed++;
+      }
+    }
+    if (metas.size === 0) return { added: 0, missed };
+    editor.registerAssets([...metas.values()]);
+    const allowed = await consent(metas.size);
+    this.update((c) => ({
+      ...c,
+      photos: { ...c.photos, ...Object.fromEntries([...metas.values()].map((m) => [m.id, m])) },
+      students: c.students.map((s) => (metas.has(s.id) ? { ...s, photo: metas.get(s.id)!.id, photo_allowed: allowed } : s)),
+    }));
+    return { added: metas.size, missed };
+  }
+
+  /** Nouvelle classe sous ce nom, ou « nom 2 », « nom 3 »… si le nom est déjà pris cette année. */
+  async createNamed(name: string, year: string) {
+    const taken = new Set(this.list.filter((c) => c.year === year).map((c) => c.name));
+    let n = 1;
+    while (taken.has(n === 1 ? name : `${name} ${n}`)) n++;
+    await this.create(n === 1 ? name : `${name} ${n}`, year);
   }
 
   async open(path: string) {

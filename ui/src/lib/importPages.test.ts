@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { newDocument, newPage } from "./factory";
-import { importReportText, insertImported, newDocumentFrom, placeImported } from "./importPages";
+import { importReportText, insertImported, newDocumentFrom, placeImported, replacePage } from "./importPages";
 import type { AssetMeta, ImportedPages, ImportReport } from "./types";
 
 const report = (r: Partial<ImportReport> = {}): ImportReport => ({ pages: 1, texts: 0, images: 0, shapes: 0, skipped: 0, ...r });
@@ -13,6 +13,16 @@ test("pages go after the current page in order", () => {
   const [a, b] = [part(2), part(1)];
   const { doc: next } = insertImported(doc, 0, [a, b]);
   expect(next.pages.map((p) => p.id)).toEqual([doc.pages[0].id, a.pages[0].id, a.pages[1].id, b.pages[0].id, doc.pages[1].id]);
+});
+
+test("replacePage puts the filled pages where the template page was", () => {
+  const doc = newDocument();
+  doc.pages.push(newPage(), newPage());
+  const filled = part(3, [meta("photo")]);
+  const { doc: next, pageIndex } = replacePage(doc, 1, filled);
+  expect(next.pages.map((p) => p.id)).toEqual([doc.pages[0].id, ...filled.pages.map((p) => p.id), doc.pages[2].id]);
+  expect(pageIndex).toBe(1);
+  expect(Object.keys(next.assets)).toEqual(["photo"]);
 });
 
 test("assets are merged", () => {

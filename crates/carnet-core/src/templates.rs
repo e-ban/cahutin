@@ -103,6 +103,37 @@ fn labels() -> Page {
     page
 }
 
+/// Planche de 2 × 5 étiquettes (90 × 50 mm), le prénom en capitales, en script et en cursive, groupés avec
+/// leur cadre : chaque étiquette reçoit un seul enfant dans ses trois écritures.
+fn three_scripts_labels() -> Page {
+    let (w, h, gap) = (90.0, 50.0, 6.0);
+    let y0 = (297.0 - (5.0 * h + 4.0 * gap)) / 2.0;
+    // La cursive est plus haute que le script à taille égale : sa ligne est plus haute.
+    let lines = [(0.0, 13.0, 16.0), (13.0, 13.0, 16.0), (26.0, h - 8.0 - 26.0, 16.0)];
+    let mut page = Page::new(A4_PORTRAIT);
+    for row in 0..5 {
+        for x in [10.0, 110.0] {
+            let y = y0 + row as f64 * (h + gap);
+            let zone = |i: usize, prompt: &str, font: &str| {
+                let (top, height, size) = lines[i];
+                let mut z = name_zone(ex::frame(x + 4.0, y + 4.0 + top, w - 8.0, height), size);
+                if let ElementKind::Text(t) = &mut z.kind {
+                    t.prompt = Some(prompt.into());
+                    t.style.font = font.into();
+                }
+                z
+            };
+            page.elements.extend(ex::grouped(vec![
+                ex::shape(ShapeKind::Rect, ex::frame(x, y, w, h), Some(LABEL_FILL), Some((0.8, LABEL_BLUE)), 5.0),
+                zone(0, "PRÉNOM", "Andika"),
+                zone(1, "Prénom", "Andika"),
+                zone(2, "Prénom", "Playwrite FR Moderne"),
+            ]));
+        }
+    }
+    page
+}
+
 /// Planche de 2 × 5 étiquettes (90 × 50 mm) : bordure, photo et prénom groupés.
 fn photo_labels() -> Page {
     let (w, h, gap) = (90.0, 50.0, 6.0);
@@ -208,6 +239,7 @@ pub fn builtin() -> Vec<Template> {
         Template { info: builtin_info("page-a-completer", "Page à compléter"), page: completion, assets: vec![] },
         Template { info: builtin_info("etiquettes", "Étiquettes"), page: labels(), assets: vec![] },
         Template { info: builtin_info("etiquettes-photo", "Étiquettes photo"), page: photo_labels(), assets: vec![] },
+        Template { info: builtin_info("etiquettes-3-ecritures", "Étiquettes 3 écritures"), page: three_scripts_labels(), assets: vec![] },
         Template { info: builtin_info("photos-et-textes", "Photos et textes"), page: photos_and_texts(), assets: vec![] },
         Template { info: builtin_info("photos-legendees", "Photos légendées"), page: captioned_photos(), assets: vec![] },
         Template { info: builtin_info("affiche-paysage", "Affiche paysage"), page: landscape_poster(), assets: vec![] },
@@ -390,9 +422,9 @@ mod tests {
     }
 
     #[test]
-    fn eight_builtins_with_fixed_ids() {
+    fn nine_builtins_with_fixed_ids() {
         let ids: Vec<String> = builtin().into_iter().map(|t| t.info.id).collect();
-        assert_eq!(ids, ["grille-photos", "recit", "page-a-completer", "etiquettes", "etiquettes-photo", "photos-et-textes", "photos-legendees", "affiche-paysage"]);
+        assert_eq!(ids, ["grille-photos", "recit", "page-a-completer", "etiquettes", "etiquettes-photo", "etiquettes-3-ecritures", "photos-et-textes", "photos-legendees", "affiche-paysage"]);
         assert!(builtin().iter().all(|t| t.info.builtin));
         // Les planches d'étiquettes n'ont pas de titre : toute la page sert aux étiquettes.
         assert!(builtin().iter().filter(|t| !t.info.id.starts_with("etiquettes")).all(|t| has_title(&t.page)));

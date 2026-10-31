@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AssetMeta, CellContent, Class, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
+import type { AssetMeta, CellContent, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -37,6 +37,7 @@ export const classCreate = (name: string, year: string) => invoke<OpenedClass>("
 export const classOpen = (path: string) => invoke<OpenedClass>("class_open", { path });
 export const classSave = (path: string, cls: Class) => invoke<void>("class_save", { path, class: cls });
 export const classImportPhoto = (path: string) => invoke<AssetMeta>("class_import_photo", { path });
+export const classPlan = (page: Page) => invoke<GeneratePlan>("class_plan", { page });
 export const classParseList = (text: string) => invoke<Student[]>("class_parse_list", { text });
 export const classGenerate = (page: Page, students: Student[], mode: FillMode, classPhotos: string[]) => invoke<ImportedPages>("class_generate", { page, students, mode, classPhotos });
 export const listTemplates = () => invoke<TemplateInfo[]>("list_templates");

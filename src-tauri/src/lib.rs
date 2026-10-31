@@ -89,6 +89,7 @@ pub fn run() {
             class_commands::class_save,
             class_commands::class_import_photo,
             class_commands::class_parse_list,
+            class_commands::class_plan,
             class_commands::class_generate,
             commands::table_add,
             commands::table_insert_row,

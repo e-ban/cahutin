@@ -23,6 +23,18 @@ pub struct ClassFileInfo {
     pub students: usize,
 }
 
+/// Ce que donnera la génération : planche ou page par élève, et nombre d'étiquettes de la page.
+#[derive(Serialize, Clone, Debug, PartialEq, TS)]
+#[ts(export)]
+pub struct GeneratePlan {
+    pub mode: FillMode,
+    pub blocks: usize,
+}
+
+pub fn plan_for(page: &Page) -> GeneratePlan {
+    GeneratePlan { mode: fill::suggested_mode(page), blocks: fill::block_count(page) }
+}
+
 #[derive(Serialize, Clone, Debug, TS)]
 #[ts(export)]
 pub struct OpenedClass {
@@ -155,6 +167,11 @@ pub fn class_import_photo(state: State<'_, AppState>, path: String) -> Result<As
 }
 
 #[tauri::command]
+pub fn class_plan(page: Page) -> GeneratePlan {
+    plan_for(&page)
+}
+
+#[tauri::command]
 pub fn class_parse_list(text: String) -> Vec<Student> {
     class::parse_list(&text)
 }
@@ -251,6 +268,13 @@ mod tests {
         std::fs::remove_dir_all(&classes).unwrap();
         save_in(&classes, Path::new(&opened.path), &opened.class, &store).unwrap();
         assert_eq!(list_in(&classes).len(), 1);
+    }
+
+    #[test]
+    fn plan_of_a_label_sheet() {
+        let labels = carnet_core::templates::builtin().into_iter().find(|t| t.info.id == "etiquettes").unwrap().page;
+        assert_eq!(plan_for(&labels), GeneratePlan { mode: FillMode::Sheet, blocks: 12 });
+        assert_eq!(plan_for(&page_with_name_zone()).mode, FillMode::PagePerStudent);
     }
 
     #[test]

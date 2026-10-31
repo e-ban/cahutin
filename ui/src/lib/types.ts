@@ -44,3 +44,4 @@ export type { FillMode } from "./gen/FillMode";
 export type { Level } from "./gen/Level";
 export type { OpenedClass } from "./gen/OpenedClass";
 export type { Student } from "./gen/Student";
+export type { GeneratePlan } from "./gen/GeneratePlan";

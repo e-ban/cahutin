@@ -10,6 +10,11 @@
   - Document de 40 pages : le numéro de la page, ou le prénom d'un enfant, à saisir pour y aller (« Anna » passe d'une Anna à l'autre), Pg.Suiv. et Pg.Préc., une bande de miniatures plus large qui suit la page courante, et le prénom de l'enfant au survol de sa miniature (avec l'initiale du nom pour deux homonymes, quand le nom est sur la page).
   - L'export pour LibreOffice affiche « Export en cours… » pendant qu'il travaille.
   - Les raccourcis de la page (Suppr, flèches, Ctrl+Z) n'agissent plus sur le document caché derrière « Ma classe » ou la photothèque.
+- Import plus fidèle (essai avec des documents réels de maternelle) :
+  - Les tracés d'un PDF (fiche de graphisme, cadre arrondi) ne sont plus perdus : ils sont redessinés dans une image fixe, au fond de la page, avec leurs couleurs et leurs pointillés.
+  - Une police absente de l'ordinateur prend une police de même largeur quand elle existe (Helvetica et Arial : Liberation Sans ; Times : Liberation Serif ; Calibri : Carlito…). Sinon le texte rétrécit juste assez pour tenir, au lieu de déborder, et le message d'import le dit.
+  - Les puces des listes Word restent au début de leur ligne.
+  - Un fichier LibreOffice Draw (.odg), dont ceux qu'exporte Cahutin, se relit tel quel, sans conversion : pictos, cursive, lettres creuses, alignements, couleurs des cadres et fond de page reviennent, en une fraction de seconde.
 - Version AppImage : les images du tiroir Décors s'affichent de nouveau (les cases étaient écrasées et vides avec le moteur web embarqué, cliquables quand même).
 - Mode modèle : « Zone photo » et « Zone texte » dans la barre de gauche, pour poser des zones où l'on veut, sans grille (une page partie de « Créer un modèle » n'en avait aucun moyen). « Logo » devient « Image fixe », avec une explication : elle reste sur chaque page faite avec le modèle. En mode modèle, une image ou une case fixée se déplace et se supprime encore.
 - Version Microsoft Store en préparation (paquet MSIX signé par Microsoft : plus d'avertissement « fichier peu téléchargé »). Elle ne consulte jamais GitHub : le Store fait les mises à jour.

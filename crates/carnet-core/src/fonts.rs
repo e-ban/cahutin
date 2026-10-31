@@ -1,6 +1,9 @@
 //! Polices : celles fournies avec l'application (licence OFL), celles ajoutées par l'utilisateur et
 //! celles installées sur le poste. L'écran et l'export utilisent les mêmes fichiers.
 
+use skrifa::instance::{LocationRef, Size};
+use skrifa::raw::TableProvider;
+use skrifa::{FontRef, MetadataProvider, string::StringId, attribute::Style};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -133,25 +136,32 @@ fn is_builtin_family(family: &str) -> bool {
     builtin_faces().iter().any(|f| f.family.eq_ignore_ascii_case(family))
 }
 
+/// Licence d'intégration de la table OS/2 (fsType) : seule « restreinte » interdit de mettre la police dans
+/// un fichier. Sans table OS/2, rien ne l'interdit.
+fn embeddable(face: &FontRef) -> bool {
+    face.os2().map_or(true, |t| t.fs_type() & 0x000F != 0x0002)
+}
+
 /// Lit une police : nom de famille typographique (sinon le nom de famille), gras, italique, licence.
 fn parse_face(bytes: &[u8], file_name: &str) -> Result<FontFace, FontError> {
     if bytes.starts_with(b"ttcf") {
         return Err(FontError::Collection);
     }
-    let face = ttf_parser::Face::parse(bytes, 0).map_err(|_| FontError::Unreadable)?;
-    let name = |id: u16| face.names().into_iter().filter(|n| n.name_id == id).find_map(|n| n.to_string());
-    let family = name(ttf_parser::name_id::TYPOGRAPHIC_FAMILY)
-        .or_else(|| name(ttf_parser::name_id::FAMILY))
+    let face = FontRef::new(bytes).map_err(|_| FontError::Unreadable)?;
+    let name = |id: StringId| face.localized_strings(id).english_or_first().map(|s| s.to_string());
+    let family = name(StringId::TYPOGRAPHIC_FAMILY_NAME)
+        .or_else(|| name(StringId::FAMILY_NAME))
         .filter(|f| !f.trim().is_empty())
         .ok_or(FontError::Unreadable)?;
+    let attributes = face.attributes();
     Ok(FontFace {
         family: family.trim().to_string(),
-        bold: face.weight().to_number() >= 600,
-        italic: face.is_italic(),
+        bold: attributes.weight.value() >= 600.0,
+        italic: attributes.style != Style::Normal,
         file_name: file_name.to_string(),
         format: if bytes.starts_with(b"OTTO") { "opentype" } else { "truetype" },
         data: FontData::Loaded(Arc::from(bytes)),
-        embeddable: face.permissions() != Some(ttf_parser::Permissions::Restricted),
+        embeddable: embeddable(&face),
         user: true,
         system: false,
     })
@@ -241,9 +251,11 @@ impl FontSet {
 pub fn builtin_text_width_mm(family: &str, bold: bool, italic: bool, size_pt: f64, text: &str) -> Option<f64> {
     let face = builtin_faces().iter().filter(|f| f.family == family).find(|f| f.bold == bold && f.italic == italic).or_else(|| builtin_faces().iter().find(|f| f.family == family))?;
     let FontData::Loaded(bytes) = &face.data else { return None };
-    let font = ttf_parser::Face::parse(bytes, 0).ok()?;
-    let units: f64 = text.chars().map(|c| font.glyph_index(c).and_then(|g| font.glyph_hor_advance(g)).unwrap_or(font.units_per_em() / 2) as f64).sum();
-    Some(units / font.units_per_em() as f64 * size_pt * 25.4 / 72.0)
+    let font = FontRef::new(bytes).ok()?;
+    let per_em = font.metrics(Size::unscaled(), LocationRef::default()).units_per_em as f64;
+    let (charmap, metrics) = (font.charmap(), font.glyph_metrics(Size::unscaled(), LocationRef::default()));
+    let units: f64 = text.chars().map(|c| charmap.map(c).and_then(|g| metrics.advance_width(g)).map_or(per_em / 2.0, f64::from)).sum();
+    Some(units / per_em * size_pt * 25.4 / 72.0)
 }
 
 /// Hauteur d'une ligne (hauteur « normale » : ascendante, descendante et interligne de la police), en mm,
@@ -251,9 +263,9 @@ pub fn builtin_text_width_mm(family: &str, bold: bool, italic: bool, size_pt: f6
 pub fn builtin_line_height_mm(family: &str, size_pt: f64) -> Option<f64> {
     let face = builtin_faces().iter().find(|f| f.family == family)?;
     let FontData::Loaded(bytes) = &face.data else { return None };
-    let font = ttf_parser::Face::parse(bytes, 0).ok()?;
-    let units = font.ascender() as f64 - font.descender() as f64 + font.line_gap() as f64;
-    Some(units / font.units_per_em() as f64 * size_pt * 25.4 / 72.0)
+    let m = FontRef::new(bytes).ok()?.metrics(Size::unscaled(), LocationRef::default());
+    let units = m.ascent as f64 - m.descent as f64 + m.leading as f64;
+    Some(units / m.units_per_em as f64 * size_pt * 25.4 / 72.0)
 }
 
 /// Polices installées sur le poste (dossiers de polices de Windows, de l'utilisateur, ou du système sous Linux).
@@ -283,8 +295,8 @@ fn faces_from_db(db: &fontdb::Database) -> Vec<FontFace> {
             continue;
         }
         let Some((collection, opentype, embeddable)) = db.with_face_data(info.id, |data, index| {
-            let face = ttf_parser::Face::parse(data, index).ok()?;
-            Some((data.starts_with(b"ttcf"), data.starts_with(b"OTTO"), face.permissions() != Some(ttf_parser::Permissions::Restricted)))
+            let face = FontRef::from_index(data, index).ok()?;
+            Some((data.starts_with(b"ttcf"), data.starts_with(b"OTTO"), embeddable(&face)))
         }).flatten() else {
             continue;
         };
@@ -402,13 +414,8 @@ mod tests {
         assert!(!set.faces.is_empty());
         for f in &set.faces {
             let bytes = f.bytes().unwrap();
-            let face = ttf_parser::Face::parse(&bytes, 0).unwrap_or_else(|_| panic!("{} illisible", f.file_name));
-            let names: Vec<String> = face
-                .names()
-                .into_iter()
-                .filter(|n| n.name_id == ttf_parser::name_id::FAMILY)
-                .filter_map(|n| n.to_string())
-                .collect();
+            let face = FontRef::new(&bytes).unwrap_or_else(|_| panic!("{} illisible", f.file_name));
+            let names: Vec<String> = face.localized_strings(StringId::FAMILY_NAME).map(|n| n.to_string()).collect();
             assert!(names.iter().any(|n| n.contains(&f.family)), "{}: {names:?}", f.file_name);
         }
     }

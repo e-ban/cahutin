@@ -56,7 +56,7 @@ mod tests {
         second.elements.push(el(text(), Some("g1")));
         second.elements.push(el(rect(), Some("g1")));
         second.elements.push(el(ElementKind::Image(ImageProps { code: "1F600".into() }), None));
-        second.elements.push(el(ElementKind::Photo(PhotoProps { asset: Some(asset.meta.id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false }), None));
+        second.elements.push(el(ElementKind::Photo(PhotoProps { asset: Some(asset.meta.id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }), None));
         doc.pages = vec![first, second];
         doc.assets.insert(asset.meta.id.clone(), asset.meta.clone());
         LoadedDocument { doc, assets: vec![asset], fonts: vec![("Maison.ttf".into(), vec![1, 2, 3])] }

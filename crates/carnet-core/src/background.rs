@@ -61,6 +61,11 @@ pub fn marks(size: PageSize, pattern: Pattern) -> Vec<Mark> {
     out
 }
 
+/// Motif dans un cadre de texte : comme sur la page, sans la marge rouge du Seyès.
+pub fn frame_marks(size: PageSize, pattern: Pattern) -> Vec<Mark> {
+    marks(size, pattern).into_iter().filter(|m| !matches!(m, Mark::Line { color, .. } if *color == SEYES_MARGIN)).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

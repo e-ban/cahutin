@@ -41,6 +41,7 @@ fn empty_photo_zone() -> Element {
             corner_radius_mm: 0.0,
             border: None,
             shadow: false,
+            mirrored: false,
         }),
     }
 }

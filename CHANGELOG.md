@@ -2,6 +2,9 @@
 
 ## Non publié
 
+- Lignes d'écriture dans un cadre (tiroir Texte : Seyès, lignes, petits carreaux ; ou réglage « Cadre » d'un texte) : pour écrire le prénom ou une phrase sous un modèle. Elles s'impriment et s'exportent ; un document qui en contient est refusé par Cahutin 0.7 et avant.
+- Photo en miroir (barre de la photo, « Miroir »), à l'écran, à l'impression et à l'export ; un document qui en contient est refusé par Cahutin 0.7 et avant.
+- Décors : quatre catégories pour la classe, en tête de liste : Rituels, Matériel, Émotions, Corps et soins.
 - Classe : date de naissance de chaque élève, et deux champs de plus pour les pages générées, {âge} (« 4 ans ») et {anniversaire} (« 12 mars »), à côté de {prénom}, {nom} et {groupe} (bouton ▾ à côté de « Prénom » pendant l'écriture).
 - Classe : la liste s'importe d'un tableur ou d'un export ONDE, collée ou ouverte en fichier .csv ; les colonnes prénom, nom, date de naissance, niveau et groupe sont reconnues à leur titre.
 

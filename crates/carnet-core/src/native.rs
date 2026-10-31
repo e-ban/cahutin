@@ -72,12 +72,20 @@ fn used_assets(doc: &Document) -> BTreeSet<String> {
     doc.pages.iter().flat_map(|p| &p.elements).flat_map(Element::asset_ids).cloned().collect()
 }
 
-/// 4 avec un tableau, 3 avec un réglage de la version 3, 2 avec une image (un Carnet plus ancien affiche
+/// 5 avec une photo en miroir ou des lignes d'écriture dans un cadre, 4 avec un tableau, 3 avec un réglage
+/// de la version 3, 2 avec une image (un Carnet plus ancien affiche
 /// alors « version plus récente »), sinon 1.
 pub fn written_version(doc: &Document) -> u32 {
     let elements = || doc.pages.iter().flat_map(|p| &p.elements);
     let outlined = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if t.style.outline == Some(true));
-    if elements().any(|e| matches!(e.kind, ElementKind::Table(_)) || outlined(e)) {
+    let v5 = |e: &Element| match &e.kind {
+        ElementKind::Photo(p) => p.mirrored,
+        ElementKind::Text(t) => t.frame.as_ref().is_some_and(|f| f.pattern.is_some()),
+        _ => false,
+    };
+    if elements().any(v5) {
+        5
+    } else if elements().any(|e| matches!(e.kind, ElementKind::Table(_)) || outlined(e)) {
         4
     } else if elements().any(uses_version_3) {
         3
@@ -230,6 +238,7 @@ mod tests {
                 corner_radius_mm: 0.0,
                 border: None,
                 shadow: false,
+                mirrored: false,
             }),
         }
     }
@@ -418,6 +427,24 @@ mod tests {
     }
 
     #[test]
+    fn writing_lines_and_mirrored_photos_are_version_5() {
+        let mut doc = Document::new("v");
+        let lines = TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: None, pattern: Some(Pattern::Seyes) };
+        doc.pages[0].elements.push(text_el(TextStyle::default_zone(), Some(TextFrame { pattern: None, ..lines.clone() })));
+        assert!(written_version(&doc) < 5);
+        doc.pages[0].elements.push(text_el(TextStyle::default_zone(), Some(lines)));
+        assert_eq!(written_version(&doc), 5);
+        let (mut doc, _, _) = sample();
+        assert!(written_version(&doc) < 5);
+        for e in &mut doc.pages[0].elements {
+            if let ElementKind::Photo(p) = &mut e.kind {
+                p.mirrored = true;
+            }
+        }
+        assert_eq!(written_version(&doc), 5);
+    }
+
+    #[test]
     fn table_documents_are_version_4() {
         let (mut doc, _, _) = sample();
         assert!(written_version(&doc) <= 3);
@@ -478,9 +505,9 @@ mod tests {
     }
 
     #[test]
-    fn newer_than_4_is_refused() {
+    fn newer_than_5_is_refused() {
         let mut doc = Document::new("futur");
-        doc.format_version = 5;
+        doc.format_version = 6;
         let json = serde_json::to_vec(&doc).unwrap();
         let mut buf = Cursor::new(Vec::new());
         {
@@ -491,7 +518,7 @@ mod tests {
         }
         buf.set_position(0);
         let err = load(buf).err().unwrap();
-        assert_eq!(err, NativeError::NewerVersion(5));
+        assert_eq!(err, NativeError::NewerVersion(6));
         assert!(err.message_fr().contains("plus récente"));
     }
 
@@ -548,7 +575,7 @@ mod tests {
         shape.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: Some(Stroke { style: Some(StrokeStyle::Solid), ..dashed.clone() }), corner_radius_mm: 0.0 });
         assert_eq!(with(shape), 2);
         let mut photo = picture(None);
-        photo.kind = ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: Some(dashed), shadow: false });
+        photo.kind = ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: Some(dashed), shadow: false, mirrored: false });
         assert_eq!(with(photo), 3);
         let mut doc = Document::new("v3");
         doc.pages[0].elements.push(text_el(TextStyle { valign: Some(VAlign::Bottom), ..plain }, None));

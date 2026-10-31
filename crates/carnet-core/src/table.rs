@@ -61,7 +61,7 @@ fn cell_kind(content: CellContent) -> ElementKind {
     match content {
         CellContent::Text => text_cell_kind(),
         CellContent::Picto(code) => ElementKind::Image(ImageProps { code }),
-        CellContent::Photo => ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false }),
+        CellContent::Photo => ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
     }
 }
 

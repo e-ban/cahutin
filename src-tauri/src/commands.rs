@@ -697,7 +697,7 @@ mod tests {
             locked: false,
             zone: false,
             group: None,
-            kind: carnet_core::ElementKind::Photo(carnet_core::PhotoProps { asset: Some(meta.id.clone()), crop: carnet_core::Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false }),
+            kind: carnet_core::ElementKind::Photo(carnet_core::PhotoProps { asset: Some(meta.id.clone()), crop: carnet_core::Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
         });
         doc.assets.insert(meta.id.clone(), meta.clone());
         let path = dir.path().join("sortie.carnet");
@@ -786,7 +786,7 @@ mod tests {
             locked: false,
             zone: false,
             group: None,
-            kind: carnet_core::ElementKind::Photo(carnet_core::PhotoProps { asset: Some(meta.id.clone()), crop: carnet_core::Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false }),
+            kind: carnet_core::ElementKind::Photo(carnet_core::PhotoProps { asset: Some(meta.id.clone()), crop: carnet_core::Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
         });
         doc.assets.insert(meta.id.clone(), meta.clone());
         let path = dir.path().join("sortie.carnet");

@@ -263,6 +263,7 @@
           {/if}
         </div>
         <button class:on={ph.shadow} aria-pressed={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}>◩ {fr.shadow}</button>
+        <button class:on={!!ph.mirrored} aria-pressed={!!ph.mirrored} title={fr.mirrorHint} onclick={() => updatePhoto({ mirrored: !ph.mirrored })}>⇋ {fr.mirror}</button>
         <button onclick={openPhotos}>⇄ {fr.replace}</button>
         <button onclick={() => addCaption(selected.id)}>✎ {fr.caption}</button>
         {#if !selected.locked}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
@@ -320,6 +321,12 @@
           <div class="pop frame">
             <span>{fr.frameFill}</span>
             <ColorPicker value={f?.fill ?? null} allowNone onchange={(c) => updateTextFrame({ fill: c })} />
+            <span>{fr.writingLines}</span>
+            <div class="patterns">
+              {#each [null, "Seyes", "Lines", "SmallSquares", "Dots"] as const as pat (pat)}
+                <button class:on={(f?.pattern ?? null) === pat} onclick={() => updateTextFrame({ pattern: pat })}>{fr.patternLabel[pat ?? "None"]}</button>
+              {/each}
+            </div>
             <span>{fr.border} : {f?.stroke ? `${f.stroke.width_mm} mm` : fr.none}</span>
             <input
               type="range"
@@ -428,6 +435,11 @@
 {/if}
 
 <style>
+  .patterns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
   .pop.fields {
     display: flex;
     flex-direction: column;

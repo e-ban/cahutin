@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { pageHasPictos, pictoElement, replacePictos, searchPictos, type PictoEntry } from "./pictos.svelte";
+import { CLASS_PICTO_GROUPS, pageHasPictos, pictoElement, pictosOf, replacePictos, searchPictos, type PictoEntry } from "./pictos.svelte";
 import type { Page } from "./types";
 
 const index: PictoEntry[] = JSON.parse(readFileSync(fileURLToPath(new URL("../../../assets/openmoji/index.json", import.meta.url)), "utf8"));
@@ -33,4 +33,12 @@ test("pageHasPictos and pictoElement defaults", () => {
   expect(e.frame).toMatchObject({ w_mm: 30, h_mm: 30, x_mm: 90 });
   p.elements.push(e);
   expect(pageHasPictos(p)).toBe(true);
+});
+
+test("class categories only name pictures of the bank, each once", () => {
+  const index: PictoEntry[] = JSON.parse(readFileSync(new URL("../../../assets/openmoji/index.json", import.meta.url), "utf8"));
+  for (const [g, codes] of Object.entries(CLASS_PICTO_GROUPS)) {
+    expect(pictosOf(index, g).map((p) => p.code)).toEqual(codes);
+    expect(new Set(codes).size).toBe(codes.length);
+  }
 });

@@ -12,10 +12,12 @@ const text: Element = {
 
 test("a text frame is created by its first setting and removed when nothing is left", () => {
   const filled = textFrame({ fill: "#ffeeaa" })(text);
-  expect(filled.kind.type === "Text" && filled.kind.frame).toEqual({ fill: "#ffeeaa", stroke: null, corner_radius_mm: 0, image: null });
+  expect(filled.kind.type === "Text" && filled.kind.frame).toEqual({ fill: "#ffeeaa", stroke: null, corner_radius_mm: 0, image: null, pattern: null });
   const rounded = textFrame({ corner_radius_mm: 5 })(filled);
   const cleared = textFrame({ fill: null })(rounded);
   expect(cleared.kind.type === "Text" && cleared.kind.frame).toBeNull();
+  // Des lignes d'écriture seules font un cadre.
+  expect(textFrame({ pattern: "Seyes" })(text).kind).toMatchObject({ frame: { pattern: "Seyes" } });
   // Des coins seuls ne font pas un cadre.
   expect(textFrame({ corner_radius_mm: 5 })(text).kind.type === "Text" && textFrame({ corner_radius_mm: 5 })(text).kind).toMatchObject({ frame: null });
 });

@@ -95,6 +95,7 @@ fn labels() -> Page {
                     stroke: Some(Stroke { width_mm: 0.8, color: LABEL_BLUE.into(), style: None }),
                     corner_radius_mm: 6.0,
                     image: None,
+                    pattern: None,
                 });
             }
             page.elements.push(z);
@@ -585,7 +586,7 @@ mod tests {
             locked: true,
             zone: false,
             group: None,
-            kind: ElementKind::Photo(PhotoProps { asset: Some(logo_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false }),
+            kind: ElementKind::Photo(PhotoProps { asset: Some(logo_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
         });
         let t = from_page("Mon modèle", &page, &store);
         assert_eq!(t.info.name, "Mon modèle");
@@ -617,7 +618,7 @@ mod tests {
             group: None,
             kind,
         };
-        page.elements.push(free(ElementKind::Photo(PhotoProps { asset: Some(child_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false })));
+        page.elements.push(free(ElementKind::Photo(PhotoProps { asset: Some(child_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false })));
         page.elements.push(free(ElementKind::Text(TextProps { content: RichText::plain("Léa a ri"), style: TextStyle::default_zone(), prompt: None, frame: None })));
         page.elements.push(free(ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0 })));
         let t = from_page("Partagé", &page, &store);
@@ -719,7 +720,7 @@ mod tests {
             kind,
         };
         page.elements.push(base(ElementKind::Image(ImageProps { code: "1F98A".into() })));
-        page.elements.push(base(ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false })));
+        page.elements.push(base(ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false })));
         let t = from_page("m", &page, &AssetStore::default());
         assert_eq!(t.page.elements.len(), 1);
         assert!(matches!(t.page.elements[0].kind, ElementKind::Image(_)));

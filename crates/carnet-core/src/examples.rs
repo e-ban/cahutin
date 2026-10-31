@@ -84,7 +84,7 @@ pub(crate) fn shape(kind: ShapeKind, f: Frame, fill: Option<&str>, stroke: Optio
 }
 
 pub(crate) fn photo_zone(f: Frame) -> Element {
-    Element { zone: true, ..el(f, ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 3.0, border: None, shadow: false })) }
+    Element { zone: true, ..el(f, ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 3.0, border: None, shadow: false, mirrored: false })) }
 }
 
 /// Même identifiant de groupe pour tous.

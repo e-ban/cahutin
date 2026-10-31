@@ -2,6 +2,7 @@
   // Le texte est mis en page à sa taille réelle (mm et pt), puis mis à l'échelle du zoom :
   // les retours à la ligne ne dépendent pas du zoom et correspondent à ceux de l'export.
   import TextEditor from "../TextEditor.svelte";
+  import { frameMarks } from "../../lib/background";
   import { assetUrl } from "../../lib/api";
   import { alignToCss, textPadding } from "../../lib/richtext";
   import { dashArray } from "../../lib/strokes";
@@ -74,6 +75,16 @@
       stroke-width={f.stroke?.width_mm ?? 0}
       stroke-dasharray={dashArray(f.stroke, f.stroke?.width_mm ?? 0)}
     />
+    {#if f.pattern}
+      <!-- Lignes d'écriture, entre le fond et le texte, comme à l'export. -->
+      {#each frameMarks({ width_mm: w, height_mm: h }, f.pattern) as m, i (i)}
+        {#if m.type === "Line"}
+          <line x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} stroke={m.color} stroke-width={m.width_mm} />
+        {:else}
+          <circle cx={m.x} cy={m.y} r={m.d_mm / 2} fill={m.color} />
+        {/if}
+      {/each}
+    {/if}
   </svg>
 {/if}
 <div

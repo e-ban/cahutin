@@ -132,6 +132,7 @@ fn photo_document(store: &mut AssetStore, n: usize) -> Document {
                 corner_radius_mm: if i == 0 { 0.0 } else { 4.0 },
                 border: None,
                 shadow: false,
+                mirrored: false,
             }),
         });
         doc.assets.insert(a.meta.id.clone(), a.meta.clone());
@@ -660,6 +661,7 @@ fn text_frame_is_rendered() {
                 stroke: Some(Stroke { width_mm: 1.0, color: "#cc0000".into(), style: None }),
                 corner_radius_mm: radius,
                 image: None,
+                pattern: None,
             }),
         }),
     });
@@ -710,7 +712,7 @@ fn frame_image_and_dotted_photo_border_are_rendered() {
             content: RichText::plain("Prénom"),
             style,
             prompt: None,
-            frame: Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 8.0, image: Some(id.clone()) }),
+            frame: Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 8.0, image: Some(id.clone()), pattern: None }),
         }),
     });
     let (py, ph) = (100.0, 60.0);
@@ -726,6 +728,7 @@ fn frame_image_and_dotted_photo_border_are_rendered() {
             corner_radius_mm: 0.0,
             border: Some(Stroke { width_mm: 2.0, color: "#cc0000".into(), style: Some(StrokeStyle::Dotted) }),
             shadow: false,
+            mirrored: false,
         }),
     });
     let (_dir, pdf) = render(&doc, &store);

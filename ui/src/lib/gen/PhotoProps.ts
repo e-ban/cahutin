@@ -2,4 +2,8 @@
 import type { Crop } from "./Crop";
 import type { Stroke } from "./Stroke";
 
-export type PhotoProps = { asset: string | null, crop: Crop, corner_radius_mm: number, border: Stroke | null, shadow: boolean, };
+export type PhotoProps = { asset: string | null, crop: Crop, corner_radius_mm: number, border: Stroke | null, shadow: boolean, 
+/**
+ * Retournée à l'horizontale (miroir) ; absent : à l'endroit.
+ */
+mirrored?: boolean, };

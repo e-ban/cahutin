@@ -4,7 +4,7 @@
   import { tableAdd } from "../../lib/api";
   import { centeredFrame, textElement } from "../../lib/factory";
   import { fr } from "../../lib/i18n/fr";
-  import type { Align, RichText } from "../../lib/types";
+  import type { Align, Pattern, RichText } from "../../lib/types";
 
   interface Preset {
     label: string;
@@ -45,6 +45,16 @@
     editor.editingText = el.id;
   }
 
+  /** Un cadre de lignes d'écriture sur la largeur de la page, à écrire à la main ou à remplir. */
+  function addLines(pattern: Pattern) {
+    const el = textElement(centeredFrame(editor.page, editor.page.size.width_mm - 30, 48));
+    if (el.kind.type === "Text") {
+      el.kind = { ...el.kind, content: { paragraphs: [] }, style: { ...el.kind.style, font: "Playwrite FR Moderne", size_pt: 28 }, frame: { fill: null, stroke: null, corner_radius_mm: 0, image: null, pattern } };
+    }
+    editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+    editor.selection = [el.id];
+  }
+
   let cols = $state(3);
   let rows = $state(3);
 
@@ -78,6 +88,12 @@
       {p.label}
     </button>
   {/each}
+  <h3>{fr.writingLines}</h3>
+  <div class="lines">
+    <button onclick={() => addLines("Seyes")}>{fr.patternSeyes}</button>
+    <button onclick={() => addLines("Lines")}>{fr.patternLines}</button>
+    <button onclick={() => addLines("SmallSquares")}>{fr.patternSquares}</button>
+  </div>
   <h3>{fr.table}</h3>
   <div class="table-size">
     <label>{fr.tableCols} <input type="number" min="1" max="8" bind:value={cols} /></label>
@@ -87,6 +103,11 @@
 </Drawer>
 
 <style>
+  .lines {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
   .primary {
     background: var(--accent);
     border-color: var(--accent);

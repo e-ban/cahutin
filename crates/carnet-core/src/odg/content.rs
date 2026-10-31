@@ -158,7 +158,7 @@ impl Writer<'_> {
 
     /// Image de la photothèque prérecadrée pour le cadre : LibreOffice reçoit exactement les pixels visibles.
     /// Renvoie son chemin dans l'archive.
-    fn cropped_picture(&mut self, asset_id: &Id, f: &Frame, crop: &Crop, name: &str) -> Result<String, OdgError> {
+    fn cropped_picture(&mut self, asset_id: &Id, f: &Frame, crop: &Crop, mirrored: bool, name: &str) -> Result<String, OdgError> {
         let asset = self.store.get(asset_id).ok_or_else(|| OdgError::MissingAsset(asset_id.clone()))?;
         let img = image::load_from_memory(&asset.bytes).map_err(|_| OdgError::Image)?;
         let r = source_rect(img.width(), img.height(), f.w_mm, f.h_mm, crop);
@@ -166,6 +166,9 @@ impl Writer<'_> {
         let w = (r.w.round() as u32).clamp(1, img.width() - x);
         let h = (r.h.round() as u32).clamp(1, img.height() - y);
         let mut cropped = img.crop_imm(x, y, w, h);
+        if mirrored {
+            cropped = cropped.fliph();
+        }
         if w.max(h) > MAX_LONG_EDGE_PX {
             cropped = cropped.resize(MAX_LONG_EDGE_PX, MAX_LONG_EDGE_PX, FilterType::Lanczos3);
         }
@@ -182,7 +185,7 @@ impl Writer<'_> {
 
     fn photo(&mut self, e: &Element, p: &PhotoProps) -> Result<(), OdgError> {
         let Some(asset_id) = &p.asset else { return Ok(()) };
-        let path = self.cropped_picture(asset_id, &e.frame, &p.crop, &e.id)?;
+        let path = self.cropped_picture(asset_id, &e.frame, &p.crop, p.mirrored, &e.id)?;
         let geo = geometry(&e.frame);
         let decorated = p.corner_radius_mm > 0.0 || p.border.is_some() || p.shadow;
         if !decorated {
@@ -236,6 +239,39 @@ impl Writer<'_> {
         vec![("style:text-properties", props)]
     }
 
+    /// Fond et bordure d'un cadre à lignes d'écriture, puis ses lignes (ou points), au même endroit que le
+    /// cadre ; tournés avec lui.
+    fn frame_lines(&mut self, e: &Element, fill_and_stroke: Vec<(&'static str, String)>, radius: f64, pattern: Pattern) {
+        let f = e.frame;
+        let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", fill_and_stroke)]);
+        let mut a = vec![("draw:style-name", style), ("draw:corner-radius", mm(radius))];
+        a.extend(geometry(&f));
+        self.body.empty("draw:rect", &attrs(&a));
+        let size = PageSize { width_mm: f.w_mm, height_mm: f.h_mm };
+        // Repère du cadre : ses lignes tournent avec lui autour de son centre.
+        let (cx, cy) = (f.x_mm + f.w_mm / 2.0, f.y_mm + f.h_mm / 2.0);
+        let (sin, cos) = f.rotation_deg.to_radians().sin_cos();
+        let at = |x: f64, y: f64| {
+            let (dx, dy) = (x - f.w_mm / 2.0, y - f.h_mm / 2.0);
+            (cx + dx * cos - dy * sin, cy + dx * sin + dy * cos)
+        };
+        for m in crate::background::frame_marks(size, pattern) {
+            match m {
+                crate::background::Mark::Line { x1, y1, x2, y2, width_mm, color } => {
+                    let st = self.reg.style("graphic", "gr", vec![("style:graphic-properties", vec![("draw:stroke", "solid".into()), ("svg:stroke-width", mm(width_mm)), ("svg:stroke-color", color.into()), ("draw:fill", "none".into())])]);
+                    let ((ax, ay), (bx, by)) = (at(x1, y1), at(x2, y2));
+                    self.body.empty("draw:line", &[("draw:style-name", st.as_str()), ("svg:x1", &mm(ax)), ("svg:y1", &mm(ay)), ("svg:x2", &mm(bx)), ("svg:y2", &mm(by))]);
+                }
+                crate::background::Mark::Dot { x, y, d_mm, color } => {
+                    let st = self.reg.style("graphic", "gr", vec![("style:graphic-properties", vec![("draw:stroke", "none".into()), ("draw:fill", "solid".into()), ("draw:fill-color", color.into())])]);
+                    let (px, py) = at(x, y);
+                    let r = d_mm / 2.0;
+                    self.body.empty("draw:ellipse", &[("draw:style-name", st.as_str()), ("svg:x", &mm(px - r)), ("svg:y", &mm(py - r)), ("svg:width", &mm(d_mm)), ("svg:height", &mm(d_mm))]);
+                }
+            }
+        }
+    }
+
     fn text(&mut self, e: &Element, t: &TextProps) -> Result<(), OdgError> {
         // Un texte vide disparaît, sauf s'il a un cadre (une étiquette à remplir) ; l'invite n'est jamais exportée.
         let blank = t.content.is_blank();
@@ -253,7 +289,7 @@ impl Writer<'_> {
         let frame = t.frame.as_ref();
         let mut props: Vec<(&'static str, String)> = match (frame.and_then(|f| f.image.as_ref()), frame.and_then(|f| f.fill.clone())) {
             (Some(image), _) => {
-                let path = self.cropped_picture(image, &e.frame, &Crop::COVER, &format!("{}-fond", e.id))?;
+                let path = self.cropped_picture(image, &e.frame, &Crop::COVER, false, &format!("{}-fond", e.id))?;
                 let fill_name = format!("img_{}_fond", e.id);
                 self.reg.fill_image(fill_name.clone(), path);
                 vec![("draw:fill", "bitmap".into()), ("draw:fill-image-name", fill_name), ("style:repeat", "stretch".into())]
@@ -262,6 +298,12 @@ impl Writer<'_> {
             (None, None) => vec![("draw:fill", "none".into())],
         };
         props.extend(stroke(self.reg, frame.and_then(|f| f.stroke.as_ref())));
+        // Lignes d'écriture : le fond et la bordure dessinés à part, les lignes par-dessus, puis le texte.
+        if let Some(pattern) = frame.and_then(|f| f.pattern) {
+            self.frame_lines(e, std::mem::take(&mut props), frame.map_or(0.0, |f| f.corner_radius_mm), pattern);
+            props = vec![("draw:fill", "none".into())];
+            props.extend(stroke(self.reg, None));
+        }
         let style = self.reg.style(
             "graphic",
             "gr",

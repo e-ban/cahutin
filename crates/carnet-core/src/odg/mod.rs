@@ -150,6 +150,7 @@ mod tests {
                 corner_radius_mm: radius,
                 border: None,
                 shadow: false,
+                mirrored: false,
             }),
         }
     }
@@ -284,7 +285,7 @@ mod tests {
         let mut t = text(RichText::plain("Léa"), None);
         t.frame = frame(10.0, 10.0, 60.0, 20.0);
         if let ElementKind::Text(p) = &mut t.kind {
-            p.frame = Some(TextFrame { fill: Some("#ff0000".into()), stroke: None, corner_radius_mm: 3.0, image: Some(a.meta.id.clone()) });
+            p.frame = Some(TextFrame { fill: Some("#ff0000".into()), stroke: None, corner_radius_mm: 3.0, image: Some(a.meta.id.clone()), pattern: None });
         }
         store.insert(a).unwrap();
         let mut e = export(&doc_with(vec![t]), &store);
@@ -367,6 +368,7 @@ mod tests {
                 stroke: Some(Stroke { width_mm: 1.0, color: "#c0392b".into(), style: Some(StrokeStyle::Dashed) }),
                 corner_radius_mm: 4.0,
                 image: None,
+                pattern: None,
             });
         }
         let mut e = export(&doc_with(vec![t]), &AssetStore::default());
@@ -645,6 +647,21 @@ mod tests {
         }
         let content = export(&d, &AssetStore::default()).xml("content.xml");
         assert_eq!(content.matches("<draw:line").count(), 0);
+    }
+
+    #[test]
+    fn writing_lines_are_drawn_under_the_text() {
+        let mut t = text(RichText::plain("Léa"), None);
+        if let ElementKind::Text(tp) = &mut t.kind {
+            tp.frame = Some(TextFrame { fill: Some("#ffffff".into()), stroke: None, corner_radius_mm: 2.0, image: None, pattern: Some(Pattern::Lines) });
+        }
+        let content = export(&doc_with(vec![t]), &AssetStore::default()).xml("content.xml");
+        let (rect, rest) = (content.find("<draw:rect").expect("fond du cadre"), content.find("<draw:frame").expect("texte"));
+        let lines: Vec<usize> = content.match_indices("<draw:line").map(|(i, _)| i).collect();
+        // Cadre de 40 mm de haut, une ligne tous les 8 mm : 4 lignes, entre le fond et le texte.
+        assert_eq!(lines.len(), 4);
+        assert!(lines.iter().all(|&i| rect < i && i < rest));
+        assert!(content.contains(r#"svg:x1="10.000mm" svg:y1="208.000mm" svg:x2="200.000mm" svg:y2="208.000mm""#), "{content}");
     }
 
     #[test]

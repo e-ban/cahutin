@@ -46,7 +46,7 @@ pub fn renew_ids(page: &mut Page) {
 
 /// Version la plus récente que cette application sait lire (2 : élément image ; 3 : cadre de texte,
 /// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau, lettres creuses).
-pub const FORMAT_VERSION: u32 = 4;
+pub const FORMAT_VERSION: u32 = 5;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -208,6 +208,10 @@ pub struct PhotoProps {
     pub corner_radius_mm: f64,
     pub border: Option<Stroke>,
     pub shadow: bool,
+    /// Retournée à l'horizontale (miroir) ; absent : à l'endroit.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub mirrored: bool,
 }
 
 /// `scale` >= 1 ; le centre de la partie visible, en fraction de l'image.
@@ -273,11 +277,15 @@ pub struct TextFrame {
     #[serde(default)]
     #[ts(optional = nullable)]
     pub image: Option<Id>,
+    /// Lignes d'écriture dans le cadre (Seyès, lignes, petits carreaux, pointillés), sous le texte.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub pattern: Option<Pattern>,
 }
 
 impl TextFrame {
     pub fn is_empty(&self) -> bool {
-        self.fill.is_none() && self.stroke.is_none() && self.image.is_none()
+        self.fill.is_none() && self.stroke.is_none() && self.image.is_none() && self.pattern.is_none()
     }
 }
 
@@ -456,6 +464,7 @@ mod tests {
                 corner_radius_mm: 3.0,
                 border: Some(Stroke { width_mm: 0.5, color: "#336699".into(), style: None }),
                 shadow: true,
+                mirrored: false,
             }),
         });
         page.elements.push(Element {

@@ -29,6 +29,11 @@ function steps(step: number, limit: number): [number, number][] {
 const h = (y: number, w: number, width_mm: number, color: string): Mark => ({ type: "Line", x1: 0, y1: y, x2: w, y2: y, width_mm, color });
 const v = (x: number, ht: number, width_mm: number, color: string): Mark => ({ type: "Line", x1: x, y1: 0, x2: x, y2: ht, width_mm, color });
 
+/** Motif dans un cadre de texte : comme sur la page, sans la marge rouge du Seyès (comme le moteur). */
+export function frameMarks(size: PageSize, pattern: Pattern): Mark[] {
+  return marks(size, pattern).filter((m) => !(m.type === "Line" && m.color === SEYES_MARGIN));
+}
+
 export function marks(size: PageSize, pattern: Pattern): Mark[] {
   const { width_mm: w, height_mm: ht } = size;
   switch (pattern) {

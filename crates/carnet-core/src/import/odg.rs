@@ -269,7 +269,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
         let asset = image.attribute((XLINK, "href")).and_then(|href| read_entry(self.zip, href)).and_then(|bytes| import_bytes(&bytes).ok());
         match asset {
             Some(a) => {
-                let photo = PhotoProps { asset: Some(a.meta.id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false };
+                let photo = PhotoProps { asset: Some(a.meta.id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false };
                 self.items.push(Item::Element(Box::new(element(frame, ElementKind::Photo(photo)))));
                 self.assets.push(a);
             }

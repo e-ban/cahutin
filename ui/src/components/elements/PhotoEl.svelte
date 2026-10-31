@@ -22,15 +22,18 @@
     style:outline-offset={solidBorder ? `-${borderPx / 2}px` : "0"}
     style:box-shadow={props.shadow ? `${mmToPx(1, zoom)}px ${mmToPx(1, zoom)}px 0 rgba(128,128,128,0.5)` : "none"}
   >
-    <img
-      src={assetUrl(props.asset)}
-      alt=""
-      draggable="false"
-      style:width="{mmToPx(css.widthMm, zoom)}px"
-      style:height="{mmToPx(css.heightMm, zoom)}px"
-      style:left="{mmToPx(css.leftMm, zoom)}px"
-      style:top="{mmToPx(css.topMm, zoom)}px"
-    />
+    <!-- Miroir : la partie visible, retournée d'un bloc (comme l'export). -->
+    <div class="flip" class:mirrored={props.mirrored}>
+      <img
+        src={assetUrl(props.asset)}
+        alt=""
+        draggable="false"
+        style:width="{mmToPx(css.widthMm, zoom)}px"
+        style:height="{mmToPx(css.heightMm, zoom)}px"
+        style:left="{mmToPx(css.leftMm, zoom)}px"
+        style:top="{mmToPx(css.topMm, zoom)}px"
+      />
+    </div>
   </div>
   {#if props.border && !solidBorder}
     <!-- Hors du cadre rogné : le trait est centré sur le bord, comme le contour plein et dans LibreOffice. -->
@@ -48,6 +51,13 @@
 {/if}
 
 <style>
+  .flip {
+    position: absolute;
+    inset: 0;
+  }
+  .flip.mirrored {
+    transform: scaleX(-1);
+  }
   .photo {
     position: absolute;
     inset: 0;

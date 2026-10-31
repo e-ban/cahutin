@@ -5,7 +5,7 @@
   import { editor } from "../../lib/docStore.svelte";
   import { PICTO_MIME } from "../../lib/dnd";
   import { fr } from "../../lib/i18n/fr";
-  import { PICTO_GROUPS, pictoElement, pictoUrl, pictos, replacePictos, searchPictos } from "../../lib/pictos.svelte";
+  import { CLASS_PICTO_GROUPS, PICTO_GROUPS, pictoElement, pictoUrl, pictos, pictosOf, replacePictos, searchPictos } from "../../lib/pictos.svelte";
   import { frieze, pageFrame, toggleMotif, type FrameStyle, type FriezeSide } from "../../lib/decor";
   import { friezeMotifs } from "../../lib/friezeMotifs.svelte";
   import type { Element } from "../../lib/types";
@@ -36,7 +36,7 @@
 
   const shown = $derived.by(() => {
     const found = searchPictos(pictos.index, query);
-    return category && !query ? found.filter((p) => p.group === category) : found;
+    return category && !query ? pictosOf(pictos.index, category) : found;
   });
 
   function use(code: string) {
@@ -63,6 +63,9 @@
   {#if !query}
     <div class="chips">
       <button class:on={category === null} onclick={() => (category = null)}>{fr.allPictures}</button>
+      {#each Object.keys(CLASS_PICTO_GROUPS) as g (g)}
+        <button class="classe" class:on={category === g} onclick={() => (category = g)}>{fr.pictureGroups[g]}</button>
+      {/each}
       {#each PICTO_GROUPS as g (g)}
         <button class:on={category === g} onclick={() => (category = g)}>{fr.pictureGroups[g]}</button>
       {/each}
@@ -134,6 +137,11 @@
     border-radius: 12px;
     padding: 2px 9px;
     font-size: 12px;
+  }
+  /* Catégories de la classe, en tête et colorées. */
+  .chips .classe {
+    border-color: #f0c98a;
+    background: #fff6e6;
   }
   .on {
     background: #e8f1fb;

@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AssetMeta, CellContent, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
+import type { AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -22,6 +22,8 @@ export const gridSetKind = (page: Page, cell: string, kind: ZoneKind) => invoke<
 export const pageSetSize = (page: Page, widthMm: number, heightMm: number) => invoke<Page>("page_set_size", { page, widthMm, heightMm });
 export const gridLiberate = (page: Page) => invoke<Page>("grid_liberate", { page });
 export const gridPreset = (page: Page, preset: GridPreset) => invoke<Page>("grid_preset", { page, preset });
+export const photoDetectFaces = (assetId: string) => invoke<FaceBox[]>("photo_detect_faces", { assetId });
+export const photoBlur = (assetId: string, zones: FaceBox[]) => invoke<AssetMeta>("photo_blur", { assetId, zones });
 export const tableAdd = (page: Page, frame: Frame, cols: number, rows: number) => invoke<[Page, string]>("table_add", { page, frame, cols, rows });
 export const tableInsertRow = (page: Page, cell: string, below: boolean) => invoke<Page>("table_insert_row", { page, cell, below });
 export const tableInsertCol = (page: Page, cell: string, right: boolean) => invoke<Page>("table_insert_col", { page, cell, right });

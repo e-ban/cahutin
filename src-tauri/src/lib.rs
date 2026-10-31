@@ -91,6 +91,8 @@ pub fn run() {
             class_commands::class_parse_list,
             class_commands::class_plan,
             class_commands::class_generate,
+            commands::photo_detect_faces,
+            commands::photo_blur,
             commands::table_add,
             commands::table_insert_row,
             commands::table_insert_col,

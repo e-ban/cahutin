@@ -6,6 +6,8 @@ use carnet_core::fonts::{self, FontFamilyInfo};
 use carnet_core::photo;
 use carnet_core::templates::{self, TemplateInfo};
 use carnet_core::import::{self, ImportError, ImportReport};
+use carnet_core::faces::{self, FaceBox};
+use carnet_core::photo::AssetStore;
 use carnet_core::{AssetMeta, Document, Frame, Page, PageSize, ZoneKind, examples, grid, native, odg, report, table};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -281,6 +283,40 @@ pub fn grid_liberate(mut page: Page) -> Page {
     page
 }
 
+const PHOTO_NOT_FOUND: &str = "Cette photo est introuvable : rouvrez le document.";
+
+/// Visages repérés sur une photo (fractions de l'image). Ne sait jamais à qui ils sont.
+pub fn detect_in(store: &AssetStore, asset_id: &str) -> Result<Vec<FaceBox>, String> {
+    let asset = store.get(asset_id).ok_or(PHOTO_NOT_FOUND)?;
+    faces::detect_faces(&asset).map_err(|e| e.message_fr())
+}
+
+/// Photo floutée dans les zones : une nouvelle image, qui rejoint les images de l'application.
+pub fn blur_in(store: &mut AssetStore, asset_id: &str, zones: &[FaceBox]) -> Result<AssetMeta, String> {
+    let asset = store.get(asset_id).ok_or(PHOTO_NOT_FOUND)?;
+    let out = faces::blur_regions(&asset, zones).map_err(|e| e.message_fr())?;
+    let meta = out.meta.clone();
+    store.insert(out).map_err(|e| e.message_fr())?;
+    Ok(meta)
+}
+
+/// Exécutée hors du fil principal : le repérage prend un instant.
+#[tauri::command(async)]
+pub fn photo_detect_faces(state: State<'_, AppState>, asset_id: String) -> Result<Vec<FaceBox>, String> {
+    // L'image est copiée hors du verrou : les vignettes restent servies pendant le repérage.
+    let asset = state.store.lock().unwrap().get(&asset_id).ok_or(PHOTO_NOT_FOUND)?;
+    let found = faces::detect_faces(&asset).map_err(|e| e.message_fr())?;
+    log::info!("photo_detect_faces faces={}", found.len());
+    Ok(found)
+}
+
+#[tauri::command(async)]
+pub fn photo_blur(state: State<'_, AppState>, asset_id: String, zones: Vec<FaceBox>) -> Result<AssetMeta, String> {
+    let meta = blur_in(&mut state.store.lock().unwrap(), &asset_id, &zones)?;
+    log::info!("photo_blur zones={}", zones.len());
+    Ok(meta)
+}
+
 /// Pose un tableau ; rend la page et l'id de l'élément `Table`.
 #[tauri::command]
 pub fn table_add(mut page: Page, frame: Frame, cols: u8, rows: u8) -> (Page, String) {
@@ -510,6 +546,24 @@ mod tests {
     use carnet_core::photo::AssetStore;
     use carnet_core::templates::Library;
     use carnet_core::{A4_PORTRAIT, Page, grid};
+
+    #[test]
+    fn blur_of_an_unknown_photo_is_a_french_error() {
+        let mut store = AssetStore::default();
+        assert_eq!(blur_in(&mut store, "absente", &[]).unwrap_err(), PHOTO_NOT_FOUND);
+        assert_eq!(detect_in(&store, "absente").unwrap_err(), PHOTO_NOT_FOUND);
+    }
+
+    #[test]
+    fn blurred_photo_joins_the_store() {
+        let mut store = AssetStore::default();
+        let a = carnet_core::photo::import_path(&fixture("faces-apollo11.jpg")).unwrap();
+        let id = a.meta.id.clone();
+        store.insert(a).unwrap();
+        let zones = detect_in(&store, &id).unwrap();
+        let meta = blur_in(&mut store, &id, &zones).unwrap();
+        assert!(store.get(&meta.id).is_some() && meta.id != id);
+    }
 
     #[test]
     fn table_remove_last_row_error_is_french() {

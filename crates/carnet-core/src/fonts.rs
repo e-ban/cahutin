@@ -246,6 +246,16 @@ pub fn builtin_text_width_mm(family: &str, bold: bool, italic: bool, size_pt: f6
     Some(units / font.units_per_em() as f64 * size_pt * 25.4 / 72.0)
 }
 
+/// Hauteur d'une ligne (hauteur « normale » : ascendante, descendante et interligne de la police), en mm,
+/// dans une police fournie.
+pub fn builtin_line_height_mm(family: &str, size_pt: f64) -> Option<f64> {
+    let face = builtin_faces().iter().find(|f| f.family == family)?;
+    let FontData::Loaded(bytes) = &face.data else { return None };
+    let font = ttf_parser::Face::parse(bytes, 0).ok()?;
+    let units = font.ascender() as f64 - font.descender() as f64 + font.line_gap() as f64;
+    Some(units / font.units_per_em() as f64 * size_pt * 25.4 / 72.0)
+}
+
 /// Polices installées sur le poste (dossiers de polices de Windows, de l'utilisateur, ou du système sous Linux).
 pub fn scan_system_fonts() -> Vec<FontFace> {
     let mut db = fontdb::Database::new();
@@ -382,6 +392,8 @@ mod tests {
         assert!((two - 2.0 * one).abs() < 1e-9);
         assert!(builtin_text_width_mm("Andika", true, false, 12.0, "Sortie").unwrap() >= one);
         assert!(builtin_text_width_mm("Inconnue", false, false, 12.0, "x").is_none());
+        let line = builtin_line_height_mm("Andika", 12.0).unwrap();
+        assert!(line > 12.0 * 25.4 / 72.0 && line < 2.0 * 12.0 * 25.4 / 72.0, "{line}");
     }
 
     #[test]

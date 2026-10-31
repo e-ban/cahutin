@@ -329,23 +329,28 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 continue;
             }
             let h = frame.h_mm / n;
-            // Police remplacée par la police de repli, plus large : le texte rétrécit jusqu'à tenir dans la
-            // largeur qu'il avait dans l'original (la moitié de sa taille au plus).
+            // Police remplacée par la police de repli, plus large et plus haute. Le texte rétrécit jusqu'à tenir
+            // dans la largeur qu'il avait dans l'original (la moitié de sa taille au plus), sinon il passerait à
+            // la ligne ; la ligne s'allonge vers le bas à la hauteur de la police de repli.
+            let mut line_h_mm = h;
             if substituted.iter().any(|s| *s) {
-                let width: f64 = runs.iter().filter_map(|r| crate::fonts::builtin_text_width_mm(r.font.as_deref().unwrap_or(FALLBACK_FONT), r.bold, r.italic, r.size_pt.unwrap_or(12.0), &r.text)).sum();
-                let factor = (frame.w_mm / width).clamp(0.5, 1.0);
-                if width > 0.0 && factor < 0.99 {
+                let font = |r: &Run| r.font.clone().unwrap_or_else(|| FALLBACK_FONT.into());
+                let width: f64 = runs.iter().filter_map(|r| crate::fonts::builtin_text_width_mm(&font(r), r.bold, r.italic, r.size_pt.unwrap_or(12.0), &r.text)).sum();
+                let factor = if width > 0.0 { (frame.w_mm / width).clamp(0.5, 1.0) } else { 1.0 };
+                if factor < 0.99 {
                     for r in &mut runs {
                         r.size_pt = r.size_pt.map(|s| (s * factor * 10.0).floor() / 10.0);
                     }
                     self.shrunk += 1;
                 }
+                let line_h = runs.iter().filter_map(|r| crate::fonts::builtin_line_height_mm(&font(r), r.size_pt.unwrap_or(12.0))).fold(0.0, f64::max);
+                line_h_mm = h.max(line_h);
             }
             let line = Line {
                 x_mm: frame.x_mm,
                 y_mm: frame.y_mm + i as f64 * h,
                 w_mm: frame.w_mm,
-                h_mm: h,
+                h_mm: line_h_mm,
                 font: runs[0].font.clone().unwrap(),
                 size_pt: runs[0].size_pt.unwrap(),
                 runs,
@@ -438,7 +443,68 @@ impl<R: Read + Seek> PageReader<'_, R> {
         }
     }
 
-    fn finish(self) -> (Vec<Element>, Vec<Asset>, usize, Vec<Drawing>, usize) {
+    /// Puce ou numéro d'une liste (une case à part dans l'import PDF) : rattachés au début de la ligne qui
+    /// commence juste à sa droite, à la même hauteur, et écrits dans sa police.
+    fn attach_bullets(&mut self) {
+        let text = |l: &Line| l.runs.iter().map(|r| r.text.as_str()).collect::<String>().trim().to_string();
+        let is_marker = |l: &Line| {
+            let t = text(l);
+            let mut c = t.chars();
+            matches!((c.next(), c.next()), (Some('•' | '◦' | '▪' | '■' | '●' | '○' | '–' | '✓' | '➢' | '➤' | '-'), None))
+                || (t.len() > 1 && t.len() <= 3 && t.ends_with(['.', ')']) && t[..t.len() - 1].chars().all(|c| c.is_ascii_digit() || c.is_ascii_lowercase()))
+        };
+        let mut gone = vec![false; self.lines.len()];
+        for b in 0..self.lines.len() {
+            if !is_marker(&self.lines[b]) {
+                continue;
+            }
+            let m = &self.lines[b];
+            let (end, mid) = (m.x_mm + m.w_mm, m.y_mm + m.h_mm / 2.0);
+            let next = (0..self.lines.len())
+                .filter(|&i| i != b && !gone[i] && !is_marker(&self.lines[i]))
+                .filter(|&i| {
+                    let l = &self.lines[i];
+                    l.x_mm >= end - 1.0 && l.x_mm - end < 15.0 && (l.y_mm + l.h_mm / 2.0 - mid).abs() < m.h_mm.max(l.h_mm) / 2.0
+                })
+                .min_by(|&i, &j| self.lines[i].x_mm.total_cmp(&self.lines[j].x_mm));
+            let Some(i) = next else { continue };
+            let marker = text(&self.lines[b]);
+            let (bx, by, bh) = (self.lines[b].x_mm, self.lines[b].y_mm, self.lines[b].h_mm);
+            let line = &mut self.lines[i];
+            let mut first = line.runs[0].clone();
+            first.text = format!("{marker} ");
+            first.bold = false;
+            first.italic = false;
+            first.underline = false;
+            line.runs.insert(0, first);
+            let top = line.y_mm.min(by);
+            line.h_mm = (line.y_mm + line.h_mm).max(by + bh) - top;
+            line.y_mm = top;
+            line.w_mm += line.x_mm - bx;
+            line.x_mm = bx;
+            gone[b] = true;
+        }
+        // Les puces rattachées quittent la page ; les autres lignes gardent leur ordre.
+        let mut new_index = vec![None; self.lines.len()];
+        let mut kept = Vec::new();
+        for (i, l) in std::mem::take(&mut self.lines).into_iter().enumerate() {
+            if !gone[i] {
+                new_index[i] = Some(kept.len());
+                kept.push(l);
+            }
+        }
+        self.lines = kept;
+        self.items = std::mem::take(&mut self.items)
+            .into_iter()
+            .filter_map(|it| match it {
+                Item::Line(i) => new_index[i].map(Item::Line),
+                e => Some(e),
+            })
+            .collect();
+    }
+
+    fn finish(mut self) -> (Vec<Element>, Vec<Asset>, usize, Vec<Drawing>, usize) {
+        self.attach_bullets();
         let obstacles: Vec<Frame> = self.items.iter().filter_map(|it| if let Item::Element(e) = it { Some(e.frame) } else { None }).collect();
         let blocks = merge_lines(&obstacles, self.lines);
         let mut by_last: HashMap<usize, Element> = blocks.iter().map(|b| (b.last, block_element(b))).collect();
@@ -738,6 +804,9 @@ mod tests {
         // Une ligne qui tient déjà garde sa taille.
         let short = read(&text_frame("2cm", "2cm", "8cm", r#"<text:span text:style-name="T4">Oui</text:span>"#));
         assert_eq!((texts(&short.pages[0])[0].style.size_pt, short.report.shrunk), (12.0, 0));
+        // Sa ligne s'allonge à la hauteur de la police de repli, plus haute que l'originale.
+        let line_h = crate::fonts::builtin_line_height_mm(FALLBACK_FONT, 12.0).unwrap();
+        assert!(short.pages[0].elements[0].frame.h_mm >= line_h, "{:?} {line_h}", short.pages[0].elements[0].frame);
     }
 
     /// Helvetica absente : Liberation Sans, de même largeur, la remplace sans rien rétrécir.
@@ -746,6 +815,19 @@ mod tests {
         let imported = read(&text_frame("2cm", "2cm", "3cm", r#"<text:span text:style-name="T5">Notre semaine à l'école</text:span>"#));
         let t = texts(&imported.pages[0])[0];
         assert_eq!((t.style.font.as_str(), t.style.size_pt, imported.report.shrunk), ("Liberation Sans", 12.0, 0));
+    }
+
+    /// Une puce de liste, case à part dans le PDF : elle rejoint le début de sa ligne, dans la police de la ligne.
+    #[test]
+    fn a_list_bullet_joins_its_line() {
+        let body = text_frame("2cm", "5cm", "0.4cm", r#"<text:span text:style-name="T4"></text:span>"#)
+            + &text_frame("2.6cm", "5cm", "6cm", r#"<text:span text:style-name="T1">un pique-nique et une gourde</text:span>"#);
+        let imported = read(&body);
+        let t = texts(&imported.pages[0]);
+        assert_eq!(t.len(), 1);
+        assert_eq!(plain(t[0]), "• un pique-nique et une gourde");
+        assert_eq!(t[0].style.font, "Liberation Serif");
+        assert!((imported.pages[0].elements[0].frame.x_mm - 20.0).abs() < 2.0, "{:?}", imported.pages[0].elements[0].frame);
     }
 
     #[test]

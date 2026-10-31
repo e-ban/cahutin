@@ -66,6 +66,8 @@ struct SpanStyle {
 struct GraphicStyle {
     fill: Option<String>,
     stroke: Option<Stroke>,
+    /// Motif du pointillé (trait, espace, en mm), d'après sa définition `draw:stroke-dash`.
+    dash: Option<(f64, f64)>,
     valign: Option<VAlign>,
     padding_mm: Option<f64>,
 }
@@ -77,7 +79,20 @@ struct Styles {
     align: HashMap<String, Align>,
 }
 
-fn read_styles(doc: &roxmltree::Document, known_fonts: &[String]) -> Styles {
+/// Motifs de pointillé (`draw:stroke-dash`, dans `styles.xml` ou `content.xml`) : trait et espace en mm.
+/// Les longueurs en pourcentage de l'épaisseur ne sont pas reprises.
+fn stroke_dashes(docs: &[&roxmltree::Document]) -> HashMap<String, (f64, f64)> {
+    docs.iter()
+        .flat_map(|d| d.descendants())
+        .filter(|n| n.has_tag_name((DRAW, "stroke-dash")))
+        .filter_map(|n| {
+            let on = n.attribute((DRAW, "dots1-length")).and_then(length_mm)?;
+            Some((n.attribute((DRAW, "name"))?.to_string(), (on, n.attribute((DRAW, "distance")).and_then(length_mm)?)))
+        })
+        .collect()
+}
+
+fn read_styles(doc: &roxmltree::Document, known_fonts: &[String], dashes: &HashMap<String, (f64, f64)>) -> Styles {
     let mut faces: HashMap<String, String> = HashMap::new();
     for f in doc.descendants().filter(|n| n.has_tag_name((STYLE, "font-face"))) {
         if let (Some(name), Some(family)) = (f.attribute((STYLE, "name")), f.attribute((SVG, "font-family"))) {
@@ -137,7 +152,8 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String]) -> Styles {
                 "bottom" => VAlign::Bottom,
                 _ => VAlign::Top,
             });
-            styles.graphic.insert(name.to_string(), GraphicStyle { fill, stroke, valign, padding_mm: attr_mm(g, FO, "padding-left") });
+            let dash = (g.attribute((DRAW, "stroke")) == Some("dash")).then(|| g.attribute((DRAW, "stroke-dash")).and_then(|d| dashes.get(d)).copied()).flatten();
+            styles.graphic.insert(name.to_string(), GraphicStyle { fill, stroke, dash, valign, padding_mm: attr_mm(g, FO, "padding-left") });
         }
     }
     styles
@@ -558,7 +574,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
                     _ => None,
                 });
                 match drawing {
-                    Some(d) => self.drawings.push(d),
+                    Some(d) => self.drawings.push(d.with_dash(g.dash)),
                     None => self.skipped += 1,
                 }
             }
@@ -673,7 +689,9 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
     let content = read_entry(&mut zip, "content.xml").and_then(|b| String::from_utf8(b).ok()).ok_or(ImportError::Unreadable)?;
     let styles_xml = read_entry(&mut zip, "styles.xml").and_then(|b| String::from_utf8(b).ok());
     let doc = roxmltree::Document::parse(&content).map_err(|_| ImportError::Unreadable)?;
-    let styles = read_styles(&doc, known_fonts);
+    let styles_doc = styles_xml.as_deref().and_then(|x| roxmltree::Document::parse(x).ok());
+    let dashes = stroke_dashes(&[Some(&doc), styles_doc.as_ref()].into_iter().flatten().collect::<Vec<_>>());
+    let styles = read_styles(&doc, known_fonts, &dashes);
     let sizes = page_sizes(styles_xml.as_deref());
     let mut pages = Vec::new();
     let mut assets = Vec::new();
@@ -978,6 +996,19 @@ mod tests {
         assert_eq!(plain(t[0]), "• un pique-nique et une gourde");
         assert_eq!(t[0].style.font, "Liberation Serif");
         assert!((imported.pages[0].elements[0].frame.x_mm - 20.0).abs() < 2.0, "{:?}", imported.pages[0].elements[0].frame);
+    }
+
+    /// Le motif d'un pointillé de LibreOffice : trait et espace en mm ; une longueur en pourcentage est ignorée.
+    #[test]
+    fn stroke_dash_patterns_are_read_in_mm() {
+        let xml = r#"<office:styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0">
+<draw:stroke-dash draw:name="d1" draw:style="rect" draw:dots1="1" draw:dots1-length="0.105cm" draw:distance="0.105cm"/>
+<draw:stroke-dash draw:name="d2" draw:style="rect" draw:dots1="1" draw:dots1-length="200%" draw:distance="100%"/></office:styles>"#;
+        let doc = roxmltree::Document::parse(xml).unwrap();
+        let dashes = stroke_dashes(&[&doc]);
+        let (on, off) = dashes["d1"];
+        assert!((on - 1.05).abs() < 1e-9 && (off - 1.05).abs() < 1e-9);
+        assert!(!dashes.contains_key("d2"));
     }
 
     #[test]

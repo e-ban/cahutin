@@ -20,6 +20,8 @@ pub(super) struct Drawing {
     path: Path,
     fill: Option<Color>,
     stroke: Option<Stroke>,
+    /// Motif du pointillé tel que le document le donne (trait, espace, en mm) ; sinon un motif d'après le style.
+    dash: Option<(f32, f32)>,
 }
 
 /// Passage du repère `viewBox` de l'objet (largeur, hauteur, origine) à des mm sur la page, rotation comprise.
@@ -74,7 +76,14 @@ impl Drawing {
             path,
             fill,
             stroke: stroke.cloned(),
+            dash: None,
         })
+    }
+
+    /// Le motif de pointillé du document (trait, espace, en mm).
+    pub(super) fn with_dash(mut self, dash: Option<(f64, f64)>) -> Drawing {
+        self.dash = dash.map(|(on, off)| (on as f32, off as f32));
+        self
     }
 
     /// `draw:path` : ses données `svg:d`.
@@ -190,7 +199,9 @@ pub(super) fn render(drawings: &[Drawing]) -> Option<(Frame, Asset)> {
         if let Some(s) = &d.stroke {
             paint.set_color(color(&s.color).unwrap_or(Color::BLACK));
             let w = s.width_mm as f32;
-            let dash = match s.style {
+            let dash = match (d.dash, s.style) {
+                (Some((on, off)), _) => StrokeDash::new(vec![on.max(0.05), off.max(0.05)], 0.0),
+                (None, style) => match style {
                 Some(StrokeStyle::Dashed) => {
                     StrokeDash::new(vec![(3.0 * w).max(1.0), (3.0 * w).max(1.0)], 0.0)
                 }
@@ -198,6 +209,7 @@ pub(super) fn render(drawings: &[Drawing]) -> Option<(Frame, Asset)> {
                     StrokeDash::new(vec![w.max(0.3), (2.0 * w).max(0.6)], 0.0)
                 }
                 _ => None,
+                },
             };
             let line_cap = if s.style == Some(StrokeStyle::Dotted) {
                 LineCap::Round

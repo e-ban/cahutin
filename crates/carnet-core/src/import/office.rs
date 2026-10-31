@@ -223,6 +223,18 @@ pub fn import_file(path: &Path, soffice: Option<&Path>, known_fonts: &[String], 
     if !OFFICE_EXTENSIONS.contains(&ext.as_str()) {
         return Err(ImportError::Unsupported);
     }
+    // Un dessin LibreOffice (dont ceux qu'exporte Cahutin) se lit tel quel : passer par le PDF le
+    // découperait en tracés et en lettres isolées. Par le PDF seulement s'il saute plus qu'il ne garde.
+    if ext == "odg" {
+        let file = std::fs::File::open(path).map_err(|_| ImportError::Unreadable)?;
+        let direct = read_odg(file, known_fonts);
+        let usable = |r: &Imported| r.report.skipped <= r.report.texts + r.report.images + r.report.shapes;
+        match (direct, soffice) {
+            (Ok(r), _) if usable(&r) => return Ok(r),
+            (r, None) => return r,
+            _ => {}
+        }
+    }
     let soffice = soffice.ok_or(ImportError::NoLibreOffice)?;
     let work = WorkDir::new()?;
     let odg = convert_to_odg(soffice, path, &work.0, TIMEOUT, cancel)?;

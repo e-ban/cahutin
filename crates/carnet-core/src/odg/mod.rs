@@ -194,6 +194,45 @@ mod tests {
         Exported { zip: ZipArchive::new(Cursor::new(buf.into_inner())).unwrap() }
     }
 
+    /// Un ODG exporté par Cahutin se relit tel quel : mêmes textes (cursive comprise), mêmes images de la
+    /// banque, mêmes rotations.
+    #[test]
+    fn every_example_comes_back_from_its_odg() {
+        let fonts = FontSet::builtin();
+        let known: Vec<String> = fonts.families().into_iter().map(|f| f.name).collect();
+        let texts = |pages: &[Page]| -> Vec<String> {
+            let mut v: Vec<String> = pages
+                .iter()
+                .flat_map(|p| &p.elements)
+                .filter_map(|e| match &e.kind {
+                    ElementKind::Text(t) => Some(t.content.paragraphs.iter().map(|p| p.runs.iter().map(|r| r.text.as_str()).collect::<String>()).collect::<Vec<_>>().join("\n")),
+                    _ => None,
+                })
+                .filter(|t| !t.trim().is_empty())
+                .collect();
+            v.sort();
+            v
+        };
+        let pictos = |pages: &[Page]| -> Vec<(String, i64)> {
+            let mut v: Vec<(String, i64)> = pages.iter().flat_map(|p| &p.elements).filter_map(|e| if let ElementKind::Image(i) = &e.kind { Some((i.code.clone(), e.frame.rotation_deg.round() as i64)) } else { None }).collect();
+            v.sort();
+            v
+        };
+        for info in crate::examples::list() {
+            let doc = crate::examples::document(&info.id).unwrap();
+            let mut buf = Cursor::new(Vec::new());
+            export_odg(&doc, &AssetStore::default(), &fonts, &mut buf).unwrap();
+            buf.set_position(0);
+            let back = crate::import::odg::read_odg(buf, &known).unwrap();
+            assert_eq!(back.report.skipped, 0, "{} : {:?}", info.id, back.report);
+            let (before, after) = (texts(&doc.pages), texts(&back.pages));
+            for t in &before {
+                assert!(after.contains(t), "{} : {t:?} perdu, relu {after:?}", info.id);
+            }
+            assert_eq!(pictos(&back.pages), pictos(&doc.pages), "{}", info.id);
+        }
+    }
+
     fn doc_with(elements: Vec<Element>) -> Document {
         let mut d = Document::new("essai");
         d.pages[0].elements = elements;

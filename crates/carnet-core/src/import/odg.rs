@@ -151,8 +151,56 @@ struct PageReader<'a, R: Read + Seek> {
     skipped: usize,
 }
 
+/// Cadre d'un objet : `svg:x`, `svg:y`, ou un `draw:transform` fait d'une rotation puis d'une translation
+/// (ce qu'écrivent LibreOffice et l'export de Cahutin pour un objet tourné). Toute autre transformation
+/// (inclinaison, échelle) : pas de cadre.
 fn frame_of(n: Node) -> Option<Frame> {
-    Some(Frame { x_mm: attr_mm(n, SVG, "x")?, y_mm: attr_mm(n, SVG, "y")?, w_mm: attr_mm(n, SVG, "width")?, h_mm: attr_mm(n, SVG, "height")?, rotation_deg: 0.0 })
+    let (w, h) = (attr_mm(n, SVG, "width")?, attr_mm(n, SVG, "height")?);
+    let Some(t) = n.attribute((DRAW, "transform")) else {
+        return Some(Frame { x_mm: attr_mm(n, SVG, "x")?, y_mm: attr_mm(n, SVG, "y")?, w_mm: w, h_mm: h, rotation_deg: 0.0 });
+    };
+    let (angle, x, y) = rotate_translate(t)?;
+    // L'inverse de `odg::odf_transform` : l'angle ODF est en radians, dans le sens inverse des aiguilles.
+    let r = -angle;
+    let (cx, cy) = (x + (w / 2.0) * r.cos() - (h / 2.0) * r.sin(), y + (w / 2.0) * r.sin() + (h / 2.0) * r.cos());
+    let deg = r.to_degrees().rem_euclid(360.0);
+    Some(Frame { x_mm: cx - w / 2.0, y_mm: cy - h / 2.0, w_mm: w, h_mm: h, rotation_deg: if deg.abs() < 1e-6 { 0.0 } else { deg } })
+}
+
+/// Forme d'un `draw:custom-shape` : une forme de Cahutin reconnue à son tracé (ce qu'écrit l'export), ou une
+/// forme toute faite de LibreOffice d'après son type.
+fn custom_shape_kind(n: Node) -> Option<ShapeKind> {
+    let g = n.children().find(|c| c.has_tag_name((DRAW, "enhanced-geometry")))?;
+    let path = g.attribute((DRAW, "enhanced-path")).map(|p| p.trim_end_matches(" N"));
+    let ours = [ShapeKind::Star, ShapeKind::Heart, ShapeKind::Bubble, ShapeKind::Cloud].into_iter().find(|k| crate::shapes::path(*k).is_some_and(|sp| Some(sp) == path));
+    if ours.is_some() {
+        return ours;
+    }
+    match g.attribute((DRAW, "type"))? {
+        "rectangle" | "round-rectangle" => Some(ShapeKind::Rect),
+        "ellipse" | "circle" => Some(ShapeKind::Ellipse),
+        "star5" => Some(ShapeKind::Star),
+        "heart" => Some(ShapeKind::Heart),
+        "cloud" => Some(ShapeKind::Cloud),
+        "round-rectangular-callout" | "rectangular-callout" => Some(ShapeKind::Bubble),
+        _ => None,
+    }
+}
+
+/// « rotate (a) translate (x y) », la rotation facultative : angle en radians, position en mm.
+fn rotate_translate(t: &str) -> Option<(f64, f64, f64)> {
+    let mut angle = 0.0;
+    let mut at = None;
+    for part in t.split(')').map(str::trim).filter(|p| !p.is_empty()) {
+        let (name, args) = part.split_once('(')?;
+        let args: Vec<&str> = args.split([' ', ',']).filter(|a| !a.is_empty()).collect();
+        match (name.trim(), args.as_slice()) {
+            ("rotate", [a]) => angle = a.parse().ok()?,
+            ("translate", [x, y]) => at = Some((length_mm(x)?, length_mm(y)?)),
+            _ => return None,
+        }
+    }
+    at.map(|(x, y)| (angle, x, y))
 }
 
 fn element(frame: Frame, kind: ElementKind) -> Element {
@@ -203,7 +251,8 @@ impl<R: Read + Seek> PageReader<'_, R> {
         } else {
             (g.fill, g.stroke)
         };
-        self.items.push(Item::Element(Box::new(element(frame, ElementKind::Shape(ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0 })))));
+        let corner_radius_mm = if shape == ShapeKind::Rect { attr_mm(n, DRAW, "corner-radius").unwrap_or(0.0) } else { 0.0 };
+        self.items.push(Item::Element(Box::new(element(frame, ElementKind::Shape(ShapeProps { shape, fill, stroke, corner_radius_mm })))));
     }
 
     fn text_box(&mut self, frame: Frame, frame_node: Node, text_box: Node) {
@@ -266,6 +315,12 @@ impl<R: Read + Seek> PageReader<'_, R> {
     }
 
     fn image(&mut self, frame: Frame, image: Node) {
+        // Image de la banque OpenMoji, telle que l'export de Cahutin la range : elle redevient une image de la banque.
+        let code = image.attribute((XLINK, "href")).and_then(|h| h.strip_prefix("Pictures/openmoji-")).and_then(|h| h.strip_suffix(".svg"));
+        if let Some(code) = code.filter(|c| crate::picto::svg(c).is_some()) {
+            self.items.push(Item::Element(Box::new(element(frame, ElementKind::Image(ImageProps { code: code.to_string() })))));
+            return;
+        }
         let asset = image.attribute((XLINK, "href")).and_then(|href| read_entry(self.zip, href)).and_then(|bytes| import_bytes(&bytes).ok());
         match asset {
             Some(a) => {
@@ -285,10 +340,6 @@ impl<R: Read + Seek> PageReader<'_, R> {
             for c in n.children() {
                 self.node(c);
             }
-            return;
-        }
-        if n.attribute((DRAW, "transform")).is_some() {
-            self.skipped += 1;
             return;
         }
         let tag = n.tag_name();
@@ -313,6 +364,10 @@ impl<R: Read + Seek> PageReader<'_, R> {
             "rect" | "ellipse" | "circle" => match frame_of(n) {
                 Some(f) => self.shape(n, f, if tag.name() == "rect" { ShapeKind::Rect } else { ShapeKind::Ellipse }),
                 None => self.skipped += 1,
+            },
+            "custom-shape" => match (frame_of(n), custom_shape_kind(n)) {
+                (Some(f), Some(kind)) => self.shape(n, f, kind),
+                _ => self.skipped += 1,
             },
             "line" => {
                 let (Some(x1), Some(y1), Some(x2), Some(y2)) = (attr_mm(n, SVG, "x1"), attr_mm(n, SVG, "y1"), attr_mm(n, SVG, "x2"), attr_mm(n, SVG, "y2")) else {
@@ -534,16 +589,19 @@ mod tests {
     }
 
     #[test]
-    fn other_drawings_are_counted_as_skipped() {
+    fn other_drawings_are_counted_as_skipped_and_rotated_ones_are_read() {
         let body = r#"<draw:polygon draw:style-name="gr1" svg:width="2cm" svg:height="2cm" svg:x="2cm" svg:y="2cm" svg:viewBox="0 0 2000 2000" draw:points="0,2000 1000,0 2000,2000"/>
 <draw:path draw:style-name="gr1" svg:width="2cm" svg:height="2cm" svg:x="5cm" svg:y="2cm" svg:viewBox="0 0 2000 2000" svg:d="M 0 0 C 500 2000 1500 2000 2000 0"/>
 <draw:rect draw:style-name="gr1" svg:width="2cm" svg:height="1cm" draw:transform="rotate (0.5) translate (8cm 2cm)"/>
 <draw:g><draw:ellipse draw:style-name="gr1" svg:width="2cm" svg:height="1cm" svg:x="2cm" svg:y="8cm"/><draw:line draw:style-name="gr1" svg:x1="2cm" svg:y1="12cm" svg:x2="6cm" svg:y2="12cm"/></draw:g>"#;
         let imported = read(body);
-        assert_eq!(imported.report.skipped, 3);
+        assert_eq!(imported.report.skipped, 2);
         let kinds: Vec<ShapeKind> = imported.pages[0].elements.iter().filter_map(|e| if let ElementKind::Shape(s) = &e.kind { Some(s.shape) } else { None }).collect();
-        assert_eq!(kinds, [ShapeKind::Ellipse, ShapeKind::Line]);
-        let line = &imported.pages[0].elements[1].frame;
+        assert_eq!(kinds, [ShapeKind::Rect, ShapeKind::Ellipse, ShapeKind::Line]);
+        // Tourné de 0,5 radian dans le sens ODF (inverse des aiguilles) : 331,4° dans Cahutin.
+        let rect = &imported.pages[0].elements[0].frame;
+        assert!((rect.rotation_deg - (360.0 - 0.5f64.to_degrees())).abs() < 0.01 && (rect.w_mm - 20.0).abs() < 0.01, "{rect:?}");
+        let line = &imported.pages[0].elements[2].frame;
         assert!((line.x_mm - 20.0).abs() < 0.01 && (line.w_mm - 40.0).abs() < 0.01 && (line.y_mm + line.h_mm / 2.0 - 120.0).abs() < 0.01, "{line:?}");
     }
 

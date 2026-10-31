@@ -5,6 +5,7 @@
   import { centeredFrame, shapeElement } from "../../lib/factory";
   import { MOTIFS, PATHS, dottedPath, graphismeRows, motifPreview, type Level, type Motif } from "../../lib/graphisme";
   import { readPref, writePref } from "../../lib/prefs";
+  import { SYMMETRY_FIGURES, maze, symmetry } from "../../lib/fiches";
   import { fr } from "../../lib/i18n/fr";
   import type { Element, ShapeKind } from "../../lib/types";
 
@@ -39,6 +40,28 @@
     }
     editor.updatePage((p) => ({ ...p, elements: [...p.elements, ...els] }));
     editor.selection = els.map((e) => e.id);
+  }
+
+  /** Une fiche générée (labyrinthe, symétrie) sous le contenu de la page, ou un message s'il n'y a plus la place. */
+  function addSheet(els: Element[]) {
+    if (!els.length) {
+      editor.notice = fr.graphismeNoRoom;
+      return;
+    }
+    editor.updatePage((p) => ({ ...p, elements: [...p.elements, ...els] }));
+    editor.selection = els.map((e) => e.id);
+  }
+
+  /** Repères d'écriture : un point vert de départ ou une petite flèche verte de sens, à poser sur une lettre. */
+  function addMarker(kind: "point" | "fleche") {
+    const green = "#2e9d4a";
+    const base = shapeElement(editor.page, kind === "point" ? "Ellipse" : "Arrow");
+    const el: Element =
+      kind === "point"
+        ? { ...base, frame: centeredFrame(editor.page, 5, 5), kind: { type: "Shape", shape: "Ellipse", fill: green, stroke: null, corner_radius_mm: 0 } }
+        : { ...base, frame: centeredFrame(editor.page, 14, 6), kind: { type: "Shape", shape: "Arrow", fill: null, stroke: { width_mm: 0.8, color: green, style: "Solid" }, corner_radius_mm: 0 } };
+    editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+    editor.selection = [el.id];
   }
 
   function addPath(path: string, w: number, h: number) {
@@ -92,6 +115,25 @@
   </div>
   <p class="hint">{fr.graphismeHint}</p>
 
+  <h3>{fr.mazeTitle}</h3>
+  <button class="wide" onclick={() => addSheet(maze(editor.page, level))}>🐤 {fr.mazeAdd(level)}</button>
+  <p class="hint">{fr.mazeHint}</p>
+
+  <h3>{fr.symmetryTitle}</h3>
+  <div class="grid">
+    {#each Object.keys(SYMMETRY_FIGURES) as f (f)}
+      <button onclick={() => addSheet(symmetry(editor.page, f, level))}>{fr.symmetryFigures[f]}</button>
+    {/each}
+  </div>
+  <p class="hint">{fr.symmetryHint}</p>
+
+  <h3>{fr.markersTitle}</h3>
+  <div class="grid paths">
+    <button onclick={() => addMarker("point")}><span class="dot"></span>{fr.markerStart}</button>
+    <button onclick={() => addMarker("fleche")}><span class="arrow">➜</span>{fr.markerArrow}</button>
+  </div>
+  <p class="hint">{fr.markersHint}</p>
+
   <h3>{fr.paths}</h3>
   <div class="grid paths">
     {#each PATHS as p (p.id)}
@@ -144,6 +186,21 @@
     color: var(--muted);
     font-size: 12px;
     margin: 6px 0 0;
+  }
+  .wide {
+    width: 100%;
+    padding: 8px;
+  }
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #2e9d4a;
+    margin-top: 4px;
+  }
+  .arrow {
+    color: #2e9d4a;
+    font-size: 18px;
   }
   .paths {
     grid-template-columns: repeat(2, 1fr);

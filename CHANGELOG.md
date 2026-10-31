@@ -3,6 +3,7 @@
 ## Non publié
 
 - Fiches de graphisme : tiroir Formes > Graphisme. Des lignes de ponts, coupes, vagues, boucles, créneaux, dents de scie, traits ou ronds à repasser, à la taille de la section (PS, MS, GS) : un point vert pour commencer, le modèle en trait plein, la suite en pointillés gris. Et des « Chemins à suivre » en pointillés, à étirer entre deux images. Ces tracés s'impriment et s'exportent pour LibreOffice tels quels ; un document qui en contient demande cette version de Cahutin.
+- Labyrinthes et symétrie : tiroir Formes. « Nouveau labyrinthe » en crée un différent à chaque clic (4, 6 ou 9 cases de côté selon la section), avec un poussin à l'entrée et sa maman à la sortie. « Symétrie » pose un quadrillage, l'axe en rouge et la moitié d'un dessin (sapin, maison, fusée, bateau, cœur) à compléter. « Repères pour écrire » : un point vert de départ et une flèche verte de sens, à poser sur les lettres à repasser.
 - Images à colorier : dans le tiroir Décors, « À colorier » pose les images en contour noir seul (toutes les images d'OpenMoji), pour les coloriages et les contours à repasser. Une image déjà posée bascule avec « À colorier » dans sa barre flottante. Un document qui en contient demande cette version de Cahutin.
 - Un clic dans le tiroir Décors pose toujours une nouvelle image : il ne remplace plus l'image choisie par mégarde. Pour changer une image, « Remplacer » dans sa barre flottante.
 - Un texte ajouté depuis le tiroir Texte (« Titre »…) s'ouvre avec son texte modèle sélectionné : on tape directement le sien.

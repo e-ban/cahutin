@@ -14,7 +14,9 @@ Site : [e-ban.github.io/cahutin](https://e-ban.github.io/cahutin)
 
 ### Windows 11
 
-Le plus simple : [Cahutin sur le Microsoft Store](https://apps.microsoft.com/detail/9P1VD877KD19). Il s'installe en un clic, et le Store le met à jour.
+[<img src="site/img/microsoft-store.svg" alt="Télécharger Cahutin à partir de Microsoft Store" height="52">](https://apps.microsoft.com/detail/9P1VD877KD19?mode=direct)
+
+Le plus simple : [Cahutin sur le Microsoft Store](https://apps.microsoft.com/detail/9P1VD877KD19?mode=direct). Il s'installe en un clic, et le Store le met à jour.
 
 Ou avec l'installeur :
 

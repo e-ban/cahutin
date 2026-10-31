@@ -1,6 +1,7 @@
 // Ce que l'interface doit savoir de la classe sur la page courante : y a-t-il des prénoms à remplir, et
 // quelle photo va à quel enfant d'après le nom de son fichier.
 import { normalize } from "./fontSearch";
+import { displayNames } from "./phototheque";
 import type { Element, Page, Student } from "./types";
 
 const NAME_PROMPTS = ["Prénom", "PRÉNOM", "Nom"];
@@ -48,11 +49,25 @@ export function matchPhotos(students: Student[], paths: string[]): { matched: { 
   return { matched, unmatched };
 }
 
-/** L'enfant d'une page générée pour lui : le seul élève dont le prénom est écrit sur la page. */
-export function studentOfPage(page: Page, students: Student[]): Student | undefined {
+/**
+ * L'enfant d'une page générée pour lui, tel qu'on l'affiche : le seul prénom de la classe écrit sur la page,
+ * avec l'initiale du nom (« Anna M. ») quand deux enfants le portent et que le nom est aussi sur la page.
+ */
+export function childOfPage(page: Page, students: Student[]): string | undefined {
   const words = new Set(
     page.elements.flatMap((e) => (e.kind.type === "Text" ? e.kind.content.paragraphs.flatMap((p) => p.runs.flatMap((r) => normalize(r.text).split(/[^\p{L}-]+/u))) : [])),
   );
   const found = students.filter((s) => s.first_name.trim() && words.has(normalize(s.first_name)));
-  return new Set(found.map((s) => normalize(s.first_name))).size === 1 ? found[0] : undefined;
+  if (new Set(found.map((s) => normalize(s.first_name))).size !== 1) return undefined;
+  const named = found.filter((s) => s.last_name.trim() && words.has(normalize(s.last_name)));
+  return named.length === 1 && found.length > 1 ? displayNames(students).get(named[0].id) : found[0].first_name;
+}
+
+/** La page suivante (après `from`, en faisant le tour) faite pour l'enfant cherché : « léa », « Anna M. ». */
+export function findChildPage(pages: Page[], students: Student[], query: string, from: number): number | undefined {
+  const q = normalize(query);
+  if (!q) return undefined;
+  const labels = pages.map((p) => normalize(childOfPage(p, students) ?? ""));
+  const order = pages.map((_, k) => (from + 1 + k) % pages.length);
+  return order.find((k) => labels[k] && labels[k].startsWith(q)) ?? order.find((k) => labels[k] && labels[k].startsWith(q.split(" ")[0]));
 }

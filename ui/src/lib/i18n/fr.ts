@@ -243,7 +243,8 @@ export const fr = {
   zoomIn: "Zoom avant",
   zoomOut: "Zoom arrière",
   pageN: (n: number) => `Page ${n}`,
-  pageGo: "Aller à la page",
+  pageGo: "Aller à une page : son numéro, ou le prénom d'un enfant",
+  pageChildNotFound: (q: string) => `Aucune page n'est faite pour « ${q} ».`,
   pageThumbFor: (n: number, who: string) => `Page ${n} · ${who}`,
   // Barre flottante
   crop: "Recadrer",

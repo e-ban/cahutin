@@ -9,7 +9,7 @@
   import { deletePage } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
   import { classes } from "../../lib/classStore.svelte";
-  import { studentOfPage } from "../../lib/classFill";
+  import { childOfPage, findChildPage } from "../../lib/classFill";
   import type { Page } from "../../lib/types";
 
   const MINI = 0.07;
@@ -23,17 +23,24 @@
     strip?.children[editor.pageIndex]?.scrollIntoView({ block: "nearest", inline: "nearest" });
   });
 
-  function goTo(n: number) {
-    if (!Number.isFinite(n)) return;
-    editor.pageIndex = Math.min(count, Math.max(1, Math.round(n))) - 1;
-    editor.selection = [];
+  // L'enfant de chaque page (pages générées pour la classe), pour les info-bulles et la recherche.
+  const children = $derived(editor.doc.pages.map((p) => childOfPage(p, students)));
+
+  /** Un numéro mène à cette page ; un prénom, à la page suivante faite pour cet enfant. */
+  function goTo(input: HTMLInputElement) {
+    const text = input.value.trim();
+    const n = Number(text);
+    const target = /^\d+$/.test(text) ? Math.min(count, Math.max(1, n)) - 1 : findChildPage(editor.doc.pages, students, text, editor.pageIndex);
+    if (target === undefined) editor.notice = fr.pageChildNotFound(text);
+    else {
+      editor.pageIndex = target;
+      editor.selection = [];
+    }
+    input.value = String(editor.pageIndex + 1);
   }
 
   /** « Page 3 · Léa » pour une page faite pour un enfant. */
-  function thumbTitle(p: Page, i: number): string {
-    const who = studentOfPage(p, students);
-    return who ? fr.pageThumbFor(i + 1, who.first_name) : fr.pageN(i + 1);
-  }
+  const thumbTitle = (i: number) => (children[i] ? fr.pageThumbFor(i + 1, children[i]!) : fr.pageN(i + 1));
 
   function insert(page: Page) {
     const pages = [...editor.doc.pages];
@@ -80,13 +87,16 @@
 <footer class="pagebar">
   {#if count > 1}
     <label class="count" title={fr.pageGo}>
-      <input type="number" min="1" max={count} value={editor.pageIndex + 1} aria-label={fr.pageGo} onchange={(e) => goTo(e.currentTarget.valueAsNumber)} />
+      <input value={editor.pageIndex + 1} list="page-children" aria-label={fr.pageGo} onchange={(e) => goTo(e.currentTarget)} onfocus={(e) => e.currentTarget.select()} />
       <span>/ {count}</span>
     </label>
   {/if}
+  <datalist id="page-children">
+    {#each [...new Set(children.filter(Boolean))] as c (c)}<option value={c}></option>{/each}
+  </datalist>
   <div class="pages" bind:this={strip}>
     {#each editor.doc.pages as p, i (p.id)}
-      <button class="thumb" class:current={i === editor.pageIndex} title={thumbTitle(p, i)} onclick={() => ((editor.pageIndex = i), (editor.selection = []))}>
+      <button class="thumb" class:current={i === editor.pageIndex} title={thumbTitle(i)} onclick={() => ((editor.pageIndex = i), (editor.selection = []))}>
         <PageView page={p} doc={editor.doc} zoom={MINI} />
       </button>
     {/each}
@@ -140,7 +150,8 @@
     flex-shrink: 0;
   }
   .count input {
-    width: 3.5em;
+    width: 4.5em;
+    text-align: center;
   }
   /* Les boutons gardent leur libellé sur une ligne ; la bande des miniatures cède la place. */
   .pagebar > button,

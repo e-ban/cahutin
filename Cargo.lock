@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "carnet-app"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "carnet-core",
  "log",
@@ -388,7 +388,7 @@ dependencies = [
 
 [[package]]
 name = "carnet-core"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "fontdb",
  "image",

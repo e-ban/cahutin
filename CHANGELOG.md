@@ -1,6 +1,6 @@
 # Journal des versions
 
-## Non publié
+## 0.9.0
 
 - Photothèque de la classe (page « Ma classe », tiroir Photos ou tiroir Classe) : toutes les photos de l'année, rangées dans Documents/Cahutin/Photos, sans lieu ni appareil, avec leur date de prise de vue. On trie un lot à l'arrivée (qui est sur ces photos ? quelle activité ?), on retrouve les photos d'un enfant ou d'une sortie, sur le mois, trois mois ou l'année, et on les met dans le document. Un bandeau signale les enfants peu photographiés ; une pastille, les photos d'un enfant sans autorisation, et Cahutin rappelle de flouter son visage quand on en pose une. Aucun visage n'est reconnu : on indique les enfants d'un clic.
 - Pour une classe de 40 (essais avec 40 enfants et 300 photos) :
@@ -18,7 +18,7 @@
   - Un fichier LibreOffice Draw (.odg), dont ceux qu'exporte Cahutin, se relit tel quel, sans conversion : pictos, cursive, lettres creuses, alignements, couleurs des cadres et fond de page reviennent, en une fraction de seconde.
 - Version AppImage : les images du tiroir Décors s'affichent de nouveau (les cases étaient écrasées et vides avec le moteur web embarqué, cliquables quand même).
 - Mode modèle : « Zone photo » et « Zone texte » dans la barre de gauche, pour poser des zones où l'on veut, sans grille (une page partie de « Créer un modèle » n'en avait aucun moyen). « Logo » devient « Image fixe », avec une explication : elle reste sur chaque page faite avec le modèle. En mode modèle, une image ou une case fixée se déplace et se supprime encore.
-- Version Microsoft Store en préparation (paquet MSIX signé par Microsoft : plus d'avertissement « fichier peu téléchargé »). Elle ne consulte jamais GitHub : le Store fait les mises à jour.
+- Cahutin est sur le [Microsoft Store](https://apps.microsoft.com/detail/9P1VD877KD19) : installation en un clic, sans avertissement « fichier peu téléchargé », et mises à jour par le Store (cette version ne consulte jamais GitHub). Le site et le README le proposent en premier pour Windows.
 - Site : une page « Confidentialité ».
 
 ## 0.8.0

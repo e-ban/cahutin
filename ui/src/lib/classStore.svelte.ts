@@ -58,7 +58,8 @@ class Classes {
 
   /**
    * Photos de plusieurs enfants d'un coup : chacune va à l'enfant dont elle porte le prénom. `consent` pose
-   * une seule fois la question de l'autorisation ; sans réponse positive, chaque case reste à cocher.
+   * une seule fois la question de l'autorisation pour ceux qui ne l'ont pas encore ; une autorisation déjà
+   * cochée reste.
    */
   async addPhotos(paths: string[], consent: (n: number) => Promise<boolean>): Promise<{ added: number; missed: number }> {
     if (!this.current) return { added: 0, missed: paths.length };
@@ -74,11 +75,13 @@ class Classes {
     }
     if (metas.size === 0) return { added: 0, missed };
     editor.registerAssets([...metas.values()]);
-    const allowed = await consent(metas.size);
+    // La question n'est posée que pour les enfants pas encore autorisés ; « non » ne retire rien.
+    const pending = this.current.class.students.filter((s) => metas.has(s.id) && !s.photo_allowed).length;
+    const allowed = pending > 0 && (await consent(pending));
     this.update((c) => ({
       ...c,
       photos: { ...c.photos, ...Object.fromEntries([...metas.values()].map((m) => [m.id, m])) },
-      students: c.students.map((s) => (metas.has(s.id) ? { ...s, photo: metas.get(s.id)!.id, photo_allowed: allowed } : s)),
+      students: c.students.map((s) => (metas.has(s.id) ? { ...s, photo: metas.get(s.id)!.id, photo_allowed: s.photo_allowed || allowed } : s)),
     }));
     return { added: metas.size, missed };
   }

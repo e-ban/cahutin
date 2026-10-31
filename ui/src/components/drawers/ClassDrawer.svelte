@@ -68,8 +68,8 @@
     try {
       const meta = await classImportPhoto(picked);
       editor.registerAssets([meta]);
-      // Une nouvelle photo demande une nouvelle autorisation.
-      classes.update((c) => ({ ...c, photos: { ...c.photos, [meta.id]: meta }, students: c.students.map((x) => (x.id === s.id ? { ...x, photo: meta.id, photo_allowed: false } : x)) }));
+      // L'autorisation concerne l'enfant : elle ne change pas avec la photo.
+      classes.update((c) => ({ ...c, photos: { ...c.photos, [meta.id]: meta }, students: c.students.map((x) => (x.id === s.id ? { ...x, photo: meta.id } : x)) }));
     } catch (e) {
       editor.notice = String(e);
     }
@@ -135,18 +135,17 @@
           </span>
           <span class="name">{s.first_name} {s.last_name}</span>
         </button>
-        {#if photo}
-          <label class="consent" title={fr.classConsent}>
-            <input type="checkbox" checked={s.photo_allowed} onchange={(e) => setStudent(s.id, { photo_allowed: e.currentTarget.checked })} />
-            {fr.classConsentShort}
-          </label>
-        {/if}
+        <!-- L'autorisation des parents, sur chaque ligne : on la recueille souvent avant les photos. -->
+        <label class="consent" class:off={!s.photo_allowed} title={fr.classConsent}>
+          <input type="checkbox" checked={s.photo_allowed} onchange={(e) => setStudent(s.id, { photo_allowed: e.currentTarget.checked })} />
+          📷 {fr.classConsentShort}
+        </label>
         {#if editing === s.id}
           <div class="edit">
             <label>{fr.classFirstName} <input value={s.first_name} onchange={(e) => e.currentTarget.value.trim() && setStudent(s.id, { first_name: e.currentTarget.value.trim() })} /></label>
             <div class="photo">
               <button onclick={() => choosePhoto(s)}>🖼 {photo ? fr.classPhotoChange : fr.classPhotoChoose}</button>
-              {#if photo}<button class="link" onclick={() => setStudent(s.id, { photo: null, photo_allowed: false })}>{fr.classPhotoRemove}</button>{/if}
+              {#if photo}<button class="link" onclick={() => setStudent(s.id, { photo: null })}>{fr.classPhotoRemove}</button>{/if}
             </div>
             <span>{fr.classSymbol}</span>
             <input placeholder={fr.classSymbolSearch} bind:value={symbolQuery} />
@@ -233,6 +232,9 @@
   }
   .student .edit {
     flex-basis: 100%;
+  }
+  .consent.off {
+    color: #9a8f83;
   }
   .consent {
     flex-direction: row;

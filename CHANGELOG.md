@@ -1,6 +1,6 @@
 # Journal des versions
 
-## Non publié
+## 0.8.0
 
 - Accueil depuis l'éditeur : un clic sur le logo Cahutin (ou Fichier > Page d'accueil) l'ouvre par-dessus le document, avec un bouton pour y revenir. Un modèle, une page vierge ou un nouveau modèle choisis depuis là partent d'un nouveau document, après avoir proposé d'enregistrer.
 - Six nouveaux exemples : Notre semaine (emploi du temps en tableau), Le loto des émotions, J'écris les jours, Les règles de la classe (affiche A3), Mes cinq sens, Étiquettes de porte-manteau. Les exemples « J'écris mon prénom », « Joyeux anniversaire » et « Les saisons » profitent des lignes d'écriture, des lettres creuses et du champ {âge}.

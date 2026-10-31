@@ -52,6 +52,16 @@ pub fn has_fields(page: &Page) -> bool {
     page.elements.iter().any(is_field)
 }
 
+/// Page déjà remplie pour un élève (une zone « Prénom » écrite, ou une photo d'élève de la classe) : la
+/// remplir de nouveau mettrait la photo ou le prénom d'un enfant sur les pages des autres.
+pub fn already_filled(page: &Page, class_photos: &[Id]) -> bool {
+    page.elements.iter().any(|e| match &e.kind {
+        ElementKind::Text(t) => is_field_zone(e) && !t.content.is_blank(),
+        ElementKind::Photo(p) => p.asset.as_ref().is_some_and(|a| class_photos.contains(a)),
+        _ => false,
+    })
+}
+
 /// Remplit les champs de l'élément pour l'élève ; `None` : bloc sans élève, ses champs sont vidés.
 fn fill_element(e: &mut Element, s: Option<&Student>) {
     let field_zone = is_field_zone(e);
@@ -102,12 +112,20 @@ pub fn fill_for(page: &Page, s: &Student) -> Page {
 }
 
 /// Blocs à remplir de la page, dans l'ordre de lecture : un groupe ou un élément seul qui contient un champ.
+/// Dans un tableau, chaque ligne est un bloc (une ligne par élève).
 fn blocks(page: &Page) -> Vec<Vec<usize>> {
-    let mut units: Vec<(Option<&Id>, Vec<usize>)> = Vec::new();
+    let mut row_of: std::collections::HashMap<&str, u8> = std::collections::HashMap::new();
+    for e in &page.elements {
+        if let ElementKind::Table(t) = &e.kind {
+            row_of.extend(t.cells.iter().map(|c| (c.element_id.as_str(), c.row)));
+        }
+    }
+    let mut units: Vec<(Option<(&Id, Option<u8>)>, Vec<usize>)> = Vec::new();
     for (i, e) in page.elements.iter().enumerate() {
-        match e.group.as_ref().and_then(|g| units.iter_mut().find(|(k, _)| *k == Some(g))) {
+        let key = e.group.as_ref().map(|g| (g, row_of.get(e.id.as_str()).copied()));
+        match key.and_then(|k| units.iter_mut().find(|(u, _)| *u == Some(k))) {
             Some((_, members)) => members.push(i),
-            None => units.push((e.group.as_ref(), vec![i])),
+            None => units.push((key, vec![i])),
         }
     }
     let mut found: Vec<(f64, f64, Vec<usize>)> = units
@@ -293,6 +311,35 @@ mod tests {
     fn no_students_no_pages() {
         assert!(generate(&card(), &[], FillMode::Sheet).is_empty());
         assert!(generate(&card(), &[], FillMode::PagePerStudent).is_empty());
+    }
+
+    #[test]
+    fn a_filled_page_is_recognised() {
+        let src = card();
+        assert!(!already_filled(&src, &["p1".to_string()]));
+        let out = fill_for(&src, &student("Léa", Some("p1"), true, None));
+        assert!(already_filled(&out, &["p1".to_string()]), "photo d'un élève");
+        let out = fill_for(&src, &student("Léa", None, false, None));
+        assert!(already_filled(&out, &[]), "zone Prénom déjà écrite");
+    }
+
+    #[test]
+    fn a_table_gives_one_block_per_row() {
+        let mut p = Page::new(A4_PORTRAIT);
+        let t = crate::table::add_table(&mut p, frame(10.0, 10.0, 100.0, 60.0), 2, 3);
+        let ElementKind::Table(tp) = &p.elements.iter().find(|e| e.id == t).unwrap().kind else { panic!() };
+        let first_col: Vec<Id> = (0..3u8).map(|r| tp.cells.iter().find(|c| c.col == 0 && c.row == r).unwrap().element_id.clone()).collect();
+        for id in &first_col {
+            if let Some(ElementKind::Text(tx)) = p.elements.iter_mut().find(|e| &e.id == id).map(|e| &mut e.kind) {
+                tx.content = RichText::plain("{prénom}");
+            }
+        }
+        let students: Vec<Student> = ["Léa", "Noé", "Zoé", "Tom"].iter().map(|n| student(n, None, false, None)).collect();
+        let pages = fill_sheet(&p, &students);
+        assert_eq!(pages.len(), 2);
+        let mut names: Vec<(f64, String)> = pages[0].elements.iter().filter(|e| matches!(e.kind, ElementKind::Text(_))).map(|e| (e.frame.y_mm, plain(e))).filter(|(_, t)| !t.is_empty()).collect();
+        names.sort_by(|a, b| a.0.total_cmp(&b.0));
+        assert_eq!(names.into_iter().map(|n| n.1).collect::<Vec<_>>(), ["Léa", "Noé", "Zoé"]);
     }
 
     #[test]

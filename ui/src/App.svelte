@@ -8,6 +8,7 @@
   import PrintRoot from "./components/PrintRoot.svelte";
   import { cancelFileImport, confirmLeave, importPaths, openPath, save } from "./lib/fileActions";
   import { fr } from "./lib/i18n/fr";
+  import { ask } from "./lib/ask";
   import BoxSelect from "./components/BoxSelect.svelte";
   import ContextBar from "./components/ContextBar.svelte";
   import ContextMenu, { type ContextTarget } from "./components/layout/ContextMenu.svelte";
@@ -90,8 +91,14 @@
       win
         .onCloseRequested(async (event) => {
           editor.flushPending();
-          // La classe s'enregistre un peu après chaque modification : ce qui attend part maintenant.
+          // La classe s'enregistre un peu après chaque modification : ce qui attend part maintenant. Si
+          // l'enregistrement échoue, on ne ferme pas sans prévenir.
           await classes.flush();
+          if (classes.unsaved) {
+            event.preventDefault();
+            if (await ask(fr.classUnsavedClose, fr.classCloseAnyway)) await win.destroy();
+            return;
+          }
           if (!editor.dirty) return;
           event.preventDefault();
           if (await confirmLeave()) await win.destroy();

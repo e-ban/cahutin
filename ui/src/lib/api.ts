@@ -38,7 +38,7 @@ export const classOpen = (path: string) => invoke<OpenedClass>("class_open", { p
 export const classSave = (path: string, cls: Class) => invoke<void>("class_save", { path, class: cls });
 export const classImportPhoto = (path: string) => invoke<AssetMeta>("class_import_photo", { path });
 export const classParseList = (text: string) => invoke<Student[]>("class_parse_list", { text });
-export const classGenerate = (page: Page, students: Student[], mode: FillMode) => invoke<ImportedPages>("class_generate", { page, students, mode });
+export const classGenerate = (page: Page, students: Student[], mode: FillMode, classPhotos: string[]) => invoke<ImportedPages>("class_generate", { page, students, mode, classPhotos });
 export const listTemplates = () => invoke<TemplateInfo[]>("list_templates");
 export const instantiateTemplate = (id: string) => invoke<InstantiatedPage>("instantiate_template", { id });
 export const savePageAsTemplate = (name: string, page: Page) => invoke<TemplateInfo>("save_page_as_template", { name, page });

@@ -31,7 +31,10 @@
     error = null;
     busy = true;
     try {
-      const result = await classGenerate(editor.page, chosen, mode);
+      // Le texte en cours d'écriture d'abord : un {prénom} juste tapé doit être dans la page envoyée.
+      editor.flushPending();
+      const photos = Object.keys(classes.current?.class.photos ?? {});
+      const result = await classGenerate(editor.page, chosen, mode, photos);
       const placed = insertImported(editor.doc, editor.pageIndex, [result]);
       editor.commit(placed.doc);
       editor.pageIndex = placed.pageIndex;

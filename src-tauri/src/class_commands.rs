@@ -42,8 +42,9 @@ pub fn list_in(dir: &Path) -> Vec<ClassFileInfo> {
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| p.extension().and_then(|e| e.to_str()) == Some(CLASS_EXTENSION))
         .filter_map(|p| {
-            let c = class::load_from_path(&p).ok()?.class;
-            Some(ClassFileInfo { path: p.to_string_lossy().into_owned(), name: c.name, year: c.year, students: c.students.len() })
+            // Seulement la liste : les photos ne sont lues qu'à l'ouverture de la classe.
+            let c = class::read_info_from_path(&p).ok()?;
+            Some(ClassFileInfo { path: p.to_string_lossy().into_owned(), name: c.name, year: c.year, students: c.students })
         })
         .collect();
     out.sort_by(|a, b| b.year.cmp(&a.year).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
@@ -75,6 +76,8 @@ pub fn open_into(path: &Path, store: &mut AssetStore) -> Result<OpenedClass, Str
 
 /// Seulement dans le dossier des classes : l'interface ne peut pas faire écrire ailleurs.
 pub fn save_in(dir: &Path, path: &Path, c: &Class, store: &AssetStore) -> Result<(), String> {
+    // Le dossier a pu être supprimé pendant que l'application tournait.
+    ensure_dir(dir)?;
     let inside = path.parent().zip(dir.canonicalize().ok()).is_some_and(|(p, d)| p.canonicalize().ok() == Some(d));
     if !inside || path.extension().and_then(|e| e.to_str()) != Some(CLASS_EXTENSION) {
         return Err("Cette classe ne peut pas être enregistrée à cet endroit.".into());
@@ -83,7 +86,11 @@ pub fn save_in(dir: &Path, path: &Path, c: &Class, store: &AssetStore) -> Result
 }
 
 /// Pages pour les élèves, avec les photos qu'elles utilisent.
-pub fn generate_with(page: &Page, students: &[Student], mode: FillMode, store: &AssetStore) -> Result<ImportedPages, String> {
+/// `class_photos` : toutes les photos de la classe, pour reconnaître une page déjà remplie.
+pub fn generate_with(page: &Page, students: &[Student], mode: FillMode, class_photos: &[String], store: &AssetStore) -> Result<ImportedPages, String> {
+    if fill::already_filled(page, class_photos) {
+        return Err("Cette page a déjà été remplie pour un élève : partez de la page modèle, avec ses zones vides.".into());
+    }
     if !fill::has_fields(page) {
         return Err("Cette page n'a ni zone Prénom, ni {prénom}, ni zone photo à remplir.".into());
     }
@@ -153,8 +160,8 @@ pub fn class_parse_list(text: String) -> Vec<Student> {
 }
 
 #[tauri::command]
-pub fn class_generate(state: State<'_, AppState>, page: Page, students: Vec<Student>, mode: FillMode) -> Result<ImportedPages, String> {
-    let out = generate_with(&page, &students, mode, &state.store.lock().unwrap())?;
+pub fn class_generate(state: State<'_, AppState>, page: Page, students: Vec<Student>, mode: FillMode, class_photos: Vec<String>) -> Result<ImportedPages, String> {
+    let out = generate_with(&page, &students, mode, &class_photos, &state.store.lock().unwrap())?;
     log::info!("class_generate students={} pages={} photos={}", students.len(), out.pages.len(), out.assets.len());
     Ok(out)
 }
@@ -219,18 +226,38 @@ mod tests {
         let mut s = Student::new("Léa", "");
         s.photo = Some(asset.meta.id.clone());
         let page = page_with_name_zone();
-        let out = generate_with(&page, std::slice::from_ref(&s), FillMode::PagePerStudent, &store).unwrap();
+        let out = generate_with(&page, std::slice::from_ref(&s), FillMode::PagePerStudent, &[], &store).unwrap();
         assert!(out.assets.is_empty());
         s.photo_allowed = true;
-        let out = generate_with(&page, &[s], FillMode::PagePerStudent, &store).unwrap();
+        let out = generate_with(&page, &[s], FillMode::PagePerStudent, &[], &store).unwrap();
         assert_eq!(out.assets, vec![asset.meta]);
+    }
+
+    #[test]
+    fn a_page_already_filled_is_refused() {
+        let store = AssetStore::default();
+        let lea = Student::new("Léa", "");
+        let out = generate_with(&page_with_name_zone(), std::slice::from_ref(&lea), FillMode::PagePerStudent, &[], &store).unwrap();
+        let err = generate_with(&out.pages[0], &[lea], FillMode::PagePerStudent, &[], &store).err().unwrap();
+        assert!(err.contains("page modèle"), "{err}");
+    }
+
+    #[test]
+    fn save_recreates_a_deleted_class_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let classes = dir.path().join("Classes");
+        let store = AssetStore::default();
+        let opened = create_in(&classes, &store, "MS", "2026-2027").unwrap();
+        std::fs::remove_dir_all(&classes).unwrap();
+        save_in(&classes, Path::new(&opened.path), &opened.class, &store).unwrap();
+        assert_eq!(list_in(&classes).len(), 1);
     }
 
     #[test]
     fn generate_explains_what_is_missing() {
         let store = AssetStore::default();
-        assert_eq!(generate_with(&page_with_name_zone(), &[], FillMode::Sheet, &store).err().unwrap(), "Aucun élève ne correspond.");
+        assert_eq!(generate_with(&page_with_name_zone(), &[], FillMode::Sheet, &[], &store).err().unwrap(), "Aucun élève ne correspond.");
         let blank = Page::new(A4_PORTRAIT);
-        assert!(generate_with(&blank, &[Student::new("Léa", "")], FillMode::Sheet, &store).err().unwrap().contains("ni zone Prénom"));
+        assert!(generate_with(&blank, &[Student::new("Léa", "")], FillMode::Sheet, &[], &store).err().unwrap().contains("ni zone Prénom"));
     }
 }

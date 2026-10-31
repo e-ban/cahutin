@@ -67,6 +67,8 @@ export const fr = {
   classSymbolRemove: "Retirer le symbole",
   classRemove: "Retirer de la classe",
   classRemoveStudent: (name: string) => `Retirer ${name} de la classe ?`,
+  classUnsavedClose: "Les dernières modifications de la classe n'ont pas pu être enregistrées. Fermer quand même ?",
+  classCloseAnyway: "Fermer",
   insertFirstName: "Prénom",
   insertFirstNameHint: "Insérer {prénom} : remplacé par le prénom de chaque élève quand on génère pour la classe",
   generateTitle: "Générer pour la classe",

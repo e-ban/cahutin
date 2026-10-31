@@ -25,6 +25,20 @@
     if (!classes.current) void classes.refresh();
   });
   $effect(() => void pictos.load());
+  // La recherche de symbole repart de zéro pour chaque élève.
+  $effect(() => {
+    void editing;
+    symbolQuery = "";
+  });
+
+  let drawerEl = $state<HTMLElement>();
+  // Fermeture de la fenêtre ou de l'application : le champ en cours de frappe est validé d'abord.
+  $effect(() =>
+    editor.onFlush(() => {
+      const a = document.activeElement;
+      if (a instanceof HTMLInputElement && drawerEl?.contains(a)) a.blur();
+    }),
+  );
 
   const cls = $derived(classes.current?.class);
   const groupList = $derived(cls ? groups(cls.students) : []);
@@ -54,7 +68,8 @@
     try {
       const meta = await classImportPhoto(picked);
       editor.registerAssets([meta]);
-      classes.update((c) => ({ ...c, photos: { ...c.photos, [meta.id]: meta }, students: c.students.map((x) => (x.id === s.id ? { ...x, photo: meta.id } : x)) }));
+      // Une nouvelle photo demande une nouvelle autorisation.
+      classes.update((c) => ({ ...c, photos: { ...c.photos, [meta.id]: meta }, students: c.students.map((x) => (x.id === s.id ? { ...x, photo: meta.id, photo_allowed: false } : x)) }));
     } catch (e) {
       editor.notice = String(e);
     }
@@ -72,6 +87,7 @@
   }
 </script>
 
+<div class="class-drawer" bind:this={drawerEl}>
 <Drawer title={fr.classDrawer}>
   {#if !cls}
     {#if classes.list.length}
@@ -130,7 +146,7 @@
             </label>
             <div class="photo">
               <button onclick={() => choosePhoto(s)}>🖼 {photo ? fr.classPhotoChange : fr.classPhotoChoose}</button>
-              {#if photo}<button class="link" onclick={() => setStudent(s.id, { photo: null })}>{fr.classPhotoRemove}</button>{/if}
+              {#if photo}<button class="link" onclick={() => setStudent(s.id, { photo: null, photo_allowed: false })}>{fr.classPhotoRemove}</button>{/if}
             </div>
             <label class="check">
               <input type="checkbox" checked={s.photo_allowed} onchange={(e) => setStudent(s.id, { photo_allowed: e.currentTarget.checked })} />
@@ -154,8 +170,12 @@
     </datalist>
   {/if}
 </Drawer>
+</div>
 
 <style>
+  .class-drawer {
+    display: contents;
+  }
   h3 {
     margin: 12px 0 4px;
   }

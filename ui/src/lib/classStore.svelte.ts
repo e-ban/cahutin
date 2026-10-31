@@ -29,6 +29,8 @@ class Classes {
   #timer: ReturnType<typeof setTimeout> | null = null;
   #saving: Promise<void> | null = null;
   #dirty = false;
+  /** Des modifications attendent ou n'ont pas pu être enregistrées. */
+  unsaved = $state(false);
 
   async refresh() {
     try {
@@ -55,6 +57,8 @@ class Classes {
 
   async open(path: string) {
     await this.flush();
+    // Une classe qui n'a pas pu être enregistrée reste ouverte : ses modifications ne sont pas perdues.
+    if (this.unsaved) return;
     try {
       this.#opened(await classOpen(path));
     } catch (e) {
@@ -75,6 +79,7 @@ class Classes {
 
   async close() {
     await this.flush();
+    if (this.unsaved) return;
     this.current = null;
     writePref("lastClass", null);
     await this.refresh();
@@ -84,6 +89,7 @@ class Classes {
     if (!this.current) return;
     this.current = { ...this.current, class: fn(this.current.class) };
     this.#dirty = true;
+    this.unsaved = true;
     if (this.#timer) clearTimeout(this.#timer);
     this.#timer = setTimeout(() => void this.flush(), SAVE_DELAY_MS);
   }
@@ -97,6 +103,7 @@ class Classes {
     this.#dirty = false;
     const { path, class: cls } = this.current;
     this.#saving = classSave(path, cls)
+      .then(() => void (this.unsaved = this.#dirty))
       .catch((e) => {
         this.#dirty = true;
         editor.notice = String(e);

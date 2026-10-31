@@ -3,7 +3,7 @@
 //! Prénoms et photos ne sortent pas du poste et ne sont jamais journalisés.
 
 use crate::model::{AssetMeta, Id, is_safe_id, new_id};
-use crate::native::{MAX_ENTRY_BYTES, NativeError, extension, read_capped};
+use crate::native::{NativeError, extension, read_capped};
 use crate::photo::{Asset, AssetStore};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -146,37 +146,70 @@ pub fn save_to_path(class: &Class, store: &AssetStore, path: &Path) -> Result<()
     crate::fsutil::write_atomically(path, |f| save(class, store, f))
 }
 
+/// Plafonds de lecture d'un fichier de classe : la liste, chaque photo, toutes les photos.
+const MAX_LIST_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_PHOTO_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_PHOTOS_TOTAL_BYTES: u64 = 512 * 1024 * 1024;
+
+/// Ce qu'affiche la liste des classes, sans lire les photos.
+pub struct ClassSummary {
+    pub name: String,
+    pub year: String,
+    pub students: usize,
+}
+
 pub struct LoadedClass {
     pub class: Class,
     pub assets: Vec<Asset>,
 }
 
-fn read_entry<R: Read + Seek>(zip: &mut ZipArchive<R>, name: &str) -> Result<Vec<u8>, NativeError> {
+fn read_entry<R: Read + Seek>(zip: &mut ZipArchive<R>, name: &str, max: u64) -> Result<Vec<u8>, NativeError> {
     let mut entry = zip.by_name(name)?;
-    read_capped(&mut entry, MAX_ENTRY_BYTES).ok_or(NativeError::Corrupt)
+    read_capped(&mut entry, max).ok_or(NativeError::Corrupt)
+}
+
+/// Nom, année et nombre d'élèves, sans lire les photos.
+pub fn read_info(input: impl Read + Seek) -> Result<ClassSummary, NativeError> {
+    let mut zip = ZipArchive::new(input)?;
+    let json = read_entry(&mut zip, CLASS_ENTRY, MAX_LIST_BYTES)?;
+    let c: Class = serde_json::from_slice(&json).map_err(|_| NativeError::Corrupt)?;
+    Ok(ClassSummary { name: c.name, year: c.year, students: c.students.len() })
+}
+
+pub fn read_info_from_path(path: &Path) -> Result<ClassSummary, NativeError> {
+    read_info(std::fs::File::open(path)?)
 }
 
 pub fn load(input: impl Read + Seek) -> Result<LoadedClass, NativeError> {
     let mut zip = ZipArchive::new(input)?;
-    let json = read_entry(&mut zip, CLASS_ENTRY)?;
+    let json = read_entry(&mut zip, CLASS_ENTRY, MAX_LIST_BYTES)?;
     let version: serde_json::Value = serde_json::from_slice(&json).map_err(|_| NativeError::Corrupt)?;
     let found = version["format_version"].as_u64().ok_or(NativeError::Corrupt)? as u32;
     if found > CLASS_FORMAT_VERSION {
         return Err(NativeError::NewerVersion(found));
     }
-    let class: Class = serde_json::from_slice(&json).map_err(|_| NativeError::Corrupt)?;
+    let mut class: Class = serde_json::from_slice(&json).map_err(|_| NativeError::Corrupt)?;
     let ids_ok = class.photos.iter().all(|(k, m)| is_safe_id(k) && *k == m.id) && class.students.iter().filter_map(|s| s.photo.as_ref()).all(|id| is_safe_id(id));
     if !ids_ok {
         return Err(NativeError::Corrupt);
     }
+    // Une photo désignée mais absente du fichier n'est plus désignée.
+    for s in &mut class.students {
+        if s.photo.as_ref().is_some_and(|p| !class.photos.contains_key(p)) {
+            s.photo = None;
+        }
+    }
     let mut assets = Vec::new();
+    let mut total = 0u64;
     for meta in class.photos.values() {
         let ext = extension(meta.mime);
-        assets.push(Asset {
-            meta: meta.clone(),
-            bytes: Arc::new(read_entry(&mut zip, &format!("photos/{}.{ext}", meta.id))?),
-            thumb: Arc::new(read_entry(&mut zip, &format!("photos/{}.thumb.{ext}", meta.id))?),
-        });
+        let bytes = read_entry(&mut zip, &format!("photos/{}.{ext}", meta.id), MAX_PHOTO_BYTES)?;
+        let thumb = read_entry(&mut zip, &format!("photos/{}.thumb.{ext}", meta.id), MAX_PHOTO_BYTES)?;
+        total += (bytes.len() + thumb.len()) as u64;
+        if total > MAX_PHOTOS_TOTAL_BYTES {
+            return Err(NativeError::Corrupt);
+        }
+        assets.push(Asset { meta: meta.clone(), bytes: Arc::new(bytes), thumb: Arc::new(thumb) });
     }
     Ok(LoadedClass { class, assets })
 }
@@ -277,6 +310,25 @@ mod tests {
         class.students.push(s);
         let json = serde_json::to_string(&class).unwrap();
         assert_eq!(load(zip_with(&json)).err(), Some(NativeError::Corrupt));
+    }
+
+    #[test]
+    fn a_photo_missing_from_the_file_is_dropped() {
+        let mut class = Class::new("MS", "2026-2027");
+        let mut s = Student::new("Léa", "");
+        s.photo = Some("absente".into());
+        s.photo_allowed = true;
+        class.students.push(s);
+        let back = load(zip_with(&serde_json::to_string(&class).unwrap())).unwrap();
+        assert_eq!(back.class.students[0].photo, None);
+    }
+
+    #[test]
+    fn read_info_reads_only_the_list() {
+        let mut class = Class::new("Moyenne section", "2026-2027");
+        class.students = parse_list("Léa\nNoé");
+        let info = read_info(zip_with(&serde_json::to_string(&class).unwrap())).unwrap();
+        assert_eq!((info.name.as_str(), info.year.as_str(), info.students), ("Moyenne section", "2026-2027", 2));
     }
 
     #[test]

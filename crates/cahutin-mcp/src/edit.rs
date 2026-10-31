@@ -50,12 +50,23 @@ pub fn set_frame(doc: &mut Document, args: &Value) -> Result<(), String> {
             return Err(format!("taille hors limites : {v} mm"));
         }
     }
-    let f = &mut element(doc, args)?.frame;
+    // Une case de tableau suit son tableau : c'est le tableau qui se déplace.
+    let id = text(args, "element_id")?.unwrap_or_default().to_string();
+    let in_table = doc.pages.iter().flat_map(|p| &p.elements).any(|e| matches!(&e.kind, ElementKind::Table(t) if t.cells.iter().any(|c| c.element_id == id)));
+    if in_table {
+        return Err(format!("« {id} » est une case de tableau : déplacez ou redimensionnez le tableau"));
+    }
+    let e = element(doc, args)?;
+    let is_table = matches!(e.kind, ElementKind::Table(_));
+    let f = &mut e.frame;
     f.x_mm = x.unwrap_or(f.x_mm);
     f.y_mm = y.unwrap_or(f.y_mm);
     f.w_mm = w.unwrap_or(f.w_mm);
     f.h_mm = h.unwrap_or(f.h_mm);
     f.rotation_deg = r.map(|r| r.rem_euclid(360.0)).unwrap_or(f.rotation_deg);
+    if is_table && let Some(page) = doc.pages.iter_mut().find(|p| p.elements.iter().any(|e| e.id == id)) {
+        carnet_core::table::layout(page, &id);
+    }
     Ok(())
 }
 
@@ -129,6 +140,20 @@ mod tests {
 
     fn el<'a>(d: &'a Document, id: &str) -> &'a Element {
         d.pages[0].elements.iter().find(|e| e.id == id).unwrap()
+    }
+
+    #[test]
+    fn a_table_moves_with_its_cells_and_a_cell_alone_does_not() {
+        let mut d = doc();
+        let id = table::add_table(&mut d.pages[0], Frame { x_mm: 10.0, y_mm: 100.0, w_mm: 100.0, h_mm: 40.0, rotation_deg: 0.0 }, 2, 2);
+        let cell = match &el(&d, &id).kind {
+            ElementKind::Table(t) => t.cells[0].element_id.clone(),
+            _ => unreachable!(),
+        };
+        let before = el(&d, &cell).frame.x_mm;
+        set_frame(&mut d, &json!({ "element_id": id, "x_mm": 50 })).unwrap();
+        assert_eq!(el(&d, &cell).frame.x_mm - before, 40.0);
+        assert!(set_frame(&mut d, &json!({ "element_id": cell, "x_mm": 0 })).is_err());
     }
 
     #[test]

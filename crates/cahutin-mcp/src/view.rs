@@ -19,12 +19,7 @@ pub fn layout(doc: &Document, page: Option<usize>) -> Value {
 
 fn page_view(doc: &Document, index: usize, page: &Page) -> Value {
     let background = page.background.as_ref().map(|b| {
-        json!({ "color": b.color, "pattern": b.pattern.map(|p| match p {
-            Pattern::Seyes => "seyes",
-            Pattern::SmallSquares => "small_squares",
-            Pattern::Lines => "lines",
-            Pattern::Dots => "dots",
-        }) })
+        json!({ "color": b.color, "pattern": b.pattern.map(pattern_name) })
     });
     json!({
         "index": index,
@@ -60,6 +55,7 @@ fn element_view(doc: &Document, e: &Element) -> Value {
             "fill": t.frame.as_ref().and_then(|fr| fr.fill.clone()),
             "border": t.frame.as_ref().and_then(|fr| fr.stroke.as_ref()).map(stroke_view),
             "has_background_image": t.frame.as_ref().is_some_and(|fr| fr.image.is_some()),
+            "writing_lines": t.frame.as_ref().and_then(|fr| fr.pattern).map(pattern_name),
         }),
         ElementKind::Photo(p) => {
             let aspect = p.asset.as_ref().and_then(|id| doc.assets.get(id)).map(|m| (m.width_px as f64 / m.height_px.max(1) as f64 * 1000.0).round() / 1000.0);
@@ -70,6 +66,7 @@ fn element_view(doc: &Document, e: &Element) -> Value {
                 "corner_radius_mm": p.corner_radius_mm,
                 "border": p.border.as_ref().map(stroke_view),
                 "shadow": p.shadow,
+                "mirrored": p.mirrored,
             })
         }
         ElementKind::Shape(s) => json!({
@@ -81,11 +78,28 @@ fn element_view(doc: &Document, e: &Element) -> Value {
         }),
         // Code OpenMoji d'une image décorative de la banque : public, pas une donnée de l'utilisateur.
         ElementKind::Image(i) => json!({ "type": "image", "openmoji": i.code }),
+        // Un tableau : sa structure ; ses cases sont des éléments de la page, vus comme les autres.
+        ElementKind::Table(t) => json!({
+            "type": "table",
+            "cols": t.cols.len(),
+            "rows": t.rows.len(),
+            "border": t.border.as_ref().map(stroke_view),
+            "cells": t.cells.iter().map(|c| json!({ "element_id": c.element_id, "col": c.col, "row": c.row, "col_span": c.col_span, "row_span": c.row_span })).collect::<Vec<_>>(),
+        }),
     };
     if let (Value::Object(base), Value::Object(more)) = (&mut v, extra) {
         base.extend(more);
     }
     v
+}
+
+fn pattern_name(p: Pattern) -> &'static str {
+    match p {
+        Pattern::Seyes => "seyes",
+        Pattern::SmallSquares => "small_squares",
+        Pattern::Lines => "lines",
+        Pattern::Dots => "dots",
+    }
 }
 
 fn stroke_view(s: &Stroke) -> Value {
@@ -131,7 +145,7 @@ mod tests {
                 content: RichText::plain("Léa est venue avec Mathis"),
                 style: TextStyle::default_zone(),
                 prompt: Some("Prénom secret".into()),
-                frame: Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: Some("piege-asset-id".into()) }),
+                frame: Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: Some("piege-asset-id".into()), pattern: None }),
             }),
         });
         page.elements.push(Element {
@@ -140,7 +154,7 @@ mod tests {
             locked: false,
             zone: true,
             group: None,
-            kind: ElementKind::Photo(PhotoProps { asset: Some("piege-asset-id".into()), crop: Crop::COVER, corner_radius_mm: 3.0, border: None, shadow: false }),
+            kind: ElementKind::Photo(PhotoProps { asset: Some("piege-asset-id".into()), crop: Crop::COVER, corner_radius_mm: 3.0, border: None, shadow: false, mirrored: false }),
         });
         doc.pending_photos.push("/home/maitresse/Photos/Léa.jpg".into());
         doc
@@ -193,6 +207,24 @@ mod tests {
                 assert!(!out.contains(w.trim()), "{}: {w:?} dans la vue", info.id);
             }
         }
+    }
+
+    #[test]
+    fn a_table_shows_its_structure_not_the_text_of_its_cells() {
+        let mut doc = sensitive_doc();
+        let page = &mut doc.pages[0];
+        let id = table::add_table(page, frame(), 3, 2);
+        let cell = match &page.elements.iter().find(|e| e.id == id).unwrap().kind {
+            ElementKind::Table(t) => t.cells[0].element_id.clone(),
+            _ => unreachable!(),
+        };
+        if let ElementKind::Text(t) = &mut page.elements.iter_mut().find(|e| e.id == cell).unwrap().kind {
+            t.content = RichText::plain("Mathis");
+        }
+        let v = layout(&doc, None);
+        let t = v["pages"][0]["elements"].as_array().unwrap().iter().find(|e| e["type"] == "table").unwrap().clone();
+        assert_eq!((t["cols"].as_u64(), t["rows"].as_u64(), t["cells"].as_array().unwrap().len()), (Some(3), Some(2), 6));
+        assert!(!v.to_string().contains("Mathis"));
     }
 
     #[test]

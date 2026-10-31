@@ -14,6 +14,7 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 quick-xml = "0.42"
 roxmltree = "0.20"
 tempfile = "3"
+tract-onnx = "0.21"
 ttf-parser = "0.25"
 fontdb = { version = "0.24", default-features = false, features = ["fs", "memmap"] }
 

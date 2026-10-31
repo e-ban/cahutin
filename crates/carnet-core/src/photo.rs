@@ -272,6 +272,17 @@ pub fn import_bytes(data: &[u8]) -> Result<Asset, ImportError> {
     })
 }
 
+/// Nouvelle image (nouvel id, vignette refaite) à partir d'une image déjà importée et modifiée (flou).
+pub(crate) fn asset_from_image(img: &DynamicImage, mime: Mime) -> Result<Asset, ImportError> {
+    let main = fit(img, MAX_LONG_EDGE_PX);
+    let thumb = fit(&main, THUMB_LONG_EDGE_PX);
+    Ok(Asset {
+        meta: AssetMeta { id: new_id(), width_px: main.width(), height_px: main.height(), mime },
+        bytes: Arc::new(encode(&main, mime)?),
+        thumb: Arc::new(encode(&thumb, mime)?),
+    })
+}
+
 pub fn import_path(path: &Path) -> Result<Asset, ImportError> {
     let data = std::fs::read(path).map_err(|_| ImportError::Io)?;
     import_bytes(&data)

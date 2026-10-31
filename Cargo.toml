@@ -35,3 +35,19 @@ opt-level = 3
 
 [profile.dev.package.crc32fast]
 opt-level = 3
+
+# Repérage des visages (tract) : sans optimisation, plusieurs secondes par photo en développement.
+[profile.dev.package.tract-core]
+opt-level = 3
+
+[profile.dev.package.tract-linalg]
+opt-level = 3
+
+[profile.dev.package.tract-hir]
+opt-level = 3
+
+[profile.dev.package.tract-onnx]
+opt-level = 3
+
+[profile.dev.package.tract-data]
+opt-level = 3

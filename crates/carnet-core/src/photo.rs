@@ -14,7 +14,12 @@ pub const MAX_LONG_EDGE_PX: u32 = 3000;
 pub const THUMB_LONG_EDGE_PX: u32 = 256;
 pub const JPEG_QUALITY: u8 = 85;
 
-const IMPORTABLE_EXTENSIONS: [&str; 6] = ["jpg", "jpeg", "png", "webp", "heic", "heif"];
+const IMPORTABLE_EXTENSIONS: [&str; 7] = ["jpg", "jpeg", "png", "webp", "svg", "heic", "heif"];
+
+/// Dessin SVG : rendu en image de ce côté (le plus grand), puis traité comme une image.
+const SVG_LONG_EDGE_PX: f32 = 2000.0;
+/// Plus gros dessin SVG accepté : un dessin téléchargé fait quelques centaines de Ko.
+const MAX_SVG_BYTES: usize = 20 * 1024 * 1024;
 
 /// Une image importée. `thumb` est au même format que `bytes`.
 #[derive(Clone, Debug)]
@@ -213,7 +218,7 @@ impl ImportError {
     pub fn message_fr(&self) -> String {
         match self {
             ImportError::Heic => "format HEIC (iPhone) non pris en charge : enregistrez la photo en JPEG",
-            ImportError::Unsupported => "format d'image non pris en charge (JPEG, PNG ou WebP attendu)",
+            ImportError::Unsupported => "format d'image non pris en charge (JPEG, PNG, WebP ou dessin SVG attendu)",
             ImportError::Decode => "fichier illisible ou abîmé",
             ImportError::Io => "impossible de lire le fichier",
             ImportError::Storage => "impossible d'enregistrer la photo sur le disque (disque plein ?)",
@@ -224,6 +229,41 @@ impl ImportError {
 
 fn is_heic(data: &[u8]) -> bool {
     data.len() >= 12 && &data[4..8] == b"ftyp" && matches!(&data[8..12], b"heic" | b"heix" | b"mif1" | b"msf1" | b"hevc")
+}
+
+/// Un dessin SVG : la balise `<svg` dans le début du fichier (après un éventuel prologue XML).
+fn is_svg(data: &[u8]) -> bool {
+    let head = String::from_utf8_lossy(&data[..data.len().min(2048)]).to_ascii_lowercase();
+    head.trim_start_matches('\u{feff}').trim_start().starts_with('<') && head.contains("<svg")
+}
+
+/// Un dessin SVG rendu en image transparente, `SVG_LONG_EDGE_PX` sur son plus grand côté. Un fichier
+/// téléchargé n'est pas sûr : aucune ressource extérieure n'est lue (ni fichier, ni adresse, ni image
+/// incluse), et le texte n'est pas rendu (pas de polices chargées).
+fn render_svg(data: &[u8]) -> Result<DynamicImage, ImportError> {
+    if data.len() > MAX_SVG_BYTES {
+        return Err(ImportError::Decode);
+    }
+    let options = resvg::usvg::Options {
+        resources_dir: None,
+        image_href_resolver: resvg::usvg::ImageHrefResolver { resolve_data: Box::new(|_, _, _| None), resolve_string: Box::new(|_, _| None) },
+        ..Default::default()
+    };
+    let tree = resvg::usvg::Tree::from_data(data, &options).map_err(|_| ImportError::Decode)?;
+    let size = tree.size();
+    let scale = SVG_LONG_EDGE_PX / size.width().max(size.height());
+    let (w, h) = (((size.width() * scale).round() as u32).max(1), ((size.height() * scale).round() as u32).max(1));
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h).ok_or(ImportError::Decode)?;
+    resvg::render(&tree, resvg::tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
+    let rgba: Vec<u8> = pixmap
+        .pixels()
+        .iter()
+        .flat_map(|p| {
+            let c = p.demultiply();
+            [c.red(), c.green(), c.blue(), c.alpha()]
+        })
+        .collect();
+    image::RgbaImage::from_raw(w, h, rgba).map(DynamicImage::ImageRgba8).ok_or(ImportError::Decode)
 }
 
 fn has_transparency(img: &DynamicImage) -> bool {
@@ -252,6 +292,11 @@ fn fit(img: &DynamicImage, long_edge: u32) -> DynamicImage {
 pub fn import_bytes(data: &[u8]) -> Result<Asset, ImportError> {
     if is_heic(data) {
         return Err(ImportError::Heic);
+    }
+    if is_svg(data) {
+        let img = render_svg(data)?;
+        let mime = if has_transparency(&img) { Mime::Png } else { Mime::Jpeg };
+        return asset_from_image(&img, mime);
     }
     let reader = ImageReader::new(Cursor::new(data)).with_guessed_format().map_err(|_| ImportError::Io)?;
     if reader.format().is_none() {
@@ -303,6 +348,37 @@ pub fn list_importable(dir: &Path) -> Vec<PathBuf> {
         .collect();
     files.sort_by_key(|p| p.file_name().map(|n| n.to_os_string()));
     files
+}
+
+#[cfg(test)]
+mod svg_tests {
+    use super::*;
+
+    const DRAWING: &str = r##"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 50" width="100" height="50">
+  <circle cx="25" cy="25" r="20" fill="#e67e22"/>
+  <image x="50" y="0" width="50" height="50" xlink:href="/etc/passwd"/>
+  <image x="50" y="0" width="50" height="50" xlink:href="https://example.org/x.png"/>
+</svg>"##;
+
+    /// Un dessin SVG devient une image transparente à ses proportions ; les références extérieures sont ignorées.
+    #[test]
+    fn an_svg_drawing_becomes_a_transparent_picture() {
+        let a = import_bytes(DRAWING.as_bytes()).unwrap();
+        assert_eq!((a.meta.mime, a.meta.width_px, a.meta.height_px), (Mime::Png, 2000, 1000));
+        let img = image::load_from_memory(&a.bytes).unwrap().to_rgba8();
+        assert!(img.get_pixel(500, 500)[3] > 200, "le disque est dessiné");
+        assert_eq!(img.get_pixel(1500, 500)[3], 0, "rien n'est lu hors du fichier");
+    }
+
+    /// Un très grand dessin reste à la taille d'une photo ; un fichier qui n'est pas un dessin est refusé.
+    #[test]
+    fn a_huge_svg_stays_small_and_garbage_is_refused() {
+        let huge = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900000 300000"><rect width="900000" height="300000" fill="red"/></svg>"#;
+        let a = import_bytes(huge.as_bytes()).unwrap();
+        assert!(a.meta.width_px <= MAX_LONG_EDGE_PX && a.meta.height_px <= MAX_LONG_EDGE_PX);
+        assert!(import_bytes(b"<svg nope").is_err());
+    }
 }
 
 #[cfg(test)]

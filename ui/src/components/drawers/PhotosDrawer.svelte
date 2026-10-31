@@ -11,7 +11,7 @@
   import { filterPhotos, folderChips, usedAssetIds, type PhotoFilter } from "../../lib/photoLibrary";
   import { readPref, writePref } from "../../lib/prefs";
 
-  const EXTENSIONS = ["jpg", "jpeg", "png", "webp", "heic", "heif", "JPG", "JPEG", "PNG", "WEBP", "HEIC", "HEIF"];
+  const EXTENSIONS = ["jpg", "jpeg", "png", "webp", "svg", "heic", "heif", "JPG", "JPEG", "PNG", "WEBP", "SVG", "HEIC", "HEIF"];
   const SIZES = [
     { px: 72, label: fr.thumbSmall, icon: "▪" },
     { px: 96, label: fr.thumbMedium, icon: "◼" },

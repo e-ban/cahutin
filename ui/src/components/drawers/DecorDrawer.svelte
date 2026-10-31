@@ -1,10 +1,17 @@
 <script lang="ts">
   // Tiroir Décors : images OpenMoji (recherche, catégories), puis cadres et frises. En mode « Choisir les
   // images », un clic sur une image l'ajoute aux motifs de la frise (ou l'en retire) sans rien poser.
+  // « Mes images » : les images de l'enseignant, gardées d'un document à l'autre.
   import { onDestroy } from "svelte";
+  import { open } from "@tauri-apps/plugin-dialog";
+  import { ask } from "../../lib/ask";
+  import { myImageUrl } from "../../lib/api";
+  import { usePhoto } from "../../lib/editActions";
+  import { displayName, searchMyImages } from "../../lib/myImages";
+  import { myImages } from "../../lib/myImages.svelte";
   import Drawer from "../layout/Drawer.svelte";
   import { editor } from "../../lib/docStore.svelte";
-  import { PICTO_MIME } from "../../lib/dnd";
+  import { MY_IMAGE_MIME, PICTO_MIME } from "../../lib/dnd";
   import { fr } from "../../lib/i18n/fr";
   import { CLASS_PICTO_GROUPS, PICTO_GROUPS, SKIN_TONES, pictoElement, pictoUrl, pictos, pictosOf, replacePictos, searchPictos, toned } from "../../lib/pictos.svelte";
   import { frieze, pageFrame, toggleMotif, type FrameStyle, type FriezeSide } from "../../lib/decor";
@@ -40,15 +47,42 @@
     }
   });
 
+  /** Catégorie « Mes images » : à part des images fournies. */
+  const MINE = "mine";
   let query = $state("");
   let category = $state<string | null>(null);
   let picking = $state(false);
 
   pictos.load();
+  myImages.load();
+
+  const mine = $derived(category === MINE && !picking);
+  const shownMine = $derived(searchMyImages(myImages.images, query));
+
+  async function addMine() {
+    const picked = await open({ multiple: true, filters: [{ name: fr.myImages, extensions: ["png", "jpg", "jpeg", "webp", "svg", "PNG", "JPG", "JPEG", "WEBP", "SVG"] }] });
+    const paths = picked === null ? [] : Array.isArray(picked) ? picked : [picked];
+    const refused = await myImages.add(paths);
+    if (refused) editor.notice = fr.myImagesRefused(refused);
+  }
+
+  async function useMine(name: string) {
+    try {
+      usePhoto(await myImages.use(name));
+    } catch {
+      editor.notice = fr.myImagesFailed;
+      myImages.load();
+    }
+  }
+
+  async function removeMine(name: string) {
+    if (!(await ask(fr.myImagesRemoveConfirm(displayName(name)), fr.myImagesRemove))) return;
+    await myImages.remove(name);
+  }
 
   const shown = $derived.by(() => {
     const found = searchPictos(pictos.index, query);
-    return category && !query ? pictosOf(pictos.index, category) : found;
+    return category && category !== MINE && !query ? pictosOf(pictos.index, category) : found;
   });
 
   function use(code: string) {
@@ -76,6 +110,7 @@
   <input class="search" type="search" bind:value={query} placeholder={fr.searchPicture} aria-label={fr.searchPicture} />
   {#if !query}
     <div class="chips">
+      {#if !picking}<button class="mine" class:on={category === MINE} onclick={() => (category = MINE)}>{fr.myImages}</button>{/if}
       <button class:on={category === null} onclick={() => (category = null)}>{fr.allPictures}</button>
       {#each Object.keys(CLASS_PICTO_GROUPS) as g (g)}
         <button class="classe" class:on={category === g} onclick={() => (category = g)}>{fr.pictureGroups[g]}</button>
@@ -85,6 +120,37 @@
       {/each}
     </div>
   {/if}
+  {#if mine}
+    <button class="add-mine" onclick={addMine}>＋ {fr.myImagesAdd}</button>
+    {#if myImages.images.length}
+      <div class="mine-grid">
+        {#each shownMine as img (img.name)}
+          <div class="mine-thumb">
+            <button
+              class="thumb"
+              title={displayName(img.name)}
+              draggable="true"
+              onclick={() => useMine(img.name)}
+              ondragstart={(e) => {
+                e.dataTransfer?.setData(MY_IMAGE_MIME, img.name);
+                if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
+              }}
+            >
+              <img src={`${myImageUrl(img.name)}?v=${img.modified}`} alt="" loading="lazy" decoding="async" draggable="false" />
+              <span class="name">{displayName(img.name)}</span>
+            </button>
+            <button class="remove" title={fr.myImagesRemove} aria-label={`${fr.myImagesRemove} : ${displayName(img.name)}`} onclick={() => removeMine(img.name)}>×</button>
+          </div>
+        {:else}
+          <p class="hint">{fr.myImagesNone}</p>
+        {/each}
+      </div>
+      <p class="hint">{fr.myImagesHint}</p>
+    {:else}
+      <p class="hint">{fr.myImagesEmpty}</p>
+    {/if}
+    <p class="hint">{fr.myImagesWhere}</p>
+  {:else}
   <label class="colour-in" title={fr.pictoOutlineHint}><input type="checkbox" checked={pictos.outline} onchange={(e) => pictos.setOutline(e.currentTarget.checked)} /> {fr.pictoOutline}</label>
   <div class="tones" role="radiogroup" aria-label={fr.skinTone}>
     <span class="label">{fr.skinTone}</span>
@@ -115,6 +181,7 @@
     {/each}
   </div>
   {#if !picking}<p class="hint">{fr.pictureHint}</p>{/if}
+  {/if}
 
   <h3>{fr.frames}</h3>
   <div class="frames">
@@ -159,6 +226,52 @@
     border-radius: 12px;
     padding: 2px 9px;
     font-size: 12px;
+  }
+  /* Mes images : la première catégorie, bien visible. */
+  .chips .mine {
+    border-color: #9cc59a;
+    background: #eef8ec;
+    font-weight: 600;
+  }
+  .add-mine {
+    padding: 8px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  /* Ses propres images : plus grandes que les pictos, avec leur nom. */
+  .mine-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 6px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding-top: 4px;
+  }
+  .mine-thumb {
+    position: relative;
+  }
+  .mine-thumb .thumb {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border-color: var(--line);
+  }
+  .mine-thumb .thumb img {
+    height: 60px;
+  }
+  .name {
+    font-size: 11px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mine-thumb .remove {
+    top: -3px;
+    right: -3px;
+    background: white;
   }
   /* Catégories de la classe, en tête et colorées. */
   .chips .classe {

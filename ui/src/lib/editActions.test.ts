@@ -245,3 +245,14 @@ test("setFrameImage puts a library photo behind the selected text, in one undo s
   const k3 = editor.page.elements[0].kind;
   expect(k3.type === "Text" && k3.frame?.image).toBe("lbl");
 });
+
+test("clicking the same picture twice puts the second beside the first, not hidden under it", async () => {
+  const { usePhoto } = await import("./editActions");
+  editor.reset(newDocument("clics"), null);
+  const meta = { id: "vache", width_px: 2000, height_px: 2263, mime: "Png" as const };
+  usePhoto(meta);
+  usePhoto(meta);
+  const [a, b] = editor.page.elements.map((e) => e.frame);
+  expect(b.x_mm - a.x_mm).toBe(8);
+  expect(b.y_mm - a.y_mm).toBe(8);
+});

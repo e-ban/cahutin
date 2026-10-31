@@ -1,6 +1,7 @@
 //! Application de bureau : expose le moteur `carnet-core` à l'interface.
 
 mod class_commands;
+mod images_commands;
 mod phototheque_commands;
 pub mod commands;
 mod legacy;
@@ -94,6 +95,10 @@ pub fn run() {
             class_commands::class_read_list,
             class_commands::class_plan,
             class_commands::class_generate,
+            images_commands::my_images_list,
+            images_commands::my_images_add,
+            images_commands::my_images_remove,
+            images_commands::my_images_use,
             phototheque_commands::phototheque_open,
             phototheque_commands::phototheque_add,
             phototheque_commands::phototheque_remove,

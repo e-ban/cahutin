@@ -306,7 +306,6 @@
         </div>
         <button class:on={ph.shadow} aria-pressed={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}>◩ {fr.shadow}</button>
         <button class:on={!!ph.mirrored} aria-pressed={!!ph.mirrored} title={fr.mirrorHint} onclick={() => updatePhoto({ mirrored: !ph.mirrored })}>⇋ {fr.mirror}</button>
-        <button onclick={openPhotos}>⇄ {fr.replace}</button>
         <button onclick={() => addCaption(selected.id)}>✎ {fr.caption}</button>
         {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
       {/if}

@@ -20,6 +20,9 @@ pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>
     if let Some(file) = path.strip_prefix("picto/") {
         return picto_response(file);
     }
+    if let Some(name) = path.strip_prefix("mine/") {
+        return my_image_response(&ctx.app_handle().state::<AppState>(), name);
+    }
     if let Some(rest) = path.strip_prefix("lib/") {
         return library_response(&ctx.app_handle().state::<AppState>(), rest);
     }
@@ -69,6 +72,40 @@ fn library_response(state: &AppState, rest: &str) -> Response<Cow<'static, [u8]>
         Mime::Png => "image/png",
     };
     Response::builder().header(header::CONTENT_TYPE, mime).header(header::CACHE_CONTROL, "max-age=31536000, immutable").body(Cow::Owned(bytes)).unwrap()
+}
+
+/// `mine/<nom>` : une image de « Mes images », telle quelle (le nom vient de l'adresse, encodé).
+fn my_image_response(state: &AppState, name: &str) -> Response<Cow<'static, [u8]>> {
+    let Ok(name) = percent_decode(name) else { return not_found() };
+    if !crate::images_commands::is_image_name(&name) {
+        return not_found();
+    }
+    let Ok(bytes) = std::fs::read(crate::images_commands::images_dir(state).join(&name)) else { return not_found() };
+    let mime = match name.rsplit('.').next().map(str::to_ascii_lowercase).as_deref() {
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("webp") => "image/webp",
+        _ => "image/jpeg",
+    };
+    Response::builder().header(header::CONTENT_TYPE, mime).header(header::CACHE_CONTROL, "no-cache").body(Cow::Owned(bytes)).unwrap()
+}
+
+/// Décodage des « %XX » d'une adresse (noms avec espaces ou accents).
+fn percent_decode(s: &str) -> Result<String, ()> {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' {
+            let hex = s.get(i + 1..i + 3).ok_or(())?;
+            out.push(u8::from_str_radix(hex, 16).map_err(|_| ())?);
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).map_err(|_| ())
 }
 
 fn not_found() -> Response<Cow<'static, [u8]>> {
@@ -121,6 +158,16 @@ fn font_file_response(path: &Path) -> Response<Cow<'static, [u8]>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Les noms de « Mes images » arrivent encodés ; un chemin caché dans l'encodage est refusé ensuite.
+    #[test]
+    fn my_image_names_are_decoded() {
+        assert_eq!(percent_decode("Citrouille%20d'automne%20%C3%A9t%C3%A9.svg").as_deref(), Ok("Citrouille d'automne été.svg"));
+        assert!(percent_decode("a%2").is_err());
+        assert!(percent_decode("a%zz.png").is_err());
+        let hidden = percent_decode("..%2F..%2Fsecret.png").unwrap();
+        assert!(!crate::images_commands::is_image_name(&hidden));
+    }
 
     /// Sous Windows, la page (http://tauri.localhost) charge les polices depuis http://carnet-asset.localhost :
     /// une requête de police d'une autre origine exige l'en-tête CORS.

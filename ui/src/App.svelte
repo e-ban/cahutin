@@ -62,7 +62,8 @@
   import { newDocument, newId } from "./lib/factory";
   import { templates } from "./lib/templates.svelte";
   import { mmToPx } from "./lib/units";
-  import type { Crop, RichText } from "./lib/types";
+  import type { AssetMeta, Crop, RichText } from "./lib/types";
+  import { myImages } from "./lib/myImages.svelte";
 
   editor.reset(newDocument(), null);
   editor.showWelcome = true;
@@ -153,6 +154,19 @@
     const meta = editor.photos.find((p) => p.meta.id === assetId)?.meta ?? editor.doc.assets[assetId];
     if (!meta) return;
     warnConsent(assetId);
+    placeDropped(meta, elementId, xMm, yMm);
+  }
+
+  async function dropMyImage(name: string, elementId: string | null, xMm: number, yMm: number) {
+    try {
+      placeDropped(await myImages.use(name), elementId, xMm, yMm);
+    } catch {
+      editor.notice = fr.myImagesFailed;
+    }
+  }
+
+  /** Une image lâchée sur une case photo la remplit ; ailleurs, elle est posée là, à ses proportions. */
+  function placeDropped(meta: AssetMeta, elementId: string | null, xMm: number, yMm: number) {
     if (elementId) {
       editor.placePhoto(elementId, meta);
       editor.selection = [elementId];
@@ -245,6 +259,7 @@
       templateMode={editor.templateMode}
       onselect={select}
       ondropasset={dropAsset}
+      ondropmyimage={dropMyImage}
       oncropstart={(id) => {
         editor.selection = [id];
         editor.cropping = id;

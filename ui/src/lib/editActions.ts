@@ -278,5 +278,9 @@ export function usePhoto(meta: AssetMeta) {
     editor.placePhoto(e.id, meta);
     return;
   }
-  addPhotoAt(meta, editor.page.size.width_mm / 2, editor.page.size.height_mm / 2);
+  // Clic après clic, chaque photo est un peu décalée : posée sur la précédente, on ne la verrait pas.
+  let [x, y] = [editor.page.size.width_mm / 2, editor.page.size.height_mm / 2];
+  const taken = (x: number, y: number) => editor.page.elements.some((e) => Math.abs(e.frame.x_mm + e.frame.w_mm / 2 - x) < 1 && Math.abs(e.frame.y_mm + e.frame.h_mm / 2 - y) < 1);
+  for (let i = 0; i < 20 && taken(x, y); i++) [x, y] = [x + 8, y + 8];
+  addPhotoAt(meta, x, y);
 }

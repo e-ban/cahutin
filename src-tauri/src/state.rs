@@ -23,6 +23,8 @@ pub struct AppState {
     pub classes_dir: PathBuf,
     /// Photothèque ouverte (celle de la classe courante) : son dossier et son index.
     pub phototheque: Mutex<Option<(PathBuf, carnet_core::phototheque::Phototheque)>>,
+    /// « Mes images » déjà importées : (nom, date, taille) → image, pour ne pas la copier à chaque clic.
+    pub my_images: Mutex<std::collections::HashMap<(String, u64, u64), carnet_core::AssetMeta>>,
 }
 
 impl AppState {
@@ -37,6 +39,7 @@ impl AppState {
             import_cancel: AtomicBool::new(false),
             classes_dir,
             phototheque: Mutex::new(None),
+            my_images: Mutex::new(Default::default()),
         }
     }
 

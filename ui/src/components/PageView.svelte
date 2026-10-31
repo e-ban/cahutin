@@ -5,7 +5,7 @@
   import TextEl from "./elements/TextEl.svelte";
   import { dragCrop, wheelCrop } from "../lib/crop";
   import { editor } from "../lib/docStore.svelte";
-  import { ASSET_MIME, PICTO_MIME } from "../lib/dnd";
+  import { ASSET_MIME, MY_IMAGE_MIME, PICTO_MIME } from "../lib/dnd";
   import { fr } from "../lib/i18n/fr";
   import { pageHasPictos } from "../lib/pictos.svelte";
   import { TEXT_PADDING_MM } from "../lib/richtext";
@@ -25,6 +25,7 @@
     templateMode = false,
     onselect,
     ondropasset,
+    ondropmyimage,
     oncropstart,
     oncropend,
     onedittext,
@@ -43,6 +44,8 @@
     templateMode?: boolean;
     onselect?: (id: string | null, add: boolean) => void;
     ondropasset?: (assetId: string, elementId: string | null, xMm: number, yMm: number) => void;
+    /** Une image de « Mes images » glissée : son nom de fichier. */
+    ondropmyimage?: (name: string, elementId: string | null, xMm: number, yMm: number) => void;
     oncropstart?: (id: string) => void;
     oncropend?: (id: string, crop: Crop) => void;
     onedittext?: (id: string) => void;
@@ -89,7 +92,7 @@
   }
 
   function acceptsAsset(ev: DragEvent): boolean {
-    return !!ev.dataTransfer?.types.includes(ASSET_MIME) || !!ev.dataTransfer?.types.includes(PICTO_MIME);
+    return [ASSET_MIME, PICTO_MIME, MY_IMAGE_MIME].some((t) => ev.dataTransfer?.types.includes(t));
   }
 
   function drop(ev: DragEvent, elementId: string | null) {
@@ -101,6 +104,11 @@
     const picto = ev.dataTransfer!.getData(PICTO_MIME);
     if (picto) {
       ondroppicto?.(picto, xMm, yMm);
+      return;
+    }
+    const mine = ev.dataTransfer!.getData(MY_IMAGE_MIME);
+    if (mine) {
+      ondropmyimage?.(mine, elementId, xMm, yMm);
       return;
     }
     ondropasset?.(ev.dataTransfer!.getData(ASSET_MIME), elementId, xMm, yMm);

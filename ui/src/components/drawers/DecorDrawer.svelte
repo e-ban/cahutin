@@ -151,6 +151,7 @@
   .thumbs {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+    grid-auto-rows: 44px;
     gap: 4px;
     max-height: 340px;
     overflow-y: auto;
@@ -159,10 +160,8 @@
     padding: 2px;
     border: 1px solid transparent;
     background: white;
-    aspect-ratio: 1;
-    /* Les vignettes hors de vue ne sont ni chargées ni peintes. */
-    content-visibility: auto;
-    contain-intrinsic-size: 44px 44px;
+    /* Pas de content-visibility : le WebKit de l'AppImage (2.50) ne peignait plus les vignettes. Les
+       images hors de vue restent non chargées (loading="lazy"). */
   }
   .thumb {
     position: relative;
@@ -199,6 +198,7 @@
   .thumb img {
     width: 100%;
     height: 100%;
+    object-fit: contain;
     display: block;
   }
   .frames {

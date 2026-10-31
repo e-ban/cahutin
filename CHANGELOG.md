@@ -1,5 +1,12 @@
 # Journal des versions
 
+## Non publié
+
+- Images à colorier : dans le tiroir Décors, « À colorier » pose les images en contour noir seul (toutes les images d'OpenMoji), pour les coloriages et les contours à repasser. Une image déjà posée bascule avec « À colorier » dans sa barre flottante. Un document qui en contient demande cette version de Cahutin.
+- Un clic dans le tiroir Décors pose toujours une nouvelle image : il ne remplace plus l'image choisie par mégarde. Pour changer une image, « Remplacer » dans sa barre flottante.
+- Un texte ajouté depuis le tiroir Texte (« Titre »…) s'ouvre avec son texte modèle sélectionné : on tape directement le sien.
+- Deux éléments ajoutés de suite ne se posent plus exactement l'un sur l'autre.
+
 ## 0.9.0
 
 - Photothèque de la classe (page « Ma classe », tiroir Photos ou tiroir Classe) : toutes les photos de l'année, rangées dans Documents/Cahutin/Photos, sans lieu ni appareil, avec leur date de prise de vue. On trie un lot à l'arrivée (qui est sur ces photos ? quelle activité ?), on retrouve les photos d'un enfant ou d'une sortie, sur le mois, trois mois ou l'année, et on les met dans le document. Un bandeau signale les enfants peu photographiés ; une pastille, les photos d'un enfant sans autorisation, et Cahutin rappelle de flouter son visage quand on en pose une. Aucun visage n'est reconnu : on indique les enfants d'un clic.

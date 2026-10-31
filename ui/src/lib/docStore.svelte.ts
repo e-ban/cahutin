@@ -29,6 +29,9 @@ class Editor {
   editingText = $state<string | null>(null);
   /** Le texte qui s'ouvre est un texte modèle tout juste posé (« Titre ») : il est sélectionné, la frappe le remplace. */
   selectTextOnEdit = false;
+  /** « Remplacer » (barre flottante, case de tableau) : le prochain clic dans le tiroir Décors remplace les images
+   *  choisies au lieu d'en poser une nouvelle. Prend fin quand la sélection change. */
+  replacingPictos = $state(false);
   /** Fusion en glissant (mode modèle) : cases couvertes, et si la fusion est possible. */
   mergePreview = $state<{ ids: string[]; ok: boolean } | null>(null);
   /** Élément d'un groupe modifié seul après un double-clic (Échap ou un clic ailleurs revient au groupe). */

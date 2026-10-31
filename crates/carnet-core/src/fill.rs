@@ -181,7 +181,7 @@ fn fill_element(e: &mut Element, s: Option<&Student>) {
                 let f = e.frame;
                 let side = f.w_mm.min(f.h_mm);
                 e.frame = Frame { x_mm: f.x_mm + (f.w_mm - side) / 2.0, y_mm: f.y_mm + (f.h_mm - side) / 2.0, w_mm: side, h_mm: side, ..f };
-                e.kind = ElementKind::Image(ImageProps { code: code.clone() });
+                e.kind = ElementKind::Image(ImageProps { code: code.clone(), outline: None });
                 e.zone = false;
             }
         }
@@ -421,7 +421,7 @@ mod tests {
     fn photo_without_consent_uses_the_symbol() {
         let out = fill_for(&card(), &student("Léa", Some("p1"), false, Some("1F98A")));
         let e = &out.elements[2];
-        assert_eq!(e.kind, ElementKind::Image(ImageProps { code: "1F98A".into() }));
+        assert_eq!(e.kind, ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None }));
         assert_eq!((e.frame.x_mm, e.frame.y_mm, e.frame.w_mm, e.frame.h_mm), (20.0, 70.0, 60.0, 60.0));
         assert!(!out.elements.iter().any(|e| matches!(&e.kind, ElementKind::Photo(p) if p.asset.is_some())));
     }

@@ -382,7 +382,7 @@ fn picture_element(code: &str, x: f64, group: Option<&str>) -> Element {
         locked: false,
         zone: false,
         group: group.map(String::from),
-        kind: ElementKind::Image(ImageProps { code: code.into() }),
+        kind: ElementKind::Image(ImageProps { code: code.into(), outline: None }),
     }
 }
 

@@ -90,9 +90,15 @@ fn system_font_response(state: &AppState, index: &str) -> Response<Cow<'static, 
     }
 }
 
+/// `picto/<code>.svg` : l'image en couleur ; `picto/contour/<code>.svg` : son contour noir, à colorier.
 fn picto_response(file: &str) -> Response<Cow<'static, [u8]>> {
+    let (file, outline) = match file.strip_prefix("contour/") {
+        Some(f) => (f, true),
+        None => (file, false),
+    };
     let code = file.strip_suffix(".svg").filter(|c| !c.is_empty() && c.chars().all(|ch| ch.is_ascii_digit() || ch.is_ascii_uppercase() || ch == '-'));
-    match code.and_then(carnet_core::picto::svg) {
+    let svg = |c: &str| if outline { carnet_core::picto::outline_svg(c) } else { carnet_core::picto::svg(c) };
+    match code.and_then(svg) {
         Some(bytes) => Response::builder()
             .header(header::CONTENT_TYPE, "image/svg+xml")
             .header(header::CACHE_CONTROL, "max-age=31536000, immutable")
@@ -152,5 +158,10 @@ mod tests {
         assert_eq!(picto_response("1f98a.svg").status(), StatusCode::NOT_FOUND);
         assert_eq!(picto_response("../1F98A.svg").status(), StatusCode::NOT_FOUND);
         assert_eq!(picto_response("1F98A").status(), StatusCode::NOT_FOUND);
+        // Le contour à colorier ; « contour/ » une seule fois, et pas d'autre dossier.
+        assert_eq!(picto_response("contour/1F98A.svg").body().as_ref(), carnet_core::picto::outline_svg("1F98A").unwrap());
+        assert_eq!(picto_response("contour/1F9D2-1F3FD.svg").status(), StatusCode::OK);
+        assert_eq!(picto_response("contour/contour/1F98A.svg").status(), StatusCode::NOT_FOUND);
+        assert_eq!(picto_response("contour/../1F98A.svg").status(), StatusCode::NOT_FOUND);
     }
 }

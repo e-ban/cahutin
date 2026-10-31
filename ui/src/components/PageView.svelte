@@ -235,7 +235,7 @@
       {:else if e.kind.type === "Text"}
         <TextEl element={e} props={e.kind} {zoom} editing={e.id === editingText} ondone={(content) => ontextdone?.(e.id, content)} />
       {:else if e.kind.type === "Image"}
-        <PictoEl code={e.kind.code} />
+        <PictoEl code={e.kind.code} outline={e.kind.outline === true} />
       {:else if e.kind.type === "Shape"}
         <ShapeEl props={e.kind} frame={e.frame} {zoom} />
       {:else if e.kind.type === "Table"}

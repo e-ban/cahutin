@@ -1,6 +1,7 @@
 <script lang="ts">
   // Tiroir Décors : images OpenMoji (recherche, catégories), puis cadres et frises. En mode « Choisir les
   // images », un clic sur une image l'ajoute aux motifs de la frise (ou l'en retire) sans rien poser.
+  import { onDestroy } from "svelte";
   import Drawer from "../layout/Drawer.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { PICTO_MIME } from "../../lib/dnd";
@@ -8,6 +9,7 @@
   import { CLASS_PICTO_GROUPS, PICTO_GROUPS, SKIN_TONES, pictoElement, pictoUrl, pictos, pictosOf, replacePictos, searchPictos, toned } from "../../lib/pictos.svelte";
   import { frieze, pageFrame, toggleMotif, type FrameStyle, type FriezeSide } from "../../lib/decor";
   import { friezeMotifs } from "../../lib/friezeMotifs.svelte";
+  import { isTableCell } from "../../lib/table";
   import type { Element } from "../../lib/types";
 
   const frames: { style: FrameStyle; label: string }[] = [
@@ -28,6 +30,16 @@
     editor.selection = els.map((e) => e.id);
   }
 
+  // Le mode « Remplacer » prend fin quand on choisit autre chose sur la page, ou qu'on ferme le tiroir.
+  onDestroy(() => (editor.replacingPictos = false));
+  let selectionWhenOpened = editor.selection;
+  $effect.pre(() => {
+    if (editor.selection !== selectionWhenOpened) {
+      selectionWhenOpened = editor.selection;
+      editor.replacingPictos = false;
+    }
+  });
+
   let query = $state("");
   let category = $state<string | null>(null);
   let picking = $state(false);
@@ -44,13 +56,15 @@
       friezeMotifs.codes = toggleMotif(friezeMotifs.codes, code);
       return;
     }
-    const images = editor.page.elements.some((e) => editor.selection.includes(e.id) && e.kind.type === "Image");
-    if (images) {
+    // Remplacer seulement sur demande (« Remplacer »), ou pour l'image d'une case de tableau ; sinon un clic pose une
+    // image de plus, même si une autre est choisie.
+    const chosen = editor.page.elements.filter((e) => editor.selection.includes(e.id) && e.kind.type === "Image");
+    if (chosen.length && (editor.replacingPictos || chosen.some((e) => isTableCell(editor.page, e.id)))) {
       // Après un double-clic, seule l'image modifiée seule est remplacée ; sinon toute la frise.
-      editor.updatePage((p) => replacePictos(p, editor.selection, code, !editor.focusedMember));
+      editor.updatePage((p) => replacePictos(p, editor.selection, code, !editor.focusedMember, pictos.outline));
       return;
     }
-    const el = pictoElement(editor.page, code);
+    const el = pictoElement(editor.page, code, undefined, undefined, pictos.outline);
     editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
     editor.selection = [el.id];
   }
@@ -58,7 +72,7 @@
 
 <Drawer title={fr.decor}>
   <h3>{fr.pictures}</h3>
-  {#if picking}<p class="picking">{fr.friezePickHint}</p>{/if}
+  {#if picking}<p class="picking">{fr.friezePickHint}</p>{:else if editor.replacingPictos}<p class="picking">{fr.pictureReplacing}</p>{/if}
   <input class="search" type="search" bind:value={query} placeholder={fr.searchPicture} aria-label={fr.searchPicture} />
   {#if !query}
     <div class="chips">
@@ -71,6 +85,7 @@
       {/each}
     </div>
   {/if}
+  <label class="colour-in" title={fr.pictoOutlineHint}><input type="checkbox" checked={pictos.outline} onchange={(e) => pictos.setOutline(e.currentTarget.checked)} /> {fr.pictoOutline}</label>
   <div class="tones" role="radiogroup" aria-label={fr.skinTone}>
     <span class="label">{fr.skinTone}</span>
     {#each SKIN_TONES as color, i (color)}
@@ -92,7 +107,7 @@
           if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
         }}
       >
-        <img src={pictoUrl(p.code)} alt="" loading="lazy" decoding="async" draggable="false" />
+        <img src={pictoUrl(p.code, pictos.outline)} alt="" loading="lazy" decoding="async" draggable="false" />
         {#if rank >= 0}<span class="rank">{rank + 1}</span>{/if}
       </button>
     {:else}
@@ -154,6 +169,12 @@
     background: #e8f1fb;
     border-color: var(--accent);
     color: var(--accent);
+  }
+  .colour-in {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
   }
   .tones {
     display: flex;

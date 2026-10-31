@@ -118,7 +118,7 @@ impl Writer<'_> {
                 self.shape(e, s);
                 Ok(())
             }
-            ElementKind::Image(i) => self.picture(e, &i.code),
+            ElementKind::Image(i) => self.picture(e, &i.code, i.outline == Some(true)),
             ElementKind::Table(t) => {
                 self.table(e, t);
                 Ok(())
@@ -127,9 +127,9 @@ impl Writer<'_> {
     }
 
     /// Image OpenMoji : le SVG d'origine, ajouté une seule fois à l'archive.
-    fn picture(&mut self, e: &Element, code: &str) -> Result<(), OdgError> {
-        let svg = picto::svg(code).ok_or_else(|| OdgError::MissingPicture(code.to_string()))?;
-        let path = format!("Pictures/openmoji-{code}.svg");
+    fn picture(&mut self, e: &Element, code: &str, outline: bool) -> Result<(), OdgError> {
+        let svg = if outline { picto::outline_svg(code) } else { picto::svg(code) }.ok_or_else(|| OdgError::MissingPicture(code.to_string()))?;
+        let path = if outline { format!("Pictures/openmoji-contour-{}.svg", picto::base_code(code)) } else { format!("Pictures/openmoji-{code}.svg") };
         if !self.pictures.iter().any(|p| p.path == path) {
             self.pictures.push(Picture { path: path.clone(), media_type: "image/svg+xml", bytes: svg.to_vec() });
         }

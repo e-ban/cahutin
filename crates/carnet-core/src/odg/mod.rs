@@ -262,6 +262,27 @@ mod tests {
         }
     }
 
+    /// Une image à colorier part en contour noir et revient à colorier.
+    #[test]
+    fn an_outlined_picture_goes_and_comes_back_as_an_outline() {
+        let el = Element {
+            id: "i".into(),
+            frame: Frame { x_mm: 20.0, y_mm: 20.0, w_mm: 40.0, h_mm: 40.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Image(ImageProps { code: "1F98A".into(), outline: Some(true) }),
+        };
+        let mut e = export(&doc_with(vec![el.clone()]), &AssetStore::default());
+        assert_eq!(e.read("Pictures/openmoji-contour-1F98A.svg"), crate::picto::outline_svg("1F98A").unwrap());
+        let mut buf = Cursor::new(Vec::new());
+        export_odg(&doc_with(vec![el]), &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
+        buf.set_position(0);
+        let back = crate::import::odg::read_drawing(buf, &[]).unwrap();
+        let images: Vec<&ImageProps> = back.pages[0].elements.iter().filter_map(|e| if let ElementKind::Image(i) = &e.kind { Some(i) } else { None }).collect();
+        assert_eq!(images, [&ImageProps { code: "1F98A".into(), outline: Some(true) }]);
+    }
+
     fn doc_with(elements: Vec<Element>) -> Document {
         let mut d = Document::new("essai");
         d.pages[0].elements = elements;
@@ -670,7 +691,7 @@ mod tests {
             locked: false,
             zone: false,
             group: group.map(String::from),
-            kind: ElementKind::Image(ImageProps { code: code.into() }),
+            kind: ElementKind::Image(ImageProps { code: code.into(), outline: None }),
         }
     }
 

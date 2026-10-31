@@ -60,7 +60,7 @@ fn text_cell_kind() -> ElementKind {
 fn cell_kind(content: CellContent) -> ElementKind {
     match content {
         CellContent::Text => text_cell_kind(),
-        CellContent::Picto(code) => ElementKind::Image(ImageProps { code }),
+        CellContent::Picto(code) => ElementKind::Image(ImageProps { code, outline: None }),
         CellContent::Photo => ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
     }
 }
@@ -648,7 +648,7 @@ mod tests {
         let group = el(&p, &c).group.clone();
         set_cell_content(&mut p, &c, CellContent::Picto("1F98A".into())).unwrap();
         let e = el(&p, &c);
-        assert_eq!(e.kind, ElementKind::Image(ImageProps { code: "1F98A".into() }));
+        assert_eq!(e.kind, ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None }));
         assert_eq!(e.group, group);
         // Case de 75 × 45 mm : un carré de 42 mm (marge de 1,5 mm), centré.
         let f = e.frame;
@@ -670,7 +670,7 @@ mod tests {
         assert!(matches!(&el(&p, &c).kind, ElementKind::Text(tx) if !tx.content.is_blank()));
         set_cell_content(&mut p, &c, CellContent::Picto("1F98A".into())).unwrap();
         set_cell_content(&mut p, &c, CellContent::Picto("2B50".into())).unwrap();
-        assert_eq!(el(&p, &c).kind, ElementKind::Image(ImageProps { code: "1F98A".into() }));
+        assert_eq!(el(&p, &c).kind, ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None }));
     }
 
     #[test]

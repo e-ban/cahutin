@@ -83,7 +83,11 @@ pub fn written_version(doc: &Document) -> u32 {
         ElementKind::Text(t) => t.frame.as_ref().is_some_and(|f| f.pattern.is_some()) || t.style.named.is_some(),
         _ => false,
     };
-    if !doc.text_styles.is_empty() || elements().any(v5) {
+    // Image à colorier (contour), ou en couleur de peau : la banque d'une version plus ancienne ne l'a pas.
+    let v6 = |e: &Element| matches!(&e.kind, ElementKind::Image(i) if i.outline == Some(true) || crate::picto::has_skin_tone(&i.code));
+    if elements().any(v6) {
+        6
+    } else if !doc.text_styles.is_empty() || elements().any(v5) {
         5
     } else if elements().any(|e| matches!(e.kind, ElementKind::Table(_)) || outlined(e)) {
         4
@@ -411,7 +415,7 @@ mod tests {
             locked: false,
             zone: false,
             group: group.map(String::from),
-            kind: ElementKind::Image(ImageProps { code: "1F98A".into() }),
+            kind: ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None }),
         }
     }
 
@@ -471,6 +475,23 @@ mod tests {
         assert_eq!(load(buf).unwrap().doc.format_version, 2);
     }
 
+    /// Une image à colorier, ou en couleur de peau, demande le format 6 : une version plus ancienne ne l'a pas.
+    #[test]
+    fn written_version_is_6_with_outlined_or_toned_pictures() {
+        let mut doc = Document::new("v");
+        doc.pages[0].elements.push(picture(None));
+        assert_eq!(written_version(&doc), 2);
+        if let ElementKind::Image(i) = &mut doc.pages[0].elements[0].kind {
+            i.outline = Some(true);
+        }
+        assert_eq!(written_version(&doc), 6);
+        if let ElementKind::Image(i) = &mut doc.pages[0].elements[0].kind {
+            i.outline = None;
+            i.code = "1F9D2-1F3FD".into();
+        }
+        assert_eq!(written_version(&doc), 6);
+    }
+
     /// Bombe zip : une entrée minuscule qui se décompresse sans fin ne doit pas remplir la mémoire.
     #[test]
     fn an_entry_larger_than_the_cap_is_refused() {
@@ -505,9 +526,9 @@ mod tests {
     }
 
     #[test]
-    fn newer_than_5_is_refused() {
+    fn newer_than_6_is_refused() {
         let mut doc = Document::new("futur");
-        doc.format_version = 6;
+        doc.format_version = 7;
         let json = serde_json::to_vec(&doc).unwrap();
         let mut buf = Cursor::new(Vec::new());
         {
@@ -518,7 +539,7 @@ mod tests {
         }
         buf.set_position(0);
         let err = load(buf).err().unwrap();
-        assert_eq!(err, NativeError::NewerVersion(6));
+        assert_eq!(err, NativeError::NewerVersion(7));
         assert!(err.message_fr().contains("plus récente"));
     }
 

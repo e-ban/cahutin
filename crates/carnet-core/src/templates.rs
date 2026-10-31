@@ -878,7 +878,7 @@ mod tests {
             group: Some("g".into()),
             kind,
         };
-        page.elements.push(base(ElementKind::Image(ImageProps { code: "1F98A".into() })));
+        page.elements.push(base(ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None })));
         page.elements.push(base(ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false })));
         let t = from_page("m", &page, &AssetStore::default());
         assert_eq!(t.page.elements.len(), 1);

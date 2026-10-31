@@ -3,4 +3,8 @@
 /**
  * Image de la banque OpenMoji embarquée, désignée par son code (par exemple `1F98A`).
  */
-export type ImageProps = { code: string, };
+export type ImageProps = { code: string, 
+/**
+ * Contour seul, au trait noir (à colorier) ; absent : l'image en couleur.
+ */
+outline?: boolean | null, };

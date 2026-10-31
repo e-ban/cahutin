@@ -45,8 +45,9 @@ pub fn renew_ids(page: &mut Page) {
 }
 
 /// Version la plus récente que cette application sait lire (2 : élément image ; 3 : cadre de texte,
-/// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau, lettres creuses).
-pub const FORMAT_VERSION: u32 = 5;
+/// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau, lettres creuses ; 5 : photo en
+/// miroir, lignes d'écriture, styles nommés ; 6 : image à colorier ou en couleur de peau).
+pub const FORMAT_VERSION: u32 = 6;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -219,6 +220,10 @@ pub struct TableProps {
 #[ts(export)]
 pub struct ImageProps {
     pub code: String,
+    /// Contour seul, au trait noir (à colorier) ; absent : l'image en couleur.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub outline: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -607,6 +612,6 @@ mod tests {
         let json = r#"{"id":"e","frame":{"x_mm":0,"y_mm":0,"w_mm":1,"h_mm":1,"rotation_deg":0},"locked":false,"zone":false,"kind":{"type":"Image","code":"1F98A"}}"#;
         let e: Element = serde_json::from_str(json).unwrap();
         assert_eq!(e.group, None);
-        assert_eq!(e.kind, ElementKind::Image(ImageProps { code: "1F98A".into() }));
+        assert_eq!(e.kind, ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None }));
     }
 }

@@ -515,9 +515,14 @@ impl<R: Read + Seek> PageReader<'_, R> {
 
     fn image(&mut self, frame: Frame, image: Node) {
         // Image de la banque OpenMoji, telle que l'export de Cahutin la range : elle redevient une image de la banque.
-        let code = image.attribute((XLINK, "href")).and_then(|h| h.strip_prefix("Pictures/openmoji-")).and_then(|h| h.strip_suffix(".svg"));
+        // Une image à colorier est rangée sous `openmoji-contour-<code>.svg`.
+        let name = image.attribute((XLINK, "href")).and_then(|h| h.strip_prefix("Pictures/openmoji-")).and_then(|h| h.strip_suffix(".svg"));
+        let (code, outline) = match name.map(|n| n.strip_prefix("contour-")) {
+            Some(Some(c)) => (Some(c), Some(true)),
+            _ => (name, None),
+        };
         if let Some(code) = code.filter(|c| crate::picto::svg(c).is_some()) {
-            self.items.push(Item::Element(Box::new(element(frame, ElementKind::Image(ImageProps { code: code.to_string() })))));
+            self.items.push(Item::Element(Box::new(element(frame, ElementKind::Image(ImageProps { code: code.to_string(), outline })))));
             return;
         }
         let asset = image.attribute((XLINK, "href")).and_then(|href| read_entry(self.zip, href)).and_then(|bytes| import_bytes(&bytes).ok());

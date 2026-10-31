@@ -24,6 +24,7 @@
   import { blockFrieze } from "../lib/decor";
   import { cutMarks, type CutStyle } from "../lib/cutMarks";
   import { friezeMotifs } from "../lib/friezeMotifs.svelte";
+  import { setPictosOutline } from "../lib/pictos.svelte";
   import { ALIGNS, VALIGNS, currentFont, currentSize, insertAtCursor, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
   import type { NamedTextStyle, Frame } from "../lib/types";
 
@@ -425,7 +426,9 @@
         {/if}
       </div>
     {:else if selected?.kind.type === "Image"}
-      <button onclick={() => (editor.drawer = "decor")}>⇄ {fr.replace}</button>
+      <button class:on={editor.replacingPictos} onclick={() => ((editor.replacingPictos = true), (editor.drawer = "decor"))}>⇄ {fr.replace}</button>
+      {@const colourIn = selected.kind.outline === true}
+      <button class:on={colourIn} aria-pressed={colourIn} title={fr.pictoOutlineHint} onclick={() => editor.updatePage((p) => setPictosOutline(p, editor.selection, !colourIn))}>✎ {fr.pictoOutlineShort}</button>
       {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
     {:else if selected?.kind.type === "Shape"}
       {@const s = selected.kind}

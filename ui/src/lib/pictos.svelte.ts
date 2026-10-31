@@ -65,20 +65,35 @@ export function searchPictos(index: PictoEntry[], query: string): PictoEntry[] {
     .map((x) => x.p);
 }
 
-export const pictoUrl = (code: string) => protocolUrl(`/picto/${code}.svg`);
+/** L'image en couleur, ou son contour noir à colorier. */
+export const pictoUrl = (code: string, outline = false) => protocolUrl(`/picto/${outline ? "contour/" : ""}${code}.svg`);
 
 /** Nouvelle image carrée, centrée sur la page ou sur le point donné. */
-export function pictoElement(page: Page, code: string, at?: { x_mm: number; y_mm: number }, size_mm = PICTO_SIZE_MM): Element {
+export function pictoElement(page: Page, code: string, at?: { x_mm: number; y_mm: number }, size_mm = PICTO_SIZE_MM, outline = false): Element {
   const frame = at
     ? { x_mm: Math.round((at.x_mm - size_mm / 2) * 10) / 10, y_mm: Math.round((at.y_mm - size_mm / 2) * 10) / 10, w_mm: size_mm, h_mm: size_mm, rotation_deg: 0 }
     : centeredFrame(page, size_mm, size_mm);
-  return { id: newId(), frame, locked: false, zone: false, kind: { type: "Image", code } };
+  return { id: newId(), frame, locked: false, zone: false, kind: { type: "Image", code, ...(outline ? { outline: true } : {}) } };
 }
 
-/** Remplace toutes les images de la sélection et de ses groupes (une frise change de motif). */
-export function replacePictos(page: Page, ids: string[], code: string, expand = true): Page {
+/** Remplace toutes les images de la sélection et de ses groupes (une frise change de motif) ; `outline` : en
+ *  couleur ou à colorier, sinon comme avant. */
+export function replacePictos(page: Page, ids: string[], code: string, expand = true, outline?: boolean): Page {
   const all = new Set(expand ? expandSelection(page, ids) : ids);
-  return { ...page, elements: page.elements.map((e) => (all.has(e.id) && e.kind.type === "Image" && !e.locked ? { ...e, kind: { type: "Image", code } } : e)) };
+  const kind = (old: Element["kind"]): Element["kind"] => {
+    const keep = old.type === "Image" ? old.outline === true : false;
+    return (outline ?? keep) ? { type: "Image", code, outline: true } : { type: "Image", code };
+  };
+  return { ...page, elements: page.elements.map((e) => (all.has(e.id) && e.kind.type === "Image" && !e.locked ? { ...e, kind: kind(e.kind) } : e)) };
+}
+
+/** Les images de la sélection (et de ses groupes) en couleur ou à colorier. */
+export function setPictosOutline(page: Page, ids: string[], outline: boolean): Page {
+  const all = new Set(expandSelection(page, ids));
+  return {
+    ...page,
+    elements: page.elements.map((e) => (all.has(e.id) && e.kind.type === "Image" && !e.locked ? { ...e, kind: outline ? { ...e.kind, outline: true } : { type: "Image", code: e.kind.code } } : e)),
+  };
 }
 
 /** Teintes de peau du choix : celle d'OpenMoji (jaune), puis de la plus claire à la plus foncée. */
@@ -97,6 +112,8 @@ class Pictos {
   tones = $state.raw<Record<string, string[]>>({});
   /** Teinte choisie dans le tiroir Décors, gardée d'une fois sur l'autre. */
   tone = $state(readPref("pictoTone", 0));
+  /** Images à colorier (contour noir) dans le tiroir Décors, gardé d'une fois sur l'autre. */
+  outline = $state(readPref("pictoOutline", false));
   #loading: Promise<void> | null = null;
 
   /** Index et teintes servis avec l'interface (dossier assets) ; chargés une fois. */
@@ -109,6 +126,11 @@ class Pictos {
       })
       .catch(() => void (this.#loading = null));
     return this.#loading;
+  }
+
+  setOutline(outline: boolean) {
+    this.outline = outline;
+    writePref("pictoOutline", outline);
   }
 
   setTone(tone: number) {

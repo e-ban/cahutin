@@ -57,7 +57,7 @@
   import { fonts } from "./lib/fonts.svelte";
   import { addPhotoAt } from "./lib/editActions";
   import { expandSelection, groupOf } from "./lib/groups";
-  import { pictoElement } from "./lib/pictos.svelte";
+  import { pictoElement, pictos } from "./lib/pictos.svelte";
   import { handleShortcut } from "./lib/shortcuts";
   import { newDocument, newId } from "./lib/factory";
   import { templates } from "./lib/templates.svelte";
@@ -258,7 +258,7 @@
       oncontext={openContextMenu}
       onfocusmember={focusMember}
       ondroppicto={(code, x, y) => {
-        const el = pictoElement(editor.page, code, { x_mm: x, y_mm: y });
+        const el = pictoElement(editor.page, code, { x_mm: x, y_mm: y }, undefined, pictos.outline);
         editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
         editor.selection = [el.id];
       }}

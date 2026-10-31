@@ -1,11 +1,13 @@
 <script lang="ts">
-  // Image de la banque OpenMoji : le même SVG qu'à l'export. Code inconnu : un carré gris.
+  // Image de la banque OpenMoji, en couleur ou en contour à colorier : le même SVG qu'à l'export. Code inconnu :
+  // un carré gris.
   import { pictoUrl } from "../../lib/pictos.svelte";
 
-  let { code }: { code: string } = $props();
+  let { code, outline = false }: { code: string; outline?: boolean } = $props();
   let broken = $state(false);
   $effect(() => {
     void code;
+    void outline;
     broken = false;
   });
 </script>
@@ -13,7 +15,7 @@
 {#if broken}
   <div class="missing" aria-label="Image introuvable"></div>
 {:else}
-  <img src={pictoUrl(code)} alt="" draggable="false" onerror={() => (broken = true)} />
+  <img src={pictoUrl(code, outline)} alt="" draggable="false" onerror={() => (broken = true)} />
 {/if}
 
 <style>

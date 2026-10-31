@@ -4,7 +4,8 @@
 À lancer une fois (le résultat est commité) : python3 scripts/build-openmoji.py
 Garde les images couleur SVG sans drapeaux, avec des mots-clés français (annotations CLDR d'Unicode) et
 anglais (OpenMoji). Les variantes de couleur de peau d'une seule teinte sont dans l'archive, hors de
-l'index : `tones.json` donne pour chaque image ses cinq teintes, de la plus claire à la plus foncée.
+l'index : `tones.json` donne pour chaque image ses cinq teintes, de la plus claire à la plus foncée. Chaque
+image de l'index a aussi sa version au trait noir, à colorier : `contour/<code>.svg`.
 """
 import io, json, urllib.request, zipfile, pathlib
 
@@ -25,6 +26,7 @@ def get(url):
 def main():
     meta = json.loads(get(f"https://raw.githubusercontent.com/hfg-gmuend/openmoji/{OPENMOJI}/data/openmoji.json"))
     svgs = zipfile.ZipFile(io.BytesIO(get(f"https://github.com/hfg-gmuend/openmoji/releases/download/{OPENMOJI}/openmoji-svg-color.zip")))
+    black = zipfile.ZipFile(io.BytesIO(get(f"https://github.com/hfg-gmuend/openmoji/releases/download/{OPENMOJI}/openmoji-svg-black.zip")))
     base = f"https://raw.githubusercontent.com/unicode-org/cldr-json/{CLDR}/cldr-json"
     fr = json.loads(get(f"{base}/cldr-annotations-full/annotations/fr/annotations.json"))["annotations"]["annotations"]
     frd = json.loads(get(f"{base}/cldr-annotations-derived-full/annotationsDerived/fr/annotations.json"))["annotationsDerived"]["annotations"]
@@ -51,6 +53,7 @@ def main():
                 continue
             name = f"{m['hexcode']}.svg"
             z.writestr(name, svgs.read(name))
+            z.writestr(f"contour/{name}", black.read(name))
             en = [m["annotation"]] + [t.strip() for t in (m["tags"] + "," + m["openmoji_tags"]).split(",") if t.strip()]
             index.append({"code": m["hexcode"], "group": GROUPS[m["group"]], "fr": french(m["emoji"]), "en": list(dict.fromkeys(en))})
     OUT.mkdir(parents=True, exist_ok=True)

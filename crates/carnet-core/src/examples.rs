@@ -80,7 +80,7 @@ fn title(content: &str, y: f64, size_pt: f64, color: &str) -> Element {
 }
 
 fn picto(code: &str, x: f64, y: f64, size: f64) -> Element {
-    el(frame(x, y, size, size), ElementKind::Image(ImageProps { code: code.into() }))
+    el(frame(x, y, size, size), ElementKind::Image(ImageProps { code: code.into(), outline: None }))
 }
 
 pub(crate) fn shape(kind: ShapeKind, f: Frame, fill: Option<&str>, stroke: Option<(f64, &str)>, corner_radius_mm: f64) -> Element {

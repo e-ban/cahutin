@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { assignSymbols, CLASS_PICTO_GROUPS, STUDENT_SYMBOLS, toned, pageHasPictos, pictoElement, pictosOf, replacePictos, searchPictos, type PictoEntry } from "./pictos.svelte";
+import { assignSymbols, setPictosOutline, CLASS_PICTO_GROUPS, STUDENT_SYMBOLS, toned, pageHasPictos, pictoElement, pictosOf, replacePictos, searchPictos, type PictoEntry } from "./pictos.svelte";
 import type { Page } from "./types";
 
 const index: PictoEntry[] = JSON.parse(readFileSync(fileURLToPath(new URL("../../../assets/openmoji/index.json", import.meta.url)), "utf8"));
@@ -57,4 +57,14 @@ test("a person takes the chosen skin tone, other pictures stay as they are", () 
   expect(toned(tones, "1F9D2", 0)).toBe("1F9D2");
   expect(toned(tones, "1F98A", 4)).toBe("1F98A");
   expect(Object.values(tones).every((v) => (v as string[]).length === 5)).toBe(true);
+});
+
+test("pictures switch to their outline to colour in, and back, keeping it when replaced", () => {
+  const p = page();
+  const e = pictoElement(p, "1F98A", undefined, 30, true);
+  expect(e.kind).toEqual({ type: "Image", code: "1F98A", outline: true });
+  p.elements.push(e);
+  expect(replacePictos(p, [e.id], "1F431").elements[0].kind).toEqual({ type: "Image", code: "1F431", outline: true });
+  expect(replacePictos(p, [e.id], "1F431", true, false).elements[0].kind).toEqual({ type: "Image", code: "1F431" });
+  expect(setPictosOutline(p, [e.id], false).elements[0].kind).toEqual({ type: "Image", code: "1F98A" });
 });

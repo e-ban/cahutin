@@ -12,6 +12,8 @@
   import { templates } from "../../lib/templates.svelte";
 
   const MINI = 0.24;
+  /** Une miniature tient dans la case d'une page A4 portrait, même en paysage ou en A3. */
+  const miniZoom = (p: { size: { width_mm: number; height_mm: number } }) => MINI * Math.min(1, 210 / p.size.width_mm, 297 / p.size.height_mm);
   const RECENT = 0.18;
   let version = $state("");
   getVersion().then((v) => (version = v)).catch(() => (version = ""));
@@ -63,7 +65,7 @@
 {#snippet layout(t: (typeof templates.infos)[number])}
   <button class="card" onclick={() => chooseLayout(t.id)}>
     <div class="mini">
-      {#if templates.previews[t.id]}<PageView page={templates.previews[t.id]} doc={editor.doc} zoom={MINI} />{/if}
+      {#if templates.previews[t.id]}<PageView page={templates.previews[t.id]} doc={editor.doc} zoom={miniZoom(templates.previews[t.id])} />{/if}
     </div>
     <span>{t.name}</span>
   </button>
@@ -119,7 +121,7 @@
     <div class="grid">
       {#each examples as ex (ex.info.id)}
         <button class="card" onclick={() => openExampleDoc(ex.info.id)}>
-          <div class="mini"><PageView page={ex.doc.pages[0]} doc={ex.doc} zoom={MINI} /></div>
+          <div class="mini"><PageView page={ex.doc.pages[0]} doc={ex.doc} zoom={miniZoom(ex.doc.pages[0])} /></div>
           <span>{ex.info.name}</span>
         </button>
       {/each}
@@ -308,5 +310,6 @@
     pointer-events: none;
     display: flex;
     justify-content: center;
+    align-items: center;
   }
 </style>

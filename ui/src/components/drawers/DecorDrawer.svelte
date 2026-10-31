@@ -5,7 +5,7 @@
   import { editor } from "../../lib/docStore.svelte";
   import { PICTO_MIME } from "../../lib/dnd";
   import { fr } from "../../lib/i18n/fr";
-  import { CLASS_PICTO_GROUPS, PICTO_GROUPS, pictoElement, pictoUrl, pictos, pictosOf, replacePictos, searchPictos } from "../../lib/pictos.svelte";
+  import { CLASS_PICTO_GROUPS, PICTO_GROUPS, SKIN_TONES, pictoElement, pictoUrl, pictos, pictosOf, replacePictos, searchPictos, toned } from "../../lib/pictos.svelte";
   import { frieze, pageFrame, toggleMotif, type FrameStyle, type FriezeSide } from "../../lib/decor";
   import { friezeMotifs } from "../../lib/friezeMotifs.svelte";
   import type { Element } from "../../lib/types";
@@ -71,8 +71,15 @@
       {/each}
     </div>
   {/if}
+  <div class="tones" role="radiogroup" aria-label={fr.skinTone}>
+    <span class="label">{fr.skinTone}</span>
+    {#each SKIN_TONES as color, i (color)}
+      <button class="tone" class:on={pictos.tone === i} role="radio" aria-checked={pictos.tone === i} aria-label={fr.skinTones[i]} title={fr.skinTones[i]} style:background={color} onclick={() => pictos.setTone(i)}></button>
+    {/each}
+  </div>
   <div class="thumbs" class:picking>
-    {#each shown as p (p.code)}
+    {#each shown as entry (entry.code)}
+      {@const p = { ...entry, code: toned(pictos.tones, entry.code, pictos.tone) }}
       {@const rank = picking ? friezeMotifs.codes.indexOf(p.code) : -1}
       <button
         class="thumb"
@@ -147,6 +154,22 @@
     background: #e8f1fb;
     border-color: var(--accent);
     color: var(--accent);
+  }
+  .tones {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tone {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  .tone.on {
+    border-color: var(--accent);
   }
   .thumbs {
     display: grid;

@@ -10,6 +10,7 @@
   - Document de 40 pages : le numéro de la page, ou le prénom d'un enfant, à saisir pour y aller (« Anna » passe d'une Anna à l'autre), Pg.Suiv. et Pg.Préc., une bande de miniatures plus large qui suit la page courante, et le prénom de l'enfant au survol de sa miniature (avec l'initiale du nom pour deux homonymes, quand le nom est sur la page).
   - L'export pour LibreOffice affiche « Export en cours… » pendant qu'il travaille.
   - Les raccourcis de la page (Suppr, flèches, Ctrl+Z) n'agissent plus sur le document caché derrière « Ma classe » ou la photothèque.
+- Tiroir Décors : les personnes et les mains existent en cinq couleurs de peau (pastilles « Peau » au-dessus des images), en plus du jaune d'OpenMoji ; le choix est gardé.
 - Import plus fidèle (essai avec des documents réels de maternelle) :
   - Les tracés d'un PDF (fiche de graphisme, cadre arrondi) ne sont plus perdus : ils sont redessinés dans une image fixe, au fond de la page, avec leurs couleurs et leurs pointillés.
   - Une police absente de l'ordinateur prend une police de même largeur quand elle existe (Helvetica et Arial : Liberation Sans ; Times : Liberation Serif ; Calibri : Carlito…). Sinon le texte rétrécit juste assez pour tenir, au lieu de déborder, et le message d'import le dit.

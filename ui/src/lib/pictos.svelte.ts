@@ -1,6 +1,7 @@
 // Banque d'images OpenMoji : index (codes, catégories, mots-clés français et anglais), recherche,
 // création et remplacement d'éléments image.
 import { protocolUrl } from "./api";
+import { readPref, writePref } from "./prefs";
 import { centeredFrame, newId } from "./factory";
 import { normalize } from "./fontSearch";
 import { expandSelection } from "./groups";
@@ -80,19 +81,39 @@ export function replacePictos(page: Page, ids: string[], code: string, expand = 
   return { ...page, elements: page.elements.map((e) => (all.has(e.id) && e.kind.type === "Image" && !e.locked ? { ...e, kind: { type: "Image", code } } : e)) };
 }
 
+/** Teintes de peau du choix : celle d'OpenMoji (jaune), puis de la plus claire à la plus foncée. */
+export const SKIN_TONES = ["#fcea2b", "#fadcbc", "#e0bb95", "#bf8f68", "#9b643d", "#594539"];
+
+/** L'image dans la teinte choisie (0 : celle d'OpenMoji), si elle existe en cinq teintes ; sinon elle-même. */
+export function toned(tones: Record<string, string[]>, code: string, tone: number): string {
+  return tone > 0 ? (tones[code]?.[tone - 1] ?? code) : code;
+}
+
 export const pageHasPictos = (page: Page) => page.elements.some((e) => e.kind.type === "Image");
 
 class Pictos {
   index = $state.raw<PictoEntry[]>([]);
+  /** Pour une image d'une personne ou d'une main : ses cinq teintes de peau. */
+  tones = $state.raw<Record<string, string[]>>({});
+  /** Teinte choisie dans le tiroir Décors, gardée d'une fois sur l'autre. */
+  tone = $state(readPref("pictoTone", 0));
   #loading: Promise<void> | null = null;
 
-  /** Index servi avec l'interface (dossier assets) ; chargé une fois. */
+  /** Index et teintes servis avec l'interface (dossier assets) ; chargés une fois. */
   load(): Promise<void> {
-    this.#loading ??= fetch("/openmoji/index.json")
-      .then((r) => r.json())
-      .then((data: PictoEntry[]) => void (this.index = data))
+    const json = (path: string) => fetch(path).then((r) => r.json());
+    this.#loading ??= Promise.all([json("/openmoji/index.json"), json("/openmoji/tones.json")])
+      .then(([index, tones]: [PictoEntry[], Record<string, string[]>]) => {
+        this.index = index;
+        this.tones = tones;
+      })
       .catch(() => void (this.#loading = null));
     return this.#loading;
+  }
+
+  setTone(tone: number) {
+    this.tone = tone;
+    writePref("pictoTone", tone);
   }
 }
 

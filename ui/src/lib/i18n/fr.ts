@@ -381,6 +381,8 @@ export const fr = {
   libraryNoConsentHint: "Pas d'autorisation photo",
   libraryBlurFirst: "Certaines photos montrent un enfant sans autorisation : floutez son visage (bouton « Flouter » de la photo) avant d'imprimer.",
   libraryPrivacy: "Les photos restent sur l'ordinateur, dans Documents/Cahutin/Photos, sans lieu ni appareil. Supprimez le dossier en fin d'année.",
+  skinTone: "Peau :",
+  skinTones: ["Jaune (OpenMoji)", "Claire", "Moyennement claire", "Mate", "Moyennement foncée", "Foncée"],
   libraryBehindMore: (n: number) => (n > 1 ? `et ${n} autres` : "et 1 autre"),
   libraryBehindLess: "moins",
   libraryDay: (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),

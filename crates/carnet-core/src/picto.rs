@@ -36,9 +36,11 @@ pub fn count() -> usize {
 mod tests {
     use super::*;
 
+    /// 2 195 images, plus les cinq teintes de peau de 330 d'entre elles.
     #[test]
-    fn bank_has_2195_pictures() {
-        assert_eq!(count(), 2195);
+    fn bank_has_2195_pictures_and_their_skin_tones() {
+        assert_eq!(count(), 2195 + 5 * 330);
+        assert!(svg("1F9D2-1F3FD").is_some(), "enfant, peau mate");
     }
 
     #[test]

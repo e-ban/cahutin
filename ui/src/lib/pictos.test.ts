@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { assignSymbols, CLASS_PICTO_GROUPS, STUDENT_SYMBOLS, pageHasPictos, pictoElement, pictosOf, replacePictos, searchPictos, type PictoEntry } from "./pictos.svelte";
+import { assignSymbols, CLASS_PICTO_GROUPS, STUDENT_SYMBOLS, toned, pageHasPictos, pictoElement, pictosOf, replacePictos, searchPictos, type PictoEntry } from "./pictos.svelte";
 import type { Page } from "./types";
 
 const index: PictoEntry[] = JSON.parse(readFileSync(fileURLToPath(new URL("../../../assets/openmoji/index.json", import.meta.url)), "utf8"));
@@ -49,4 +49,12 @@ test("each child without a symbol gets one of their own, taken from the bank", (
   expect(new Set(STUDENT_SYMBOLS).size).toBe(STUDENT_SYMBOLS.length);
   const kids = [{ symbol: null }, { symbol: "1F436" }, { symbol: null }];
   expect(assignSymbols(kids).map((k) => k.symbol)).toEqual(["1F431", "1F436", "1F42D"]);
+});
+
+test("a person takes the chosen skin tone, other pictures stay as they are", () => {
+  const tones = JSON.parse(readFileSync(new URL("../../../assets/openmoji/tones.json", import.meta.url), "utf8"));
+  expect(toned(tones, "1F9D2", 3)).toBe("1F9D2-1F3FD");
+  expect(toned(tones, "1F9D2", 0)).toBe("1F9D2");
+  expect(toned(tones, "1F98A", 4)).toBe("1F98A");
+  expect(Object.values(tones).every((v) => (v as string[]).length === 5)).toBe(true);
 });

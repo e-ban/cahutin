@@ -58,6 +58,8 @@ Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvell
 
 - Une seule connexion possible, facultative et désactivée tant que vous ne l'avez pas acceptée : une fois par jour, Cahutin lit le numéro de la dernière version sur l'API de GitHub (`api.github.com`). Rien d'autre n'est envoyé (ni document, ni identifiant, ni information sur l'ordinateur) ; GitHub voit seulement l'adresse IP de la connexion, comme pour toute visite d'un site. L'interface elle-même n'a accès à aucune adresse distante.
 - Les métadonnées des photos (lieu, appareil, date) sont retirées à l'import.
+- Le repérage des visages, pour flouter ceux des enfants sans autorisation photo, se fait sur l'ordinateur par un modèle intégré à l'application, et seulement avec votre accord. Il trouve où sont les visages, sans jamais reconnaître qui est qui. La photo floutée remplace l'originale dans le document.
+- La liste de la classe reste sur l'ordinateur, dans `Documents/Cahutin/Classes`.
 - Le journal de l'application ne contient ni texte de document, ni nom de fichier, ni prénom d'enfant. Le rapport de problème (Aide > Signaler un problème) reprend seulement ce journal.
 - Les photos importées sont copiées dans un dossier temporaire vidé à la fermeture ; un document enregistré (`.carnet`) contient ses propres photos.
 
@@ -67,6 +69,7 @@ Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvell
 |---|---|
 | `.carnet` | Carnet fait avec Cahutin : pages, photos, polices ajoutées dont la licence le permet. |
 | `.carnet-modele` | Modèle personnel, à copier dans `%APPDATA%\fr.cahutin.app\modeles` (Windows) ou `~/.local/share/fr.cahutin.app/modeles` (Linux) sur un autre poste. |
+| `.cahutin-classe` | Liste d'une classe (prénoms, photos et autorisations), rangée dans `Documents/Cahutin/Classes`. |
 | `.odg` | Export pour LibreOffice Draw. |
 
 ## Développement
@@ -78,7 +81,7 @@ crates/carnet-core   moteur : modèle de document, photos, polices, format .carn
 src-tauri            application : fenêtre, commandes, protocole des fichiers locaux
 ui                   interface Svelte
 assets               polices, images OpenMoji et modèle de repérage des visages embarqués
-docs                 recette Windows et capture d'écran
+docs                 recette Windows, feuille de route et capture d'écran
 ```
 
 Prérequis : Rust stable, Node 26 ; sous Linux, les bibliothèques de WebKitGTK demandées par Tauri ; sous Windows, les Build Tools de Visual Studio (C++).
@@ -102,11 +105,19 @@ Les types TypeScript de `ui/src/lib/gen` sont produits par le moteur (ts-rs) lor
 
 ### Publier une version
 
-1. Mettre la version dans `Cargo.toml` (`[workspace.package]`) et `package.json`, puis lancer `cargo check` pour mettre à jour `Cargo.lock`.
-2. Ajouter une section `## <version>` en tête de `CHANGELOG.md`.
-3. Valider, puis créer et envoyer le tag : `git tag v<version>` et `git push origin main v<version>`.
+1. Vérifier que tout ce que la version apporte est expliqué :
+   - **documentation** : ce README (« Ce que Cahutin sait faire », « Confidentialité », « Fichiers », « Mentions ») ;
+   - **aide de l'application** : visite guidée (`ui/src/lib/tour.svelte.ts`), astuces (`ui/src/lib/tips.ts`), bulles d'aide (`ui/src/lib/hints.svelte.ts`), et la fenêtre des nouveautés : une entrée en tête de `RELEASES` dans `ui/src/lib/whatsNew.ts`, ses captures dans `assets/nouveautes/<version>/` ;
+   - **site** : `site/index.html` (publié par le workflow « Site » à l'envoi sur `main`).
+2. Mettre la version dans `Cargo.toml` (`[workspace.package]`) et `package.json`, puis lancer `cargo check` et `npm install --package-lock-only` pour mettre à jour `Cargo.lock` et `package-lock.json`.
+3. Renommer la section `## Non publié` de `CHANGELOG.md` en `## <version>`.
+4. Valider, puis créer le tag signé et tout envoyer : `git tag -s v<version> -m "Cahutin <version> (bêta)"` et `git push origin main v<version>`.
 
 Le workflow « Construction » lance les tests sous Windows et Linux, construit les installeurs et publie la release avec ses empreintes (`SHA256SUMS`) et la section du journal des versions. Une fois la release publiée, signer les empreintes : `scripts/sign-release.sh v<version>`. Il refuse un tag qui ne correspond pas à la version de l'application ou qui n'a pas de section dans `CHANGELOG.md`.
+
+## Contribuer
+
+Signalements, idées et code sont bienvenus : voir [CONTRIBUTING.md](CONTRIBUTING.md) et le [code de conduite](CODE_OF_CONDUCT.md). Une faille de sécurité se signale en privé : voir [SECURITY.md](SECURITY.md).
 
 ## Mentions
 

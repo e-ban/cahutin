@@ -1,0 +1,16 @@
+name: Idée
+description: Une fonction qui vous aiderait en classe.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: besoin
+    attributes:
+      label: Ce que vous voulez faire en classe
+      description: Le document ou l'activité, plutôt que la solution. Un exemple (photo d'une fiche sans enfant, lien) aide beaucoup.
+    validations:
+      required: true
+  - type: textarea
+    id: aujourdhui
+    attributes:
+      label: Comment vous faites aujourd'hui
+      description: Avec Cahutin ou un autre logiciel, et ce qui coince.

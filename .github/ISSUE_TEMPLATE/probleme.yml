@@ -1,0 +1,42 @@
+name: Problème
+description: Quelque chose ne marche pas comme prévu.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de prendre le temps de signaler un problème. **Ne joignez jamais de photo d'enfant ni de document avec de vrais prénoms.** Une faille de sécurité se signale en privé : voir [SECURITY.md](https://github.com/e-ban/cahutin/blob/main/SECURITY.md).
+  - type: textarea
+    id: quoi
+    attributes:
+      label: Ce qui se passe
+      description: Ce que vous faisiez, ce que vous attendiez, ce qui s'est passé à la place.
+    validations:
+      required: true
+  - type: textarea
+    id: etapes
+    attributes:
+      label: Pour le reproduire
+      placeholder: |
+        1. Ouvrir le modèle « Étiquettes »
+        2. …
+  - type: input
+    id: version
+    attributes:
+      label: Version de Cahutin
+      description: Menu Aide > « À propos de Cahutin… ».
+      placeholder: "0.6.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: systeme
+    attributes:
+      label: Système
+      options: ["Windows 11", "Windows 10", "Linux"]
+    validations:
+      required: true
+  - type: textarea
+    id: rapport
+    attributes:
+      label: Rapport de problème
+      description: Menu Aide > « Signaler un problème… » enregistre un rapport (sans texte, ni nom de fichier, ni prénom). Glissez-le ici.

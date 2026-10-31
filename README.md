@@ -42,7 +42,7 @@ Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvell
 - **Pages** A4 en portrait ou en paysage, plusieurs pages par document.
 - **Modèles** fournis (Grille de photos, Récit, Page à compléter, Étiquettes, Étiquettes photo, Photos et textes, Photos légendées, Affiche paysage) et modèles personnels à partager entre collègues.
 - **Exemples** à découvrir depuis l'écran d'accueil : Sortie à la ferme, Joyeux anniversaire, La météo de la semaine, J'écris mon prénom, Les saisons.
-- **Photos** : import d'un dossier entier, photothèque du document, recadrage, coins arrondis, bordure, ombre, légende.
+- **Photos** : import d'un dossier entier, photothèque du document, recadrage, coins arrondis, bordure, ombre, légende, flou des visages (repérés sur l'ordinateur ou tracés à la main) pour les enfants sans autorisation photo.
 - **Textes** : gras, italique, souligné, couleurs, alignement ; polices lisibles pour l'école fournies (Andika, Atkinson Hyperlegible, OpenDyslexic, Playwrite FR Moderne pour la cursive), polices ajoutées et polices installées sur l'ordinateur.
 - **Classe** : liste des élèves (photo avec autorisation, symbole, niveau, groupe), gardée sur l'ordinateur, et génération d'une page par élève ou d'une planche d'étiquettes remplie.
 - **Tableaux** : cases avec texte, pictogramme ou photo, lignes et colonnes à ajouter ou retirer, cases fusionnées, traits réglables.
@@ -77,7 +77,7 @@ Cahutin est écrit en Rust (moteur et application [Tauri 2](https://tauri.app)) 
 crates/carnet-core   moteur : modèle de document, photos, polices, format .carnet, export ODG
 src-tauri            application : fenêtre, commandes, protocole des fichiers locaux
 ui                   interface Svelte
-assets               polices et images OpenMoji embarquées
+assets               polices, images OpenMoji et modèle de repérage des visages embarqués
 docs                 recette Windows et capture d'écran
 ```
 
@@ -111,6 +111,7 @@ Le workflow « Construction » lance les tests sous Windows et Linux, construit 
 ## Mentions
 
 - Images : [OpenMoji](https://openmoji.org), licence CC BY-SA 4.0 ; mots-clés français issus de [Unicode CLDR](https://cldr.unicode.org) (licence Unicode). Une page qui contient une image porte la mention « Pictogrammes : OpenMoji, CC BY-SA 4.0 ».
+- Repérage des visages : [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) (OpenCV Zoo), licence MIT, exécuté par [tract](https://github.com/sonos/tract).
 - Polices fournies : licence SIL Open Font License 1.1 (fichiers `OFL.txt` dans `assets/fonts`).
 
 ## Licence

@@ -15,10 +15,11 @@
   --scotch: rgba(246, 232, 170, 0.78);
   --u: 8px; /* interligne Seyès : 4 lignes fines par grand carreau */
   --marge-x: clamp(20px, 7vw, 96px);
+  --barre: 64px;
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: calc(var(--barre) + 16px); }
 body {
   margin: 0;
   color: var(--encre);
@@ -39,6 +40,46 @@ img { max-width: 100%; height: auto; display: block; }
 
 .cahier { padding: 0 20px 0 calc(var(--marge-x) + 28px); max-width: 1240px; overflow-x: clip; }
 .texte { max-width: 62ch; }
+
+/* Barre du haut : le nom, les sections, le code source, le téléchargement. */
+.barre {
+  position: sticky; top: 0; z-index: 10; height: var(--barre);
+  display: flex; align-items: center; gap: 24px; padding: 0 clamp(16px, 3vw, 40px);
+  background: rgba(252, 253, 255, 0.92); backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--ligne-forte); font-size: 17px;
+}
+.marque { display: flex; flex-shrink: 0; align-items: center; gap: 8px; font: 28px/1 "Playwrite FR Moderne", cursive; color: var(--rouge); text-decoration: none; }
+.marque img { width: 40px; height: 40px; }
+.barre .liens { display: flex; gap: 4px; list-style: none; margin: 0 auto 0 12px; padding: 0; }
+.barre .liens a { display: block; white-space: nowrap; padding: 6px 12px; border-radius: 999px; color: var(--encre); text-decoration: none; }
+.barre .liens a:hover { background: #eef3fb; }
+.barre .liens a.ici { background: var(--encre); color: white; }
+.barre .code { display: flex; align-items: center; gap: 6px; color: var(--encre); text-decoration: none; }
+.barre .code:hover { color: var(--bleu-fonce); }
+.bouton.petit { font-size: 16px; line-height: 24px; padding: 6px 18px; box-shadow: 0 2px 0 var(--bleu-fonce); }
+
+/* La page d'accueil : tout est centré, les sections en cartes. */
+.accueil, .page-accueil main section > h2, .intro { text-align: center; }
+.cahier:has(.accueil) { margin: 0 auto; padding: 0 clamp(16px, 4vw, 48px); max-width: 1240px; }
+.accueil .titre { display: flex; align-items: center; margin-bottom: calc(3 * var(--u)); justify-content: center; gap: 20px; padding-top: calc(8 * var(--u)); }
+.accueil .titre .logo { width: 150px; height: 150px; margin: 0; }
+.accueil h1 { padding: 0; font-size: clamp(56px, 8vw, 104px); line-height: 1.2; max-width: none; }
+.accroche { font: clamp(26px, 3.4vw, 40px)/1.4 "Playwrite FR Moderne", cursive; color: var(--encre); margin: calc(2 * var(--u)) auto 0; }
+.accueil .chapo { max-width: 46ch; margin-left: auto; margin-right: auto; }
+.intro { max-width: 62ch; margin: 0 auto calc(4 * var(--u)); }
+.telecharger { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.telecharger .choix { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; font-size: 16px; color: var(--encre-douce); }
+.telecharger label { display: flex; align-items: center; gap: 8px; }
+.telecharger select { font: inherit; color: var(--encre); padding: 4px 8px; border: 1px solid var(--ligne-forte); border-radius: 8px; background: white; }
+.accueil .colle { margin-left: auto; margin-right: auto; }
+
+.cartes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; list-style: none; padding: 0; margin: calc(2 * var(--u)) 0 calc(4 * var(--u)); }
+.cartes.deux-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cartes > li, .cartes > div { background: white; border: 1px solid var(--ligne-forte); border-radius: 16px; padding: 22px 24px; font-size: 17px; line-height: 28px; box-shadow: 0 4px 14px rgba(31, 44, 74, 0.06); }
+.cartes h3 { margin: 6px 0 6px; line-height: 28px; }
+.cartes p, .cartes ol { margin-bottom: 12px; }
+.pastille { display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: #eef3fb; font-size: 26px; }
+.colle.petite { max-width: 820px; margin: calc(6 * var(--u)) auto; transform: rotate(1deg); }
 
 header .logo { display: block; width: 160px; height: 160px; margin: calc(4 * var(--u)) 0 calc(-6 * var(--u)); }
 h1, h2 { font-family: "Playwrite FR Moderne", cursive; font-weight: 400; color: var(--rouge); margin: 0; }
@@ -104,14 +145,25 @@ ol.etapes li::marker { font-weight: 700; color: var(--rouge); }
 kbd, code { font-family: inherit; background: #eef3fb; border: 1px solid var(--ligne-forte); border-radius: 4px; padding: 0 6px; font-size: 0.92em; }
 
 footer { margin-top: calc(12 * var(--u)); padding-bottom: calc(8 * var(--u)); color: var(--encre-douce); font-size: 16px; line-height: 24px; }
+.cahier:has(.accueil) footer { text-align: center; max-width: 80ch; margin-left: auto; margin-right: auto; border-top: 1px solid var(--ligne-forte); padding-top: calc(4 * var(--u)); }
+.liens-pied { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 24px; font-size: 17px; }
 footer p { margin-bottom: calc(2 * var(--u)); }
 
 @media (max-width: 960px) {
+  .cartes, .cartes.deux-col { grid-template-columns: 1fr; }
+  .barre .code span { display: none; }
+  .barre { gap: 12px; }
+  .barre .liens { overflow-x: auto; margin-left: 0; }
+  .barre .liens a { padding: 6px 8px; font-size: 15px; }
+  .marque { font-size: 24px; }
   .exemples { grid-template-columns: repeat(5, 62vw); overflow-x: auto; scroll-snap-type: x mandatory; padding: 12px 4px 16px; }
   .exemples li { scroll-snap-align: start; }
   .deux { grid-template-columns: 1fr; gap: 0; }
 }
 @media (max-width: 600px) {
+  .accueil .titre .logo { width: 96px; height: 96px; }
+  .barre .liens, .barre .code { display: none; }
+  .marque { margin-right: auto; }
   :root { --marge-x: 14px; }
   .cahier { padding-left: 34px; padding-right: 16px; }
   body { font-size: 18px; }
@@ -122,3 +174,14 @@ footer p { margin-bottom: calc(2 * var(--u)); }
   .colle::before, .colle::after { width: 80px; height: 24px; }
 }
 @media (prefers-reduced-motion: reduce) { .bouton:active { transform: none; } }
+
+/* Accueil : la page centrée garde le papier Seyès, sans la marge rouge du cahier. */
+body.page-accueil {
+  background-image:
+    linear-gradient(to bottom, var(--ligne-forte) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--ligne) 1px, transparent 1px),
+    linear-gradient(to right, var(--ligne) 1px, transparent 1px);
+  background-size: 100% calc(4 * var(--u)), 100% var(--u), calc(4 * var(--u)) 100%;
+  background-position: 0 0, 0 0, 0 0;
+}
+.page-accueil .exemples li { text-align: center; }

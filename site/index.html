@@ -8,16 +8,52 @@
 <link rel="icon" href="img/icone.png">
 <link rel="preload" href="fonts/PlaywriteFRModerne-Regular.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
+<script src="telecharger.js" defer></script>
 </head>
-<body>
-<div class="cahier">
+<body class="page-accueil">
 
-<header>
-  <img class="logo" src="img/logo.webp" width="160" height="160" alt="Le logo de Cahutin : un lutin écrit dans son cahier, abrité sous un livre ouvert en forme de tente.">
-  <h1>Fiches, affiches, étiquettes, cahier de vie</h1>
-  <p class="chapo texte">Vos pages de classe, simples et hors ligne. On part d'un modèle, on glisse ses photos, on écrit : la page est prête à imprimer.</p>
-  <a class="bouton" href="https://github.com/e-ban/cahutin/releases/latest">Télécharger Cahutin</a>
-  <p class="sous-bouton">Pour Windows 11 et Linux. Gratuit, libre, sans compte ni inscription.</p>
+<nav class="barre" aria-label="Sections du site">
+  <a class="marque" href="#haut"><img src="img/logo.webp" width="40" height="40" alt=""><span>Cahutin</span></a>
+  <ul class="liens">
+    <li><a href="#exemples">Exemples</a></li>
+    <li><a href="#faire">Fonctions</a></li>
+    <li><a href="#confiance">Nos promesses</a></li>
+    <li><a href="#installer">Installer</a></li>
+  </ul>
+  <a class="code" href="https://github.com/e-ban/cahutin" title="Le code source de Cahutin sur GitHub">
+    <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    <span>Code source</span>
+  </a>
+  <a class="bouton petit" href="#telecharger">Télécharger</a>
+</nav>
+
+<div class="cahier" id="haut">
+
+<header class="accueil">
+  <div class="titre">
+    <img class="logo" src="img/logo.webp" width="160" height="160" alt="Le logo de Cahutin : un lutin écrit dans son cahier, abrité sous un livre ouvert en forme de tente.">
+    <h1>Cahutin</h1>
+  </div>
+  <p class="accroche">Fiches, affiches, étiquettes, cahier de vie</p>
+  <p class="chapo">Vos pages de classe, simples et hors ligne. On part d'un modèle, on glisse ses photos, on écrit : la page est prête à imprimer.</p>
+
+  <div class="telecharger" id="telecharger">
+    <a class="bouton" id="dl-bouton" href="https://github.com/e-ban/cahutin/releases/latest">Télécharger Cahutin</a>
+    <div class="choix">
+      <label>Système
+        <select id="dl-format">
+          <option value="exe">Windows 11 (installeur)</option>
+          <option value="AppImage">Linux (AppImage)</option>
+          <option value="deb">Linux (.deb : Debian, Ubuntu)</option>
+        </select>
+      </label>
+      <label>Version
+        <select id="dl-version"><option>La plus récente</option></select>
+      </label>
+    </div>
+    <p class="sous-bouton">Gratuit, libre, sans compte ni inscription. <a href="https://github.com/e-ban/cahutin/releases">Toutes les versions</a> · <a href="signature.html">Vérifier un téléchargement</a></p>
+  </div>
+
   <figure class="colle">
     <img src="img/app-anniversaire.webp" width="1600" height="1029" alt="L'écran de Cahutin : à gauche les outils (modèles, photos, texte, formes, polices, décors), au centre la page « Joyeux anniversaire » avec son gâteau, ses ballons et le prénom de l'enfant à compléter.">
   </figure>
@@ -26,7 +62,7 @@
 <main>
 <section aria-labelledby="exemples">
   <h2 id="exemples">Des exemples à modifier</h2>
-  <p class="texte">Cinq exemples sont fournis avec Cahutin. On en ouvre un depuis l'écran d'accueil, on remplace les photos et les textes, et on imprime. Les zones en pointillés attendent vos photos.</p>
+  <p class="intro">Cinq exemples sont fournis avec Cahutin. On en ouvre un depuis l'écran d'accueil, on remplace les photos et les textes, et on imprime. Les zones en pointillés attendent vos photos.</p>
   <ul class="exemples">
     <li><img src="img/page-ferme.webp" width="640" height="902" loading="lazy" alt="Page « Notre sortie à la ferme » sur papier kraft : frise d'animaux, deux photos à déposer avec leur légende, une bulle de parole et une chèvre."><b>Sortie à la ferme</b><span>Frise d'animaux, photos légendées, bulle de parole.</span></li>
     <li><img src="img/page-anniversaire.webp" width="640" height="902" loading="lazy" alt="Page « Joyeux anniversaire » : ballons et cadeaux en frise, gâteau entouré d'étoiles, prénom à écrire."><b>Joyeux anniversaire</b><span>Frises en haut et en bas, prénom en grand.</span></li>
@@ -36,56 +72,70 @@
   </ul>
 </section>
 
-<section aria-labelledby="faire" class="deux">
-  <div>
-    <h2 id="faire">Ce qu'on peut faire</h2>
-    <ul class="gommettes texte">
-      <li><h3>Partir d'un modèle</h3>Grille de photos, récit, page à compléter, étiquettes de prénoms, affiche en paysage… et vos propres modèles, à partager entre collègues.</li>
-      <li><h3>Remplir avec sa classe</h3>On colle la liste des prénoms une fois. Cahutin remplit ensuite une planche d'étiquettes, un enfant par étiquette, en capitales, en script et en cursive, ou fait une page par enfant.</li>
-      <li><h3>Poser ses photos</h3>On importe un dossier entier, on glisse chaque photo dans sa case, on la recadre d'un double-clic. Pour un enfant sans autorisation photo, on floute son visage d'un clic.</li>
-      <li><h3>Écrire avec des polices d'école</h3>Cursive (Playwrite FR Moderne), écriture lisible pour les débutants (Andika), police pour les élèves dyslexiques (OpenDyslexic).</li>
-      <li><h3>Décorer et organiser</h3>Plus de 2 000 images à chercher en français, des cadres, des frises, des fonds Seyès, petits carreaux ou papier kraft. Des tableaux pour l'emploi du temps ou le loto, des repères de découpe, des lettres à repasser.</li>
-      <li><h3>Imprimer ou partager</h3>Impression, PDF, ou fichier pour LibreOffice où tout reste modifiable. On peut aussi reprendre une fiche Word ou PDF existante (LibreOffice doit alors être installé).</li>
-    </ul>
-  </div>
-  <figure class="colle">
+<section aria-labelledby="faire">
+  <h2 id="faire">Ce qu'on peut faire</h2>
+  <ul class="cartes">
+    <li><span class="pastille" aria-hidden="true">📐</span><h3>Partir d'un modèle</h3>Grille de photos, récit, page à compléter, étiquettes de prénoms, affiche en paysage… ou vos propres modèles, à partager entre collègues.</li>
+    <li><span class="pastille" aria-hidden="true">🧒</span><h3>Remplir avec sa classe</h3>On colle la liste des prénoms une fois. Cahutin remplit une planche d'étiquettes, un enfant par étiquette, en capitales, en script et en cursive, ou fait une page par enfant.</li>
+    <li><span class="pastille" aria-hidden="true">📷</span><h3>Poser ses photos</h3>On importe un dossier entier, on glisse chaque photo dans sa case, on la recadre d'un double-clic. Pour un enfant sans autorisation photo, on floute son visage d'un clic.</li>
+    <li><span class="pastille" aria-hidden="true">✏️</span><h3>Écrire avec des polices d'école</h3>Cursive (Playwrite FR Moderne), écriture lisible pour les débutants (Andika), police pour les élèves dyslexiques (OpenDyslexic), lettres à repasser.</li>
+    <li><span class="pastille" aria-hidden="true">🎨</span><h3>Décorer et organiser</h3>Plus de 2 000 images à chercher en français, cadres, frises, fonds Seyès ou kraft. Des tableaux pour l'emploi du temps ou le loto, des repères de découpe.</li>
+    <li><span class="pastille" aria-hidden="true">🖨️</span><h3>Imprimer ou partager</h3>Impression, PDF, ou fichier pour LibreOffice où tout reste modifiable. On peut aussi reprendre une fiche Word ou PDF existante.</li>
+  </ul>
+  <figure class="colle petite">
     <img src="img/app-decors.webp" width="1600" height="1029" loading="lazy" alt="Le panneau Décors ouvert à côté de la page : recherche d'images, catégories, cadres et frises.">
   </figure>
 </section>
 
 <section aria-labelledby="confiance">
   <h2 id="confiance">Ce qu'on peut vous promettre</h2>
-  <ul class="gommettes texte">
-    <li><h3>Les photos des élèves restent sur l'ordinateur</h3>Cahutin fonctionne sans internet, sans compte et sans serveur. Rien de ce que vous faites n'est envoyé nulle part, ni à nous ni à personne. Une seule connexion est possible, et seulement si vous l'acceptez : une fois par jour, Cahutin regarde sur GitHub si une nouvelle version existe, sans rien envoyer d'autre. Le repérage des visages à flouter se fait lui aussi sur l'ordinateur, sans savoir qui est qui.</li>
-    <li><h3>Gratuit, pour de bon</h3>Pas de version payante, pas d'abonnement, pas de publicité. Installez-le sur autant d'ordinateurs que vous voulez, à l'école comme à la maison.</li>
-    <li><h3>Libre</h3>Cahutin est publié sous la licence publique de l'Union européenne (EUPL 1.2). Son code est <a href="https://github.com/e-ban/cahutin">public</a>, chacun peut l'étudier et l'améliorer, et toute version modifiée doit rester libre : personne ne peut se l'approprier.</li>
-    <li><h3>Vos documents vous appartiennent</h3>Un document Cahutin est un fichier sur votre ordinateur, avec ses photos dedans. Il s'ouvre aussi dans LibreOffice après export, sans dépendre de Cahutin.</li>
+  <ul class="cartes deux-col">
+    <li><span class="pastille" aria-hidden="true">🔒</span><h3>Les photos des élèves restent sur l'ordinateur</h3>Cahutin fonctionne sans internet, sans compte et sans serveur. Rien n'est envoyé, ni à nous ni à personne. Une seule connexion est possible, si vous l'acceptez : une fois par jour, Cahutin regarde sur GitHub si une nouvelle version existe. Le repérage des visages à flouter se fait lui aussi sur l'ordinateur, sans savoir qui est qui.</li>
+    <li><span class="pastille" aria-hidden="true">🎁</span><h3>Gratuit, pour de bon</h3>Pas de version payante, pas d'abonnement, pas de publicité. Installez-le sur autant d'ordinateurs que vous voulez, à l'école comme à la maison.</li>
+    <li><span class="pastille" aria-hidden="true">🤝</span><h3>Libre</h3>Cahutin est publié sous la licence publique de l'Union européenne (EUPL 1.2). Son <a href="https://github.com/e-ban/cahutin">code est public</a> : chacun peut l'étudier et l'améliorer, et toute version modifiée doit rester libre.</li>
+    <li><span class="pastille" aria-hidden="true">📁</span><h3>Vos documents vous appartiennent</h3>Un document Cahutin est un fichier sur votre ordinateur, avec ses photos dedans. Il s'ouvre aussi dans LibreOffice après export, sans dépendre de Cahutin.</li>
   </ul>
 </section>
 
 <section aria-labelledby="installer">
-  <h2 id="installer">Télécharger et installer</h2>
-  <div class="texte">
-    <h3>Windows 11</h3>
-    <ol class="etapes">
-      <li>Sur la <a href="https://github.com/e-ban/cahutin/releases/latest">page des téléchargements</a>, cliquer sur le fichier qui se termine par <code>x64-setup.exe</code>.</li>
-      <li>Ouvrir le fichier téléchargé. Aucun mot de passe administrateur n'est demandé.</li>
-      <li>Windows affiche « Windows a protégé votre ordinateur » : l'installeur n'est pas encore signé. Cliquer sur <b>Informations complémentaires</b>, puis sur <b>Exécuter quand même</b>.</li>
-      <li>Accepter la licence, puis suivre l'installation. Cahutin apparaît dans le menu Démarrer.</li>
-    </ol>
-    <h3>Linux</h3>
-    <p>Sur la même page : le fichier <code>.AppImage</code> fonctionne sur toutes les distributions (le rendre exécutable, puis le lancer), le fichier <code>.deb</code> s'installe sur Debian, Ubuntu et leurs dérivées. Pour vérifier un fichier téléchargé, voir la <a href="signature.html">politique de signature (Code signing policy)</a>.</p>
-    <h3>Vous utilisiez Carnet ?</h3>
-    <p>Cahutin est son nouveau nom. Installez Cahutin : il reprend vos modèles personnels et vos polices ajoutées, et vos fichiers <code>.carnet</code> s'ouvrent comme avant. Vous pouvez ensuite désinstaller Carnet.</p>
-    <h3>Les nouvelles versions</h3>
-    <p>Pour mettre à jour, installer la nouvelle version par-dessus l'ancienne : documents et modèles sont conservés. Si vous l'avez accepté, Cahutin vous prévient lui-même quand une nouvelle version sort.</p>
+  <h2 id="installer">Installer</h2>
+  <div class="cartes deux-col etapes-install">
+    <div>
+      <h3>Windows 11</h3>
+      <ol class="etapes">
+        <li><a href="#telecharger">Télécharger</a> l'installeur (fichier qui se termine par <code>x64-setup.exe</code>).</li>
+        <li>L'ouvrir. Aucun mot de passe administrateur n'est demandé.</li>
+        <li>Si Windows affiche « Windows a protégé votre ordinateur » (l'installeur n'est pas encore signé) : <b>Informations complémentaires</b>, puis <b>Exécuter quand même</b>.</li>
+        <li>Accepter la licence et suivre l'installation. Cahutin apparaît dans le menu Démarrer.</li>
+      </ol>
+    </div>
+    <div>
+      <h3>Linux</h3>
+      <p>Le fichier <code>.AppImage</code> fonctionne sur toutes les distributions : le rendre exécutable, puis le lancer. Le fichier <code>.deb</code> s'installe sur Debian, Ubuntu et leurs dérivées.</p>
+      <p>Pour vérifier un fichier téléchargé : la <a href="signature.html">politique de signature</a>.</p>
+    </div>
+    <div>
+      <h3>Les nouvelles versions</h3>
+      <p>Installer la nouvelle version par-dessus l'ancienne : documents et modèles sont conservés. Si vous l'avez accepté, Cahutin vous prévient lui-même quand une nouvelle version sort.</p>
+    </div>
+    <div>
+      <h3>Vous utilisiez Carnet ?</h3>
+      <p>Cahutin est son nouveau nom. Il reprend vos modèles personnels et vos polices ajoutées, et vos fichiers <code>.carnet</code> s'ouvrent comme avant. Carnet peut ensuite être désinstallé.</p>
+    </div>
   </div>
 </section>
 </main>
 
-<footer class="texte">
+<footer>
+  <p class="liens-pied">
+    <a href="https://github.com/e-ban/cahutin">Code source</a>
+    <a href="https://github.com/e-ban/cahutin/issues">Signaler un problème</a>
+    <a href="https://github.com/e-ban/cahutin/blob/main/CONTRIBUTING.md">Contribuer</a>
+    <a href="https://github.com/e-ban/cahutin/blob/main/CHANGELOG.md">Journal des versions</a>
+    <a href="signature.html">Code signing policy</a>
+  </p>
   <p>Cahutin est en bêta : il sert déjà en classe, mais il peut rester des défauts. Pour en signaler un ou proposer une idée : menu Aide &gt; Signaler un problème dans l'application, ou une <a href="https://github.com/e-ban/cahutin/issues">demande sur GitHub</a>.</p>
-  <p>© Iban Guinebert, <a href="https://github.com/e-ban/cahutin/blob/main/LICENSE">licence EUPL 1.2</a>. Images : <a href="https://openmoji.org">OpenMoji</a>, CC BY-SA 4.0. Polices Andika et Playwrite FR Moderne sous licence SIL Open Font License. Ce site ne dépose aucun cookie et ne mesure pas les visites. <a href="signature.html">Code signing policy</a>.</p>
+  <p>© Iban Guinebert, <a href="https://github.com/e-ban/cahutin/blob/main/LICENSE">licence EUPL 1.2</a>. Images : <a href="https://openmoji.org">OpenMoji</a>, CC BY-SA 4.0. Polices Andika et Playwrite FR Moderne sous licence SIL Open Font License. Ce site ne dépose aucun cookie et ne mesure pas les visites ; la liste des versions est lue sur GitHub par votre navigateur.</p>
 </footer>
 
 </div>

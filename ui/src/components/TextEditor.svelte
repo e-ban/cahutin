@@ -87,7 +87,10 @@
     textEditing.current = editor;
     // Enregistrer ou fermer pendant la saisie : le texte tapé est validé d'abord.
     stopFlush = doc.onFlush(finish);
-    editor.commands.focus("end");
+    // Texte modèle tout juste posé : sélectionné en entier, la première frappe le remplace.
+    if (doc.selectTextOnEdit) editor.chain().focus().selectAll().run();
+    else editor.commands.focus("end");
+    doc.selectTextOnEdit = false;
   });
 
   onDestroy(() => {

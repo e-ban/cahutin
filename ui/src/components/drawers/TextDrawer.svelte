@@ -42,6 +42,7 @@
     }
     editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
     editor.selection = [el.id];
+    editor.selectTextOnEdit = true;
     editor.editingText = el.id;
   }
 

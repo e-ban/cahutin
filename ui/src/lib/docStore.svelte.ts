@@ -27,6 +27,8 @@ class Editor {
   fileImport = $state<{ name: string } | null>(null);
   /** Texte en cours d'édition. */
   editingText = $state<string | null>(null);
+  /** Le texte qui s'ouvre est un texte modèle tout juste posé (« Titre ») : il est sélectionné, la frappe le remplace. */
+  selectTextOnEdit = false;
   /** Fusion en glissant (mode modèle) : cases couvertes, et si la fusion est possible. */
   mergePreview = $state<{ ids: string[]; ok: boolean } | null>(null);
   /** Élément d'un groupe modifié seul après un double-clic (Échap ou un clic ailleurs revient au groupe). */

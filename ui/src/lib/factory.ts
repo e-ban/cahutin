@@ -16,8 +16,18 @@ export function defaultTextStyle(): TextStyle {
   return { font: "Andika", size_pt: 14, color: "#222222", align: "Left" };
 }
 
+/** Cadre centré sur la page ; si un élément y est déjà centré, décalé de 8 mm en diagonale (autant de fois
+ *  qu'il faut, sans sortir de la page) : deux ajouts de suite ne se recouvrent pas exactement. */
 export function centeredFrame(page: Page, w: number, h: number): Frame {
-  return { x_mm: (page.size.width_mm - w) / 2, y_mm: (page.size.height_mm - h) / 2, w_mm: w, h_mm: h, rotation_deg: 0 };
+  const STEP = 8;
+  const centre = (f: Frame) => [f.x_mm + f.w_mm / 2, f.y_mm + f.h_mm / 2];
+  let [cx, cy] = [page.size.width_mm / 2, page.size.height_mm / 2];
+  const taken = (x: number, y: number) => page.elements.some((e) => Math.hypot(centre(e.frame)[0] - x, centre(e.frame)[1] - y) < 1);
+  while (taken(cx, cy) && cx + w / 2 + STEP <= page.size.width_mm && cy + h / 2 + STEP <= page.size.height_mm) {
+    cx += STEP;
+    cy += STEP;
+  }
+  return { x_mm: cx - w / 2, y_mm: cy - h / 2, w_mm: w, h_mm: h, rotation_deg: 0 };
 }
 
 export function textElement(frame: Frame, zone = false): Element {

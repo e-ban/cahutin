@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { newPage, shapeElement } from "./factory";
+import { centeredFrame, newPage, shapeElement, textElement } from "./factory";
 
 test("shapeElement gives each shape sensible defaults, centred on the page", () => {
   const page = newPage();
@@ -14,4 +14,13 @@ test("shapeElement gives each shape sensible defaults, centred on the page", () 
   expect(rounded.kind.type === "Shape" && rounded.kind.corner_radius_mm).toBe(6);
   const star = shapeElement(page, "Star");
   expect(star.frame.w_mm).toBe(star.frame.h_mm);
+});
+
+test("a new element does not land exactly on the previous one", () => {
+  const page = newPage();
+  const first = centeredFrame(page, 40, 20);
+  expect(first).toMatchObject({ x_mm: 85, y_mm: 138.5 });
+  page.elements.push(textElement(first));
+  const second = centeredFrame(page, 30, 30);
+  expect([second.x_mm + 15, second.y_mm + 15]).toEqual([113, 156.5]);
 });

@@ -20,6 +20,9 @@ pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>
     if let Some(file) = path.strip_prefix("picto/") {
         return picto_response(file);
     }
+    if let Some(rest) = path.strip_prefix("lib/") {
+        return library_response(&ctx.app_handle().state::<AppState>(), rest);
+    }
     if let Some(index) = path.strip_prefix("sysfont/") {
         return system_font_response(&ctx.app_handle().state::<AppState>(), index);
     }
@@ -49,6 +52,23 @@ pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>
         .header(header::CACHE_CONTROL, "max-age=31536000, immutable")
         .body(Cow::Owned(bytes.to_vec()))
         .unwrap()
+}
+
+/// `lib/<id>` ou `lib/<id>/thumb` : une photo de la photothèque ouverte, lue dans son dossier.
+fn library_response(state: &AppState, rest: &str) -> Response<Cow<'static, [u8]>> {
+    let (id, thumb) = rest.strip_suffix("/thumb").map_or((rest, false), |id| (id, true));
+    let file = {
+        let lib = state.phototheque.lock().unwrap();
+        let Some((dir, index)) = lib.as_ref() else { return not_found() };
+        index.photos.iter().find(|p| p.id == id).and_then(|p| carnet_core::phototheque::file_of(dir, &p.id, p.mime, thumb).map(|f| (f, p.mime)))
+    };
+    let Some((file, mime)) = file else { return not_found() };
+    let Ok(bytes) = std::fs::read(file) else { return not_found() };
+    let mime = match mime {
+        Mime::Jpeg => "image/jpeg",
+        Mime::Png => "image/png",
+    };
+    Response::builder().header(header::CONTENT_TYPE, mime).header(header::CACHE_CONTROL, "max-age=31536000, immutable").body(Cow::Owned(bytes)).unwrap()
 }
 
 fn not_found() -> Response<Cow<'static, [u8]>> {

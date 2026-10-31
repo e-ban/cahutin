@@ -46,7 +46,7 @@ Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvell
 - **Exemples** à découvrir depuis l'écran d'accueil : Sortie à la ferme, Joyeux anniversaire, La météo de la semaine, J'écris mon prénom, Les saisons, Notre semaine (emploi du temps), Le loto des émotions, J'écris les jours, Les règles de la classe (A3), Mes cinq sens, Étiquettes de porte-manteau.
 - **Photos** : import d'un dossier entier, photothèque du document, recadrage, miroir, coins arrondis, bordure, ombre, légende, flou des visages (repérés sur l'ordinateur ou tracés à la main) pour les enfants sans autorisation photo.
 - **Textes** : gras, italique, souligné, couleurs, alignement ; polices lisibles pour l'école fournies (Andika, Atkinson Hyperlegible, OpenDyslexic, Playwrite FR Moderne pour la cursive), polices ajoutées et polices installées sur l'ordinateur ; lettres à repasser ou creuses, lignes d'écriture dans un cadre (Seyès, lignes, petits carreaux), styles de texte nommés (Titre, Consigne, Prénom, les vôtres) qui se modifient d'un coup.
-- **Classe** : liste des élèves (photo avec autorisation, symbole, niveau, groupe, date de naissance), collée ou importée d'un tableur ou d'un export ONDE (.csv), gardée sur l'ordinateur. Génération d'une page par élève, d'une planche d'étiquettes remplie ou d'une affiche pour toute la classe ; champs {prénom}, {nom}, {groupe}, {âge}, {anniversaire}, lettres mobiles.
+- **Classe** : liste des élèves (photo avec autorisation, symbole, niveau, groupe, date de naissance), collée ou importée d'un tableur ou d'un export ONDE (.csv), gardée sur l'ordinateur, avec la photothèque de l'année (élèves présents, activités, enfants peu photographiés). Génération d'une page par élève, d'une planche d'étiquettes remplie ou d'une affiche pour toute la classe ; champs {prénom}, {nom}, {groupe}, {âge}, {anniversaire}, lettres mobiles.
 - **Tableaux** : cases avec texte, pictogramme ou photo, lignes et colonnes à ajouter ou retirer, cases fusionnées, traits réglables.
 - **Formes** : rectangle, ellipse, trait, flèche, étoile, cœur, bulle de parole, nuage.
 - **Décors** : plus de 2 000 images OpenMoji avec recherche en français (catégories Rituels, Matériel, Émotions, Corps et soins pour la classe), cadres de page et frises.
@@ -61,7 +61,7 @@ Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvell
 - Une seule connexion possible, facultative et désactivée tant que vous ne l'avez pas acceptée : une fois par jour, Cahutin lit le numéro de la dernière version sur l'API de GitHub (`api.github.com`). Rien d'autre n'est envoyé (ni document, ni identifiant, ni information sur l'ordinateur) ; GitHub voit seulement l'adresse IP de la connexion, comme pour toute visite d'un site. L'interface elle-même n'a accès à aucune adresse distante.
 - Les métadonnées des photos (lieu, appareil, date) sont retirées à l'import.
 - Le repérage des visages, pour flouter ceux des enfants sans autorisation photo, se fait sur l'ordinateur par un modèle intégré à l'application, et seulement avec votre accord. Il trouve où sont les visages, sans jamais reconnaître qui est qui. La photo floutée remplace l'originale dans le document.
-- La liste de la classe reste sur l'ordinateur, dans `Documents/Cahutin/Classes`.
+- La liste de la classe reste sur l'ordinateur, dans `Documents/Cahutin/Classes`, et sa photothèque dans `Documents/Cahutin/Photos` (photos sans lieu ni appareil ; seule la date de prise de vue est gardée). Les enfants présents sur une photo sont indiqués à la main : aucun visage n'est reconnu.
 - Le journal de l'application ne contient ni texte de document, ni nom de fichier, ni prénom d'enfant. Le rapport de problème (Aide > Signaler un problème) reprend seulement ce journal.
 - Les photos importées sont copiées dans un dossier temporaire vidé à la fermeture ; un document enregistré (`.carnet`) contient ses propres photos.
 
@@ -72,6 +72,7 @@ Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvell
 | `.carnet` | Carnet fait avec Cahutin : pages, photos, polices ajoutées dont la licence le permet. |
 | `.carnet-modele` | Modèle personnel, à copier dans `%APPDATA%\fr.cahutin.app\modeles` (Windows) ou `~/.local/share/fr.cahutin.app/modeles` (Linux) sur un autre poste. |
 | `.cahutin-classe` | Liste d'une classe (prénoms, photos et autorisations), rangée dans `Documents/Cahutin/Classes`. |
+| `phototheque.json` | Photothèque d'une classe : dans `Documents/Cahutin/Photos/<classe>`, à côté des photos, les élèves présents et les activités de chacune. |
 | `.odg` | Export pour LibreOffice Draw. |
 
 ## Développement

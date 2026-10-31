@@ -67,6 +67,8 @@ Reprend la tâche déjà prévue « Liste de la classe et pages par enfant » (T
 
 ### Étape C : photothèque de la classe (0.8)
 
+> En grande partie faite (0.9) : photothèque de l'année, élèves présents et activités indiqués à la main, filtres par enfant, activité et période, enfants peu photographiés, tri d'un lot à l'import. Reste à évaluer : le regroupement local des visages.
+
 | Fonction | Détail | Taille |
 |---|---|---|
 | **Photothèque de classe** commune à tous les documents de l'année (aujourd'hui chaque document a la sienne) | Dossier local, vignettes, dates | M |

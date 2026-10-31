@@ -17,6 +17,7 @@ tempfile = "3"
 tract-onnx = "0.21"
 ttf-parser = "0.25"
 fontdb = { version = "0.24", default-features = false, features = ["fs", "memmap"] }
+# Date de prise de vue des photos de la photothèque, lue avant que l'import retire les métadonnées.
+kamadak-exif = "0.6"
 
 [dev-dependencies]
-kamadak-exif = "0.6"

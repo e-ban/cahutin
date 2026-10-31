@@ -55,6 +55,8 @@ class Editor {
   welcomeOverDoc = $state(false);
   /** Page « Ma classe », par-dessus le document (et l'accueil). */
   showClassPage = $state(false);
+  /** Photothèque de la classe (page entière). */
+  showPhototheque = $state(false);
   /** Fenêtre des nouveautés de la version. */
   showWhatsNew = $state(false);
   /** Photo dont on floute des visages (id de l'image). */

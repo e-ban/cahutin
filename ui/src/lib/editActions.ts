@@ -1,4 +1,5 @@
 // Actions d'édition sur la sélection, communes aux raccourcis, au clic droit et à la barre flottante.
+import { warnConsent } from "./phototheque.svelte";
 import { copyElements, duplicateElements, pasteElements, removeElements, reorder } from "./clipboard";
 import { editor } from "./docStore.svelte";
 import { existingIds, expandSelection, groupElements, rotateElements, scaleElements, ungroup } from "./groups";
@@ -267,6 +268,7 @@ export function setFrameImage(meta: AssetMeta | null) {
 }
 
 export function usePhoto(meta: AssetMeta) {
+  warnConsent(meta.id);
   const e = editor.selected;
   if (e && e.kind.type === "Photo" && !e.locked) {
     editor.placePhoto(e.id, meta);

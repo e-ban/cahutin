@@ -15,6 +15,7 @@ pub mod model;
 pub mod native;
 pub mod odg;
 pub mod photo;
+pub mod phototheque;
 pub mod picto;
 pub mod report;
 pub mod shapes;

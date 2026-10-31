@@ -48,6 +48,8 @@
     <button class="add" onclick={pickFiles}>{fr.addPhotosButton}</button>
     <button class="add" onclick={pickFolder}>{fr.addFolderButton}</button>
   </div>
+  <!-- Les photos de l'année, rangées par enfant et par activité : on y choisit celles du document. -->
+  <button class="library" title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}>🖼️ {fr.libraryFromDrawer}</button>
 
   {#if editor.importProgress}
     {@const p = editor.importProgress}
@@ -94,6 +96,10 @@
 </Drawer>
 
 <style>
+  .library {
+    width: 100%;
+    margin-top: 6px;
+  }
   .row {
     display: flex;
     gap: 6px;

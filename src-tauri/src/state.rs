@@ -21,6 +21,8 @@ pub struct AppState {
     pub import_cancel: AtomicBool,
     /// Dossier des listes de classe (`Documents/Cahutin/Classes`).
     pub classes_dir: PathBuf,
+    /// Photothèque ouverte (celle de la classe courante) : son dossier et son index.
+    pub phototheque: Mutex<Option<(PathBuf, carnet_core::phototheque::Phototheque)>>,
 }
 
 impl AppState {
@@ -34,6 +36,7 @@ impl AppState {
             pending_fonts: Mutex::new(Vec::new()),
             import_cancel: AtomicBool::new(false),
             classes_dir,
+            phototheque: Mutex::new(None),
         }
     }
 

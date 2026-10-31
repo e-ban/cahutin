@@ -80,7 +80,12 @@ pub fn age_on(birth: &str, today: (i32, u32, u32)) -> Option<u32> {
 
 /// La date du jour (heure universelle), sans dépendance de calendrier.
 pub fn today() -> (i32, u32, u32) {
-    let days = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() / 86_400).unwrap_or(0) as i64;
+    date_of(std::time::SystemTime::now())
+}
+
+/// La date (heure universelle) d'un instant.
+pub fn date_of(t: std::time::SystemTime) -> (i32, u32, u32) {
+    let days = t.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() / 86_400).unwrap_or(0) as i64;
     // Algorithme des jours civils (H. Hinnant).
     let z = days + 719_468;
     let era = z.div_euclid(146_097);

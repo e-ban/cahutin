@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind } from "./types";
+import type { AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind , ClassPhotoAdded, Phototheque, TagChange } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -8,6 +8,15 @@ export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => v
   onProgress.onmessage = onOutcome;
   return invoke<void>("import_photos", { paths, onProgress });
 }
+export function photothequeAdd(paths: string[], onOutcome: (o: ClassPhotoAdded) => void): Promise<Phototheque> {
+  const onProgress = new Channel<ClassPhotoAdded>();
+  onProgress.onmessage = onOutcome;
+  return invoke<Phototheque>("phototheque_add", { paths, onProgress });
+}
+export const photothequeOpen = (classPath: string) => invoke<Phototheque>("phototheque_open", { classPath });
+export const photothequeRemove = (ids: string[]) => invoke<Phototheque>("phototheque_remove", { ids });
+export const photothequeTag = (ids: string[], change: TagChange) => invoke<Phototheque>("phototheque_tag", { ids, change });
+export const photothequeUse = (ids: string[]) => invoke<AssetMeta[]>("phototheque_use", { ids });
 export const existingPaths = (paths: string[]) => invoke<string[]>("existing_paths", { paths });
 export const listImportableIn = (dir: string) => invoke<string[]>("list_importable_in", { dir });
 export const saveDocument = (path: string, doc: Document) => invoke<void>("save_document", { path, doc });
@@ -67,6 +76,11 @@ export const openDownloadPage = () => invoke<void>("open_download_page");
 const assetBase = () => (navigator.userAgent.includes("Windows") ? "http://carnet-asset.localhost" : "carnet-asset://localhost");
 
 /** URL d'une image importée. */
+/** Photo de la photothèque ouverte (servie depuis son dossier). */
+export function classPhotoUrl(id: string, thumb = true): string {
+  return `${assetBase()}/lib/${id}${thumb ? "/thumb" : ""}`;
+}
+
 export function assetUrl(id: string, thumb = false): string {
   return `${assetBase()}/${id}${thumb ? "/thumb" : ""}`;
 }

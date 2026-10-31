@@ -22,6 +22,7 @@
     </div>
     <button class="primary" disabled={!cls.students.length} onclick={ongenerate}>✨ {fr.classGenerate}</button>
     <button onclick={() => (editor.showClassPage = true)}>✎ {fr.classEdit}</button>
+    <button title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}>🖼️ {fr.libraryTitle}</button>
   {:else}
     <p class="hint">{classes.list.length ? fr.classChoose : fr.classNone}</p>
     <button class="primary" onclick={() => (editor.showClassPage = true)}>✎ {fr.classEdit}</button>

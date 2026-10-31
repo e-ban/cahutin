@@ -13,6 +13,8 @@
   import ContextBar from "./components/ContextBar.svelte";
   import ContextMenu, { type ContextTarget } from "./components/layout/ContextMenu.svelte";
   import { facingOf } from "./lib/spread";
+  import { classLibrary, warnConsent } from "./lib/phototheque.svelte";
+  import PhotothequePage from "./components/layout/PhotothequePage.svelte";
   import PageView from "./components/PageView.svelte";
   import CellBar from "./components/CellBar.svelte";
   import TableBar from "./components/TableBar.svelte";
@@ -78,7 +80,7 @@
   // Nouvelles versions : seulement si l'utilisateur l'a accepté, au plus une fois par jour.
   void updates.checkIfDue();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
-  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath, classes } });
+  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath, classes, classLibrary } });
 
   // Visite guidée : au premier lancement, quand l'écran d'accueil se ferme.
   let welcomeWasOpen = editor.showWelcome;
@@ -150,6 +152,7 @@
   function dropAsset(assetId: string, elementId: string | null, xMm: number, yMm: number) {
     const meta = editor.photos.find((p) => p.meta.id === assetId)?.meta ?? editor.doc.assets[assetId];
     if (!meta) return;
+    warnConsent(assetId);
     if (elementId) {
       editor.placePhoto(elementId, meta);
       editor.selection = [elementId];
@@ -276,6 +279,7 @@
   <BottomBar />
   {#if editor.showWelcome}<Welcome />{/if}
   {#if editor.showClassPage}<ClassPage />{/if}
+  {#if editor.showPhototheque}<PhotothequePage />{/if}
   {#if editor.showAbout}<About />{/if}
   <UpdateBanner />
   {#if editor.showBackground}<BackgroundPanel />{/if}

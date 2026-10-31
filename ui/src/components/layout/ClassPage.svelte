@@ -202,6 +202,7 @@
       <span class="spacer"></span>
       <button onclick={() => (pasting = !pasting)}>📋 {fr.classPaste}</button>
       <button disabled={!cls.students.length} title={fr.classPhotosHint} onclick={addPhotos}>📷 {fr.classPhotosAdd}</button>
+      <button title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}>🖼️ {fr.libraryTitle}</button>
     </div>
     {#if pasting}
       <div class="paste">

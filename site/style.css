@@ -156,7 +156,7 @@ footer p { margin-bottom: calc(2 * var(--u)); }
   .barre .liens { overflow-x: auto; margin-left: 0; }
   .barre .liens a { padding: 6px 8px; font-size: 15px; }
   .marque { font-size: 24px; }
-  .exemples { grid-template-columns: repeat(5, 62vw); overflow-x: auto; scroll-snap-type: x mandatory; padding: 12px 4px 16px; }
+  .exemples { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 62vw; overflow-x: auto; scroll-snap-type: x mandatory; padding: 12px 4px 16px; }
   .exemples li { scroll-snap-align: start; }
   .deux { grid-template-columns: 1fr; gap: 0; }
 }
@@ -185,3 +185,4 @@ body.page-accueil {
   background-position: 0 0, 0 0, 0 0;
 }
 .page-accueil .exemples li { text-align: center; }
+.colle figcaption { text-align: center; color: var(--encre-douce); font-size: 16px; margin-top: var(--u); transform: rotate(-1deg); }

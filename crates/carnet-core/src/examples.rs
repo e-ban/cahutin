@@ -166,7 +166,13 @@ fn birthday() -> Page {
         picto("2B50", 148.0, 70.0, 22.0),
         picto("2B50", 52.0, 118.0, 14.0),
         picto("2B50", 144.0, 118.0, 14.0),
-        text_zone(frame(35.0, 142.0, 140.0, 20.0), "Prénom", "Atkinson Hyperlegible", 28.0),
+        {
+            let mut name = text_zone(frame(35.0, 142.0, 140.0, 20.0), "Prénom", "Atkinson Hyperlegible", 28.0);
+            if let ElementKind::Text(t) = &mut name.kind {
+                t.style.align = Align::Center;
+            }
+            name
+        },
     ]));
     // {âge} : rempli avec la classe (« a fêté ses 4 ans »), comme le prénom.
     els.push(text(frame(35.0, 166.0, 140.0, 14.0), "a fêté ses {âge} en classe !", "Atkinson Hyperlegible", 16.0, "#444444", Align::Center));

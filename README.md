@@ -41,20 +41,20 @@ Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvell
 
 ## Ce que Cahutin sait faire
 
-- **Pages** A4 en portrait ou en paysage, plusieurs pages par document.
-- **Modèles** fournis (Grille de photos, Récit, Page à compléter, Étiquettes, Étiquettes photo, Photos et textes, Photos légendées, Affiche paysage) et modèles personnels (« Partir d'un modèle » > « Créer un modèle ») à partager entre collègues.
-- **Exemples** à découvrir depuis l'écran d'accueil : Sortie à la ferme, Joyeux anniversaire, La météo de la semaine, J'écris mon prénom, Les saisons.
-- **Photos** : import d'un dossier entier, photothèque du document, recadrage, coins arrondis, bordure, ombre, légende, flou des visages (repérés sur l'ordinateur ou tracés à la main) pour les enfants sans autorisation photo.
-- **Textes** : gras, italique, souligné, couleurs, alignement ; polices lisibles pour l'école fournies (Andika, Atkinson Hyperlegible, OpenDyslexic, Playwrite FR Moderne pour la cursive), polices ajoutées et polices installées sur l'ordinateur.
-- **Classe** : liste des élèves (photo avec autorisation, symbole, niveau, groupe), gardée sur l'ordinateur, et génération d'une page par élève ou d'une planche d'étiquettes remplie.
+- **Pages** A5, A4 ou A3, en portrait ou en paysage (le contenu suit le format), plusieurs pages par document, vue en vis-à-vis comme un cahier ouvert.
+- **Modèles** fournis (Grille de photos, Récit, Page à compléter, Étiquettes, Étiquettes photo, Étiquettes 3 écritures, Photos et textes, Photos légendées, Affiche paysage), modèles pour la classe (Memory et Loto des prénoms, Lettres mobiles, J'écris mon prénom, Tableau des présences, Affiche des anniversaires) et modèles personnels (« Partir d'un modèle » > « Créer un modèle ») à partager entre collègues.
+- **Exemples** à découvrir depuis l'écran d'accueil : Sortie à la ferme, Joyeux anniversaire, La météo de la semaine, J'écris mon prénom, Les saisons, Notre semaine (emploi du temps), Le loto des émotions, J'écris les jours, Les règles de la classe (A3), Mes cinq sens, Étiquettes de porte-manteau.
+- **Photos** : import d'un dossier entier, photothèque du document, recadrage, miroir, coins arrondis, bordure, ombre, légende, flou des visages (repérés sur l'ordinateur ou tracés à la main) pour les enfants sans autorisation photo.
+- **Textes** : gras, italique, souligné, couleurs, alignement ; polices lisibles pour l'école fournies (Andika, Atkinson Hyperlegible, OpenDyslexic, Playwrite FR Moderne pour la cursive), polices ajoutées et polices installées sur l'ordinateur ; lettres à repasser ou creuses, lignes d'écriture dans un cadre (Seyès, lignes, petits carreaux), styles de texte nommés (Titre, Consigne, Prénom, les vôtres) qui se modifient d'un coup.
+- **Classe** : liste des élèves (photo avec autorisation, symbole, niveau, groupe, date de naissance), collée ou importée d'un tableur ou d'un export ONDE (.csv), gardée sur l'ordinateur. Génération d'une page par élève, d'une planche d'étiquettes remplie ou d'une affiche pour toute la classe ; champs {prénom}, {nom}, {groupe}, {âge}, {anniversaire}, lettres mobiles.
 - **Tableaux** : cases avec texte, pictogramme ou photo, lignes et colonnes à ajouter ou retirer, cases fusionnées, traits réglables.
 - **Formes** : rectangle, ellipse, trait, flèche, étoile, cœur, bulle de parole, nuage.
-- **Décors** : plus de 2 000 images OpenMoji avec recherche en français, cadres de page et frises.
+- **Décors** : plus de 2 000 images OpenMoji avec recherche en français (catégories Rituels, Matériel, Émotions, Corps et soins pour la classe), cadres de page et frises.
 - **Fonds de page** : couleur, Seyès, petits carreaux, lignes, pointillés, papier kraft.
-- **Groupes**, sélection au cadre, alignement, verrouillage, annulation.
+- **Groupes**, sélection au cadre, alignement, répétition d'un bloc en grille, repères de découpe, verrouillage, annulation.
 - **Import** : pages d'un autre carnet, et fiches Word (.docx, .doc), LibreOffice (.odt, .odg), PDF ou Publisher (.pub) reprises en textes, photos et formes modifiables. Pour ces formats, LibreOffice doit être installé sur le poste.
 - **Aide** : visite guidée au premier lancement, astuces par thème et bulles d'aide discrètes (menu Aide).
-- **Sorties** : impression, PDF, et export **ODG** pour LibreOffice Draw, où chaque texte, photo et forme reste modifiable et les polices voyagent avec le fichier.
+- **Sorties** : impression (chaque page sur une feuille de son format, affiche A3 en deux feuilles A4, cartes en recto-verso), PDF, et export **ODG** pour LibreOffice Draw, où chaque texte, photo et forme reste modifiable et les polices voyagent avec le fichier.
 
 ## Confidentialité
 

@@ -18,6 +18,36 @@ export interface Release {
 /** De la plus récente à la plus ancienne. */
 export const RELEASES: Release[] = [
   {
+    version: "0.8",
+    items: [
+      {
+        title: "Des modèles pour la classe",
+        text: "« Partir d'un modèle » > « Pour la classe » : memory et loto des prénoms, lettres mobiles, J'écris mon prénom, tableau des présences, affiche des anniversaires. Remplissez-les d'un clic avec votre classe.",
+        image: "/nouveautes/0.8/modeles-classe.webp",
+      },
+      {
+        title: "Lignes d'écriture et styles de texte",
+        text: "Tiroir Texte : des lignes Seyès, simples ou à petits carreaux, pour écrire sous un modèle à repasser. Le bouton « Style » donne l'allure Titre, Consigne ou Prénom, et la change partout d'un coup.",
+        image: "/nouveautes/0.8/lignes.webp",
+      },
+      {
+        title: "Répéter un bloc, formats A5 et A3",
+        text: "Sélectionnez une étiquette, puis « Répéter » : la page se remplit d'exemplaires prêts pour la classe. La page passe en A5 ou A3 avec son contenu, et une affiche A3 s'imprime sur deux A4.",
+        image: "/nouveautes/0.8/repeter.webp",
+      },
+      {
+        title: "Votre classe, plus complète",
+        text: "Dates de naissance, champs {âge} et {anniversaire}, et la liste importée d'un tableur ou d'un export ONDE.",
+        image: "/nouveautes/0.8/classe.webp",
+      },
+      {
+        title: "Onze exemples",
+        text: "Emploi du temps, loto des émotions, règles de la classe en A3, cinq sens, porte-manteaux : des pages prêtes à modifier, depuis l'accueil.",
+        image: "/nouveautes/0.8/exemples.webp",
+      },
+    ],
+  },
+  {
     version: "0.7",
     items: [
       {

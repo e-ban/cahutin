@@ -12,6 +12,7 @@
   import { editor } from "../lib/docStore.svelte";
   import { addCaption, deleteSelection, groupSelection, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
   import { assetUrl } from "../lib/api";
+  import { fitCount, repeatBlock } from "../lib/repeat";
   import { endPreview, previewPhoto, previewShape, previewTable, updateTable, previewTextFrame, previewTextStyle, updatePhoto, updateShape, updateTextFrame, updateTextStyle } from "../lib/elementEdit";
   import { textPadding } from "../lib/richtext";
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
@@ -29,7 +30,7 @@
 
   const ROTATION_HANDLE_GAP = 44;
 
-  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields";
+  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields" | "repeat";
   /** Champs de la classe, remplacés pour chaque élève quand on génère les pages. */
   const CLASS_FIELDS = ["{prénom}", "{PRÉNOM}", "{nom}", "{groupe}", "{âge}", "{anniversaire}"];
   let pop = $state<Pop | null>(null);
@@ -138,6 +139,23 @@
   const canCut = $derived(
     editor.selection.length > 0 && !editor.selection.some((id) => inGrid(id) || isTableCell(editor.page, id)) && !isLockedSelection(editor.page, editor.selection),
   );
+
+  let repeatCols = $state(2);
+  let repeatRows = $state(2);
+
+  /** Répète la sélection en grille ; `fill` : autant d'exemplaires que la page en contient. */
+  function repeat(fill: boolean) {
+    const n = fill ? fitCount(editor.page, expandSelection(editor.page, editor.selection)) : { cols: repeatCols, rows: repeatRows };
+    let ids: string[] = [];
+    editor.updatePage((p) => {
+      const out = repeatBlock(p, editor.selection, n.cols, n.rows);
+      ids = out.ids;
+      return out.page;
+    });
+    editor.focusedMember = null;
+    editor.selection = ids;
+    pop = null;
+  }
 
   function setCutMarks(style: CutStyle | null) {
     editor.updatePage((p) => cutMarks(p, editor.selection, style));
@@ -417,6 +435,17 @@
     {/if}
     {#if canCut}
       <div class="wrap">
+        <button title={fr.repeatHint} onclick={() => toggle("repeat")}>⊞ {fr.repeat} ▾</button>
+        {#if pop === "repeat"}
+          <div class="pop repeat">
+            <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
+            <label>{fr.tableRows} <input type="number" min="1" max="20" bind:value={repeatRows} /></label>
+            <button class="primary" disabled={repeatCols * repeatRows < 2} onclick={() => repeat(false)}>{fr.repeatApply(repeatCols * repeatRows)}</button>
+            <button onclick={() => repeat(true)}>{fr.repeatFill}</button>
+          </div>
+        {/if}
+      </div>
+      <div class="wrap">
         <button title={fr.cutMarksHint} onclick={() => toggle("cut")}>✂ {fr.cutMarks} ▾</button>
         {#if pop === "cut"}
           <div class="pop list">
@@ -435,6 +464,20 @@
 {/if}
 
 <style>
+  .pop.repeat {
+    display: grid;
+    gap: 6px;
+    min-width: 200px;
+  }
+  .pop.repeat label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .pop.repeat input {
+    width: 60px;
+  }
   .patterns {
     display: flex;
     flex-wrap: wrap;

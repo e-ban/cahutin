@@ -218,6 +218,16 @@ async function withPrintPages<T>(action: () => T | Promise<T>): Promise<T> {
   }
 }
 
+/** Les affiches A3 en deux feuilles A4 qui se recouvrent. */
+export async function printTiled() {
+  editor.printTiles = true;
+  try {
+    await print();
+  } finally {
+    editor.printTiles = false;
+  }
+}
+
 export async function print() {
   // Selon le moteur, window.print() bloque ou rend la main tout de suite : on garde les pages
   // jusqu'à la fin de l'impression.
@@ -235,7 +245,7 @@ export async function exportPdf() {
   if (!picked) return;
   const path = withExt(picked, "pdf");
   const first = editor.doc.pages[0].size;
-  const done = await withPrintPages(() => guard(() => api.exportPdf(path, first.width_mm > first.height_mm)));
+  const done = await withPrintPages(() => guard(() => api.exportPdf(path, first.width_mm, first.height_mm)));
   if (done !== undefined) editor.notice = `PDF enregistré : ${fileName(path)}`;
 }
 

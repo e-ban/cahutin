@@ -37,6 +37,8 @@ class Editor {
   cropping = $state<string | null>(null);
   /** Pages d'impression rendues seulement pendant une impression ou un export PDF. */
   printing = $state(false);
+  /** Impression des pages A3 en deux moitiés sur A4. */
+  printTiles = $state(false);
   /** Panneau du fond de page. */
   showBackground = $state(false);
   /** Écran À propos (menu Aide). */

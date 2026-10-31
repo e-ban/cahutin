@@ -8,8 +8,33 @@
   margin: 0;
 }
 
-@page paysage {
+@page a4p {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@page a4l {
   size: A4 landscape;
+  margin: 0;
+}
+
+@page a3p {
+  size: A3 portrait;
+  margin: 0;
+}
+
+@page a3l {
+  size: A3 landscape;
+  margin: 0;
+}
+
+@page a5p {
+  size: A5 portrait;
+  margin: 0;
+}
+
+@page a5l {
+  size: A5 landscape;
   margin: 0;
 }
 
@@ -27,9 +52,6 @@
   .print-page {
     break-after: page;
     page: auto;
-  }
-  .print-page.landscape {
-    page: paysage;
   }
   .print-page .page {
     box-shadow: none !important;

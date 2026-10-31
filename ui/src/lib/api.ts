@@ -57,7 +57,8 @@ export const fontFiles = () => invoke<FontFileInfo[]>("font_files");
 export const acceptDocumentFonts = () => invoke<FontFamilyInfo[]>("accept_document_fonts");
 export const exportProblemReport = (path: string) => invoke<void>("export_problem_report", { path });
 export const canExportPdf = () => invoke<boolean>("can_export_pdf");
-export const exportPdf = (path: string, landscape: boolean) => invoke<void>("export_pdf", { path, landscape });
+/** Une taille de feuille pour tout le PDF : celle de la première page. */
+export const exportPdf = (path: string, widthMm: number, heightMm: number) => invoke<void>("export_pdf", { path, widthMm, heightMm });
 export const checkUpdate = () => invoke<string | null>("check_update");
 export const openDownloadPage = () => invoke<void>("open_download_page");
 

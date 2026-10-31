@@ -4,6 +4,7 @@
   import { nextZoom } from "../../lib/units";
   import { newPage } from "../../lib/factory";
   import { pageSetSize } from "../../lib/api";
+  import { changeFormat, formatOf, type Format } from "../../lib/pageFormat";
   import { remapTables } from "../../lib/table";
   import { deletePage } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
@@ -40,6 +41,17 @@
       editor.notice = String(e);
     }
   }
+
+  /** A5, A4 ou A3 : le contenu suit la taille de la page. */
+  async function setFormat(format: Format) {
+    const p = changeFormat(editor.page, format);
+    try {
+      const page = await pageSetSize(p, p.size.width_mm, p.size.height_mm);
+      editor.updatePageById(p.id, () => page);
+    } catch (e) {
+      editor.notice = String(e);
+    }
+  }
 </script>
 
 <footer class="pagebar">
@@ -53,6 +65,12 @@
   <button onclick={() => insert(newPage())} title={fr.addPage}>＋ {fr.addPage}</button>
   <button class="ghost" onclick={duplicate}>⧉ {fr.duplicatePage}</button>
   <button class="ghost" class:on={editor.showBackground} onclick={() => (editor.showBackground = !editor.showBackground)}>▤ {fr.backgroundButton}</button>
+  <select class="format" title={fr.pageFormat} aria-label={fr.pageFormat} value={formatOf(editor.page.size) ?? ""} onchange={(e) => setFormat(e.currentTarget.value as Format)}>
+    {#if !formatOf(editor.page.size)}<option value="">{fr.pageFormatOther}</option>{/if}
+    <option value="A5">A5</option>
+    <option value="A4">A4</option>
+    <option value="A3">A3</option>
+  </select>
   <button class="ghost" onclick={rotate}>⟳ {editor.page.size.width_mm > editor.page.size.height_mm ? fr.portrait : fr.landscape}</button>
   <button class="ghost" disabled={editor.doc.pages.length === 1} onclick={() => deletePage(editor.pageIndex)}>🗑 {fr.deletePage}</button>
   <span class="spacer"></span>

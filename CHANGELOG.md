@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- Répéter un bloc en grille (barre de la sélection, « Répéter ») : colonnes × lignes, ou « Remplir la page ». Chaque exemplaire forme un groupe et garde ses zones à remplir : une planche d'étiquettes ou de cartes en deux clics, prête pour la classe.
+- Formats A5, A4 et A3 (bande des pages) : le contenu suit la taille de la page. Chaque page s'imprime sur une feuille de son format, et le PDF prend le format de la première page. « Imprimer les affiches A3 sur deux feuilles A4 » sort chaque page A3 en deux moitiés qui se recouvrent de 1 cm, à coller.
 - Lignes d'écriture dans un cadre (tiroir Texte : Seyès, lignes, petits carreaux ; ou réglage « Cadre » d'un texte) : pour écrire le prénom ou une phrase sous un modèle. Elles s'impriment et s'exportent ; un document qui en contient est refusé par Cahutin 0.7 et avant.
 - Photo en miroir (barre de la photo, « Miroir »), à l'écran, à l'impression et à l'export ; un document qui en contient est refusé par Cahutin 0.7 et avant.
 - Décors : quatre catégories pour la classe, en tête de liste : Rituels, Matériel, Émotions, Corps et soins.

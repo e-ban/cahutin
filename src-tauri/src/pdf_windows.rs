@@ -9,10 +9,11 @@ use webview2_com::Microsoft::Web::WebView2::Win32::{
 use webview2_com::PrintToPdfCompletedHandler;
 use windows::core::{HSTRING, Interface};
 
-const A4_SHORT_IN: f64 = 210.0 / 25.4;
-const A4_LONG_IN: f64 = 297.0 / 25.4;
-
-pub fn print_to_pdf(webview: &tauri::Webview, path: &str, landscape: bool) -> Result<(), String> {
+/// La feuille du PDF a la taille de la page (A5, A4, A3), dans son orientation.
+pub fn print_to_pdf(webview: &tauri::Webview, path: &str, width_mm: f64, height_mm: f64) -> Result<(), String> {
+    let landscape = width_mm > height_mm;
+    let short_in = width_mm.min(height_mm) / 25.4;
+    let long_in = width_mm.max(height_mm) / 25.4;
     let (tx, rx) = mpsc::channel::<Result<(), String>>();
     let path = HSTRING::from(path);
     webview
@@ -29,8 +30,8 @@ pub fn print_to_pdf(webview: &tauri::Webview, path: &str, landscape: bool) -> Re
                     } else {
                         COREWEBVIEW2_PRINT_ORIENTATION_PORTRAIT
                     })?;
-                    settings.SetPageWidth(A4_SHORT_IN)?;
-                    settings.SetPageHeight(A4_LONG_IN)?;
+                    settings.SetPageWidth(short_in)?;
+                    settings.SetPageHeight(long_in)?;
                     settings.SetMarginTop(0.0)?;
                     settings.SetMarginBottom(0.0)?;
                     settings.SetMarginLeft(0.0)?;

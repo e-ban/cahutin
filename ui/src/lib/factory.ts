@@ -61,6 +61,8 @@ const SHAPE_DEFAULTS: Record<ShapeKind, { w: number; h: number; fill: string | n
   Heart: { w: 40, h: 40, fill: "#e74c3c", stroke: null },
   Bubble: { w: 70, h: 45, fill: "#ffffff", stroke: { width_mm: 0.5, color: "#333333" } },
   Cloud: { w: 70, h: 45, fill: "#ffffff", stroke: { width_mm: 0.5, color: "#333333" } },
+  // Tracé libre : posé par les lignes de graphisme et les chemins, qui donnent son tracé.
+  Path: { w: 120, h: 40, fill: null, stroke: { width_mm: 1.2, color: "#555555", style: "Dotted" } },
 };
 
 /** Nouvelle forme centrée sur la page (ou sur le point donné). */

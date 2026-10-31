@@ -101,7 +101,7 @@ mod tests {
             locked: false,
             zone: false,
             group: None,
-            kind: ElementKind::Shape(ShapeProps { shape: kind, fill: fill.map(String::from), stroke: None, corner_radius_mm: 0.0 }),
+            kind: ElementKind::Shape(ShapeProps { shape: kind, fill: fill.map(String::from), stroke: None, corner_radius_mm: 0.0, path: None }),
         }
     }
 

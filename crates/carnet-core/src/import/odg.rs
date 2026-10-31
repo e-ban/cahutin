@@ -260,6 +260,16 @@ fn frame_of(n: Node) -> Option<Frame> {
     Some(Frame { x_mm: cx - w / 2.0, y_mm: cy - h / 2.0, w_mm: w, h_mm: h, rotation_deg: if deg.abs() < 1e-6 { 0.0 } else { deg } })
 }
 
+/// Tracé libre d'un `draw:custom-shape` écrit par Cahutin : repère de 0 à 1000, commandes M, L, C et Z.
+fn free_path(n: Node) -> Option<String> {
+    let g = n.children().find(|c| c.has_tag_name((DRAW, "enhanced-geometry")))?;
+    if g.attribute((SVG, "viewBox")) != Some("0 0 1000 1000") {
+        return None;
+    }
+    let path = g.attribute((DRAW, "enhanced-path"))?.trim_end_matches(" N").trim();
+    crate::shapes::valid_path(path).then(|| path.to_string())
+}
+
 /// Forme d'un `draw:custom-shape` : une forme de Cahutin reconnue à son tracé (ce qu'écrit l'export), ou une
 /// forme toute faite de LibreOffice d'après son type.
 fn custom_shape_kind(n: Node) -> Option<ShapeKind> {
@@ -345,7 +355,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
             (g.fill, g.stroke)
         };
         let corner_radius_mm = if shape == ShapeKind::Rect { attr_mm(n, DRAW, "corner-radius").unwrap_or(0.0) } else { 0.0 };
-        self.items.push(Item::Element(Box::new(element(frame, ElementKind::Shape(ShapeProps { shape, fill, stroke, corner_radius_mm })))));
+        self.items.push(Item::Element(Box::new(element(frame, ElementKind::Shape(ShapeProps { shape, fill, stroke, corner_radius_mm, path: None })))));
     }
 
     fn text_box(&mut self, frame: Frame, frame_node: Node, text_box: Node) {
@@ -583,8 +593,20 @@ impl<R: Read + Seek> PageReader<'_, R> {
                     None => self.skipped += 1,
                 }
             }
-            "custom-shape" => match (frame_of(n), custom_shape_kind(n)) {
-                (Some(f), Some(kind)) => self.shape(n, f, kind),
+            "custom-shape" => match (frame_of(n), custom_shape_kind(n), free_path(n)) {
+                (Some(f), Some(kind), _) => self.shape(n, f, kind),
+                (Some(f), None, Some(path)) => {
+                    self.shape(n, f, ShapeKind::Path);
+                    if let Some(Item::Element(e)) = self.items.last_mut()
+                        && let ElementKind::Shape(s) = &mut e.kind
+                    {
+                        s.path = Some(path);
+                        // Un tracé ouvert (ligne de graphisme, chemin) n'a pas de remplissage.
+                        if !s.path.as_deref().is_some_and(|p| p.trim_end().ends_with('Z')) {
+                            s.fill = None;
+                        }
+                    }
+                }
                 _ => self.skipped += 1,
             },
             "line" => {

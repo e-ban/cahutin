@@ -35,7 +35,7 @@ fn main() {
     let page = &mut doc.pages[0];
     page.elements.push(element(
         frame(0.0, 0.0, 210.0, 25.0, 0.0),
-        ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: Some("#f6e3c5".into()), stroke: None, corner_radius_mm: 0.0 }),
+        ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: Some("#f6e3c5".into()), stroke: None, corner_radius_mm: 0.0, path: None }),
     ));
     let mut title = TextStyle::default_zone();
     title.font = "Playwrite FR Moderne".into();
@@ -74,6 +74,7 @@ fn main() {
             fill: None,
             stroke: Some(Stroke { width_mm: 0.5, color: "#999999".into(), style: None }),
             corner_radius_mm: 0.0,
+            path: None,
         }),
     ));
     export_odg_to_path(&doc, &store, &carnet_core::fonts::FontSet::builtin(), std::path::Path::new(&out)).unwrap();

@@ -596,7 +596,7 @@ mod tests {
                 locked: false,
                 zone: false,
                 group: None,
-                kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 3.0 }),
+                kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 3.0, path: None }),
             });
             p.elements.push(styled(None, "{PRÉNOM}", "Andika", frame(x + 5.0, 12.0, 80.0, 10.0)));
             p.elements.push(styled(None, "{prénom}", "Andika", frame(x + 5.0, 24.0, 80.0, 10.0)));

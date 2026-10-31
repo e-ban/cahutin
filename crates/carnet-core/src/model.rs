@@ -46,7 +46,7 @@ pub fn renew_ids(page: &mut Page) {
 
 /// Version la plus récente que cette application sait lire (2 : élément image ; 3 : cadre de texte,
 /// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau, lettres creuses ; 5 : photo en
-/// miroir, lignes d'écriture, styles nommés ; 6 : image à colorier ou en couleur de peau).
+/// miroir, lignes d'écriture, styles nommés ; 6 : image à colorier ou en couleur de peau, tracé libre).
 pub const FORMAT_VERSION: u32 = 6;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
@@ -432,6 +432,11 @@ pub struct ShapeProps {
     pub fill: Option<String>,
     pub stroke: Option<Stroke>,
     pub corner_radius_mm: f64,
+    /// Tracé d'une forme `Path` (lignes de graphisme, chemins) : commandes M, L, C et Z en coordonnées absolues,
+    /// dans un carré de 0 à 1000 étiré sur le cadre, comme les formes dessinées. Absent pour les autres formes.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub path: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
@@ -445,6 +450,8 @@ pub enum ShapeKind {
     Heart,
     Bubble,
     Cloud,
+    /// Tracé libre, donné par `ShapeProps::path`.
+    Path,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
@@ -534,6 +541,7 @@ mod tests {
                 fill: Some("#ffeecc".into()),
                 stroke: None,
                 corner_radius_mm: 0.0,
+                path: None,
             }),
         });
         d.assets.insert(

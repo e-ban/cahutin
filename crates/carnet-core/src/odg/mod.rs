@@ -283,6 +283,30 @@ mod tests {
         assert_eq!(images, [&ImageProps { code: "1F98A".into(), outline: Some(true) }]);
     }
 
+    /// Un tracé libre part en forme personnalisée et revient tracé libre, ouvert et sans remplissage ; un tracé
+    /// invalide n'est pas écrit.
+    #[test]
+    fn a_free_path_goes_and_comes_back() {
+        let bridges = "M 0 1000 C 0 -333 250 -333 250 1000 M 300 1000 C 300 -333 550 -333 550 1000";
+        let shape = |path: &str| Element {
+            id: "p".into(),
+            frame: Frame { x_mm: 15.0, y_mm: 40.0, w_mm: 180.0, h_mm: 20.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Path, fill: None, stroke: Some(Stroke { width_mm: 0.8, color: "#9e9e9e".into(), style: Some(StrokeStyle::Dotted) }), corner_radius_mm: 0.0, path: Some(path.into()) }),
+        };
+        let mut buf = Cursor::new(Vec::new());
+        export_odg(&doc_with(vec![shape(bridges)]), &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
+        buf.set_position(0);
+        let back = crate::import::odg::read_drawing(buf, &[]).unwrap();
+        let ElementKind::Shape(s) = &back.pages[0].elements[0].kind else { panic!("{:?}", back.pages[0].elements) };
+        assert_eq!((s.shape, s.path.as_deref(), s.fill.as_deref()), (ShapeKind::Path, Some(bridges), None));
+        assert_eq!(s.stroke.as_ref().map(|st| st.width_mm), Some(0.8));
+        let content = export(&doc_with(vec![shape("M 0 0 A 1 1 0 0 1 2 2")]), &AssetStore::default()).xml("content.xml");
+        assert!(!content.contains("custom-shape") && !content.contains("draw:ellipse"), "{content}");
+    }
+
     fn doc_with(elements: Vec<Element>) -> Document {
         let mut d = Document::new("essai");
         d.pages[0].elements = elements;
@@ -427,7 +451,7 @@ mod tests {
             locked: false,
             zone: false,
             group: None,
-            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: stroke(style), corner_radius_mm: 0.0 }),
+            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: stroke(style), corner_radius_mm: 0.0, path: None }),
         };
         let mut e = export(&doc_with(vec![shape(StrokeStyle::Dashed), shape(StrokeStyle::Dotted), shape(StrokeStyle::Solid)]), &AssetStore::default());
         let content = e.xml("content.xml");
@@ -650,6 +674,7 @@ mod tests {
                 fill: Some("#f1c40f".into()),
                 stroke: Some(Stroke { width_mm: 1.0, color: "#333333".into(), style: None }),
                 corner_radius_mm: 0.0,
+                path: None,
             }),
         }
     }

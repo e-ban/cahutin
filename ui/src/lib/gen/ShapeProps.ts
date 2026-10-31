@@ -2,4 +2,9 @@
 import type { ShapeKind } from "./ShapeKind";
 import type { Stroke } from "./Stroke";
 
-export type ShapeProps = { shape: ShapeKind, fill: string | null, stroke: Stroke | null, corner_radius_mm: number, };
+export type ShapeProps = { shape: ShapeKind, fill: string | null, stroke: Stroke | null, corner_radius_mm: number, 
+/**
+ * Tracé d'une forme `Path` (lignes de graphisme, chemins) : commandes M, L, C et Z en coordonnées absolues,
+ * dans un carré de 0 à 1000 étiré sur le cadre, comme les formes dessinées. Absent pour les autres formes.
+ */
+path?: string | null, };

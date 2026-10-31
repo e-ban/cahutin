@@ -34,7 +34,7 @@ mod tests {
             locked: false,
             zone: false,
             group: group.map(String::from),
-            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0 }),
+            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0, path: None }),
         }
     }
 

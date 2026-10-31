@@ -14,8 +14,9 @@
     props,
     zoom,
     editing = false,
+    alerts = true,
     ondone,
-  }: { element: Element; props: TextProps; zoom: number; editing?: boolean; ondone?: (content: RichText) => void } = $props();
+  }: { element: Element; props: TextProps; zoom: number; editing?: boolean; alerts?: boolean; ondone?: (content: RichText) => void } = $props();
 
   let box: HTMLDivElement | undefined = $state();
   let overflow = $state(false);
@@ -120,7 +121,7 @@
   </div>
 </div>
 <!-- Une invite trop longue n'est qu'une indication : pas d'alerte. -->
-{#if overflow && !editing && !blank}
+{#if alerts && overflow && !editing && !blank}
   <span class="badge" style:transform="scale({Math.max(zoom, 0.6)})">Texte trop long</span>
 {/if}
 

@@ -329,7 +329,7 @@ fn drawn_shapes_keep_their_geometry() {
             locked: false,
             zone: false,
             group: None,
-            kind: ElementKind::Shape(ShapeProps { shape: kind, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0 }),
+            kind: ElementKind::Shape(ShapeProps { shape: kind, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0, path: None }),
         });
         doc.pages.push(page);
     }
@@ -360,6 +360,7 @@ fn arrow_has_its_head() {
             fill: None,
             stroke: Some(Stroke { width_mm: 1.0, color: "#000000".into(), style: None }),
             corner_radius_mm: 0.0,
+            path: None,
         }),
     });
     let (_dir, pdf) = render(&doc, &AssetStore::default());
@@ -593,6 +594,7 @@ fn dashes_have_the_screen_lengths() {
                 fill: None,
                 stroke: Some(Stroke { width_mm: width, color: "#000000".into(), style: Some(style) }),
                 corner_radius_mm: 0.0,
+                path: None,
             }),
         });
         doc.pages.push(page);

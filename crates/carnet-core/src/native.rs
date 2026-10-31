@@ -3,7 +3,7 @@
 
 pub use crate::model::FORMAT_VERSION;
 use crate::fonts::FontSet;
-use crate::model::{Document, Element, ElementKind, Mime, Stroke, TEXT_PADDING_MM, VAlign};
+use crate::model::{Document, Element, ElementKind, Mime, ShapeKind, Stroke, TEXT_PADDING_MM, VAlign};
 use crate::photo::{Asset, AssetStore};
 use std::collections::BTreeSet;
 use std::io::{Read, Seek, Write};
@@ -84,7 +84,11 @@ pub fn written_version(doc: &Document) -> u32 {
         _ => false,
     };
     // Image à colorier (contour), ou en couleur de peau : la banque d'une version plus ancienne ne l'a pas.
-    let v6 = |e: &Element| matches!(&e.kind, ElementKind::Image(i) if i.outline == Some(true) || crate::picto::has_skin_tone(&i.code));
+    let v6 = |e: &Element| match &e.kind {
+        ElementKind::Image(i) => i.outline == Some(true) || crate::picto::has_skin_tone(&i.code),
+        ElementKind::Shape(s) => s.shape == ShapeKind::Path,
+        _ => false,
+    };
     if elements().any(v6) {
         6
     } else if !doc.text_styles.is_empty() || elements().any(v5) {
@@ -490,6 +494,11 @@ mod tests {
             i.code = "1F9D2-1F3FD".into();
         }
         assert_eq!(written_version(&doc), 6);
+        let mut doc = Document::new("v");
+        let mut path = picture(None);
+        path.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Path, fill: None, stroke: None, corner_radius_mm: 0.0, path: Some("M 0 0 L 1000 1000".into()) });
+        doc.pages[0].elements.push(path);
+        assert_eq!(written_version(&doc), 6);
     }
 
     /// Bombe zip : une entrée minuscule qui se décompresse sans fin ne doit pas remplir la mémoire.
@@ -591,9 +600,9 @@ mod tests {
         assert_eq!(with(text_el(plain.clone(), Some(frame))), 3);
         let dashed = Stroke { width_mm: 1.0, color: "#000000".into(), style: Some(StrokeStyle::Dashed) };
         let mut shape = picture(None);
-        shape.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: Some(dashed.clone()), corner_radius_mm: 0.0 });
+        shape.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: Some(dashed.clone()), corner_radius_mm: 0.0, path: None });
         assert_eq!(with(shape.clone()), 3);
-        shape.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: Some(Stroke { style: Some(StrokeStyle::Solid), ..dashed.clone() }), corner_radius_mm: 0.0 });
+        shape.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: Some(Stroke { style: Some(StrokeStyle::Solid), ..dashed.clone() }), corner_radius_mm: 0.0, path: None });
         assert_eq!(with(shape), 2);
         let mut photo = picture(None);
         photo.kind = ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: Some(dashed), shadow: false, mirrored: false });

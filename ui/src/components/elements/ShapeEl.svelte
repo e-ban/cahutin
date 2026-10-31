@@ -1,5 +1,6 @@
 <script lang="ts">
-  // Rectangle et ellipse en CSS ; les formes dessinées et les traits en SVG, avec le tracé de l'export.
+  // Rectangle et ellipse en CSS ; les formes dessinées, les tracés libres et les traits en SVG, avec le tracé de
+  // l'export.
   import { SHAPE_PATHS, SHAPE_VIEWBOX, arrowHeadMm } from "../../lib/shapePaths";
   import { dashArray, isSolid } from "../../lib/strokes";
   import { mmToPx } from "../../lib/units";
@@ -7,7 +8,8 @@
 
   let { props, frame, zoom }: { props: ShapeProps; frame: Frame; zoom: number } = $props();
 
-  const path = $derived(SHAPE_PATHS[props.shape]);
+  // Tracé libre (graphisme, chemin) : le sien ; sinon celui de la sorte de forme.
+  const path = $derived(props.shape === "Path" ? (props.path ?? undefined) : SHAPE_PATHS[props.shape]);
   const strokePx = $derived(props.stroke ? mmToPx(props.stroke.width_mm, zoom) : 0);
   const w = $derived(mmToPx(frame.w_mm, zoom));
   const h = $derived(mmToPx(frame.h_mm, zoom));

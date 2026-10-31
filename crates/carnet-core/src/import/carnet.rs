@@ -37,7 +37,7 @@ mod tests {
     }
 
     fn rect() -> ElementKind {
-        ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: Some("#ffffff".into()), stroke: None, corner_radius_mm: 0.0 })
+        ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: Some("#ffffff".into()), stroke: None, corner_radius_mm: 0.0, path: None })
     }
 
     fn photo_asset() -> crate::photo::Asset {

@@ -432,7 +432,7 @@
       {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
     {:else if selected?.kind.type === "Shape"}
       {@const s = selected.kind}
-      {#if !isStrokeOnly(s.shape)}
+      {#if !isStrokeOnly(s.shape) && s.shape !== "Path"}
       <div class="wrap">
         <button onclick={() => toggle("fill")}><span class="dot" style:background={s.fill ?? "transparent"}></span> {fr.fill}</button>
         {#if pop === "fill"}<div class="pop"><ColorPicker value={s.fill} allowNone onchange={(c) => updateShape({ fill: c })} /></div>{/if}

@@ -2,7 +2,9 @@
   import Drawer from "../layout/Drawer.svelte";
   import ShapeEl from "../elements/ShapeEl.svelte";
   import { editor } from "../../lib/docStore.svelte";
-  import { shapeElement } from "../../lib/factory";
+  import { centeredFrame, shapeElement } from "../../lib/factory";
+  import { MOTIFS, PATHS, dottedPath, graphismeRows, motifPreview, type Level, type Motif } from "../../lib/graphisme";
+  import { readPref, writePref } from "../../lib/prefs";
   import { fr } from "../../lib/i18n/fr";
   import type { Element, ShapeKind } from "../../lib/types";
 
@@ -20,6 +22,30 @@
 
   // Aperçu dessiné par le même composant que la page.
   const previews: Element[] = shapes.map((s) => shapeElement(editor.page, s.shape, s.radius));
+
+  // Lignes de graphisme : la section (taille des motifs) et le nombre de lignes, gardés d'une fois sur l'autre.
+  let level = $state<Level>(readPref("graphismeLevel", "MS"));
+  let rows = $state<number>(readPref("graphismeRows", 4));
+  $effect(() => writePref("graphismeLevel", level));
+  $effect(() => writePref("graphismeRows", rows));
+
+  const pathProps = (path: string) => ({ shape: "Path" as const, path, fill: null, stroke: { width_mm: 0.6, color: "#333333" }, corner_radius_mm: 0 });
+
+  function addRows(m: Motif) {
+    const els = graphismeRows(editor.page, m, level, rows);
+    if (!els.length) {
+      editor.notice = fr.graphismeNoRoom;
+      return;
+    }
+    editor.updatePage((p) => ({ ...p, elements: [...p.elements, ...els] }));
+    editor.selection = els.map((e) => e.id);
+  }
+
+  function addPath(path: string, w: number, h: number) {
+    const el = dottedPath(path, centeredFrame(editor.page, w, h));
+    editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+    editor.selection = [el.id];
+  }
 
   function add(shape: ShapeKind, radius: number) {
     const el = shapeElement(editor.page, shape, radius);
@@ -40,6 +66,44 @@
       </button>
     {/each}
   </div>
+
+  <h3>{fr.graphisme}</h3>
+  <div class="options">
+    <label>{fr.graphismeLevel}
+      <select bind:value={level}>
+        <option value="PS">PS</option>
+        <option value="MS">MS</option>
+        <option value="GS">GS</option>
+      </select>
+    </label>
+    <label>{fr.graphismeRows} <input type="number" min="1" max="12" bind:value={rows} /></label>
+  </div>
+  <div class="grid motifs">
+    {#each MOTIFS as m (m)}
+      {@const pv = motifPreview(m)}
+      {@const px = Math.min(2, 56 / pv.frame.w_mm)}
+      <button title={fr.graphismeAdd(fr.motifs[m])} onclick={() => addRows(m)}>
+        <span class="preview" style:width="{pv.frame.w_mm * px}px" style:height="{pv.frame.h_mm * px}px">
+          <ShapeEl props={pathProps(pv.path)} frame={pv.frame} zoom={px / 3.7795} />
+        </span>
+        {fr.motifs[m]}
+      </button>
+    {/each}
+  </div>
+  <p class="hint">{fr.graphismeHint}</p>
+
+  <h3>{fr.paths}</h3>
+  <div class="grid paths">
+    {#each PATHS as p (p.id)}
+      <button onclick={() => addPath(p.path, p.w_mm, p.h_mm)}>
+        <span class="preview" style:width="{p.w_mm * 0.5}px" style:height="{p.h_mm * 0.5}px">
+          <ShapeEl props={{ ...pathProps(p.path), stroke: { width_mm: 1.2, color: "#555555", style: "Dotted" } }} frame={{ x_mm: 0, y_mm: 0, w_mm: p.w_mm, h_mm: p.h_mm, rotation_deg: 0 }} zoom={0.5 / 3.7795} />
+        </span>
+        {fr.pathNames[p.id]}
+      </button>
+    {/each}
+  </div>
+  <p class="hint">{fr.pathsHint}</p>
 </Drawer>
 
 <style>
@@ -51,12 +115,38 @@
   .grid button {
     padding: 10px 4px;
     font-size: 12px;
+    min-width: 0;
   }
   .grid button {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 6px;
+  }
+  h3 {
+    margin: 14px 0 6px;
+  }
+  .options {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .options label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .options input {
+    width: 4em;
+  }
+  .hint {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 6px 0 0;
+  }
+  .paths {
+    grid-template-columns: repeat(2, 1fr);
   }
   .preview {
     position: relative;

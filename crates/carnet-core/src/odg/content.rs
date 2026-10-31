@@ -395,13 +395,17 @@ impl Writer<'_> {
             self.body.empty("draw:line", &attrs(&a));
             return;
         }
-        if let Some(path) = shapes::path(s.shape) {
+        if let Some(path) = shapes::path_of(s) {
             a.extend(geometry(&e.frame));
             self.body.open("draw:custom-shape", &attrs(&a));
             let viewbox = format!("0 0 {0} {0}", shapes::VIEWBOX);
             let enhanced = format!("{path} N");
             self.body.empty("draw:enhanced-geometry", &[("svg:viewBox", viewbox.as_str()), ("draw:enhanced-path", enhanced.as_str())]);
             self.body.close();
+            return;
+        }
+        // Tracé libre invalide (document abîmé) : rien n'est écrit.
+        if s.shape == ShapeKind::Path {
             return;
         }
         let name = match s.shape {

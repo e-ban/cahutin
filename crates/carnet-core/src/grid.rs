@@ -273,7 +273,7 @@ mod tests {
             locked: true,
             zone: false,
             group: None,
-            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0 }),
+            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0, path: None }),
         };
         p.elements.push(band);
         set_grid(&mut p, 2, 3);

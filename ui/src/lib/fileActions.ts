@@ -386,4 +386,5 @@ export async function pickLogo() {
     ),
   });
   editor.selection = [id];
+  editor.notice = fr.logoAdded;
 }

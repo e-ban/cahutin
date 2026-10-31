@@ -306,7 +306,7 @@
         <button class:on={!!ph.mirrored} aria-pressed={!!ph.mirrored} title={fr.mirrorHint} onclick={() => updatePhoto({ mirrored: !ph.mirrored })}>⇋ {fr.mirror}</button>
         <button onclick={openPhotos}>⇄ {fr.replace}</button>
         <button onclick={() => addCaption(selected.id)}>✎ {fr.caption}</button>
-        {#if !selected.locked}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
+        {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
       {/if}
     {:else if selected?.kind.type === "Text"}
       {@const t = selected.kind}
@@ -426,7 +426,7 @@
       </div>
     {:else if selected?.kind.type === "Image"}
       <button onclick={() => (editor.drawer = "decor")}>⇄ {fr.replace}</button>
-      {#if !selected.locked}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
+      {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
     {:else if selected?.kind.type === "Shape"}
       {@const s = selected.kind}
       {#if !isStrokeOnly(s.shape)}
@@ -470,7 +470,7 @@
           {/if}
         </div>
       {/if}
-      {#if !selected.locked}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
+      {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
     {/if}
     {#if canFrieze}
       <button title={fr.blockFriezeHint} onclick={addBlockFrieze}>❀ {fr.blockFrieze}</button>

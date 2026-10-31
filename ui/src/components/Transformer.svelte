@@ -19,7 +19,7 @@
 
   const target = $derived.by(() => {
     const e = editor.selected;
-    if (!e || e.locked || editor.cropping === e.id || editor.editingText === e.id) return null;
+    if (!e || (e.locked && !editor.templateMode) || editor.cropping === e.id || editor.editingText === e.id) return null;
     // Une case de grille ou de tableau reste à sa place : la grille la place.
     return isPlacedCell(editor.page, e.id) ? null : e;
   });

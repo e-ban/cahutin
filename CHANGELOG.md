@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Mode modèle : « Zone photo » et « Zone texte » dans la barre de gauche, pour poser des zones où l'on veut, sans grille (une page partie de « Créer un modèle » n'en avait aucun moyen). « Logo » devient « Image fixe », avec une explication : elle reste sur chaque page faite avec le modèle. En mode modèle, une image ou une case fixée se déplace et se supprime encore.
 - Version Microsoft Store en préparation (paquet MSIX signé par Microsoft : plus d'avertissement « fichier peu téléchargé »). Elle ne consulte jamais GitHub : le Store fait les mises à jour.
 - Site : une page « Confidentialité ».
 

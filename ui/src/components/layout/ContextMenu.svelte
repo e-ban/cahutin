@@ -53,7 +53,7 @@
 
 <div class="menu" role="menu" bind:this={menuEl} style:left="{left}px" style:top="{top}px">
   {#if element}
-    <button role="menuitem" disabled={element.locked} onclick={() => run(cutSelection)}><span>{fr.cut}</span><kbd>Ctrl+X</kbd></button>
+    <button role="menuitem" disabled={element.locked && !editor.templateMode} onclick={() => run(cutSelection)}><span>{fr.cut}</span><kbd>Ctrl+X</kbd></button>
     <button role="menuitem" onclick={() => run(copySelection)}><span>{fr.copy}</span><kbd>Ctrl+C</kbd></button>
     <button role="menuitem" disabled={!hasClipboard()} onclick={() => run(paste)}><span>{fr.paste}</span><kbd>Ctrl+V</kbd></button>
     <button role="menuitem" onclick={() => run(duplicateSelection)}><span>{fr.duplicate}</span><kbd>Ctrl+D</kbd></button>
@@ -70,7 +70,7 @@
     <button role="menuitem" onclick={() => run(() => bringSelection("back"))}><span>{fr.sendBack}</span></button>
     <hr />
     <button role="menuitem" onclick={() => run(toggleLockSelection)}><span>{editor.templateMode ? (element.locked ? fr.unfixCell : fr.fixCell) : element.locked ? fr.unlock : fr.lock}</span></button>
-    <button role="menuitem" disabled={element.locked} onclick={() => run(deleteSelection)}><span>{fr.delete}</span><kbd>Suppr</kbd></button>
+    <button role="menuitem" disabled={element.locked && !editor.templateMode} onclick={() => run(deleteSelection)}><span>{fr.delete}</span><kbd>Suppr</kbd></button>
   {:else}
     <button role="menuitem" disabled={!hasClipboard()} onclick={() => run(paste)}><span>{fr.paste}</span><kbd>Ctrl+V</kbd></button>
     <button role="menuitem" onclick={() => run(() => addHere("text"))}><span>{fr.addTextHere}</span></button>

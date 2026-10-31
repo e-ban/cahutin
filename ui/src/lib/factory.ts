@@ -30,6 +30,17 @@ export function textElement(frame: Frame, zone = false): Element {
   };
 }
 
+/** Zone photo à remplir (modèle), libre, au centre de la page. */
+export function photoZoneElement(page: Page): Element {
+  return {
+    id: newId(),
+    frame: centeredFrame(page, 80, 60),
+    locked: false,
+    zone: true,
+    kind: { type: "Photo", asset: null, crop: { scale: 1, center_x: 0.5, center_y: 0.5 }, corner_radius_mm: 3, border: null, shadow: false },
+  };
+}
+
 /** Taille (mm), remplissage et trait par défaut de chaque forme. */
 const SHAPE_DEFAULTS: Record<ShapeKind, { w: number; h: number; fill: string | null; stroke: Stroke | null }> = {
   Rect: { w: 60, h: 40, fill: "#f6e3c5", stroke: null },

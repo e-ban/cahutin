@@ -79,7 +79,7 @@ export function deleteSelection() {
     else runOnPage((p) => tableSetCell(p, cell.id, "Text"));
     return;
   }
-  const next = removeElements(editor.page, ids);
+  const next = removeElements(editor.page, ids, editor.templateMode);
   if (next !== editor.page) editor.updatePage(() => next);
 }
 

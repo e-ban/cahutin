@@ -53,9 +53,10 @@ export function reorder(page: Page, selected: string[], where: "front" | "back")
   return { ...page, elements: where === "front" ? [...rest, ...moved] : [...moved, ...rest] };
 }
 
-/** Les éléments verrouillés restent ; une case de grille supprimée disparaît aussi de la grille. */
-export function removeElements(page: Page, ids: string[]): Page {
-  const gone = new Set(page.elements.filter((e) => ids.includes(e.id) && !e.locked).map((e) => e.id));
+/** Les éléments verrouillés restent, sauf `withLocked` (mode modèle, où l'on règle les éléments fixés) ;
+ *  une case de grille supprimée disparaît aussi de la grille. */
+export function removeElements(page: Page, ids: string[], withLocked = false): Page {
+  const gone = new Set(page.elements.filter((e) => ids.includes(e.id) && (withLocked || !e.locked)).map((e) => e.id));
   if (gone.size === 0) return page;
   const cells = page.grid?.cells.filter((c) => !gone.has(c.element_id));
   return dissolveSmallGroups({

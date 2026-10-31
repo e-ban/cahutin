@@ -314,7 +314,7 @@ export const fr = {
       : `Ce document utilise des polices absentes de ce poste (${names.join(", ")}) : le texte s'affiche en Andika, et l'export l'écrira en Andika.`,
   later: "Plus tard",
   // Mode modèle
-  templateBanner: "Mode modèle : choisissez une grille, glissez d'une case à une autre pour les fusionner, puis enregistrez.",
+  templateBanner: "Mode modèle : une grille toute prête, ou des zones photo et texte posées où vous voulez, puis enregistrez. Les photos et les textes écrits ne sont pas gardés ; une image fixe (logo de l'école) l'est.",
   saveAsTemplate: "Enregistrer comme modèle",
   finishTemplate: "Terminer le modèle",
   templateName: "Nom du modèle",
@@ -322,7 +322,11 @@ export const fr = {
   templateSaved: (name: string) =>
     `Modèle « ${name} » enregistré. Les zones sont vides ; seuls les éléments fixés et les formes sont gardés, pas les photos ni les textes libres.`,
   grid: "Grille",
-  logo: "Logo",
+  logo: "Image fixe",
+  logoHint: "Logo de l'école, en-tête : une image qui reste sur chaque page faite avec ce modèle. Elle est fixée (rien ne la bouge par mégarde en remplissant la page) ; ici, en mode modèle, on peut encore la déplacer ou la supprimer.",
+  logoAdded: "Image fixe ajoutée : elle restera sur chaque page faite avec ce modèle. Déplacez-la ou agrandissez-la maintenant ; une fois le modèle utilisé, elle ne bougera plus.",
+  photoZoneHint: "Une zone où l'on déposera une photo",
+  textZoneHint: "Une zone où l'on écrira",
   readyGrids: "Grilles toutes prêtes",
   presetOne: "1 grande",
   presetTwoByTwo: "2 × 2",

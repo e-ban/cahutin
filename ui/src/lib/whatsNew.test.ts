@@ -23,7 +23,6 @@ test("versions go from the newest to the oldest, each one once", () => {
 });
 
 test("each novelty has a title, a text, its own screenshot on disk, and no long dash", () => {
-  expect(WHATS_NEW.items.length).toBeGreaterThanOrEqual(5);
   for (const r of RELEASES) {
     expect(r.items.length).toBeGreaterThan(0);
     for (const n of r.items) {

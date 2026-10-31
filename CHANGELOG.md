@@ -1,6 +1,6 @@
 # Journal des versions
 
-## Non publié
+## 0.7.0
 
 - Nouveau logo : un lutin qui écrit dans son cahier, à l'abri d'un livre ouvert en tente.
 - Accueil : le nom et la version de Cahutin en tête, les choix sur toute la largeur, et les documents récents avec l'aperçu de leur première page.

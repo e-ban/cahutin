@@ -18,6 +18,21 @@ export interface Release {
 /** De la plus récente à la plus ancienne. */
 export const RELEASES: Release[] = [
   {
+    version: "0.7",
+    items: [
+      {
+        title: "Un accueil plus clair",
+        text: "Le nouveau logo, le nom et la version de Cahutin en tête, les choix sur toute la largeur, et vos documents récents avec l'aperçu de leur première page : on retrouve le bon d'un coup d'œil.",
+        image: "/nouveautes/0.7/accueil.webp",
+      },
+      {
+        title: "Créer votre propre modèle",
+        text: "« Partir d'un modèle », puis « Créer un modèle » : choisissez une grille, fusionnez des cases, et enregistrez. Votre modèle rejoint la liste, prêt à resservir.",
+        image: "/nouveautes/0.7/modele.webp",
+      },
+    ],
+  },
+  {
     version: "0.6",
     items: [
       {

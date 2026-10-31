@@ -12,7 +12,10 @@
   let { assetId, onclose }: { assetId: string; onclose: () => void } = $props();
 
   const meta = $derived(editor.assetMeta(assetId));
-  let auto = $state(readPref("faceDetection", true));
+  // Repérage automatique : jamais sans l'accord donné une première fois (null : pas encore demandé).
+  const asked = readPref<boolean | null>("faceAiConsent", null);
+  let auto = $state(asked === true);
+  let askingConsent = $state(asked === null);
   let detected = $state<FaceBox[]>([]);
   let detecting = $state(false);
   let chosen = $state(new Set<number>());
@@ -32,14 +35,20 @@
       detecting = false;
     }
   }
-  // Au premier affichage seulement : le réglage du poste dit s'il faut repérer.
+  // Au premier affichage seulement, et seulement avec l'accord déjà donné.
   $effect(() => {
-    if (readPref("faceDetection", true)) void detect();
+    if (readPref<boolean | null>("faceAiConsent", null) === true) void detect();
   });
+
+  /** Réponse à la question de la première fois ; changeable ensuite par la case du bas. */
+  function answerConsent(yes: boolean) {
+    askingConsent = false;
+    setAuto(yes);
+  }
 
   function setAuto(on: boolean) {
     auto = on;
-    writePref("faceDetection", on);
+    writePref("faceAiConsent", on);
     if (on && !detected.length) void detect();
     if (!on) chosen = new Set();
   }
@@ -113,6 +122,21 @@
 <div class="backdrop">
   <div class="box" role="dialog" aria-modal="true" aria-labelledby="blur-title">
     <h2 id="blur-title">{fr.blurTitle}</h2>
+    {#if askingConsent}
+      <div class="consent" role="group" aria-labelledby="ai-title">
+        <h3 id="ai-title">{fr.blurAiTitle}</h3>
+        <p>{fr.blurAiText}</p>
+        <ul>
+          <li>{fr.blurAiOffline}</li>
+          <li>{fr.blurAiNoRecognition}</li>
+          <li>{fr.blurAiChange}</li>
+        </ul>
+        <div class="buttons">
+          <button onclick={() => answerConsent(false)}>{fr.blurAiNo}</button>
+          <button class="primary" onclick={() => answerConsent(true)}>{fr.blurAiYes}</button>
+        </div>
+      </div>
+    {/if}
     <p class="hint">{auto ? fr.blurHintAuto : fr.blurHintManual}</p>
     {#if meta}
       <div class="stage" style:aspect-ratio="{meta.width_px} / {meta.height_px}" style:width="min(100%, calc(70vh * {meta.width_px / meta.height_px}))">
@@ -240,6 +264,25 @@
     background: rgba(255, 255, 255, 0.9);
     padding: 6px 12px;
     border-radius: 6px;
+  }
+  .consent {
+    background: #eaf2fb;
+    border: 1px solid #c9dcf2;
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: #1f3a5f;
+  }
+  .consent h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+  }
+  .consent p,
+  .consent ul {
+    margin: 0 0 8px;
+    font-size: 13px;
+  }
+  .consent ul {
+    padding-left: 18px;
   }
   .auto {
     display: flex;

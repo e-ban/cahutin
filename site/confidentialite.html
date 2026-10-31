@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confidentialité de Cahutin</title>
+<meta name="description" content="Ce que Cahutin fait des documents, des photos et des listes d'élèves : tout reste sur l'ordinateur.">
+<link rel="icon" href="img/icone.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="barre" aria-label="Sections du site">
+  <a class="marque" href="./"><img src="img/logo.webp" width="40" height="40" alt=""><span>Cahutin</span></a>
+  <ul class="liens">
+    <li><a href="./#exemples">Exemples</a></li>
+    <li><a href="./#faire">Fonctions</a></li>
+    <li><a href="./#confiance">Nos promesses</a></li>
+    <li><a href="./#installer">Installer</a></li>
+  </ul>
+  <a class="code" href="https://github.com/e-ban/cahutin" title="Le code source de Cahutin sur GitHub">
+    <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    <span>Code source</span>
+  </a>
+  <a class="bouton petit" href="./#telecharger">Télécharger</a>
+</nav>
+<div class="cahier">
+
+<header>
+  <h1>Confidentialité</h1>
+  <p class="chapo texte">Cahutin est fait pour des documents d'école, avec des photos et des prénoms d'enfants : tout reste sur l'ordinateur. <a href="./">Retour à l'accueil</a>.</p>
+</header>
+
+<main class="texte">
+<section aria-labelledby="donnees">
+  <h2 id="donnees">Vos documents et vos élèves</h2>
+  <ul class="gommettes">
+    <li><h3>Rien n'est envoyé</h3>Cahutin fonctionne sans internet, sans compte et sans serveur. Les documents, les photos, les listes d'élèves et leurs autorisations restent sur l'ordinateur : ni l'auteur ni personne d'autre n'y a accès.</li>
+    <li><h3>Les fichiers</h3>Un document est un fichier <code>.carnet</code>, à l'endroit choisi par l'enseignant, avec ses photos dedans. La liste d'une classe est un fichier <code>.cahutin-classe</code> dans <code>Documents/Cahutin/Classes</code> ; on le supprime en fin d'année comme n'importe quel fichier.</li>
+    <li><h3>Les photos</h3>Le lieu, l'appareil et la date sont retirés des photos à l'import. Les copies de travail sont vidées à la fermeture de Cahutin.</li>
+    <li><h3>Le repérage des visages</h3>Pour flouter le visage des enfants sans autorisation photo, Cahutin peut repérer les visages par un petit modèle d'intelligence artificielle intégré à l'application, exécuté sur l'ordinateur, seulement avec votre accord. Il trouve où sont les visages, sans jamais reconnaître qui est qui.</li>
+  </ul>
+</section>
+
+<section aria-labelledby="reseau">
+  <h2 id="reseau">La seule connexion possible</h2>
+  <p>Si vous l'acceptez (une question au premier lancement, réglable dans le menu Aide), Cahutin lit une fois par jour le numéro de la dernière version sur <code>api.github.com</code>. Rien d'autre n'est envoyé : ni document, ni identifiant, ni information sur l'ordinateur ; GitHub voit l'adresse IP de la connexion, comme pour toute visite d'un site.</p>
+  <p>La version du Microsoft Store ne fait jamais cette connexion : c'est le Store qui la met à jour.</p>
+</section>
+
+<section aria-labelledby="journal">
+  <h2 id="journal">Le journal</h2>
+  <p>Cahutin tient un journal technique sur l'ordinateur, pour comprendre un problème. Il ne contient ni texte de document, ni nom de fichier, ni prénom d'enfant : seulement des noms d'actions et des nombres. Le rapport de problème (Aide &gt; Signaler un problème) reprend ce journal ; c'est vous qui choisissez de l'envoyer, ou non.</p>
+</section>
+
+<section aria-labelledby="site">
+  <h2 id="site">Ce site</h2>
+  <p>Ce site ne dépose aucun cookie et ne mesure pas les visites. Le choix de la version à télécharger est lu sur GitHub par votre navigateur.</p>
+</section>
+
+<section aria-labelledby="contact">
+  <h2 id="contact">Contact</h2>
+  <p>Une question sur vos données : une <a href="https://github.com/e-ban/cahutin/issues">demande sur GitHub</a>, ou un <a href="https://github.com/e-ban/cahutin/security/advisories/new">signalement privé</a>.</p>
+</section>
+</main>
+
+<footer class="texte">
+  <p>© Iban Guinebert, <a href="https://github.com/e-ban/cahutin/blob/main/LICENSE">licence EUPL 1.2</a>.</p>
+</footer>
+
+</div>
+</body>
+</html>

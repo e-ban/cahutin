@@ -7,8 +7,9 @@
   import { bannerVersion, shouldAskConsent, updates } from "../../lib/updates.svelte";
   import { openDownloadPage } from "../../lib/api";
 
-  const ask = $derived(shouldAskConsent(updates.consent, { tourDone: tour.done, tourRunning: tour.step !== null, welcomeOpen: editor.showWelcome }));
-  const version = $derived(bannerVersion(updates.consent, updates.state, updates.appVersion));
+  // Version du Microsoft Store : le Store met à jour, ni question ni avis.
+  const ask = $derived(!updates.store && shouldAskConsent(updates.consent, { tourDone: tour.done, tourRunning: tour.step !== null, welcomeOpen: editor.showWelcome }));
+  const version = $derived(updates.store ? null : bannerVersion(updates.consent, updates.state, updates.appVersion));
 
   function download() {
     openDownloadPage().catch((e) => (editor.notice = String(e)));

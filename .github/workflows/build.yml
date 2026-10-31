@@ -73,6 +73,31 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # Microsoft Store : la même application, sans avis de nouvelle version (le Store met à jour), en
+      # paquet MSIX que le Store signe. L'identité vient des variables du dépôt (Partner Center) ; sans
+      # elles, une identité d'essai vérifie seulement que le paquet se construit.
+      - name: Application pour le Store
+        env:
+          CAHUTIN_STORE: "1"
+        run: npm run tauri build -- --no-bundle
+
+      - name: Paquet MSIX
+        shell: pwsh
+        run: >-
+          scripts/build-msix.ps1
+          -Name "${{ vars.STORE_IDENTITY_NAME || 'Cahutin.Essai' }}"
+          -Publisher "${{ vars.STORE_PUBLISHER || 'CN=Essai' }}"
+          -PublisherDisplay "${{ vars.STORE_PUBLISHER_DISPLAY || 'Essai' }}"
+
+      - name: Publier le paquet MSIX
+        if: vars.STORE_IDENTITY_NAME != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: cahutin-msix-${{ github.sha }}
+          path: target/msix/*.msix
+          if-no-files-found: error
+          retention-days: 90
+
   # Ubuntu 22.04 : une glibc ancienne, pour que l'AppImage fonctionne sur la plupart des distributions.
   linux:
     needs: notes

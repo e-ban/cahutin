@@ -2,6 +2,10 @@
 //! l'utilisateur l'a accepté (l'interface décide d'appeler). Rien d'autre ne part : ni identifiant, ni
 //! document, ni information sur le poste.
 
+/// Version du Microsoft Store (construite avec `CAHUTIN_STORE=1`) : le Store fait les mises à jour, Cahutin
+/// ne consulte jamais GitHub et ne propose pas l'avis de nouvelle version.
+pub const STORE_BUILD: bool = option_env!("CAHUTIN_STORE").is_some();
+
 /// Page ouverte par « Télécharger » : fixe, jamais une adresse lue dans la réponse du réseau.
 pub const DOWNLOAD_PAGE: &str = "https://github.com/e-ban/cahutin/releases/latest";
 

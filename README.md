@@ -117,6 +117,8 @@ Les types TypeScript de `ui/src/lib/gen` sont produits par le moteur (ts-rs) lor
 
 Le workflow « Construction » lance les tests sous Windows et Linux, construit les installeurs et publie la release avec ses empreintes (`SHA256SUMS`) et la section du journal des versions. Une fois la release publiée, signer les empreintes : `scripts/sign-release.sh v<version>`. Il refuse un tag qui ne correspond pas à la version de l'application ou qui n'a pas de section dans `CHANGELOG.md`.
 
+Microsoft Store : la CI construit aussi `Cahutin_<version>_x64.msix` (`scripts/build-msix.ps1`, manifeste dans `packaging/msix`), une version sans avis de nouvelle version (`CAHUTIN_STORE=1`) que le Store signe et met à jour. L'identité du paquet vient des variables du dépôt `STORE_IDENTITY_NAME`, `STORE_PUBLISHER` et `STORE_PUBLISHER_DISPLAY` (Partner Center > Gestion des produits > Identité du produit). À chaque version, envoyer l'artefact `cahutin-msix-…` du workflow dans une nouvelle soumission Partner Center.
+
 ## Contribuer
 
 Signalements, idées et code sont bienvenus : voir [CONTRIBUTING.md](CONTRIBUTING.md) et le [code de conduite](CODE_OF_CONDUCT.md). Une faille de sécurité se signale en privé : voir [SECURITY.md](SECURITY.md).

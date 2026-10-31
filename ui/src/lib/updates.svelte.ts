@@ -1,7 +1,7 @@
 // Avis de nouvelle version : demandé une fois, après l'accueil et la visite ; avec l'accord de l'utilisateur,
 // GitHub est consulté au plus une fois par jour (côté Rust) et un bandeau propose la page des téléchargements.
 import { getVersion } from "@tauri-apps/api/app";
-import { checkUpdate } from "./api";
+import { checkUpdate, isStoreBuild } from "./api";
 import { readPref, writePref } from "./prefs";
 
 export interface UpdateState {
@@ -35,6 +35,14 @@ class Updates {
   consent = $state<boolean | null>(readPref("updateConsent", null));
   state = $state<UpdateState>(readPref("update", { checkedOn: null, forVersion: null, available: null, dismissed: null }));
   appVersion = $state("");
+  /** Version du Microsoft Store : le Store met à jour, ni question ni avis. */
+  store = $state(false);
+
+  constructor() {
+    isStoreBuild()
+      .then((v) => (this.store = v))
+      .catch(() => {});
+  }
 
   setConsent(value: boolean) {
     this.consent = value;
@@ -45,6 +53,7 @@ class Updates {
   /** Au lancement et à l'accord : consulte GitHub si c'est le moment ; un échec ne change rien. */
   async checkIfDue() {
     if (!this.appVersion) this.appVersion = await getVersion().catch(() => "");
+    if (this.store || (await isStoreBuild().catch(() => false))) return;
     if (!this.appVersion || !shouldCheck(this.consent, this.state, this.appVersion, today())) return;
     let available: string | null;
     try {

@@ -1,5 +1,10 @@
 # Journal des versions
 
+## Non publié
+
+- Version Microsoft Store en préparation (paquet MSIX signé par Microsoft : plus d'avertissement « fichier peu téléchargé »). Elle ne consulte jamais GitHub : le Store fait les mises à jour.
+- Site : une page « Confidentialité ».
+
 ## 0.8.0
 
 - Accueil depuis l'éditeur : un clic sur le logo Cahutin (ou Fichier > Page d'accueil) l'ouvre par-dessus le document, avec un bouton pour y revenir. Un modèle, une page vierge ou un nouveau modèle choisis depuis là partent d'un nouveau document, après avoir proposé d'enregistrer.

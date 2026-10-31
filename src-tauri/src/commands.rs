@@ -539,6 +539,12 @@ pub fn export_problem_report(app: AppHandle, path: String) -> Result<(), String>
     std::fs::write(&path, text).map_err(|_| "Impossible d'écrire le rapport.".to_string())
 }
 
+/// Version du Microsoft Store : pas d'avis de nouvelle version.
+#[tauri::command]
+pub fn is_store_build() -> bool {
+    crate::update::STORE_BUILD
+}
+
 #[tauri::command]
 pub fn can_export_pdf() -> bool {
     cfg!(windows)
@@ -874,6 +880,9 @@ mod tests {
 /// de l'utilisateur ; un échec (hors ligne, pare-feu) ne dit rien.
 #[tauri::command]
 pub async fn check_update() -> Option<String> {
+    if crate::update::STORE_BUILD {
+        return None;
+    }
     let body = tauri::async_runtime::spawn_blocking(crate::update::fetch_latest_release).await.ok().flatten();
     let newer = body.as_deref().and_then(|b| crate::update::newer_version(b, env!("CARGO_PKG_VERSION")));
     log::info!("update_check reached={} newer={}", body.is_some(), newer.is_some());

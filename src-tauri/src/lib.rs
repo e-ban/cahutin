@@ -122,6 +122,7 @@ pub fn run() {
             commands::accept_document_fonts,
             commands::export_problem_report,
             commands::can_export_pdf,
+            commands::is_store_build,
             commands::export_pdf,
             commands::check_update,
             commands::open_download_page,

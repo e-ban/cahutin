@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- Six modèles « Pour la classe », à remplir d'un clic avec la classe : Memory des prénoms (paires photo et prénom), Loto des prénoms, Lettres mobiles du prénom (une case par lettre, en capitales, en script et en cursive), J'écris mon prénom (modèle à repasser et lignes Seyès), Tableau des présences, Affiche des anniversaires (une seule affiche pour toute la classe, avec le nouveau champ {anniversaires mars}).
+- Une invite trop longue pour sa zone n'affiche plus « Texte trop long ».
 - Pages en vis-à-vis (bande des pages, « Vis-à-vis ») : les pages deux par deux, comme un cahier ouvert ; un clic sur la page d'en face l'ouvre.
 - « Imprimer en recto-verso (cartes) » : les pages 2, 4, 6… sont les versos, inversées de gauche à droite pour que chaque carte tombe derrière la sienne.
 - Styles de texte (bouton « Style » de la barre d'écriture) : Titre, Consigne, Texte, Prénom, et les vôtres. Un texte modifié peut mettre son style à jour : tous les textes de ce style, dans tout le document, changent avec lui. Un document qui utilise des styles est refusé par Cahutin 0.7 et avant.

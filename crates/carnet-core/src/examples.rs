@@ -52,7 +52,7 @@ pub(crate) fn el(f: Frame, kind: ElementKind) -> Element {
     Element { id: new_id(), frame: f, locked: false, zone: false, group: None, kind }
 }
 
-fn text(f: Frame, content: &str, font: &str, size_pt: f64, color: &str, align: Align) -> Element {
+pub(crate) fn text(f: Frame, content: &str, font: &str, size_pt: f64, color: &str, align: Align) -> Element {
     let style = TextStyle { font: font.into(), size_pt, color: color.into(), align, valign: None, padding_mm: None, outline: None, named: None };
     el(f, ElementKind::Text(TextProps { content: RichText::plain(content), style, prompt: None, frame: None }))
 }
@@ -85,6 +85,16 @@ pub(crate) fn shape(kind: ShapeKind, f: Frame, fill: Option<&str>, stroke: Optio
 
 pub(crate) fn photo_zone(f: Frame) -> Element {
     Element { zone: true, ..el(f, ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 3.0, border: None, shadow: false, mirrored: false })) }
+}
+
+/// Cadre de lignes d'écriture (sans texte), à écrire à la main.
+pub(crate) fn text_lines(f: Frame, pattern: Pattern) -> Element {
+    let mut z = text(f, "", TITLE_FONT, 28.0, "#222222", Align::Left);
+    if let ElementKind::Text(t) = &mut z.kind {
+        t.content = RichText::default();
+        t.frame = Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: None, pattern: Some(pattern) });
+    }
+    z
 }
 
 /// Même identifiant de groupe pour tous.

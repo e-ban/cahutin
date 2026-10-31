@@ -107,7 +107,8 @@
       <TextEditor {props} {ondone} />
     {:else if blank}
       {#if props.prompt}
-        <p class="prompt zone-empty">{props.prompt}</p>
+        <!-- Une case de lettre mobile est petite : seul son numéro s'affiche. -->
+        <p class="prompt zone-empty">{props.prompt.match(/^lettre (\d+)$/i)?.[1] ?? props.prompt}</p>
       {/if}
     {:else}
       {#each props.content.paragraphs as p}
@@ -118,7 +119,8 @@
     {/if}
   </div>
 </div>
-{#if overflow && !editing}
+<!-- Une invite trop longue n'est qu'une indication : pas d'alerte. -->
+{#if overflow && !editing && !blank}
   <span class="badge" style:transform="scale({Math.max(zoom, 0.6)})">Texte trop long</span>
 {/if}
 

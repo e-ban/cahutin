@@ -6,8 +6,10 @@ import type { Element, Page, Student } from "./types";
 const NAME_PROMPTS = ["Prénom", "PRÉNOM", "Nom"];
 const NAME_MARKERS = ["{prénom}", "{PRÉNOM}", "{nom}"];
 
-const isNameZone = (e: Element) => e.zone && e.kind.type === "Text" && NAME_PROMPTS.includes(e.kind.prompt ?? "");
-const hasNameMarker = (e: Element) => e.kind.type === "Text" && e.kind.content.paragraphs.some((p) => p.runs.some((r) => NAME_MARKERS.some((m) => r.text.includes(m))));
+const isNameZone = (e: Element) => e.zone && e.kind.type === "Text" && (NAME_PROMPTS.includes(e.kind.prompt ?? "") || /^lettre \d+$/i.test(e.kind.prompt ?? ""));
+// {anniversaires mars} : la liste des enfants nés en mars, sur une affiche pour toute la classe.
+const hasNameMarker = (e: Element) =>
+  e.kind.type === "Text" && e.kind.content.paragraphs.some((p) => p.runs.some((r) => NAME_MARKERS.some((m) => r.text.includes(m)) || r.text.includes("{anniversaires ")));
 const written = (e: Element) => e.kind.type === "Text" && e.kind.content.paragraphs.some((p) => p.runs.some((r) => r.text.trim() !== ""));
 
 /** La page attend des prénoms : une zone « Prénom » (ou « Nom ») ou le mot {prénom}. */

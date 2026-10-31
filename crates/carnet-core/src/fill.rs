@@ -4,7 +4,12 @@
 //! Champs : une zone de texte dont l'invite est « Prénom », « PRÉNOM », « Nom », « Groupe », « Âge » ou
 //! « Anniversaire » ; les marqueurs `{prénom}`, `{PRÉNOM}`, `{nom}`, `{groupe}`, `{âge}` (« 4 ans ») et
 //! `{anniversaire}` (« 12 mars ») dans n'importe quel texte ; une zone photo vide,
-//! qui reçoit la photo de l'élève seulement si l'autorisation est donnée, sinon son symbole.
+//! qui reçoit la photo de l'élève seulement si l'autorisation est donnée, sinon son symbole. Une zone
+//! « Lettre 1 », « Lettre 2 »… reçoit une lettre du prénom en capitale (lettres mobiles) ; celles en trop
+//! disparaissent.
+//!
+//! Champs de toute la classe : `{anniversaires janvier}` … `{anniversaires décembre}`, la liste des enfants
+//! nés ce mois-là. Une page qui n'a que ceux-là est remplie une fois, pour toute la classe.
 
 use crate::class::{self, Student};
 use crate::model::*;
@@ -16,6 +21,8 @@ use ts_rs::TS;
 pub enum FillMode {
     PagePerStudent,
     Sheet,
+    /// Une seule page, pour toute la classe (affiche des anniversaires).
+    WholeClass,
 }
 
 /// Écart vertical (mm) en dessous duquel deux blocs sont sur la même rangée.
@@ -23,7 +30,62 @@ const ROW_TOLERANCE_MM: f64 = 3.0;
 
 const MARKERS: [&str; 6] = ["{prénom}", "{PRÉNOM}", "{nom}", "{groupe}", "{âge}", "{anniversaire}"];
 
+/// « Lettre 3 » : la 3e lettre du prénom en capitale ; « lettre 3 » : telle qu'il s'écrit (script,
+/// cursive). Les blancs ne comptent pas.
+fn letter_value(field: &str, s: &Student) -> Option<String> {
+    let (n, capital) = match field.strip_prefix("Lettre ") {
+        Some(n) => (n, true),
+        None => (field.strip_prefix("lettre ")?, false),
+    };
+    let n: usize = n.parse().ok().filter(|&n| n >= 1)?;
+    let c = s.first_name.chars().filter(|c| !c.is_whitespace()).nth(n - 1);
+    Some(c.map(|c| if capital { c.to_uppercase().collect() } else { c.to_string() }).unwrap_or_default())
+}
+
+fn is_letter_zone(e: &Element) -> bool {
+    e.zone && matches!(&e.kind, ElementKind::Text(t) if t.prompt.as_deref().is_some_and(|p| p.to_lowercase().starts_with("lettre ")))
+}
+
+/// Les enfants nés ce mois-là, par jour : « Léa (12), Noé (30) ».
+fn birthdays_in(month: usize, students: &[Student]) -> String {
+    let mut born: Vec<(u32, &str)> = students
+        .iter()
+        .filter_map(|s| class::ymd(s.birth_date.as_deref()?).filter(|d| d.1 as usize == month).map(|d| (d.2, s.first_name.as_str())))
+        .collect();
+    born.sort();
+    born.iter().map(|(d, n)| format!("{n} ({d})")).collect::<Vec<_>>().join(", ")
+}
+
+fn class_markers() -> impl Iterator<Item = (usize, String)> {
+    class::MONTHS.iter().enumerate().map(|(i, m)| (i + 1, format!("{{anniversaires {m}}}")))
+}
+
+fn has_class_markers(page: &Page) -> bool {
+    page.elements.iter().any(|e| matches!(&e.kind, ElementKind::Text(t) if t.content.paragraphs.iter().flat_map(|p| &p.runs).any(|r| r.text.contains("{anniversaires "))))
+}
+
+/// La page remplie une fois pour toute la classe : les anniversaires de chaque mois.
+pub fn fill_class(page: &Page, students: &[Student]) -> Page {
+    let mut out = page.clone();
+    for e in &mut out.elements {
+        if let ElementKind::Text(t) = &mut e.kind {
+            for r in t.content.paragraphs.iter_mut().flat_map(|p| &mut p.runs) {
+                for (month, m) in class_markers() {
+                    if r.text.contains(&m) {
+                        r.text = r.text.replace(&m, &birthdays_in(month, students));
+                    }
+                }
+            }
+        }
+    }
+    renew_ids(&mut out);
+    out
+}
+
 fn field_value(field: &str, s: &Student) -> Option<String> {
+    if let Some(letter) = letter_value(field, s) {
+        return Some(letter);
+    }
     match field {
         "Prénom" | "{prénom}" => Some(s.first_name.clone()),
         "PRÉNOM" | "{PRÉNOM}" => Some(s.first_name.to_uppercase()),
@@ -53,7 +115,29 @@ fn is_field(e: &Element) -> bool {
 }
 
 pub fn has_fields(page: &Page) -> bool {
-    page.elements.iter().any(is_field)
+    page.elements.iter().any(is_field) || has_class_markers(page)
+}
+
+/// Les lettres mobiles en trop (prénom plus court que la rangée de cases) disparaissent, et chaque rangée
+/// de lettres restante est recentrée sur la page.
+fn drop_unused_letters(page: &mut Page) {
+    let before = page.elements.iter().filter(|e| is_letter_zone(e)).count();
+    page.elements.retain(|e| !(is_letter_zone(e) && matches!(&e.kind, ElementKind::Text(t) if t.content.is_blank())));
+    if page.elements.iter().filter(|e| is_letter_zone(e)).count() == before {
+        return;
+    }
+    let mut rows: Vec<f64> = page.elements.iter().filter(|e| is_letter_zone(e)).map(|e| e.frame.y_mm).collect();
+    rows.sort_by(f64::total_cmp);
+    rows.dedup_by(|a, b| (*a - *b).abs() < ROW_TOLERANCE_MM);
+    for y in rows {
+        let in_row = |e: &Element| is_letter_zone(e) && (e.frame.y_mm - y).abs() < ROW_TOLERANCE_MM;
+        let left = page.elements.iter().filter(|e| in_row(e)).map(|e| e.frame.x_mm).fold(f64::INFINITY, f64::min);
+        let right = page.elements.iter().filter(|e| in_row(e)).map(|e| e.frame.x_mm + e.frame.w_mm).fold(f64::NEG_INFINITY, f64::max);
+        let shift = (page.size.width_mm - (right - left)) / 2.0 - left;
+        for e in page.elements.iter_mut().filter(|e| in_row(e)) {
+            e.frame.x_mm = ((e.frame.x_mm + shift) * 10.0).round() / 10.0;
+        }
+    }
 }
 
 /// Page déjà remplie pour un élève (une zone « Prénom » écrite, ou une photo d'élève de la classe) : la
@@ -111,6 +195,7 @@ pub fn fill_for(page: &Page, s: &Student) -> Page {
     for e in &mut out.elements {
         fill_element(e, Some(s));
     }
+    drop_unused_letters(&mut out);
     renew_ids(&mut out);
     out
 }
@@ -218,6 +303,7 @@ pub fn fill_sheet(page: &Page, students: &[Student]) -> Vec<Page> {
                     fill_element(&mut out.elements[i], chunk.get(b));
                 }
             }
+            drop_unused_letters(&mut out);
             renew_ids(&mut out);
             out
         })
@@ -232,6 +318,13 @@ pub fn block_count(page: &Page) -> usize {
 /// Un bloc qui se répète (mêmes champs, même taille à 1 mm près) : une planche d'étiquettes ou de cartes.
 /// Sinon (un prénom, une phrase et une photo sur la page), une page par élève.
 pub fn suggested_mode(page: &Page) -> FillMode {
+    if !page.elements.iter().any(is_field) && has_class_markers(page) {
+        return FillMode::WholeClass;
+    }
+    // Les lettres mobiles sont celles d'un seul prénom : une page par enfant.
+    if page.elements.iter().any(is_letter_zone) {
+        return FillMode::PagePerStudent;
+    }
     let signature = |members: &Vec<usize>| {
         let mut fields: Vec<String> = members
             .iter()
@@ -259,6 +352,7 @@ pub fn generate(page: &Page, students: &[Student], mode: FillMode) -> Vec<Page> 
     match mode {
         FillMode::PagePerStudent => students.iter().map(|s| fill_for(page, s)).collect(),
         FillMode::Sheet => fill_sheet(page, students),
+        FillMode::WholeClass => vec![fill_class(page, students)],
     }
 }
 
@@ -349,6 +443,30 @@ mod tests {
         let s = Student { group: "Les loups".into(), ..student("Léa", None, false, None) };
         let out = fill_for(&p, &s);
         assert_eq!(out.elements.iter().map(plain).collect::<Vec<_>>(), ["LÉA", "Martin", "Les loups"]);
+    }
+
+    #[test]
+    fn moving_letters_take_one_letter_each_and_extra_boxes_go() {
+        let mut p = Page::new(A4_PORTRAIT);
+        p.elements = (1..=5).map(|i| text(Some(&format!("Lettre {i}")), "", true, frame(i as f64 * 20.0, 0.0, 18.0, 20.0))).collect();
+        p.elements.push(text(Some("lettre 2"), "", true, frame(0.0, 30.0, 18.0, 20.0)));
+        let out = fill_for(&p, &student("Léa", None, false, None));
+        assert_eq!(out.elements.iter().map(plain).collect::<Vec<_>>(), ["L", "É", "A", "é"]);
+        // Les trois lettres de la première rangée, recentrées : 20 + 20 + 18 mm de large au milieu de la page.
+        assert_eq!(out.elements[0].frame.x_mm, (210.0 - 58.0) / 2.0);
+    }
+
+    #[test]
+    fn birthdays_poster_is_filled_once_for_the_class() {
+        let mut p = Page::new(A4_PORTRAIT);
+        p.elements = vec![text(None, "Mars : {anniversaires mars}", false, frame(0.0, 0.0, 80.0, 10.0)), text(None, "Juin : {anniversaires juin}", false, frame(0.0, 20.0, 80.0, 10.0))];
+        assert!(has_fields(&p));
+        assert_eq!(suggested_mode(&p), FillMode::WholeClass);
+        let born = |name: &str, date: &str| Student { birth_date: Some(date.into()), ..student(name, None, false, None) };
+        let class = [born("Noé", "2022-03-30"), born("Léa", "2022-03-12"), born("Anna", "2021-11-02")];
+        let pages = generate(&p, &class, FillMode::WholeClass);
+        assert_eq!(pages.len(), 1);
+        assert_eq!(pages[0].elements.iter().map(plain).collect::<Vec<_>>(), ["Mars : Léa (12), Noé (30)", "Juin : "]);
     }
 
     #[test]

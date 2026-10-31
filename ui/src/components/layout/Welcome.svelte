@@ -60,6 +60,15 @@
   const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 </script>
 
+{#snippet layout(t: (typeof templates.infos)[number])}
+  <button class="card" onclick={() => chooseLayout(t.id)}>
+    <div class="mini">
+      {#if templates.previews[t.id]}<PageView page={templates.previews[t.id]} doc={editor.doc} zoom={MINI} />{/if}
+    </div>
+    <span>{t.name}</span>
+  </button>
+{/snippet}
+
 <!-- La page « Ma classe », par-dessus, garde Échap pour elle. -->
 <svelte:window onkeydown={(e) => e.key === "Escape" && modal.message === null && !editor.showClassPage && (step !== "choices" ? (step = "choices") : close())} />
 
@@ -126,14 +135,11 @@
         <span>{fr.createTemplate}</span>
         <small>{fr.createTemplateSub}</small>
       </button>
-      {#each templates.infos as t (t.id)}
-        <button class="card" onclick={() => chooseLayout(t.id)}>
-          <div class="mini">
-            {#if templates.previews[t.id]}<PageView page={templates.previews[t.id]} doc={editor.doc} zoom={MINI} />{/if}
-          </div>
-          <span>{t.name}</span>
-        </button>
-      {/each}
+      {#each templates.infos.filter((t) => !t.for_class) as t (t.id)}{@render layout(t)}{/each}
+    </div>
+    <h2 title={fr.templatesForClassHint}>{fr.templatesForClass}</h2>
+    <div class="grid">
+      {#each templates.infos.filter((t) => t.for_class) as t (t.id)}{@render layout(t)}{/each}
     </div>
   {/if}
 </div>

@@ -32,7 +32,7 @@
         ? filterStudents(students, { level: who.slice(6) as Level })
         : filterStudents(students, { group: who.slice(6) }),
   );
-  const pages = $derived(!plan ? 0 : plan.mode === "Sheet" ? Math.ceil(chosen.length / Math.max(1, plan.blocks)) : chosen.length);
+  const pages = $derived(!plan ? 0 : plan.mode === "Sheet" ? Math.ceil(chosen.length / Math.max(1, plan.blocks)) : plan.mode === "WholeClass" ? 1 : chosen.length);
 
   async function generate() {
     if (!plan) return;
@@ -60,7 +60,9 @@
   <div class="box" role="dialog" aria-modal="true" aria-labelledby="generate-title">
     <h2 id="generate-title">{fr.generateTitle}</h2>
     {#if plan}
-      <p class="plan">{plan.mode === "Sheet" ? fr.generateSheetPlan(chosen.length, plan.blocks, pages) : fr.generatePagesPlan(chosen.length)}</p>
+      <p class="plan">
+        {plan.mode === "Sheet" ? fr.generateSheetPlan(chosen.length, plan.blocks, pages) : plan.mode === "WholeClass" ? fr.generateClassPlan(chosen.length) : fr.generatePagesPlan(chosen.length)}
+      </p>
     {/if}
     {#if levels.length || groupList.length}
       <label class="who">

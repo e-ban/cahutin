@@ -16,6 +16,8 @@ pub struct TemplateInfo {
     pub id: String,
     pub name: String,
     pub builtin: bool,
+    /// Modèle pour la classe (memory, lettres mobiles…), rangé à part dans le choix des modèles.
+    pub for_class: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -188,8 +190,158 @@ fn landscape_poster() -> Page {
     page
 }
 
+// ---- Modèles pour la classe : remplis avec « Remplir avec ma classe ». ----
+
+const INK: &str = "#1f3a5f";
+
+/// Zone de texte centrée, sans cadre, avec son invite.
+fn centered_zone(f: Frame, prompt: &str, font: &str, size_pt: f64) -> Element {
+    let mut z = ex::text_zone(f, prompt, font, size_pt);
+    if let ElementKind::Text(t) = &mut z.kind {
+        t.style.align = Align::Center;
+        t.style.valign = Some(VAlign::Middle);
+        t.style.color = INK.into();
+    }
+    z
+}
+
+fn card(f: Frame) -> Element {
+    ex::shape(ShapeKind::Rect, f, Some("#ffffff"), Some((0.8, LABEL_BLUE)), 4.0)
+}
+
+/// Memory des prénoms : des paires de cartes de 44 mm, la photo (ou le symbole) et le prénom, deux paires
+/// par rangée. Chaque paire reçoit un enfant.
+fn memory() -> Page {
+    let (side, gap) = (44.0, 4.0);
+    let x0 = (210.0 - (4.0 * side + 3.0 * gap)) / 2.0;
+    let y0 = (297.0 - (5.0 * side + 4.0 * gap)) / 2.0;
+    let mut page = Page::new(A4_PORTRAIT);
+    for row in 0..5 {
+        for pair in 0..2 {
+            let y = y0 + row as f64 * (side + gap);
+            let x = x0 + pair as f64 * 2.0 * (side + gap);
+            let x2 = x + side + gap;
+            page.elements.extend(ex::grouped(vec![
+                card(ex::frame(x, y, side, side)),
+                ex::photo_zone(ex::frame(x + 3.0, y + 3.0, side - 6.0, side - 6.0)),
+                card(ex::frame(x2, y, side, side)),
+                centered_zone(ex::frame(x2 + 2.0, y + 2.0, side - 4.0, side - 4.0), "Prénom", "Andika", 20.0),
+            ]));
+        }
+    }
+    page
+}
+
+/// Loto des prénoms : cartes de 60 × 66 mm, la photo et le prénom en capitales, trois par rangée. On en
+/// imprime deux : les planches et les jetons à découper.
+fn loto() -> Page {
+    let (w, h, gap) = (60.0, 66.0, 5.0);
+    let x0 = (210.0 - (3.0 * w + 2.0 * gap)) / 2.0;
+    let mut page = Page::new(A4_PORTRAIT);
+    page.elements.push(free_title(210.0));
+    for row in 0..3 {
+        for col in 0..3 {
+            let (x, y) = (x0 + col as f64 * (w + gap), 40.0 + row as f64 * (h + gap) + 25.0);
+            page.elements.extend(ex::grouped(vec![
+                card(ex::frame(x, y, w, h)),
+                ex::photo_zone(ex::frame(x + 4.0, y + 4.0, w - 8.0, h - 22.0)),
+                centered_zone(ex::frame(x + 2.0, y + h - 17.0, w - 4.0, 14.0), "PRÉNOM", "Andika", 18.0),
+            ]));
+        }
+    }
+    page
+}
+
+/// Lettres mobiles du prénom : trois rangées de 12 cases à découper, en capitales, en script et en
+/// cursive ; les cases en trop disparaissent au remplissage.
+fn moving_letters() -> Page {
+    let (w, gap) = (15.0, 1.0);
+    let x0 = (210.0 - (12.0 * w + 11.0 * gap)) / 2.0;
+    let mut page = Page::new(A4_PORTRAIT);
+    page.elements.push(ex::text(ex::frame(15.0, 12.0, 180.0, ex::cursive_height(26.0)), "Les lettres de mon prénom", ex::TITLE_FONT, 26.0, "#c0392b", Align::Center));
+    page.elements.push(ex::photo_zone(ex::frame(80.0, 38.0, 50.0, 50.0)));
+    page.elements.push(centered_zone(ex::frame(30.0, 92.0, 150.0, ex::cursive_height(32.0)), "Prénom", ex::TITLE_FONT, 32.0));
+    let rows = [("Lettre", "Andika", 30.0, 132.0), ("lettre", "Andika", 30.0, 180.0), ("lettre", ex::TITLE_FONT, 26.0, 228.0)];
+    for (prompt, font, size, y) in rows {
+        for i in 0..12 {
+            let mut z = centered_zone(ex::frame(x0 + i as f64 * (w + gap), y, w, 34.0), &format!("{prompt} {}", i + 1), font, size);
+            if let ElementKind::Text(t) = &mut z.kind {
+                t.style.padding_mm = Some(0.5);
+                t.frame = Some(TextFrame { fill: None, stroke: Some(Stroke { width_mm: 0.4, color: "#9aa5b1".into(), style: Some(StrokeStyle::Dashed) }), corner_radius_mm: 0.0, image: None, pattern: None });
+            }
+            page.elements.push(z);
+        }
+    }
+    page
+}
+
+/// J'écris mon prénom : la photo, le prénom en cursive gris clair à repasser, puis des lignes Seyès.
+fn write_first_name() -> Page {
+    let mut page = Page::new(A4_PORTRAIT);
+    page.elements.push(ex::text(ex::frame(15.0, 12.0, 180.0, ex::cursive_height(26.0)), "J'écris mon prénom", ex::TITLE_FONT, 26.0, "#c0392b", Align::Center));
+    page.elements.push(ex::photo_zone(ex::frame(15.0, 40.0, 45.0, 45.0)));
+    let mut model = centered_zone(ex::frame(65.0, 40.0, 130.0, 45.0), "Prénom", ex::TITLE_FONT, 44.0);
+    if let ElementKind::Text(t) = &mut model.kind {
+        t.style.color = "#c4c4c4".into();
+    }
+    page.elements.push(model);
+    for i in 0..4 {
+        page.elements.push(ex::text_lines(ex::frame(15.0, 100.0 + i as f64 * 46.0, 180.0, 40.0), Pattern::Seyes));
+    }
+    page
+}
+
+/// Qui est là ? : une rangée par enfant (photo, prénom, une case par jour), treize par page.
+fn attendance() -> Page {
+    let (row_h, y0) = (17.0, 50.0);
+    let days = ["Lun.", "Mar.", "Jeu.", "Ven."];
+    let mut page = Page::new(A4_PORTRAIT);
+    page.elements.push(ex::text(ex::frame(15.0, 12.0, 180.0, ex::cursive_height(26.0)), "Qui est là ?", ex::TITLE_FONT, 26.0, "#c0392b", Align::Center));
+    for (i, d) in days.iter().enumerate() {
+        page.elements.push(ex::text(ex::frame(103.0 + i as f64 * 24.0, 36.0, 22.0, 11.0), d, "Andika", 12.0, INK, Align::Center));
+    }
+    for r in 0..13 {
+        let y = y0 + r as f64 * (row_h + 1.5);
+        let mut row = vec![ex::photo_zone(ex::frame(15.0, y, row_h, row_h)), {
+            let mut z = centered_zone(ex::frame(35.0, y, 65.0, row_h), "Prénom", "Andika", 16.0);
+            if let ElementKind::Text(t) = &mut z.kind {
+                t.style.align = Align::Left;
+            }
+            z
+        }];
+        for i in 0..4 {
+            row.push(ex::shape(ShapeKind::Rect, ex::frame(103.0 + i as f64 * 24.0, y, 22.0, row_h), None, Some((0.5, "#9aa5b1")), 3.0));
+        }
+        page.elements.extend(ex::grouped(row));
+    }
+    page
+}
+
+/// Nos anniversaires : une case par mois, remplie des enfants nés ce mois-là (une seule page pour la classe).
+fn birthdays() -> Page {
+    let (w, h, gap) = (59.0, 58.0, 4.5);
+    let x0 = (210.0 - (3.0 * w + 2.0 * gap)) / 2.0;
+    let mut page = Page::new(A4_PORTRAIT);
+    page.elements.push(ex::text(ex::frame(15.0, 10.0, 180.0, ex::cursive_height(28.0)), "Nos anniversaires", ex::TITLE_FONT, 28.0, "#c0392b", Align::Center));
+    let colors = ["#fde2e4", "#fff1c1", "#e2f0cb", "#d6ecfa"];
+    for (m, name) in crate::class::MONTHS.iter().enumerate() {
+        let (x, y) = (x0 + (m % 3) as f64 * (w + gap), 38.0 + (m / 3) as f64 * (h + gap));
+        let mut title: String = name.chars().take(1).flat_map(char::to_uppercase).collect();
+        title.push_str(&name.chars().skip(1).collect::<String>());
+        page.elements.extend(ex::grouped(vec![
+            ex::shape(ShapeKind::Rect, ex::frame(x, y, w, h), Some(colors[m / 3]), None, 6.0),
+            ex::text(ex::frame(x + 3.0, y + 2.0, w - 6.0, ex::cursive_height(15.0)), &title, ex::TITLE_FONT, 15.0, INK, Align::Center),
+            ex::text(ex::frame(x + 3.0, y + 21.0, w - 6.0, h - 24.0), &format!("{{anniversaires {name}}}"), "Andika", 15.0, "#222222", Align::Center),
+        ]));
+    }
+    page
+}
+
+/// Modèles pour la classe (sans titre à compléter : ils sont prêts à remplir).
+pub const CLASS_TEMPLATES: [&str; 6] = ["memory-prenoms", "loto-prenoms", "lettres-mobiles", "ecrire-prenom", "presences", "anniversaires"];
+
 fn builtin_info(id: &str, name: &str) -> TemplateInfo {
-    TemplateInfo { id: id.into(), name: name.into(), builtin: true }
+    TemplateInfo { id: id.into(), name: name.into(), builtin: true, for_class: CLASS_TEMPLATES.contains(&id) }
 }
 
 pub fn builtin() -> Vec<Template> {
@@ -244,6 +396,12 @@ pub fn builtin() -> Vec<Template> {
         Template { info: builtin_info("photos-et-textes", "Photos et textes"), page: photos_and_texts(), assets: vec![] },
         Template { info: builtin_info("photos-legendees", "Photos légendées"), page: captioned_photos(), assets: vec![] },
         Template { info: builtin_info("affiche-paysage", "Affiche paysage"), page: landscape_poster(), assets: vec![] },
+        Template { info: builtin_info("memory-prenoms", "Memory des prénoms"), page: memory(), assets: vec![] },
+        Template { info: builtin_info("loto-prenoms", "Loto des prénoms"), page: loto(), assets: vec![] },
+        Template { info: builtin_info("lettres-mobiles", "Lettres mobiles du prénom"), page: moving_letters(), assets: vec![] },
+        Template { info: builtin_info("ecrire-prenom", "J'écris mon prénom"), page: write_first_name(), assets: vec![] },
+        Template { info: builtin_info("presences", "Tableau des présences"), page: attendance(), assets: vec![] },
+        Template { info: builtin_info("anniversaires", "Affiche des anniversaires"), page: birthdays(), assets: vec![] },
     ]
 }
 
@@ -279,7 +437,7 @@ pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
             assets.push(a);
         }
     }
-    Template { info: TemplateInfo { id: String::new(), name: name.to_string(), builtin: false }, page, assets }
+    Template { info: TemplateInfo { id: String::new(), name: name.to_string(), builtin: false, for_class: false }, page, assets }
 }
 
 /// Nouvelle page à partir du modèle, avec de nouveaux identifiants partout (groupes compris).
@@ -342,7 +500,7 @@ impl Library {
         }
         let native::LoadedDocument { doc, assets, .. } = native::load_from_path(&self.path(id)).ok()?;
         let page = doc.pages.into_iter().next()?;
-        Some(Template { info: TemplateInfo { id: id.to_string(), name: doc.title, builtin: false }, page, assets })
+        Some(Template { info: TemplateInfo { id: id.to_string(), name: doc.title, builtin: false, for_class: false }, page, assets })
     }
 
     /// Les modèles intégrés d'abord, puis ceux de l'utilisateur par nom ; les fichiers illisibles sont ignorés.
@@ -376,7 +534,7 @@ impl Library {
         }
         // Les modèles ne transportent pas de police utilisateur.
         native::save_to_path(&doc, &store, &FontSet::builtin(), &self.path(&id))?;
-        Ok(TemplateInfo { id, name: t.info.name.clone(), builtin: false })
+        Ok(TemplateInfo { id, name: t.info.name.clone(), builtin: false, for_class: false })
     }
 
     pub fn delete(&self, id: &str) -> std::io::Result<()> {
@@ -423,12 +581,13 @@ mod tests {
     }
 
     #[test]
-    fn nine_builtins_with_fixed_ids() {
+    fn builtins_with_fixed_ids() {
         let ids: Vec<String> = builtin().into_iter().map(|t| t.info.id).collect();
-        assert_eq!(ids, ["grille-photos", "recit", "page-a-completer", "etiquettes", "etiquettes-photo", "etiquettes-3-ecritures", "photos-et-textes", "photos-legendees", "affiche-paysage"]);
+        let pages = ["grille-photos", "recit", "page-a-completer", "etiquettes", "etiquettes-photo", "etiquettes-3-ecritures", "photos-et-textes", "photos-legendees", "affiche-paysage"];
+        assert_eq!(ids, [&pages[..], &CLASS_TEMPLATES[..]].concat());
         assert!(builtin().iter().all(|t| t.info.builtin));
         // Les planches d'étiquettes n'ont pas de titre : toute la page sert aux étiquettes.
-        assert!(builtin().iter().filter(|t| !t.info.id.starts_with("etiquettes")).all(|t| has_title(&t.page)));
+        assert!(builtin().iter().filter(|t| !t.info.id.starts_with("etiquettes") && !CLASS_TEMPLATES.contains(&t.info.id.as_str())).all(|t| has_title(&t.page)));
     }
 
     fn by_id(id: &str) -> Template {
@@ -725,5 +884,37 @@ mod tests {
         assert_eq!(t.page.elements.len(), 1);
         assert!(matches!(t.page.elements[0].kind, ElementKind::Image(_)));
         assert_eq!(t.page.elements[0].group, None);
+    }
+
+    #[test]
+    fn class_templates_are_filled_as_planned() {
+        use crate::fill::{FillMode, block_count, generate, suggested_mode};
+        let page = |id: &str| builtin().into_iter().find(|t| t.info.id == id).unwrap().page;
+        let expected = [
+            ("memory-prenoms", FillMode::Sheet, 10),
+            ("loto-prenoms", FillMode::Sheet, 9),
+            ("lettres-mobiles", FillMode::PagePerStudent, 0),
+            ("ecrire-prenom", FillMode::PagePerStudent, 2),
+            ("presences", FillMode::Sheet, 13),
+            ("anniversaires", FillMode::WholeClass, 0),
+        ];
+        for (id, mode, blocks) in expected {
+            let p = page(id);
+            assert!(crate::fill::has_fields(&p), "{id}");
+            assert_eq!(suggested_mode(&p), mode, "{id}");
+            if blocks > 0 {
+                assert_eq!(block_count(&p), blocks, "{id}");
+            }
+            assert!(p.elements.iter().all(|e| e.frame.x_mm >= 0.0 && e.frame.y_mm >= 0.0 && e.frame.x_mm + e.frame.w_mm <= 210.0 && e.frame.y_mm + e.frame.h_mm <= 297.0), "{id} déborde");
+        }
+        // Lettres mobiles de « Léa » : trois lettres par rangée, les autres cases disparaissent.
+        let mut lea = crate::class::Student::new("Léa", "");
+        lea.birth_date = Some("2022-03-12".into());
+        let pages = generate(&page("lettres-mobiles"), std::slice::from_ref(&lea), FillMode::PagePerStudent);
+        let letters = pages[0].elements.iter().filter(|e| matches!(&e.kind, ElementKind::Text(t) if t.prompt.as_deref().is_some_and(|p| p.to_lowercase().starts_with("lettre ")))).count();
+        assert_eq!(letters, 9);
+        let poster = generate(&page("anniversaires"), &[lea], FillMode::WholeClass);
+        let all: String = poster[0].elements.iter().filter_map(|e| match &e.kind { ElementKind::Text(t) => Some(t.content.paragraphs.iter().flat_map(|p| &p.runs).map(|r| r.text.as_str()).collect::<String>()), _ => None }).collect();
+        assert!(all.contains("Léa (12)") && !all.contains('{'));
     }
 }

@@ -277,6 +277,7 @@
         <button class="main" onclick={openPhotos}>🖼 {fr.choosePhoto}</button>
         <button onclick={() => addCaption(selected.id)}>✎ {fr.caption}</button>
       {:else}
+        <button class:on={editor.replacingPhoto} title={fr.replacePhotoHint} onclick={() => ((editor.replacingPhoto = true), (editor.drawer = "photos"))}>⇄ {fr.replace}</button>
         <button onclick={() => (editor.cropping = selected.id)}>✂ {fr.crop}</button>
         <button title={fr.blurHint} onclick={() => (editor.blurring = ph.asset)}>◍ {fr.blurButton}</button>
         <div class="wrap">

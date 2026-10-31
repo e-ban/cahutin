@@ -32,6 +32,8 @@ class Editor {
   /** « Remplacer » (barre flottante, case de tableau) : le prochain clic dans le tiroir Décors remplace les images
    *  choisies au lieu d'en poser une nouvelle. Prend fin quand la sélection change. */
   replacingPictos = $state(false);
+  /** « Remplacer » sur une photo posée : le prochain clic dans le tiroir Photos la remplace au lieu d'en poser une autre. */
+  replacingPhoto = $state(false);
   /** Fusion en glissant (mode modèle) : cases couvertes, et si la fusion est possible. */
   mergePreview = $state<{ ids: string[]; ok: boolean } | null>(null);
   /** Élément d'un groupe modifié seul après un double-clic (Échap ou un clic ailleurs revient au groupe). */

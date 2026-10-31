@@ -296,7 +296,7 @@ export const fr = {
   thumbMedium: "Moyennes",
   thumbLarge: "Grandes",
   usedInDocument: "Déjà dans le document",
-  photoClickHint: "Cliquez une photo pour la mettre dans la zone sélectionnée, ou glissez-la sur la page.",
+  photoClickHint: "Cliquez une photo pour la poser sur la page, ou pour remplir la case photo choisie. Vous pouvez aussi la glisser. Pour changer une photo déjà posée : sélectionnez-la, puis « Remplacer ».",
   noPhotosYet: "Ajoutez les photos de la sortie : elles restent ici, prêtes à être glissées sur les pages.",
   // Polices
   addFont: "＋ Ajouter une police (.ttf, .otf)",
@@ -479,6 +479,8 @@ export const fr = {
   searchPicture: "Rechercher une image (renard, gâteau…)",
   noPictureFound: "Aucune image ne correspond.",
   pictureHint: "Cliquez une image pour la poser, ou glissez-la sur la page. Pour changer une image posée : sélectionnez-la, puis « Remplacer ».",
+  replacePhotoHint: "Choisir une autre photo à la place de celle-ci, dans le tiroir Photos.",
+  photoReplacing: "Choisissez la photo qui remplace celle de la page.",
   pictureReplacing: "Choisissez l'image qui remplace celle de la page.",
   pictureGroups: {
     rituels: "Rituels",

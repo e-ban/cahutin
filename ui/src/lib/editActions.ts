@@ -257,7 +257,6 @@ export function addPhotoAt(meta: AssetMeta, xMm: number, yMm: number) {
   editor.selection = [id];
 }
 
-/** Clic sur une vignette : remplit (ou remplace) la photo sélectionnée, sinon pose la photo au centre de la page. */
 /** Image de fond du cadre du texte sélectionné (une photo de la photothèque), ou aucune. */
 export function setFrameImage(meta: AssetMeta | null) {
   const e = editor.selected;
@@ -267,10 +266,15 @@ export function setFrameImage(meta: AssetMeta | null) {
   editor.commit({ ...editor.doc, pages, assets: meta ? { ...editor.doc.assets, [meta.id]: meta } : editor.doc.assets });
 }
 
+/** Clic sur une vignette du tiroir Photos : remplit la case photo choisie (ou remplace la photo, après
+ *  « Remplacer »), sinon pose la photo au centre de la page, à ses proportions. */
 export function usePhoto(meta: AssetMeta) {
   warnConsent(meta.id);
   const e = editor.selected;
-  if (e && e.kind.type === "Photo" && !e.locked) {
+  // Une case photo à remplir (vide, ou case d'un modèle) se remplit ; une photo déjà posée n'est remplacée que sur
+  // demande (« Remplacer ») : sinon un clic pose une photo de plus.
+  const fills = e?.kind.type === "Photo" && (e.zone || !e.kind.asset || editor.replacingPhoto);
+  if (e && e.kind.type === "Photo" && !e.locked && fills) {
     editor.placePhoto(e.id, meta);
     return;
   }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { open } from "@tauri-apps/plugin-dialog";
+  import { onDestroy } from "svelte";
   import Drawer from "../layout/Drawer.svelte";
   import { assetUrl, listImportableIn } from "../../lib/api";
   import { editor } from "../../lib/docStore.svelte";
@@ -16,6 +17,16 @@
     { px: 96, label: fr.thumbMedium, icon: "◼" },
     { px: 140, label: fr.thumbLarge, icon: "⬛" },
   ];
+
+  // Le mode « Remplacer » prend fin quand on choisit autre chose sur la page, ou qu'on ferme le tiroir.
+  onDestroy(() => (editor.replacingPhoto = false));
+  let selectionWhenOpened = editor.selection;
+  $effect.pre(() => {
+    if (editor.selection !== selectionWhenOpened) {
+      selectionWhenOpened = editor.selection;
+      editor.replacingPhoto = false;
+    }
+  });
 
   let filter = $state<PhotoFilter>({ kind: "all" });
   let thumbSize = $state(readPref("thumbSize", 96));
@@ -50,6 +61,8 @@
   </div>
   <!-- Les photos de l'année, rangées par enfant et par activité : on y choisit celles du document. -->
   <button class="library" title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}>🖼️ {fr.libraryFromDrawer}</button>
+
+  {#if editor.replacingPhoto}<p class="replacing">{fr.photoReplacing}</p>{/if}
 
   {#if editor.importProgress}
     {@const p = editor.importProgress}
@@ -96,6 +109,14 @@
 </Drawer>
 
 <style>
+  .replacing {
+    margin: 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: #e8f1fb;
+    color: var(--accent);
+    font-size: 12px;
+  }
   .library {
     width: 100%;
     margin-top: 6px;

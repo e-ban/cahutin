@@ -72,7 +72,7 @@ fn used_assets(doc: &Document) -> BTreeSet<String> {
     doc.pages.iter().flat_map(|p| &p.elements).flat_map(Element::asset_ids).cloned().collect()
 }
 
-/// 5 avec une photo en miroir ou des lignes d'écriture dans un cadre, 4 avec un tableau, 3 avec un réglage
+/// 5 avec une photo en miroir, des lignes d'écriture dans un cadre ou des styles nommés, 4 avec un tableau, 3 avec un réglage
 /// de la version 3, 2 avec une image (un Carnet plus ancien affiche
 /// alors « version plus récente »), sinon 1.
 pub fn written_version(doc: &Document) -> u32 {
@@ -80,10 +80,10 @@ pub fn written_version(doc: &Document) -> u32 {
     let outlined = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if t.style.outline == Some(true));
     let v5 = |e: &Element| match &e.kind {
         ElementKind::Photo(p) => p.mirrored,
-        ElementKind::Text(t) => t.frame.as_ref().is_some_and(|f| f.pattern.is_some()),
+        ElementKind::Text(t) => t.frame.as_ref().is_some_and(|f| f.pattern.is_some()) || t.style.named.is_some(),
         _ => false,
     };
-    if elements().any(v5) {
+    if !doc.text_styles.is_empty() || elements().any(v5) {
         5
     } else if elements().any(|e| matches!(e.kind, ElementKind::Table(_)) || outlined(e)) {
         4

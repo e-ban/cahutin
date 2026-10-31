@@ -53,13 +53,13 @@ pub(crate) fn el(f: Frame, kind: ElementKind) -> Element {
 }
 
 fn text(f: Frame, content: &str, font: &str, size_pt: f64, color: &str, align: Align) -> Element {
-    let style = TextStyle { font: font.into(), size_pt, color: color.into(), align, valign: None, padding_mm: None, outline: None };
+    let style = TextStyle { font: font.into(), size_pt, color: color.into(), align, valign: None, padding_mm: None, outline: None, named: None };
     el(f, ElementKind::Text(TextProps { content: RichText::plain(content), style, prompt: None, frame: None }))
 }
 
 /// Zone de texte à remplir, avec son invite.
 pub(crate) fn text_zone(f: Frame, prompt: &str, font: &str, size_pt: f64) -> Element {
-    let style = TextStyle { font: font.into(), size_pt, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None, outline: None };
+    let style = TextStyle { font: font.into(), size_pt, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None, outline: None, named: None };
     Element { zone: true, ..el(f, ElementKind::Text(TextProps { content: RichText::default(), style, prompt: Some(prompt.into()), frame: None })) }
 }
 

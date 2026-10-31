@@ -6,6 +6,7 @@ export type { Pattern } from "./gen/Pattern";
 export type { CellContent } from "./gen/CellContent";
 export type { Crop } from "./gen/Crop";
 export type { Document } from "./gen/Document";
+export type { NamedTextStyle } from "./gen/NamedTextStyle";
 export type { Element } from "./gen/Element";
 export type { ExampleInfo } from "./gen/ExampleInfo";
 export type { ElementKind } from "./gen/ElementKind";

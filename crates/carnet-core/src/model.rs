@@ -59,6 +59,26 @@ pub struct Document {
     /// Chemins des photos importées mais non utilisées, pour retrouver la photothèque à la réouverture.
     #[serde(default)]
     pub pending_photos: Vec<String>,
+    /// Styles de texte nommés du document : ceux de Cahutin modifiés, et ceux créés par l'enseignant.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<NamedTextStyle>>", optional)]
+    pub text_styles: Vec<NamedTextStyle>,
+}
+
+/// Un style de texte nommé : ce qui fait l'allure d'un texte (police, taille, couleur, alignement, lettres
+/// creuses).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export)]
+pub struct NamedTextStyle {
+    pub id: String,
+    pub name: String,
+    pub font: String,
+    pub size_pt: f64,
+    pub color: String,
+    pub align: Align,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub outline: Option<bool>,
 }
 
 impl Document {
@@ -69,6 +89,7 @@ impl Document {
             pages: vec![Page::new(A4_PORTRAIT)],
             assets: BTreeMap::new(),
             pending_photos: Vec::new(),
+            text_styles: Vec::new(),
         }
     }
 }
@@ -308,6 +329,10 @@ pub struct TextStyle {
     #[serde(default)]
     #[ts(optional = nullable)]
     pub outline: Option<bool>,
+    /// Style nommé que suit ce texte (« titre », « consigne »…) : le modifier change tous ses textes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub named: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
@@ -328,7 +353,7 @@ impl TextStyle {
     }
 
     pub fn default_zone() -> TextStyle {
-        TextStyle { font: "Andika".into(), size_pt: 14.0, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None, outline: None }
+        TextStyle { font: "Andika".into(), size_pt: 14.0, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None, outline: None, named: None }
     }
 }
 

@@ -46,7 +46,7 @@ fn text_zone(page: &mut Page, id: &str, prompt: &str, style: TextStyle) {
 }
 
 fn title_style() -> TextStyle {
-    TextStyle { font: "Playwrite FR Moderne".into(), size_pt: 24.0, color: "#c0392b".into(), align: Align::Center, valign: None, padding_mm: None, outline: None }
+    TextStyle { font: "Playwrite FR Moderne".into(), size_pt: 24.0, color: "#c0392b".into(), align: Align::Center, valign: None, padding_mm: None, outline: None, named: None }
 }
 
 /// Grille 2 × 7 : une ligne de titre, puis des cases de deux lignes pour garder des photos bien proportionnées.
@@ -228,7 +228,7 @@ pub fn builtin() -> Vec<Template> {
         group: None,
         kind: ElementKind::Text(TextProps {
             content: RichText::plain("Mon dessin"),
-            style: TextStyle { font: "Andika".into(), size_pt: 12.0, color: "#999999".into(), align: Align::Left, valign: None, padding_mm: None, outline: None },
+            style: TextStyle { font: "Andika".into(), size_pt: 12.0, color: "#999999".into(), align: Align::Left, valign: None, padding_mm: None, outline: None, named: None },
             prompt: None,
             frame: None,
         }),

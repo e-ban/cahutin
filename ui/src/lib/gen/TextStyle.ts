@@ -14,4 +14,8 @@ padding_mm?: number | null,
 /**
  * Lettres creuses (contour seul, à repasser) ; absent : lettres pleines.
  */
-outline?: boolean | null, };
+outline?: boolean | null, 
+/**
+ * Style nommé que suit ce texte (« titre », « consigne »…) : le modifier change tous ses textes.
+ */
+named?: string | null, };

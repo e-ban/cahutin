@@ -48,7 +48,7 @@ fn main() {
     ));
     page.elements.push(element(
         frame(10.0, 35.0, 110.0, 80.0, 0.0),
-        ElementKind::Photo(PhotoProps { asset: Some(photos[0].clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false }),
+        ElementKind::Photo(PhotoProps { asset: Some(photos[0].clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
     ));
     page.elements.push(element(
         frame(130.0, 40.0, 65.0, 70.0, 6.0),
@@ -58,6 +58,7 @@ fn main() {
             corner_radius_mm: 4.0,
             border: Some(Stroke { width_mm: 1.0, color: "#2e86de".into(), style: None }),
             shadow: true,
+            mirrored: false,
         }),
     ));
     let mut story = RichText::plain("Nous avons donné à manger aux chèvres et aux poules.\nNous avons vu un veau qui venait de naître !");

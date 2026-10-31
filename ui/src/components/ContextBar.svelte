@@ -12,6 +12,7 @@
   import { editor } from "../lib/docStore.svelte";
   import { addCaption, deleteSelection, groupSelection, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
   import { assetUrl } from "../lib/api";
+  import { applyStyle, followsStyle, lookOf, newStyleFrom, redefineStyle, stylesOf } from "../lib/namedStyles";
   import { fitCount, repeatBlock } from "../lib/repeat";
   import { endPreview, previewPhoto, previewShape, previewTable, updateTable, previewTextFrame, previewTextStyle, updatePhoto, updateShape, updateTextFrame, updateTextStyle } from "../lib/elementEdit";
   import { textPadding } from "../lib/richtext";
@@ -24,13 +25,13 @@
   import { cutMarks, type CutStyle } from "../lib/cutMarks";
   import { friezeMotifs } from "../lib/friezeMotifs.svelte";
   import { ALIGNS, VALIGNS, currentFont, currentSize, insertAtCursor, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
-  import type { Frame } from "../lib/types";
+  import type { NamedTextStyle, Frame } from "../lib/types";
 
   let { pageEl, stageEl }: { pageEl: HTMLElement | undefined; stageEl: HTMLElement | undefined } = $props();
 
   const ROTATION_HANDLE_GAP = 44;
 
-  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields" | "repeat";
+  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields" | "repeat" | "styles";
   /** Champs de la classe, remplacés pour chaque élève quand on génère les pages. */
   const CLASS_FIELDS = ["{prénom}", "{PRÉNOM}", "{nom}", "{groupe}", "{âge}", "{anniversaire}"];
   let pop = $state<Pop | null>(null);
@@ -139,6 +140,27 @@
   const canCut = $derived(
     editor.selection.length > 0 && !editor.selection.some((id) => inGrid(id) || isTableCell(editor.page, id)) && !isLockedSelection(editor.page, editor.selection),
   );
+
+  // Styles nommés : appliquer au texte sélectionné, redéfinir d'après lui, ou en créer un.
+  const docStyles = $derived(stylesOf(editor.doc));
+  let newStyleName = $state("");
+
+  function useStyle(s: NamedTextStyle) {
+    editor.updatePage((p) => ({ ...p, elements: p.elements.map((e) => (editor.selection.includes(e.id) ? applyStyle(e, s) : e)) }));
+    pop = null;
+  }
+  function redefineFromSelected(s: NamedTextStyle) {
+    const look = selected && lookOf(selected, s.id, s.name);
+    if (look) editor.commit(redefineStyle(editor.doc, look));
+    pop = null;
+  }
+  function createStyle() {
+    const made = selected && newStyleFrom(editor.doc, selected, newStyleName);
+    if (!made) return;
+    editor.commit(made.doc);
+    useStyle(made.style);
+    newStyleName = "";
+  }
 
   let repeatCols = $state(2);
   let repeatRows = $state(2);
@@ -289,6 +311,26 @@
     {:else if selected?.kind.type === "Text"}
       {@const t = selected.kind}
       {@const family = fonts.families.find((f) => f.name === currentFont(t))}
+      {@const named = docStyles.find((s) => s.id === t.style.named)}
+      <div class="wrap">
+        <button class="style-btn" title={fr.textStylesHint} onclick={() => toggle("styles")}>
+          {named ? named.name : fr.textStyleNone}{named && !followsStyle(selected, named) ? " *" : ""} ▾
+        </button>
+        {#if pop === "styles"}
+          <div class="pop styles">
+            {#each docStyles as s (s.id)}
+              <button class:on={s.id === t.style.named} style:font-family={`"${s.font}"`} style:color={s.color} onclick={() => useStyle(s)}>{s.name}</button>
+            {/each}
+            {#if named && !followsStyle(selected, named)}
+              <button class="update" title={fr.textStyleUpdateHint} onclick={() => redefineFromSelected(named)}>↻ {fr.textStyleUpdate(named.name)}</button>
+            {/if}
+            <div class="new-style">
+              <input placeholder={fr.textStyleNew} bind:value={newStyleName} onkeydown={(e) => e.key === "Enter" && createStyle()} />
+              <button disabled={!newStyleName.trim()} onclick={createStyle}>＋</button>
+            </div>
+          </div>
+        {/if}
+      </div>
       <FontPicker value={currentFont(t)} onpick={setFont} compact />
       <select title={fr.size} value={String(currentSize(t))} onchange={(e) => setSize(Number(e.currentTarget.value))}>
         {#each FONT_SIZES as s (s)}<option value={String(s)}>{s}</option>{/each}
@@ -464,6 +506,27 @@
 {/if}
 
 <style>
+  .pop.styles {
+    display: grid;
+    gap: 4px;
+    min-width: 220px;
+  }
+  .pop.styles > button {
+    text-align: left;
+    font-size: 16px;
+  }
+  .pop.styles .update {
+    font-family: inherit !important;
+    color: var(--accent-strong) !important;
+    font-size: 13px;
+  }
+  .new-style {
+    display: flex;
+    gap: 4px;
+  }
+  .new-style input {
+    flex: 1;
+  }
   .pop.repeat {
     display: grid;
     gap: 6px;

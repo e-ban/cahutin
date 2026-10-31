@@ -147,7 +147,7 @@ pub fn merge_lines(obstacles: &[Frame], lines: Vec<Line>) -> Vec<Block> {
 pub fn block_element(b: &Block) -> Element {
     let first = &b.lines[0];
     let color = first.runs.first().and_then(|r| r.color.clone()).unwrap_or_else(|| "#000000".into());
-    let style = TextStyle { font: first.font.clone(), size_pt: first.size_pt, color, align: b.align, valign: None, padding_mm: None, outline: None };
+    let style = TextStyle { font: first.font.clone(), size_pt: first.size_pt, color, align: b.align, valign: None, padding_mm: None, outline: None, named: None };
     // Lignes qui se continuent : jointes par une espace ; sinon un nouveau paragraphe.
     let mut paragraphs: Vec<Vec<Run>> = vec![Vec::new()];
     for (i, line) in b.lines.iter().enumerate() {

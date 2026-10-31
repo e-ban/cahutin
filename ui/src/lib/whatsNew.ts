@@ -18,6 +18,36 @@ export interface Release {
 /** De la plus récente à la plus ancienne. */
 export const RELEASES: Release[] = [
   {
+    version: "0.9",
+    items: [
+      {
+        title: "La photothèque de la classe",
+        text: "Toutes les photos de l'année au même endroit, rangées par jour. Indiquez qui est sur chaque photo et l'activité, retrouvez les photos d'un enfant ou d'une sortie, et un bandeau vous signale les enfants peu photographiés. « Ma classe » > Photothèque.",
+        image: "/nouveautes/0.9/phototheque.webp",
+      },
+      {
+        title: "Trier vite, même à 40",
+        text: "Double-cliquez sur une photo pour la voir en grand et cocher les prénoms, les flèches passent à la suivante. Ou « Marquer un enfant » : choisissez un prénom, puis cliquez sur ses photos.",
+        image: "/nouveautes/0.9/trier.webp",
+      },
+      {
+        title: "Une grande classe en quelques clics",
+        text: "« Tout cocher » pour l'autorisation photo, « Symboles pour tous » pour donner un symbole différent à chaque enfant. Dans un document de 40 pages, tapez un numéro ou un prénom pour aller à la bonne page.",
+        image: "/nouveautes/0.9/classe.webp",
+      },
+      {
+        title: "Vos anciennes fiches, reprises fidèlement",
+        text: "Une fiche PDF garde ses tracés (graphisme, cadres), une police absente est remplacée sans déborder, les listes gardent leurs puces, et un fichier LibreOffice Draw revient tel quel.",
+        image: "/nouveautes/0.9/import.webp",
+      },
+      {
+        title: "Toutes les couleurs de peau",
+        text: "Tiroir Décors : les pastilles « Peau » donnent aux personnes et aux mains la couleur de peau choisie.",
+        image: "/nouveautes/0.9/peau.webp",
+      },
+    ],
+  },
+  {
     version: "0.8",
     items: [
       {

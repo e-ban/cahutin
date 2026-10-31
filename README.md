@@ -14,6 +14,10 @@ Site : [e-ban.github.io/cahutin](https://e-ban.github.io/cahutin)
 
 ### Windows 11
 
+Le plus simple : [Cahutin sur le Microsoft Store](https://apps.microsoft.com/detail/9P1VD877KD19). Il s'installe en un clic, sans avertissement de Windows, et le Store le met à jour.
+
+Ou avec l'installeur :
+
 1. Ouvrir la page des [téléchargements](https://github.com/e-ban/cahutin/releases/latest) et télécharger `Cahutin_<version>_x64-setup.exe` de la dernière version.
 2. Lancer le fichier. L'installation se fait pour l'utilisateur courant, **sans droits administrateur**.
 3. L'installeur n'est pas encore signé : Windows affiche « Windows a protégé votre ordinateur ». Cliquer sur **Informations complémentaires**, puis **Exécuter quand même**.
@@ -46,13 +50,13 @@ Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvell
 - **Exemples** à découvrir depuis l'écran d'accueil : Sortie à la ferme, Joyeux anniversaire, La météo de la semaine, J'écris mon prénom, Les saisons, Notre semaine (emploi du temps), Le loto des émotions, J'écris les jours, Les règles de la classe (A3), Mes cinq sens, Étiquettes de porte-manteau.
 - **Photos** : import d'un dossier entier, photothèque du document, recadrage, miroir, coins arrondis, bordure, ombre, légende, flou des visages (repérés sur l'ordinateur ou tracés à la main) pour les enfants sans autorisation photo.
 - **Textes** : gras, italique, souligné, couleurs, alignement ; polices lisibles pour l'école fournies (Andika, Atkinson Hyperlegible, OpenDyslexic, Playwrite FR Moderne pour la cursive), polices ajoutées et polices installées sur l'ordinateur ; lettres à repasser ou creuses, lignes d'écriture dans un cadre (Seyès, lignes, petits carreaux), styles de texte nommés (Titre, Consigne, Prénom, les vôtres) qui se modifient d'un coup.
-- **Classe** : liste des élèves (photo avec autorisation, symbole, niveau, groupe, date de naissance), collée ou importée d'un tableur ou d'un export ONDE (.csv), gardée sur l'ordinateur, avec la photothèque de l'année (élèves présents, activités, enfants peu photographiés). Génération d'une page par élève, d'une planche d'étiquettes remplie ou d'une affiche pour toute la classe ; champs {prénom}, {nom}, {groupe}, {âge}, {anniversaire}, lettres mobiles.
+- **Classe** : liste des élèves (photo avec autorisation, symbole, niveau, groupe, date de naissance), collée ou importée d'un tableur ou d'un export ONDE (.csv), gardée sur l'ordinateur, avec la photothèque de l'année : photos rangées par jour, élèves présents et activités cochés d'un clic (photo en grand, « Marquer un enfant »), enfants peu photographiés signalés. Réglages d'un coup pour une grande classe (autorisation photo, un symbole par enfant). Génération d'une page par élève, d'une planche d'étiquettes remplie ou d'une affiche pour toute la classe ; champs {prénom}, {nom}, {groupe}, {âge}, {anniversaire}, lettres mobiles.
 - **Tableaux** : cases avec texte, pictogramme ou photo, lignes et colonnes à ajouter ou retirer, cases fusionnées, traits réglables.
 - **Formes** : rectangle, ellipse, trait, flèche, étoile, cœur, bulle de parole, nuage.
-- **Décors** : plus de 2 000 images OpenMoji avec recherche en français (catégories Rituels, Matériel, Émotions, Corps et soins pour la classe), cadres de page et frises.
+- **Décors** : plus de 2 000 images OpenMoji avec recherche en français (catégories Rituels, Matériel, Émotions, Corps et soins pour la classe), personnes et mains dans cinq couleurs de peau, cadres de page et frises.
 - **Fonds de page** : couleur, Seyès, petits carreaux, lignes, pointillés, papier kraft.
 - **Groupes**, sélection au cadre, alignement, répétition d'un bloc en grille, repères de découpe, verrouillage, annulation.
-- **Import** : pages d'un autre carnet, et fiches Word (.docx, .doc), LibreOffice (.odt, .odg), PDF ou Publisher (.pub) reprises en textes, photos et formes modifiables. Pour ces formats, LibreOffice doit être installé sur le poste.
+- **Import** : pages d'un autre carnet, et fiches Word (.docx, .doc), LibreOffice (.odt, .odg), PDF ou Publisher (.pub) reprises en textes, photos et formes modifiables ; les tracés d'un PDF (graphisme, cadres) deviennent une image fixe au fond de la page, une police absente est remplacée par une police de même largeur. Un fichier LibreOffice Draw (dont ceux qu'exporte Cahutin) se relit tel quel ; pour les autres formats, LibreOffice doit être installé sur le poste.
 - **Aide** : visite guidée au premier lancement, astuces par thème et bulles d'aide discrètes (menu Aide).
 - **Sorties** : impression (chaque page sur une feuille de son format, affiche A3 en deux feuilles A4, cartes en recto-verso), PDF, et export **ODG** pour LibreOffice Draw, où chaque texte, photo et forme reste modifiable et les polices voyagent avec le fichier.
 

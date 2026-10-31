@@ -105,6 +105,9 @@ header .chapo { font-size: 23px; line-height: 40px; margin: calc(3 * var(--u)) 0
 .bouton:hover { background: var(--bleu-fonce); }
 .bouton:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--bleu-fonce); }
 .sous-bouton { color: var(--encre-douce); font-size: 17px; margin: var(--u) 0 0; }
+.store { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--u) calc(2 * var(--u)); margin: calc(3 * var(--u)) 0 0; color: var(--encre-douce); font-size: 16px; }
+.bouton.secondaire { background: white; color: var(--bleu); border: 2px solid var(--bleu); box-shadow: none; font-size: 17px; line-height: 24px; padding: 8px 20px; }
+.bouton.secondaire:hover { background: var(--bleu); color: white; }
 
 /* La capture de l'application, scotchée sur la page du cahier. */
 .colle { position: relative; margin: calc(8 * var(--u)) 0 calc(4 * var(--u)); max-width: 1080px; transform: rotate(-1.2deg); }

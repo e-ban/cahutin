@@ -215,9 +215,10 @@ function remember(path: string, title: string) {
   writeRecents(editor.recents);
 }
 
-export async function exportOdg() {
+/** `target` : chemin déjà choisi, sans fenêtre (essais en développement). */
+export async function exportOdg(target?: string) {
   editor.flushPending();
-  const picked = await saveDialog({ defaultPath: `${baseName()}.odg`, filters: [{ name: "LibreOffice Draw", extensions: ["odg"] }] });
+  const picked = target ?? (await saveDialog({ defaultPath: `${baseName()}.odg`, filters: [{ name: "LibreOffice Draw", extensions: ["odg"] }] }));
   if (!picked) return;
   const path = withExt(picked, "odg");
   editor.busy = fr.exportingOdg;
@@ -277,8 +278,9 @@ export async function print() {
   );
 }
 
-export async function exportPdf() {
-  const picked = await saveDialog({ defaultPath: `${baseName()}.pdf`, filters: [{ name: "PDF", extensions: ["pdf"] }] });
+/** `target` : chemin déjà choisi, sans fenêtre (essais en développement). */
+export async function exportPdf(target?: string) {
+  const picked = target ?? (await saveDialog({ defaultPath: `${baseName()}.pdf`, filters: [{ name: "PDF", extensions: ["pdf"] }] }));
   if (!picked) return;
   const path = withExt(picked, "pdf");
   const first = editor.doc.pages[0].size;

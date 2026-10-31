@@ -6,7 +6,7 @@
   import { onMount } from "svelte";
   import Modal from "./components/Modal.svelte";
   import PrintRoot from "./components/PrintRoot.svelte";
-  import { cancelFileImport, confirmLeave, importPaths, openPath, save } from "./lib/fileActions";
+  import { cancelFileImport, confirmLeave, exportOdg, exportPdf, importPaths, openPath, save } from "./lib/fileActions";
   import { fr } from "./lib/i18n/fr";
   import { ask } from "./lib/ask";
   import BoxSelect from "./components/BoxSelect.svelte";
@@ -80,7 +80,7 @@
   // Nouvelles versions : seulement si l'utilisateur l'a accepté, au plus une fois par jour.
   void updates.checkIfDue();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
-  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath, classes, classLibrary } });
+  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath, classes, classLibrary, exportPdf, exportOdg } });
 
   // Visite guidée : au premier lancement, quand l'écran d'accueil se ferme.
   let welcomeWasOpen = editor.showWelcome;

@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Panneau Réglages : les mêmes réglages pour tout, photo, image, forme, texte ou groupe. Position, taille (avec « Garder les proportions », coché pour une photo ou une image), rotation avec quarts de tour, miroir (sauf un texte), devant ou derrière. Un groupe se règle comme un élément : sa taille l'agrandit en entier, à ses proportions.
 - Miroir pour tout : les boutons ⇋ (gauche-droite) et ⇅ (haut-bas) de la barre retournent une photo, une image ou une forme (la queue d'une bulle de parole, une flèche, une main qui montre l'autre côté). Sur un groupe, tout le groupe se retourne, les textes restant lisibles. Le miroir passe à l'export LibreOffice. Un document qui retourne autre chose qu'une photo de gauche à droite demande cette version de Cahutin.
 - Mode modèle plus simple : chaque texte et chaque image a dans sa barre (et dans Réglages) le choix « À remplir » ou « Fixe ». Un texte du tiroir Texte est à remplir, une image du tiroir Images est fixe (un logo, un dessin) ; la case photo à remplir est dans le tiroir Images. Les boutons « Zone texte » et « Image fixe » disparaissent de la barre de gauche. Un élément sans l'un ni l'autre est signalé : il n'est pas gardé dans le modèle.
 - La barre au-dessus de l'élément choisi est deux fois moins large : chaque outil n'y montre que son icône, et son nom apparaît quand on passe la souris dessus. L'action principale (« Choisir une photo », « Grouper ») reste écrite en entier.

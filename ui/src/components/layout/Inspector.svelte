@@ -12,7 +12,7 @@
   import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
   import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
   import { endPreview, previewPhoto, previewShape, previewTextStyle, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
-  import { deleteSelection, setSelectedFrame, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
+  import { bringSelection, deleteSelection, mirrorSelection, rotateSelection, setSelectedFrame, setSelectionSize, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
   import { boundsOf, isLockedSelection } from "../../lib/groups";
   import type { Frame } from "../../lib/types";
   import { textPadding } from "../../lib/richtext";
@@ -48,10 +48,50 @@
   const frameFixed = $derived(!!selected && (selected.locked || isPlacedCell(editor.page, selected.id)));
 
   function setFrame(key: keyof Frame, raw: string) {
-    setSelectedFrame(key, Number(raw.replace(",", ".")));
+    setSelectedFrame(key, Number(raw.replace(",", ".")), keepRatio);
   }
 
+  // Garder les proportions : coché d'office pour une photo ou une image, à chaque nouvel élément choisi.
+  let keepRatio = $state(true);
+  let ratioFor: string | null = null;
+  $effect.pre(() => {
+    const s = selected;
+    if (s && s.id !== ratioFor) {
+      ratioFor = s.id;
+      keepRatio = s.kind.type === "Photo" || s.kind.type === "Image";
+    }
+  });
+
+  /** Un texte ou un tableau ne se retourne pas (il resterait illisible). */
+  const mirrorable = $derived(!!selected && selected.kind.type !== "Text" && selected.kind.type !== "Table");
+  const num = (raw: string) => Number(raw.replace(",", "."));
+
 </script>
+
+<!-- Les mêmes réglages pour tout : quart de tour, miroir (sauf un texte), devant ou derrière. -->
+{#snippet quarterTurns(fixed: boolean)}
+  <button disabled={fixed} title={fr.rotateLeft} onclick={() => rotateSelection(-90)}>↺ 90°</button>
+  <button disabled={fixed} title={fr.rotateRight} onclick={() => rotateSelection(90)}>↻ 90°</button>
+{/snippet}
+
+{#snippet turnAndOrder(fixed: boolean, mirror: boolean)}
+  {#if mirror}
+    <div class="field">
+      <span>{fr.mirrorRow}</span>
+      <div class="row">
+        <button disabled={fixed} title={fr.mirrorHHint} onclick={() => mirrorSelection("h")}>⇋ {fr.mirrorH}</button>
+        <button disabled={fixed} title={fr.mirrorVHint} onclick={() => mirrorSelection("v")}>⇅ {fr.mirrorV}</button>
+      </div>
+    </div>
+  {/if}
+  <div class="field">
+    <span>{fr.orderRow}</span>
+    <div class="row">
+      <button onclick={() => bringSelection("front")}>{fr.bringFront}</button>
+      <button onclick={() => bringSelection("back")}>{fr.sendBack}</button>
+    </div>
+  </div>
+{/snippet}
 
 {#if !editor.inspectorOpen}
   <button class="tab" title={fr.openInspector} aria-label={fr.openInspector} onclick={() => (editor.inspectorOpen = true)}>⚙ {fr.inspector} ◂</button>
@@ -70,6 +110,19 @@
         <label>{fr.posY}<input type="number" step="0.5" disabled={groupLocked} value={Math.round(groupBox!.y_mm * 10) / 10} onchange={(e) => moveGroup("y", e.currentTarget.value)} /></label>
       </div>
     </div>
+    <div class="field">
+      <span>{fr.sizeMm}</span>
+      <div class="frame">
+        <label>{fr.width}<input type="number" step="0.5" min="1" disabled={groupLocked} value={Math.round(groupBox!.w_mm * 10) / 10} onchange={(e) => setSelectionSize("w_mm", num(e.currentTarget.value))} /></label>
+        <label>{fr.height}<input type="number" step="0.5" min="1" disabled={groupLocked} value={Math.round(groupBox!.h_mm * 10) / 10} onchange={(e) => setSelectionSize("h_mm", num(e.currentTarget.value))} /></label>
+      </div>
+      <small class="hint">{fr.groupKeepsRatio}</small>
+    </div>
+    <div class="field">
+      <span>{fr.rotationRow}</span>
+      <div class="row">{@render quarterTurns(groupLocked)}</div>
+    </div>
+    {@render turnAndOrder(groupLocked, true)}
     <div class="actions">
       <button onclick={ungroupSelection}>⊟ {fr.ungroup}</button>
       <button onclick={toggleLockSelection}>{groupLocked ? `🔓 ${fr.unlock}` : `🔒 ${fr.lock}`}</button>
@@ -81,21 +134,33 @@
     <h3>{selected.kind.type === "Photo" ? fr.photo : selected.kind.type === "Text" ? fr.text : selected.kind.type === "Image" ? fr.picture : fr.shape}</h3>
 
     <div class="field">
-      <span>{fr.position}</span>
+      <span>{fr.positionOnly}</span>
       <div class="frame">
-        {#each [["x_mm", fr.posX], ["y_mm", fr.posY], ["w_mm", fr.width], ["h_mm", fr.height]] as [key, label] (key)}
-          <label>
-            {label}
-            <input type="number" step="0.5" disabled={frameFixed} value={selected.frame[key as keyof Frame]} onchange={(e) => setFrame(key as keyof Frame, e.currentTarget.value)} />
-          </label>
+        {#each [["x_mm", fr.posX], ["y_mm", fr.posY]] as [key, label] (key)}
+          <label>{label}<input type="number" step="0.5" disabled={frameFixed} value={selected.frame[key as keyof Frame]} onchange={(e) => setFrame(key as keyof Frame, e.currentTarget.value)} /></label>
         {/each}
       </div>
-      <label class="rot">
-        {fr.rotation}
-        <input type="number" step="1" disabled={frameFixed} value={selected.frame.rotation_deg} onchange={(e) => setFrame("rotation_deg", e.currentTarget.value)} />
-      </label>
+    </div>
+    <div class="field">
+      <span>{fr.sizeMm}</span>
+      <div class="frame">
+        {#each [["w_mm", fr.width], ["h_mm", fr.height]] as [key, label] (key)}
+          <label>{label}<input type="number" step="0.5" min="1" disabled={frameFixed} value={selected.frame[key as keyof Frame]} onchange={(e) => setFrame(key as keyof Frame, e.currentTarget.value)} /></label>
+        {/each}
+      </div>
+      {#if selected.kind.type !== "Image"}
+        <label class="check"><input type="checkbox" disabled={frameFixed} bind:checked={keepRatio} /> {fr.keepRatio}</label>
+      {/if}
       {#if frameFixed && !selected.locked}<small class="hint">{fr.gridLockedFrame}</small>{/if}
     </div>
+    <div class="field">
+      <span>{fr.rotation}</span>
+      <div class="row">
+        <input class="deg" type="number" step="1" disabled={frameFixed} value={selected.frame.rotation_deg} onchange={(e) => setFrame("rotation_deg", e.currentTarget.value)} />
+        {@render quarterTurns(frameFixed)}
+      </div>
+    </div>
+    {@render turnAndOrder(frameFixed, mirrorable)}
 
     {#if selected.kind.type === "Photo"}
       {@const ph = selected.kind}
@@ -283,14 +348,12 @@
     grid-template-columns: 1fr 1fr;
     gap: 6px;
   }
-  .frame label,
-  .rot {
+  .frame label {
     display: flex;
     align-items: center;
     gap: 6px;
   }
-  .frame input,
-  .rot input {
+  .frame input {
     width: 100%;
     min-width: 0;
     padding: 3px 6px;
@@ -336,6 +399,19 @@
     margin: 0;
     font-size: 12px;
     color: #b35c00;
+  }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .row button {
+    flex: 1;
+    white-space: nowrap;
+  }
+  .deg {
+    width: 4.5em;
+    flex: none;
   }
   .actions {
     display: flex;

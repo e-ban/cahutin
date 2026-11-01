@@ -306,3 +306,29 @@ test("the caption of a turned photo goes under the photo as it shows, not over i
   addCaption("ph");
   expect(editor.page.elements.filter((e) => e.kind.type === "Text")).toHaveLength(1);
 });
+
+test("a size typed in Réglages keeps the proportions when asked, and a group grows as a whole", async () => {
+  const { setSelectedFrame, setSelectionSize } = await import("./editActions");
+  const box = (id: string, x: number, group?: string): Element => ({
+    id,
+    frame: { x_mm: x, y_mm: 10, w_mm: 40, h_mm: 20, rotation_deg: 0 },
+    locked: false,
+    zone: false,
+    ...(group ? { group } : {}),
+    kind: { type: "Shape", shape: "Rect", fill: "#ffffff", stroke: null, corner_radius_mm: 0 },
+  });
+  const doc = newDocument("taille");
+  doc.pages[0].elements = [box("a", 10), box("b", 100, "g"), box("c", 160, "g")];
+  editor.reset(doc, null);
+  editor.selection = ["a"];
+  setSelectedFrame("w_mm", 80, true);
+  expect(editor.page.elements[0].frame).toMatchObject({ w_mm: 80, h_mm: 40 });
+  setSelectedFrame("h_mm", 10);
+  expect(editor.page.elements[0].frame).toMatchObject({ w_mm: 80, h_mm: 10 });
+  // Le groupe fait 100 mm de large (de 100 à 200) : à 50 mm, tout est deux fois plus petit.
+  editor.selection = ["b", "c"];
+  setSelectionSize("w_mm", 50);
+  const [b, c] = editor.page.elements.slice(1).map((e) => e.frame);
+  expect(b).toMatchObject({ x_mm: 100, w_mm: 20, h_mm: 10 });
+  expect(c.x_mm).toBe(130);
+});

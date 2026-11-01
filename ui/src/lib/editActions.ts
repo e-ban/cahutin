@@ -183,14 +183,34 @@ export function applyGroupTransform(ids: string[], t: GroupTransform) {
   });
 }
 
-/** Valeur tapée dans le panneau de droite ; une image de la banque reste carrée. */
-export function setSelectedFrame(key: keyof Frame, value: number) {
+/** Valeur tapée dans le panneau de droite ; une image de la banque reste carrée. Avec `keepRatio`, changer la
+ *  largeur change aussi la hauteur (et l'inverse), aux proportions de l'élément. */
+export function setSelectedFrame(key: keyof Frame, value: number, keepRatio = false) {
   const e = editor.selected;
   if (!e || !Number.isFinite(value)) return;
   const min = key === "w_mm" || key === "h_mm" ? 1 : -10000;
   const v = Math.max(min, Math.round(value * 10) / 10);
-  const square = e.kind.type === "Image" && (key === "w_mm" || key === "h_mm");
-  editor.updateElement(e.id, (el) => ({ ...el, frame: square ? { ...el.frame, w_mm: v, h_mm: v } : { ...el.frame, [key]: v } }));
+  const r = (n: number) => Math.max(1, Math.round(n * 10) / 10);
+  const ratio = e.kind.type === "Image" ? 1 : e.frame.h_mm / e.frame.w_mm;
+  const linked = keepRatio || e.kind.type === "Image";
+  editor.updateElement(e.id, (el) => {
+    const frame = { ...el.frame, [key]: v };
+    if (linked && key === "w_mm") frame.h_mm = r(v * ratio);
+    if (linked && key === "h_mm") frame.w_mm = r(v / ratio);
+    return { ...el, frame };
+  });
+}
+
+/** Taille d'une sélection de plusieurs éléments (un groupe), à ses proportions : tout s'agrandit depuis le coin
+ *  haut gauche de l'ensemble, textes et traits compris. */
+export function setSelectionSize(key: "w_mm" | "h_mm", value: number) {
+  const ids = selected();
+  const page = editor.page;
+  if (ids.length < 2 || !Number.isFinite(value) || value < 1 || isLockedSelection(page, ids, editor.inside)) return;
+  const b = boundsOf(page.elements.filter((e) => ids.includes(e.id)).map((e) => e.frame));
+  const factor = value / (key === "w_mm" ? b.w_mm : b.h_mm);
+  if (!Number.isFinite(factor) || Math.abs(factor - 1) < 0.001) return;
+  applyGroupTransform(ids, { dx_mm: 0, dy_mm: 0, factor, origin: { x_mm: b.x_mm, y_mm: b.y_mm }, deg: 0 });
 }
 
 /** Fond de la page courante (ou de toutes les pages) : un seul pas d'annulation. */

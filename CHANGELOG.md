@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Mode modèle plus simple : chaque texte et chaque image a dans sa barre (et dans Réglages) le choix « À remplir » ou « Fixe ». Un texte du tiroir Texte est à remplir, une image du tiroir Images est fixe (un logo, un dessin) ; la case photo à remplir est dans le tiroir Images. Les boutons « Zone texte » et « Image fixe » disparaissent de la barre de gauche. Un élément sans l'un ni l'autre est signalé : il n'est pas gardé dans le modèle.
 - La barre au-dessus de l'élément choisi est deux fois moins large : chaque outil n'y montre que son icône, et son nom apparaît quand on passe la souris dessus. L'action principale (« Choisir une photo », « Grouper ») reste écrite en entier.
 
 ## 0.10.1

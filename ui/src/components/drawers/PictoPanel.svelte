@@ -29,7 +29,8 @@
       editor.updatePage((p) => replacePictos(p, editor.selection, code, !editor.focusedMember, pictos.outline));
       return;
     }
-    const el = pictoElement(editor.page, code, undefined, undefined, pictos.outline);
+    // Dans un modèle, une image posée est fixe (un logo, un dessin), ce qui se change dans ses réglages.
+    const el = { ...pictoElement(editor.page, code, undefined, undefined, pictos.outline), locked: editor.templateMode };
     editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
     editor.selection = [el.id];
   }

@@ -4,7 +4,8 @@
   import { tableAdd } from "../../lib/api";
   import { centeredFrame, textElement } from "../../lib/factory";
   import { fr } from "../../lib/i18n/fr";
-  import type { Align, Pattern, RichText } from "../../lib/types";
+  import { withTemplateRole } from "../../lib/templateRole";
+  import type { Align, Element, Pattern, RichText } from "../../lib/types";
 
   interface Preset {
     label: string;
@@ -29,6 +30,12 @@
 
   const run = (text: string, italic: boolean) => ({ text, bold: false, italic, underline: false, color: null, font: null, size_pt: null });
 
+  /** Pose le texte ; dans un modèle, il est à remplir (son texte devient l'invite), ce qui se change dans sa barre. */
+  function placeText(el: Element) {
+    const placed = editor.templateMode ? withTemplateRole(el, "fill") : el;
+    editor.updatePage((p) => ({ ...p, elements: [...p.elements, placed] }));
+  }
+
   /** Ajoute la zone au centre de la page, la sélectionne et ouvre l'écriture. */
   function add(preset?: Preset) {
     const el = textElement(centeredFrame(editor.page, preset ? 120 : 80, preset?.h_mm ?? 20));
@@ -40,7 +47,7 @@
         style: { ...el.kind.style, font: preset.font, size_pt: preset.size_pt, align: preset.align, color: preset.color ?? el.kind.style.color, outline: preset.outline ?? null },
       };
     }
-    editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+    placeText(el);
     editor.selection = [el.id];
     editor.selectTextOnEdit = true;
     editor.editingText = el.id;
@@ -52,7 +59,7 @@
     if (el.kind.type === "Text") {
       el.kind = { ...el.kind, content: { paragraphs: [] }, style: { ...el.kind.style, font: "Playwrite FR Moderne", size_pt: 28 }, frame: { fill: null, stroke: null, corner_radius_mm: 0, image: null, pattern } };
     }
-    editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+    placeText(el);
     editor.selection = [el.id];
   }
 

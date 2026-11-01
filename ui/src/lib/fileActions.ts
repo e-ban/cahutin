@@ -4,7 +4,7 @@ import { tick } from "svelte";
 import * as api from "./api";
 import { ask } from "./ask";
 import { confirmDiscardIfDirty, editor, type DiscardChoice } from "./docStore.svelte";
-import { newDocument, newId } from "./factory";
+import { newDocument } from "./factory";
 import { fonts } from "./fonts.svelte";
 import { fr } from "./i18n/fr";
 import { importReportText, placeImported } from "./importPages";
@@ -376,47 +376,4 @@ async function checkDocumentFonts(doc: Document, offered: string[]) {
   if (missing.length) editor.notice = fr.missingFonts(missing);
 }
 
-export const LOGO_WIDTH_MM = 40;
-const LOGO_MARGIN_MM = 10;
 
-/** Logo d'un modèle : une image fixée (verrouillée), 40 mm de large, en haut à droite de la page. */
-export async function pickLogo() {
-  const picked = await open({ filters: [{ name: "Images", extensions: ["jpg", "jpeg", "png", "webp", "JPG", "JPEG", "PNG", "WEBP"] }] });
-  if (typeof picked !== "string") return;
-  let outcome: ImportOutcome | null = null;
-  if ((await guard(() => api.importPhotos([picked], (o) => (outcome = o)))) === undefined) return;
-  const o = outcome as ImportOutcome | null;
-  if (!o) return;
-  if (o.status === "Err") {
-    editor.notice = o.message;
-    return;
-  }
-  const meta = o.asset;
-  const w = LOGO_WIDTH_MM;
-  const h = Math.round(((w * meta.height_px) / meta.width_px) * 10) / 10;
-  const page = editor.page;
-  const id = newId();
-  editor.commit({
-    ...editor.doc,
-    assets: { ...editor.doc.assets, [meta.id]: meta },
-    pages: editor.doc.pages.map((p) =>
-      p.id !== page.id
-        ? p
-        : {
-            ...p,
-            elements: [
-              ...p.elements,
-              {
-                id,
-                frame: { x_mm: p.size.width_mm - LOGO_MARGIN_MM - w, y_mm: LOGO_MARGIN_MM, w_mm: w, h_mm: h, rotation_deg: 0 },
-                locked: true,
-                zone: false,
-                kind: { type: "Photo", asset: meta.id, crop: { scale: 1, center_x: 0.5, center_y: 0.5 }, corner_radius_mm: 0, border: null, shadow: false },
-              },
-            ],
-          },
-    ),
-  });
-  editor.selection = [id];
-  editor.notice = fr.logoAdded;
-}

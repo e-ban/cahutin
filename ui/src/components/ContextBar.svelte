@@ -18,6 +18,7 @@
   import { textPadding } from "../lib/richtext";
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
+  import { hasTemplateRole, templateRole, withTemplateRole } from "../lib/templateRole";
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
   import { inTableGroup, isTableCell, selectedTable } from "../lib/table";
@@ -214,6 +215,11 @@
     editor.selection = [...editor.selection.filter((id) => !ids.includes(id)), ...fresh];
   }
 
+  function setRole(role: "fill" | "fixed") {
+    const id = selected?.id;
+    if (id) editor.updateElement(id, (e) => withTemplateRole(e, role));
+  }
+
   async function addBlockFrieze() {
     const id = selected?.id;
     if (!id) return;
@@ -244,6 +250,16 @@
     style:top={pos ? `${pos.top}px` : "-9999px"}
     onpointerdown={keepFocus}
   >
+    {#if editor.templateMode && selected && hasTemplateRole(selected)}
+      {@const role = templateRole(selected)}
+      <!-- Dans un modèle : ce texte ou cette photo est à remplir, ou fixe ; sinon il n'est pas gardé. -->
+      <div class="role" role="radiogroup" aria-label={fr.templateRole}>
+        <button role="radio" aria-checked={role === "fill"} class:on={role === "fill"} title={fr.templateFillHint} onclick={() => setRole("fill")}>{fr.templateFill}</button>
+        <button role="radio" aria-checked={role === "fixed"} class:on={role === "fixed"} title={fr.templateFixedHint} onclick={() => setRole("fixed")}>{fr.templateFixed}</button>
+        {#if role === "none"}<span class="dropped">{fr.templateNotKept}</span>{/if}
+      </div>
+      <span class="sep"></span>
+    {/if}
     {#if many}
       {#if isGroup}
         <button class="main" title="Ctrl+Maj+G" onclick={ungroupSelection}>⊟<span class="lbl"> {fr.ungroup}</span></button>
@@ -574,6 +590,28 @@
   }
   .new-style input {
     flex: 1;
+  }
+  /* À remplir / Fixe : toujours écrit en entier, c'est le choix qui compte le plus dans un modèle. */
+  .role {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+  .role button {
+    border: 0;
+    border-radius: 0;
+    background: white;
+    padding: 4px 9px;
+  }
+  .role button + button {
+    border-left: 1px solid var(--line);
+  }
+  .dropped {
+    padding: 0 8px;
+    font-size: 12px;
+    color: #b35c00;
   }
   .pop.frieze {
     min-width: 260px;

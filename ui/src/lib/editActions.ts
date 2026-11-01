@@ -254,7 +254,8 @@ export function addCaption(photoId: string) {
 
 export const NEW_PHOTO_WIDTH_MM = 80;
 
-/** Nouvelle photo libre centrée sur (x, y), de 80 mm de large ; l'image rejoint celles du document. */
+/** Nouvelle photo libre centrée sur (x, y), de 80 mm de large ; l'image rejoint celles du document. Dans un
+ *  modèle, elle est fixe (un logo, un dessin), ce qui se change dans sa barre. */
 export function addPhotoAt(meta: AssetMeta, xMm: number, yMm: number) {
   const w = NEW_PHOTO_WIDTH_MM;
   const h = Math.round(((w * meta.height_px) / meta.width_px) * 10) / 10;
@@ -262,7 +263,7 @@ export function addPhotoAt(meta: AssetMeta, xMm: number, yMm: number) {
   const el: Element = {
     id,
     frame: { x_mm: Math.round((xMm - w / 2) * 10) / 10, y_mm: Math.round((yMm - h / 2) * 10) / 10, w_mm: w, h_mm: h, rotation_deg: 0 },
-    locked: false,
+    locked: editor.templateMode,
     zone: false,
     kind: { type: "Photo", asset: meta.id, crop: { scale: 1, center_x: 0.5, center_y: 0.5 }, corner_radius_mm: 0, border: null, shadow: false },
   };

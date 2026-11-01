@@ -7,6 +7,7 @@
   import FontPicker from "../FontPicker.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
+  import { hasTemplateRole, templateRole, withTemplateRole } from "../../lib/templateRole";
   import { isStrokeOnly } from "../../lib/shapePaths";
   import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
   import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
@@ -222,20 +223,26 @@
       {/if}
     {/if}
 
+    {#if editor.templateMode && hasTemplateRole(selected)}
+      {@const role = templateRole(selected)}
+      <div class="role" role="radiogroup" aria-label={fr.templateRole}>
+        <span>{fr.templateRole}</span>
+        <button role="radio" aria-checked={role === "fill"} class:on={role === "fill"} title={fr.templateFillHint} onclick={() => update((e) => withTemplateRole(e, "fill"))}>{fr.templateFill}</button>
+        <button role="radio" aria-checked={role === "fixed"} class:on={role === "fixed"} title={fr.templateFixedHint} onclick={() => update((e) => withTemplateRole(e, "fixed"))}>{fr.templateFixed}</button>
+      </div>
+      {#if role === "none"}<p class="dropped">{fr.templateNotKept}</p>{/if}
+    {/if}
     <div class="actions">
+      {#if !(editor.templateMode && hasTemplateRole(selected))}
       <button onclick={() => update((e) => ({ ...e, locked: !e.locked }))}>
         {#if editor.templateMode}📌 {selected.locked ? fr.unfixCell : fr.fixCell}{:else}{selected.locked ? `🔓 ${fr.unlock}` : `🔒 ${fr.lock}`}{/if}
       </button>
+      {/if}
       {#if !selected.locked}
         <button onclick={deleteSelection}>🗑 {fr.delete}</button>
       {/if}
     </div>
-    {#if editor.templateMode && selected.kind.type !== "Shape"}
-      <label class="check">
-        <input type="checkbox" checked={selected.zone} onchange={(e) => update((el) => ({ ...el, zone: e.currentTarget.checked }))} />
-        {fr.isZone}
-      </label>
-    {/if}
+
   {/if}
 </aside>
 {/if}
@@ -310,6 +317,25 @@
     display: flex;
     gap: 6px;
     align-items: center;
+  }
+  .role {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+  }
+  .role span {
+    flex: 1;
+  }
+  .role .on {
+    background: #e8f1fb;
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .dropped {
+    margin: 0;
+    font-size: 12px;
+    color: #b35c00;
   }
   .actions {
     display: flex;

@@ -1,14 +1,5 @@
 <script lang="ts">
   import { editor, type DrawerId } from "../../lib/docStore.svelte";
-  import { pickLogo } from "../../lib/fileActions";
-  import { centeredFrame, photoZoneElement, textElement } from "../../lib/factory";
-  import type { Element } from "../../lib/types";
-
-  /** Mode modèle : une zone libre de plus, sélectionnée, à placer où l'on veut. */
-  function addZone(el: Element) {
-    editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
-    editor.selection = [el.id];
-  }
   import { fr } from "../../lib/i18n/fr";
 
   const normal: { id: DrawerId; icon: string; label: string }[] = [
@@ -36,11 +27,6 @@
       <b>{item.icon}</b>{item.label}
     </button>
   {/each}
-  {#if editor.templateMode}
-    <button class="item" title={fr.photoZoneHint} onclick={() => addZone(photoZoneElement(editor.page))}><b>⬚</b>{fr.photoZone}</button>
-    <button class="item" title={fr.textZoneHint} onclick={() => addZone(textElement(centeredFrame(editor.page, 120, 20), true))}><b>✎</b>{fr.textZone}</button>
-    <button class="item" title={fr.logoHint} onclick={pickLogo}><b>⭐</b>{fr.logo}</button>
-  {/if}
 </nav>
 
 <style>

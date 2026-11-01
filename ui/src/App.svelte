@@ -292,7 +292,7 @@
       oncontext={openContextMenu}
       onfocusmember={focusMember}
       ondroppicto={(code, x, y) => {
-        const el = pictoElement(editor.page, code, { x_mm: x, y_mm: y }, undefined, pictos.outline);
+        const el = { ...pictoElement(editor.page, code, { x_mm: x, y_mm: y }, undefined, pictos.outline), locked: editor.templateMode };
         editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
         editor.selection = [el.id];
       }}

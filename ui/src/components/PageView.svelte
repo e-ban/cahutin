@@ -214,7 +214,7 @@
         if (e.id !== cropping || !dragFrom || e.kind.type !== "Photo" || !e.kind.asset) return;
         const meta = doc.assets[e.kind.asset] ?? editor.assetMeta(e.kind.asset);
         if (!meta) return;
-        liveCrop = dragCrop(liveCrop ?? e.kind.crop, ev.clientX - dragFrom.x, ev.clientY - dragFrom.y, meta, e.frame, zoom);
+        liveCrop = dragCrop(liveCrop ?? e.kind.crop, ev.clientX - dragFrom.x, ev.clientY - dragFrom.y, meta, e.frame, zoom, !!e.kind.mirrored);
         dragFrom = { x: ev.clientX, y: ev.clientY };
       }}
       onpointerup={() => (dragFrom = null)}

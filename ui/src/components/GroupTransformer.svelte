@@ -7,7 +7,7 @@
   import { onDestroy, tick } from "svelte";
   import { editor } from "../lib/docStore.svelte";
   import { applyGroupTransform } from "../lib/editActions";
-  import { GUIDE_MARGIN_MM, SNAP_MM, settleMove, settleScale, snapLines } from "../lib/geometry";
+  import { DRAG_DEAD_ZONE_PX, GUIDE_MARGIN_MM, ROTATE_STEP_DEG, SNAP_MM, settleMove, settleScale, snapLines } from "../lib/geometry";
   import { boundsOf, isLockedSelection } from "../lib/groups";
   import { PX_PER_MM, mmToPx } from "../lib/units";
 
@@ -107,9 +107,11 @@
       // Le cadre du groupe reste droit : l'angle mesuré est celui du geste en cours.
       useDefaultGroupRotate: true,
       defaultGroupRotate: 0,
+      throttleRotate: ROTATE_STEP_DEG,
     });
     m.on("dragGroupStart", () => begin(targets))
-      .on("dragGroup", ({ events }) => {
+      .on("dragGroup", ({ events, dist }) => {
+        if (Math.hypot(dist[0], dist[1]) < DRAG_DEAD_ZONE_PX) return;
         events.forEach((ev) => (ev.target.style.transform = ev.transform));
         if (gesture) [gesture.dx, gesture.dy] = events[0].beforeTranslate;
       })
@@ -183,5 +185,15 @@
     });
   });
 
-  onDestroy(() => moveable?.destroy());
+  // Maj enfoncée : rotation libre, sans crans.
+  function onKey(ev: KeyboardEvent) {
+    if (moveable) moveable.throttleRotate = ev.shiftKey ? 1 : ROTATE_STEP_DEG;
+  }
+  window.addEventListener("keydown", onKey);
+  window.addEventListener("keyup", onKey);
+  onDestroy(() => {
+    window.removeEventListener("keydown", onKey);
+    window.removeEventListener("keyup", onKey);
+    moveable?.destroy();
+  });
 </script>

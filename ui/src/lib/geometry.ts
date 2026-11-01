@@ -3,6 +3,11 @@ import type { Frame, PageSize } from "./types";
 
 /** Pas de la grille aimantée. */
 export const SNAP_MM = 5;
+/** Un bloc ne bouge qu'au-delà de ce glisser (px à l'écran) : un clic pour le choisir, la main qui tremble un
+ *  peu, ne le déplace pas. */
+export const DRAG_DEAD_ZONE_PX = 5;
+/** La rotation à la souris avance par crans de 15° (0, 45, 90°… tombent juste) ; Maj tourne librement. */
+export const ROTATE_STEP_DEG = 15;
 /** Marges de la page sur lesquelles s'aligner (comme la grille des modèles). */
 export const GUIDE_MARGIN_MM = 10;
 

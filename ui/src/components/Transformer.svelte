@@ -6,7 +6,7 @@
   import Moveable from "moveable";
   import { onDestroy, tick } from "svelte";
   import { editor } from "../lib/docStore.svelte";
-  import { GUIDE_MARGIN_MM, SNAP_MM, rectPxToFrame, settleMove, settleResize, snapLines, type RectPx } from "../lib/geometry";
+  import { DRAG_DEAD_ZONE_PX, GUIDE_MARGIN_MM, ROTATE_STEP_DEG, SNAP_MM, rectPxToFrame, settleMove, settleResize, snapLines, type RectPx } from "../lib/geometry";
   import { boundsOf } from "../lib/groups";
   import { isPlacedCell } from "../lib/table";
   import { PX_PER_MM, mmToPx } from "../lib/units";
@@ -67,7 +67,7 @@
       origin: false,
       throttleDrag: 0,
       throttleResize: 0,
-      throttleRotate: 1,
+      throttleRotate: ROTATE_STEP_DEG,
       renderDirections: ["nw", "n", "ne", "w", "e", "sw", "s", "se"],
       isDisplaySnapDigit: false,
       snapThreshold: 6,
@@ -79,7 +79,7 @@
     });
     m.on("dragStart", start)
       .on("drag", (ev) => {
-        if (!live) return;
+        if (!live || Math.hypot(ev.dist[0], ev.dist[1]) < DRAG_DEAD_ZONE_PX) return;
         live.left = ev.left;
         live.top = ev.top;
         ev.target.style.left = `${ev.left}px`;
@@ -117,7 +117,9 @@
   }
 
   function onKey(ev: KeyboardEvent) {
-    if (moveable) moveable.keepRatio = ev.shiftKey || target?.kind.type === "Image";
+    if (!moveable) return;
+    moveable.keepRatio = ev.shiftKey || target?.kind.type === "Image";
+    moveable.throttleRotate = ev.shiftKey ? 1 : ROTATE_STEP_DEG;
   }
 
   // Après chaque changement du document, du zoom ou de la sélection : recaler (ou recréer) les poignées.

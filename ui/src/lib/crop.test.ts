@@ -43,6 +43,20 @@ describe("crop editing", () => {
     expect(dragCrop(c, 0, 500, meta, frame, 1).center_y).toBe(0.5);
   });
 
+  test("in a photo turned or mirrored, the visible area follows the mouse", () => {
+    const c = { scale: 2, center_x: 0.5, center_y: 0.5 };
+    const straight = dragCrop(c, 0, 20, meta, frame, 1);
+    // Tournée de 90° (sens horaire) : le bas du cadre est à gauche de l'écran, glisser vers la gauche fait
+    // comme glisser vers le bas dans une photo droite.
+    const turned = dragCrop(c, -20, 0, meta, { ...frame, rotation_deg: 90 }, 1);
+    expect(turned.center_x).toBeCloseTo(0.5, 6);
+    expect(turned.center_y).toBeCloseTo(straight.center_y, 6);
+    // En miroir : la gauche et la droite s'inversent.
+    const right = dragCrop(c, 20, 0, meta, frame, 1);
+    const mirrored = dragCrop(c, 20, 0, meta, frame, 1, true);
+    expect(mirrored.center_x - 0.5).toBeCloseTo(0.5 - right.center_x, 6);
+  });
+
   test("wheelCrop clamps scale between 1 and 5", () => {
     let c = { scale: 1, center_x: 0.5, center_y: 0.5 };
     c = wheelCrop(c, 100);

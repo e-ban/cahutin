@@ -2,7 +2,7 @@
 import { warnConsent } from "./phototheque.svelte";
 import { copyElements, duplicateElements, pasteElements, removeElements, reorder } from "./clipboard";
 import { editor } from "./docStore.svelte";
-import { existingIds, expandSelection, groupElements, pathOf, rotateElements, scaleElements, ungroup, withPath } from "./groups";
+import { boundsOf, existingIds, expandSelection, groupElements, pathOf, isLockedSelection, rotateElements, scaleElements, ungroup, withPath } from "./groups";
 import { newId } from "./factory";
 import { elementAssets } from "./photoLibrary";
 import { textFrame } from "./elementEdit";
@@ -98,6 +98,18 @@ export async function runOnPage(op: (p: Page) => Promise<Page>) {
   } catch (e) {
     editor.notice = String(e);
   }
+}
+
+/** Tourne la sélection d'un quart de tour (`deg` : 90 à droite, -90 à gauche), un groupe autour de son centre ;
+ *  rien si un élément est verrouillé, dans une grille ou dans un tableau. */
+export function rotateSelection(deg: number) {
+  const ids = selected();
+  const page = editor.page;
+  if (!ids.length || isLockedSelection(page, ids, editor.inside) || ids.some((id) => inTableGroup(page, id) || !!page.grid?.cells.some((c) => c.element_id === id))) return;
+  const els = page.elements.filter((e) => ids.includes(e.id));
+  const b = boundsOf(els.map((e) => e.frame));
+  const turned = new Map(rotateElements(els, deg, { x_mm: b.x_mm + b.w_mm / 2, y_mm: b.y_mm + b.h_mm / 2 }).map((e) => [e.id, e]));
+  editor.updatePage((p) => ({ ...p, elements: p.elements.map((e) => turned.get(e.id) ?? e) }));
 }
 
 /** Grouper la sélection (Ctrl+G) : un seul pas d'annulation. */

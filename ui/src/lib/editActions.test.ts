@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { editor } from "./docStore.svelte";
 import { copySelection, paste } from "./editActions";
 import { newDocument } from "./factory";
-import type { Document } from "./types";
+import type { Document, Element } from "./types";
 
 test("a photo pasted into another document brings its image with it", () => {
   const meta = { id: "img1", width_px: 40, height_px: 30, mime: "Jpeg" as const };
@@ -255,4 +255,32 @@ test("clicking the same picture twice puts the second beside the first, not hidd
   const [a, b] = editor.page.elements.map((e) => e.frame);
   expect(b.x_mm - a.x_mm).toBe(8);
   expect(b.y_mm - a.y_mm).toBe(8);
+});
+
+test("a quarter turn turns one element in place, and a group around its centre", async () => {
+  const { rotateSelection } = await import("./editActions");
+  const shape = (id: string, x: number, group?: string): Element => ({
+    id,
+    frame: { x_mm: x, y_mm: 10, w_mm: 20, h_mm: 10, rotation_deg: 0 },
+    locked: false,
+    zone: false,
+    ...(group ? { group } : {}),
+    kind: { type: "Shape", shape: "Rect", fill: "#ffffff", stroke: null, corner_radius_mm: 0 },
+  });
+  const doc = newDocument("tourner");
+  doc.pages[0].elements = [shape("a", 10), shape("b", 100, "g"), shape("c", 140, "g")];
+  editor.reset(doc, null);
+  editor.selection = ["a"];
+  rotateSelection(90);
+  expect(editor.page.elements[0].frame).toMatchObject({ x_mm: 10, y_mm: 10, rotation_deg: 90 });
+  rotateSelection(-90);
+  rotateSelection(-90);
+  expect(editor.page.elements[0].frame.rotation_deg).toBe(-90);
+  // Le groupe tourne autour de son centre (x 130) : les deux blocs passent l'un sous l'autre.
+  editor.selection = ["b", "c"];
+  rotateSelection(90);
+  const [b, c] = editor.page.elements.slice(1).map((e) => e.frame);
+  expect(b.x_mm).toBeCloseTo(c.x_mm, 1);
+  expect(c.y_mm - b.y_mm).toBeCloseTo(40, 1);
+  expect(b.rotation_deg).toBe(90);
 });

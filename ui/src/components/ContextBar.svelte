@@ -10,7 +10,7 @@
   import { alignFrames, distributeFrames, type AlignMode } from "../lib/align";
   import { placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
-  import { addCaption, deleteSelection, groupSelection, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
+  import { addCaption, deleteSelection, groupSelection, rotateSelection, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
   import { assetUrl } from "../lib/api";
   import { applyStyle, followsStyle, lookOf, newStyleFrom, redefineStyle, stylesOf } from "../lib/namedStyles";
   import { fitCount, repeatBlock } from "../lib/repeat";
@@ -20,7 +20,7 @@
   import { fr } from "../lib/i18n/fr";
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
-  import { isTableCell, selectedTable } from "../lib/table";
+  import { inTableGroup, isTableCell, selectedTable } from "../lib/table";
   import { alignUnits, arrangeUnits, expandSelection, groupOf, isLockedSelection } from "../lib/groups";
   import { blockFrieze, friezeIn, friezeSettings, resizeFrieze } from "../lib/decor";
   import { cutMarks, type CutStyle } from "../lib/cutMarks";
@@ -139,6 +139,12 @@
     const k = e.kind;
     return k.type === "Text" || (k.type === "Photo" && !!k.asset) || (k.type === "Shape" && !isStrokeOnly(k.shape));
   });
+
+  /** Tourner d'un quart de tour : comme les repères de découpe, pas sur une case de grille ou de tableau, ni sur
+   *  un bloc verrouillé. */
+  const canRotate = $derived(
+    editor.selection.length > 0 && !editor.selection.some((id) => inGrid(id) || isTableCell(editor.page, id) || inTableGroup(editor.page, id)) && !isLockedSelection(editor.page, editor.selection, editor.inside),
+  );
 
   /** Repères de découpe : pas sur une case de grille ou de tableau, ni sur un bloc verrouillé. */
   const canCut = $derived(
@@ -498,6 +504,10 @@
         </div>
       {/if}
       {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
+    {/if}
+    {#if canRotate}
+      <button class="iconbtn" title={fr.rotateLeft} aria-label={fr.rotateLeft} onclick={() => rotateSelection(-90)}>↺</button>
+      <button class="iconbtn" title={fr.rotateRight} aria-label={fr.rotateRight} onclick={() => rotateSelection(90)}>↻</button>
     {/if}
     {#if canFrieze}
       <button title={fr.blockFriezeHint} onclick={addBlockFrieze}>❀ {fr.blockFrieze}</button>

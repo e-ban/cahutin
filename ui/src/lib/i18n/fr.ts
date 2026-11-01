@@ -553,6 +553,8 @@ export const fr = {
     " Les documents où elles sont posées les gardent, et vous pourrez les remettre (« Images retirées »).",
   welcomeCollection: "Ma collection",
   welcomeCollectionSub: "Vos images, rangées par thème",
+  rotateLeft: "Tourner d'un quart de tour vers la gauche",
+  rotateRight: "Tourner d'un quart de tour vers la droite",
   friezePickTitle: "Images de la frise",
   friezeSize: "Taille",
   friezeGap: "Espacement",

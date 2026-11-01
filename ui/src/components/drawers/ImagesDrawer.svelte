@@ -66,7 +66,7 @@
     overflow: hidden;
   }
   .tabs button {
-    flex: 1;
+    flex: 1 1 auto;
     border: 0;
     border-radius: 0;
     padding: 7px 2px;

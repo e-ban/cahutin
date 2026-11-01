@@ -44,7 +44,7 @@
     templateMode?: boolean;
     onselect?: (id: string | null, add: boolean) => void;
     ondropasset?: (assetId: string, elementId: string | null, xMm: number, yMm: number) => void;
-    /** Une image de « Mes images » glissée : son nom de fichier. */
+    /** Une image de la collection glissée : son nom de fichier. */
     ondropmyimage?: (name: string, elementId: string | null, xMm: number, yMm: number) => void;
     oncropstart?: (id: string) => void;
     oncropend?: (id: string, crop: Crop) => void;

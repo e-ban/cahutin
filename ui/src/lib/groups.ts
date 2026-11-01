@@ -113,31 +113,32 @@ export function normalizeGroups(page: Page): Page {
 export const dissolveSmallGroups = normalizeGroups;
 
 /** Vrai si un élément de la sélection (groupes compris) est verrouillé : rien ne bouge alors. */
-export function isLockedSelection(page: Page, ids: string[]): boolean {
-  const all = new Set(expandSelection(page, ids));
+export function isLockedSelection(page: Page, ids: string[], inside: string[] = []): boolean {
+  const all = new Set(expandSelection(page, ids, inside));
   return page.elements.some((e) => all.has(e.id) && e.locked);
 }
 
 /** Éléments qu'Aligner et Répartir peuvent déplacer : aucun si un membre (groupes compris) est verrouillé ; jamais les cases de grille. */
-export function alignableIds(page: Page, ids: string[]): string[] {
-  if (isLockedSelection(page, ids)) return [];
-  const all = new Set(expandSelection(page, ids));
+export function alignableIds(page: Page, ids: string[], inside: string[] = []): string[] {
+  if (isLockedSelection(page, ids, inside)) return [];
+  const all = new Set(expandSelection(page, ids, inside));
   return page.elements.filter((e) => all.has(e.id) && !isCell(page, e.id)).map((e) => e.id);
 }
 
-/** Blocs qu'Aligner et Répartir déplacent : chaque groupe d'un tenant, chaque élément seul sinon. */
-export function alignUnits(page: Page, ids: string[]): string[][] {
+/** Blocs qu'Aligner et Répartir déplacent : chaque groupe (ou sous-groupe du groupe où l'on est entré) d'un
+ *  tenant, chaque élément seul sinon. */
+export function alignUnits(page: Page, ids: string[], inside: string[] = []): string[][] {
   const units = new Map<string, string[]>();
-  for (const id of alignableIds(page, ids)) {
-    const key = page.elements.find((e) => e.id === id)?.group ?? `seul:${id}`;
+  for (const id of alignableIds(page, ids, inside)) {
+    const key = blockKey(page.elements.find((e) => e.id === id)!, inside) ?? `seul:${id}`;
     units.set(key, [...(units.get(key) ?? []), id]);
   }
   return [...units.values()];
 }
 
 /** Aligne ou répartit les boîtes des blocs avec `arrange`, puis déplace chaque bloc d'une pièce. */
-export function arrangeUnits(page: Page, ids: string[], arrange: (frames: Frame[]) => Frame[]): Page {
-  const units = alignUnits(page, ids);
+export function arrangeUnits(page: Page, ids: string[], arrange: (frames: Frame[]) => Frame[], inside: string[] = []): Page {
+  const units = alignUnits(page, ids, inside);
   const frameOf = (id: string) => page.elements.find((e) => e.id === id)!.frame;
   const boxes: Frame[] = units.map((u) => ({ ...boundsOf(u.map(frameOf)), rotation_deg: 0 }));
   const moved = arrange(boxes);

@@ -75,7 +75,7 @@
     // La poignée de rotation (Moveable) dépasse au-dessus d'un élément libre sélectionné seul.
     const e = selected;
     const handles = many
-      ? !editor.selection.some(inGrid) && !isLockedSelection(editor.page, editor.selection)
+      ? !editor.selection.some(inGrid) && !isLockedSelection(editor.page, editor.selection, editor.inside)
       : !!e && !e.locked && !inGrid(e.id) && editor.editingText !== e.id;
     pos = placeContextBar(
       box,
@@ -113,10 +113,11 @@
 
   /** Éléments libres de la sélection (ni verrouillés, ni cases de grille). */
   /** Blocs à aligner ou répartir : un groupe compte pour un. */
-  const units = () => alignUnits(editor.page, editor.selection).length;
+  const units = () => alignUnits(editor.page, editor.selection, editor.inside).length;
 
   function applyFrames(fn: (frames: Frame[]) => Frame[]) {
-    editor.updatePage((p) => arrangeUnits(p, editor.selection, fn));
+    const inside = editor.inside;
+    editor.updatePage((p) => arrangeUnits(p, editor.selection, fn, inside));
     pop = null;
   }
 
@@ -140,7 +141,7 @@
 
   /** Repères de découpe : pas sur une case de grille ou de tableau, ni sur un bloc verrouillé. */
   const canCut = $derived(
-    editor.selection.length > 0 && !editor.selection.some((id) => inGrid(id) || isTableCell(editor.page, id)) && !isLockedSelection(editor.page, editor.selection),
+    editor.selection.length > 0 && !editor.selection.some((id) => inGrid(id) || isTableCell(editor.page, id)) && !isLockedSelection(editor.page, editor.selection, editor.inside),
   );
 
   // Styles nommés : appliquer au texte sélectionné, redéfinir d'après lui, ou en créer un.
@@ -177,6 +178,7 @@
       return out.page;
     });
     editor.focusedMember = null;
+    editor.insideGroup = [];
     editor.selection = ids;
     pop = null;
   }
@@ -184,6 +186,7 @@
   function setCutMarks(style: CutStyle | null) {
     editor.updatePage((p) => cutMarks(p, editor.selection, style));
     editor.focusedMember = null;
+    editor.insideGroup = [];
     editor.selection = expandSelection(editor.page, editor.selection.filter((id) => editor.page.elements.some((e) => e.id === id)));
     pop = null;
   }
@@ -197,6 +200,7 @@
     }
     editor.updatePage((p) => blockFrieze(p, id, friezeMotifs.codes) ?? p);
     editor.focusedMember = null;
+    editor.insideGroup = [];
     editor.selection = expandSelection(editor.page, [id]);
   }
 

@@ -25,7 +25,7 @@
   const ids = $derived.by(() => {
     const sel = editor.selection;
     if (sel.length < 2 || editor.cropping || editor.editingText) return null;
-    if (sel.some(inGrid) || isLockedSelection(editor.page, sel)) return null;
+    if (sel.some(inGrid) || isLockedSelection(editor.page, sel, editor.inside)) return null;
     return [...sel];
   });
 

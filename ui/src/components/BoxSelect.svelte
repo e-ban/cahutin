@@ -33,6 +33,7 @@
     const k = PX_PER_MM * zoom;
     const ids = elementsInRect(editor.page, { x_mm: (b.left - r.left) / k, y_mm: (b.top - r.top) / k, w_mm: b.width / k, h_mm: b.height / k });
     editor.focusedMember = null;
+    editor.insideGroup = [];
     editor.selection = expandSelection(editor.page, s.add ? [...editor.selection, ...ids] : ids);
   }
 

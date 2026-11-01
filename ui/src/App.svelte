@@ -208,7 +208,7 @@
     const members = groupOf(editor.page, id, editor.insideGroup);
     if (add) {
       const all = members.every((m) => editor.selection.includes(m));
-      editor.selection = all ? editor.selection.filter((s) => !members.includes(s)) : expandSelection(editor.page, [...editor.selection, ...members]);
+      editor.selection = all ? editor.selection.filter((s) => !members.includes(s)) : expandSelection(editor.page, [...editor.selection, ...members], editor.insideGroup);
     } else if (editor.selection.length !== members.length || !members.every((m) => editor.selection.includes(m))) {
       editor.selection = members;
     }

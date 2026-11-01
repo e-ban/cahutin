@@ -213,3 +213,9 @@ test("a group left with one member, at any level, is no longer a group", () => {
   const flat = page([shape("x", 0, { group: "g" }), shape("y", 0, { group: "g" })]);
   expect(normalizeGroups(flat)).toBe(flat);
 });
+
+test("inside a group, each sub-group is one block to align", () => {
+  const p = page([shape("a", 0, { group: "g", subgroups: ["s"] }), shape("b", 0, { group: "g", subgroups: ["s"] }), shape("c", 50, { group: "g" })]);
+  expect(alignUnits(p, ["a", "c"])).toEqual([["a", "b", "c"]]);
+  expect(alignUnits(p, ["a", "c"], ["g"])).toEqual([["a", "b"], ["c"]]);
+});

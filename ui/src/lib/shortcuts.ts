@@ -80,7 +80,7 @@ export function handleShortcut(ev: KeyboardEvent) {
   } else if (ev.key.startsWith("Arrow")) {
     const ids = editor.selection;
     const inGrid = ids.some((id) => isPlacedCell(editor.page, id));
-    if (ids.length === 0 || inGrid || isLockedSelection(editor.page, ids)) return;
+    if (ids.length === 0 || inGrid || isLockedSelection(editor.page, ids, editor.inside)) return;
     ev.preventDefault();
     editor.updatePage((p) => ({ ...p, elements: p.elements.map((el) => (ids.includes(el.id) ? { ...el, frame: nudge(el.frame, ev.key as ArrowKey, ev.shiftKey) } : el)) }));
   }

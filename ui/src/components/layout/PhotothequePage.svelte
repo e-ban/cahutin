@@ -146,7 +146,7 @@
     await run(async () => {
       const n = await classLibrary.useInDocument(selected);
       editor.notice = fr.libraryUsed(n);
-      editor.drawer = "photos";
+      editor.openImages("photos");
       close();
     });
   }

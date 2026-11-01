@@ -53,3 +53,4 @@ export type { GeneratePlan } from "./gen/GeneratePlan";
 export type { FaceBox } from "./gen/FaceBox";
 export type { MyImage } from "./gen/MyImage";
 export type { MyImagesAdded } from "./gen/MyImagesAdded";
+export type { MyImageKept } from "./gen/MyImageKept";

@@ -1,6 +1,11 @@
 // « Mes images » : la liste du dossier de l'enseignant, l'ajout, le retrait, et le passage d'une image dans le
 // document (copiée dedans, une seule fois).
-import { myImagesAdd, myImagesList, myImagesRemove, myImagesUse } from "./api";
+import { myImagesAdd, myImagesKeep, myImagesList, myImagesRemove, myImagesUse } from "./api";
+import { classes } from "./classStore.svelte";
+import { editor } from "./docStore.svelte";
+import { fr } from "./i18n/fr";
+import { showsChildren } from "./myImages";
+import { classLibrary } from "./phototheque.svelte";
 import type { AssetMeta, MyImage } from "./types";
 
 class MyImages {
@@ -28,6 +33,23 @@ class MyImages {
 
   use(name: string): Promise<AssetMeta> {
     return myImagesUse(name);
+  }
+
+  /** « Garder dans Mes images » : l'image posée rejoint le dossier, sous le nom de son fichier ; jamais une
+   *  photo d'enfants. Le résultat est dit en bas de l'écran. */
+  async keep(assetId: string) {
+    if (showsChildren(assetId, classLibrary.photos, classes.current?.class.photos ?? {})) {
+      editor.notice = fr.keepRefusedChildren;
+      return;
+    }
+    const path = editor.photos.find((p) => p.meta.id === assetId)?.path ?? "";
+    try {
+      const r = await myImagesKeep(assetId, path);
+      this.images = r.images;
+      editor.notice = r.added ? fr.keptInMyImages : fr.alreadyInMyImages;
+    } catch (e) {
+      editor.notice = String(e);
+    }
   }
 }
 

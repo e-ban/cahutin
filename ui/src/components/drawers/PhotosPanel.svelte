@@ -1,7 +1,6 @@
 <script lang="ts">
+  // Rubrique Photos du tiroir Images : les photos de ce document, et l'accès à la photothèque de la classe.
   import { open } from "@tauri-apps/plugin-dialog";
-  import { onDestroy } from "svelte";
-  import Drawer from "../layout/Drawer.svelte";
   import { assetUrl, listImportableIn } from "../../lib/api";
   import { ask } from "../../lib/ask";
   import { editor } from "../../lib/docStore.svelte";
@@ -18,16 +17,6 @@
     { px: 96, label: fr.thumbMedium, icon: "◼" },
     { px: 140, label: fr.thumbLarge, icon: "⬛" },
   ];
-
-  // Le mode « Remplacer » prend fin quand on choisit autre chose sur la page, ou qu'on ferme le tiroir.
-  onDestroy(() => (editor.replacingPhoto = false));
-  let selectionWhenOpened = editor.selection;
-  $effect.pre(() => {
-    if (editor.selection !== selectionWhenOpened) {
-      selectionWhenOpened = editor.selection;
-      editor.replacingPhoto = false;
-    }
-  });
 
   let filter = $state<PhotoFilter>({ kind: "all" });
   let thumbSize = $state(readPref("thumbSize", 96));
@@ -59,64 +48,69 @@
   }
 </script>
 
-<Drawer title={fr.photos}>
-  <div class="row">
-    <button class="add" onclick={pickFiles}>{fr.addPhotosButton}</button>
-    <button class="add" onclick={pickFolder}>{fr.addFolderButton}</button>
+<p class="what">{fr.photosWhat}</p>
+<div class="row">
+  <button class="add" onclick={pickFiles}>{fr.addPhotosButton}</button>
+  <button class="add" onclick={pickFolder}>{fr.addFolderButton}</button>
+</div>
+<!-- Les photos de l'année, rangées par enfant et par activité : on y choisit celles du document. -->
+<button class="library" title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}>🖼️ {fr.libraryFromDrawer}</button>
+
+{#if editor.replacingPhoto}<p class="replacing">{fr.photoReplacing}</p>{/if}
+
+{#if editor.importProgress}
+  {@const p = editor.importProgress}
+  <div class="progress" role="status">
+    <span>{fr.importProgress(p.done, p.total)}</span>
+    <progress max={p.total} value={p.done}></progress>
   </div>
-  <!-- Les photos de l'année, rangées par enfant et par activité : on y choisit celles du document. -->
-  <button class="library" title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}>🖼️ {fr.libraryFromDrawer}</button>
+{/if}
 
-  {#if editor.replacingPhoto}<p class="replacing">{fr.photoReplacing}</p>{/if}
-
-  {#if editor.importProgress}
-    {@const p = editor.importProgress}
-    <div class="progress" role="status">
-      <span>{fr.importProgress(p.done, p.total)}</span>
-      <progress max={p.total} value={p.done}></progress>
-    </div>
-  {/if}
-
-  {#if editor.photos.length === 0}
-    <p class="hint">{fr.noPhotosYet}</p>
-  {:else}
-    <div class="chips">
-      <button class:on={isFilter({ kind: "all" })} onclick={() => (filter = { kind: "all" })}>{fr.filterAll(editor.photos.length)}</button>
-      <button class:on={isFilter({ kind: "unused" })} onclick={() => (filter = { kind: "unused" })}>{fr.filterUnused(unusedCount)}</button>
-      {#each chips as c (c.folder)}
-        <button class:on={isFilter({ kind: "folder", folder: c.folder })} onclick={() => (filter = { kind: "folder", folder: c.folder })}>📁 {c.folder} ({c.count})</button>
-      {/each}
-    </div>
-    <div class="sizes" role="group" aria-label={fr.thumbSize}>
-      {#each SIZES as s (s.px)}
-        <button class:on={thumbSize === s.px} title={s.label} aria-label={s.label} onclick={() => setSize(s.px)}>{s.icon}</button>
-      {/each}
-    </div>
-    <div class="thumbs" style:--thumb="{thumbSize}px">
-      {#each shown as p (p.meta.id)}
-        <div class="cell">
-        <button
-          class="thumb"
-          draggable="true"
-          title={used.has(p.meta.id) ? fr.usedInDocument : undefined}
-          onclick={() => usePhoto(p.meta)}
-          ondragstart={(e) => {
-            e.dataTransfer?.setData(ASSET_MIME, p.meta.id);
-            if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
-          }}
-        >
-          <img src={assetUrl(p.meta.id, true)} alt="" loading="lazy" decoding="async" draggable="false" data-asset={p.meta.id} />
-          {#if used.has(p.meta.id)}<span class="check" aria-label={fr.usedInDocument}>✓</span>{/if}
-        </button>
-        <button class="remove" title={fr.photoRemove} aria-label={fr.photoRemove} onclick={() => remove(p.meta.id)}>×</button>
-        </div>
-      {/each}
-    </div>
-    <p class="hint">{fr.photoClickHint}</p>
-  {/if}
-</Drawer>
+{#if editor.photos.length === 0}
+  <p class="hint">{fr.noPhotosYet}</p>
+{:else}
+  <div class="chips">
+    <button class:on={isFilter({ kind: "all" })} onclick={() => (filter = { kind: "all" })}>{fr.filterAll(editor.photos.length)}</button>
+    <button class:on={isFilter({ kind: "unused" })} onclick={() => (filter = { kind: "unused" })}>{fr.filterUnused(unusedCount)}</button>
+    {#each chips as c (c.folder)}
+      <button class:on={isFilter({ kind: "folder", folder: c.folder })} onclick={() => (filter = { kind: "folder", folder: c.folder })}>📁 {c.folder} ({c.count})</button>
+    {/each}
+  </div>
+  <div class="sizes" role="group" aria-label={fr.thumbSize}>
+    {#each SIZES as s (s.px)}
+      <button class:on={thumbSize === s.px} title={s.label} aria-label={s.label} onclick={() => setSize(s.px)}>{s.icon}</button>
+    {/each}
+  </div>
+  <div class="thumbs" style:--thumb="{thumbSize}px">
+    {#each shown as p (p.meta.id)}
+      <div class="cell">
+      <button
+        class="thumb"
+        draggable="true"
+        title={used.has(p.meta.id) ? fr.usedInDocument : undefined}
+        onclick={() => usePhoto(p.meta)}
+        ondragstart={(e) => {
+          e.dataTransfer?.setData(ASSET_MIME, p.meta.id);
+          if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
+        }}
+      >
+        <img src={assetUrl(p.meta.id, true)} alt="" loading="lazy" decoding="async" draggable="false" data-asset={p.meta.id} />
+        {#if used.has(p.meta.id)}<span class="check" aria-label={fr.usedInDocument}>✓</span>{/if}
+      </button>
+      <button class="remove" title={fr.photoRemove} aria-label={fr.photoRemove} onclick={() => remove(p.meta.id)}>×</button>
+      </div>
+    {/each}
+  </div>
+  <p class="hint">{fr.photoClickHint}</p>
+{/if}
+<p class="hint">{fr.photosKeepHint}</p>
 
 <style>
+  .what {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
   .cell {
     position: relative;
   }

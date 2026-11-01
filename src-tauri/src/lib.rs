@@ -99,6 +99,7 @@ pub fn run() {
             images_commands::my_images_add,
             images_commands::my_images_remove,
             images_commands::my_images_use,
+            images_commands::my_images_keep,
             phototheque_commands::phototheque_open,
             phototheque_commands::phototheque_add,
             phototheque_commands::phototheque_remove,

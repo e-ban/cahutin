@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind , ClassPhotoAdded, Phototheque, TagChange, MyImage, MyImagesAdded } from "./types";
+import type { AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind , ClassPhotoAdded, Phototheque, TagChange, MyImage, MyImagesAdded, MyImageKept } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -21,6 +21,7 @@ export const myImagesList = () => invoke<MyImage[]>("my_images_list");
 export const myImagesAdd = (paths: string[]) => invoke<MyImagesAdded>("my_images_add", { paths });
 export const myImagesRemove = (name: string) => invoke<MyImage[]>("my_images_remove", { name });
 export const myImagesUse = (name: string) => invoke<AssetMeta>("my_images_use", { name });
+export const myImagesKeep = (asset: string, name: string) => invoke<MyImageKept>("my_images_keep", { asset, name });
 export const existingPaths = (paths: string[]) => invoke<string[]>("existing_paths", { paths });
 export const listImportableIn = (dir: string) => invoke<string[]>("list_importable_in", { dir });
 export const saveDocument = (path: string, doc: Document) => invoke<void>("save_document", { path, doc });

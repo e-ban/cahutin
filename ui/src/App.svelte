@@ -49,7 +49,7 @@
   import Rail from "./components/layout/Rail.svelte";
   import TopBar from "./components/layout/TopBar.svelte";
   import FontsDrawer from "./components/drawers/FontsDrawer.svelte";
-  import PhotosDrawer from "./components/drawers/PhotosDrawer.svelte";
+  import ImagesDrawer from "./components/drawers/ImagesDrawer.svelte";
   import ShapesDrawer from "./components/drawers/ShapesDrawer.svelte";
   import TemplatesDrawer from "./components/drawers/TemplatesDrawer.svelte";
   import TextDrawer from "./components/drawers/TextDrawer.svelte";
@@ -248,7 +248,7 @@
   {#if editor.templateMode}<TemplateBanner />{:else if hasNameFields(editor.page) && !nameFieldsFilled(editor.page)}<ClassBanner ongenerate={() => (generateOpen = true)} />{/if}
   <Rail />
   {#if editor.drawer === "templates"}<TemplatesDrawer />
-  {:else if editor.drawer === "photos"}<PhotosDrawer />
+  {:else if editor.drawer === "images"}<ImagesDrawer />
   {:else if editor.drawer === "text"}<TextDrawer />
   {:else if editor.drawer === "shapes"}<ShapesDrawer />
   {:else if editor.drawer === "fonts"}<FontsDrawer />

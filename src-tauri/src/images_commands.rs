@@ -4,7 +4,7 @@
 //! image est copiée dans le document, qui reste complet si on l'envoie à une collègue.
 
 use crate::state::AppState;
-use carnet_core::AssetMeta;
+use carnet_core::{AssetMeta, Mime};
 use carnet_core::photo::import_path;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -90,6 +90,35 @@ pub struct MyImagesAdded {
     pub images: Vec<MyImage>,
     /// Fichiers laissés (pas une image, ou illisibles).
     pub refused: usize,
+}
+
+/// Garde une image du document dans le dossier, sous un nom tiré de `name` (sans chemin) : rend `false` si
+/// elle y est déjà, à l'octet près.
+pub fn keep_in(dir: &Path, bytes: &[u8], mime: Mime, name: &str) -> Result<(Vec<MyImage>, bool), String> {
+    std::fs::create_dir_all(dir).map_err(|_| "Le dossier « Mes images » ne peut pas être créé.".to_string())?;
+    let same = list_in(dir).iter().any(|i| i.size == bytes.len() as u64 && std::fs::read(dir.join(&i.name)).is_ok_and(|b| b == bytes));
+    if same {
+        return Ok((list_in(dir), false));
+    }
+    let stem = Path::new(name.rsplit(['/', '\\']).next().unwrap_or("")).file_stem().and_then(|s| s.to_str()).map(str::trim).filter(|s| !s.is_empty() && !s.starts_with('.')).unwrap_or("image");
+    let file = format!("{stem}.{}", if mime == Mime::Jpeg { "jpg" } else { "png" });
+    std::fs::write(dir.join(free_name(dir, &file)), bytes).map_err(|_| "L'image n'a pas pu être gardée.".to_string())?;
+    Ok((list_in(dir), true))
+}
+
+#[derive(Serialize, Clone, Debug, TS)]
+#[ts(export)]
+pub struct MyImageKept {
+    pub images: Vec<MyImage>,
+    /// Faux si l'image y était déjà.
+    pub added: bool,
+}
+
+/// « Garder dans Mes images » : l'image `asset` du document rejoint le dossier.
+#[tauri::command(async)]
+pub fn my_images_keep(state: State<'_, AppState>, asset: String, name: String) -> Result<MyImageKept, String> {
+    let a = state.store.lock().unwrap().get(&asset).ok_or("Image introuvable.")?;
+    keep_in(&images_dir(&state), &a.bytes, a.meta.mime, &name).map(|(images, added)| MyImageKept { images, added })
 }
 
 #[tauri::command]
@@ -187,6 +216,20 @@ mod tests {
         assert!(remove_in(&dir, "vache.svg").unwrap().is_empty());
         assert!(dir.join(REMOVED).join("vache.svg").exists() && dir.join(REMOVED).join("vache (2).svg").exists());
         assert!(remove_in(&dir, "../x.svg").is_err());
+    }
+
+    #[test]
+    fn a_kept_picture_is_named_after_its_file_and_kept_once() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("Images");
+        let (list, added) = keep_in(&dir, b"png-bytes", Mime::Png, "/home/x/Téléchargements/vache.svg").unwrap();
+        assert!(added);
+        assert_eq!(list.iter().map(|i| i.name.as_str()).collect::<Vec<_>>(), ["vache.png"]);
+        assert!(!keep_in(&dir, b"png-bytes", Mime::Png, "autre.png").unwrap().1, "déjà là");
+        let (list, _) = keep_in(&dir, b"other", Mime::Jpeg, "").unwrap();
+        assert!(list.iter().any(|i| i.name == "image.jpg"));
+        let (list, _) = keep_in(&dir, b"third", Mime::Png, "vache.png").unwrap();
+        assert!(list.iter().any(|i| i.name == "vache (2).png"));
     }
 
     #[test]

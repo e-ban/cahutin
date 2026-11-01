@@ -8,7 +8,8 @@ import { readPref, writePref } from "./prefs";
 import type { AssetMeta, Document, Element, Page } from "./types";
 
 export type Zoom = number | "fit";
-export type DrawerId = "templates" | "photos" | "text" | "shapes" | "fonts" | "grid" | "decor" | "class";
+export type ImagesTab = "photos" | "mine" | "pictos";
+export type DrawerId = "templates" | "images" | "text" | "shapes" | "fonts" | "grid" | "decor" | "class";
 
 class Editor {
   doc = $state.raw<Document>(newDocument());
@@ -96,6 +97,20 @@ class Editor {
   }
 
   /** Re-cliquer l'icône du tiroir ouvert le referme. */
+  /** Rubrique ouverte du tiroir Images (retenue d'une fois à l'autre). */
+  imagesTab = $state<ImagesTab>(readPref("imagesTab", "pictos"));
+
+  /** Ouvre le tiroir Images sur une rubrique. */
+  openImages(tab: ImagesTab) {
+    this.setImagesTab(tab);
+    this.drawer = "images";
+  }
+
+  setImagesTab(tab: ImagesTab) {
+    this.imagesTab = tab;
+    writePref("imagesTab", tab);
+  }
+
   toggleDrawer(id: DrawerId) {
     this.drawer = this.drawer === id ? null : id;
   }

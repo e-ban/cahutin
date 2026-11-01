@@ -18,6 +18,7 @@
   import { textPadding } from "../lib/richtext";
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
+  import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
   import { isTableCell, selectedTable } from "../lib/table";
   import { alignUnits, arrangeUnits, expandSelection, groupOf, isLockedSelection } from "../lib/groups";
@@ -205,7 +206,7 @@
   }
 
   function openPhotos() {
-    editor.drawer = "photos";
+    editor.openImages("photos");
   }
 </script>
 
@@ -282,9 +283,10 @@
         <button class="main" onclick={openPhotos}>🖼 {fr.choosePhoto}</button>
         <button onclick={() => addCaption(selected.id)}>✎ {fr.caption}</button>
       {:else}
-        <button class:on={editor.replacingPhoto} title={fr.replacePhotoHint} onclick={() => ((editor.replacingPhoto = true), (editor.drawer = "photos"))}>⇄ {fr.replace}</button>
+        <button class:on={editor.replacingPhoto} title={fr.replacePhotoHint} onclick={() => ((editor.replacingPhoto = true), editor.openImages("photos"))}>⇄ {fr.replace}</button>
         <button onclick={() => (editor.cropping = selected.id)}>✂ {fr.crop}</button>
         <button title={fr.blurHint} onclick={() => (editor.blurring = ph.asset)}>◍ {fr.blurButton}</button>
+        <button title={fr.keepInMyImagesHint} onclick={() => ph.asset && myImages.keep(ph.asset)}>⭐ {fr.keepInMyImages}</button>
         <div class="wrap">
           <button class:on={pop === "corners"} onclick={() => toggle("corners")}>◜ {fr.corners}</button>
           {#if pop === "corners"}
@@ -431,7 +433,7 @@
         {/if}
       </div>
     {:else if selected?.kind.type === "Image"}
-      <button class:on={editor.replacingPictos} onclick={() => ((editor.replacingPictos = true), (editor.drawer = "decor"))}>⇄ {fr.replace}</button>
+      <button class:on={editor.replacingPictos} onclick={() => ((editor.replacingPictos = true), editor.openImages("pictos"))}>⇄ {fr.replace}</button>
       {@const colourIn = selected.kind.outline === true}
       <button class:on={colourIn} aria-pressed={colourIn} title={fr.pictoOutlineHint} onclick={() => editor.updatePage((p) => setPictosOutline(p, editor.selection, !colourIn))}>✎ {fr.pictoOutlineShort}</button>
       {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}

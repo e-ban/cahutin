@@ -85,10 +85,10 @@
     if (!id) return;
     // Le pictogramme et la photo se choisissent ensuite dans leur tiroir.
     run((p) => tableSetCell(p, id, content)).then(() => {
-      if (content === "Photo") editor.drawer = "photos";
+      if (content === "Photo") editor.openImages("photos");
       else if (content !== "Text") {
         editor.replacingPictos = true;
-        editor.drawer = "decor";
+        editor.openImages("pictos");
       }
     });
   }

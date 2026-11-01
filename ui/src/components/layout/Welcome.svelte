@@ -4,6 +4,7 @@
   import { getVersion } from "@tauri-apps/api/app";
   import PageView from "../PageView.svelte";
   import { editor } from "../../lib/docStore.svelte";
+  import { guides } from "../../lib/guides.svelte";
   import { listExamples, openExample, previewDocument } from "../../lib/api";
   import { clearRecents, forgetRecent, freshFromHome, importFiles, openDoc, openExampleDoc, openPath, trashRecent } from "../../lib/fileActions";
   import type { Document, ExampleInfo } from "../../lib/types";
@@ -118,6 +119,7 @@
     <div class="choices own">
       <button class="choice" onclick={() => (editor.showCollection = true)}><b>🗂</b><span>{fr.welcomeCollection}</span><small>{fr.welcomeCollectionSub}</small></button>
       <button class="choice" onclick={() => (editor.showClassPage = true)}><b>🧒</b><span>{fr.welcomeClass}</span><small>{fr.welcomeClassSub}</small></button>
+      <button class="choice" onclick={() => guides.show()}><b>📘</b><span>{fr.welcomeGuides}</span><small>{fr.welcomeGuidesSub}</small></button>
     </div>
     <div class="recents-head">
       <h2>{fr.recentDocs}</h2>
@@ -254,9 +256,9 @@
       grid-column: span 2;
     }
   }
-  /* La collection et la classe : une rangée à part, plus basse, l'image à gauche du texte. */
+  /* La collection, la classe et les guides : une rangée à part, plus basse, l'image à gauche du texte. */
   .choices.own {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     margin-top: 22px;
   }
   .own .choice {

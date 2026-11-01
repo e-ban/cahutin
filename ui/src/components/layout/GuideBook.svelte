@@ -4,12 +4,21 @@
   // Avec les animations réduites, la capture reste sur sa première image.
   import { fr } from "../../lib/i18n/fr";
   import { GUIDES, guideById, guides } from "../../lib/guides.svelte";
+  import { editor } from "../../lib/docStore.svelte";
   import { settings } from "../../lib/settings.svelte";
+  import { tour } from "../../lib/tour.svelte";
 
   const guide = $derived(guides.open ? guideById(guides.open) : null);
   let i = $state(0);
   const panel = $derived(guide?.panels[i] ?? null);
   const last = $derived(!!guide && i === guide.panels.length - 1);
+
+  /** La visite montre l'écran de travail : l'accueil se ferme d'abord. */
+  function startTour() {
+    guides.close();
+    editor.showWelcome = false;
+    tour.start();
+  }
 
   function choose(id: string | null) {
     guides.open = id;
@@ -76,6 +85,12 @@
       </div>
       <p class="intro">{fr.guidesIntro}</p>
       <ul class="list">
+        <li>
+          <button class="item" onclick={startTour}>
+            <span class="icon">▶</span>
+            <span><b>{fr.tourMenu}</b><small>{fr.guidesTour}</small></span>
+          </button>
+        </li>
         {#each GUIDES as g (g.id)}
           <li>
             <button class="item" onclick={() => choose(g.id)}>

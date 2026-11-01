@@ -541,6 +541,8 @@ class Guides {
   /** Ferme le livret et lance le pas à pas. */
   walk(id: string) {
     this.close();
+    // Lancé depuis l'accueil : il se ferme, les boutons à montrer sont derrière.
+    editor.showWelcome = false;
     const g = guideById(id);
     if (g) this.walking = { id, step: 0, bases: g.walk.map((s) => s.baseline?.() ?? 0) };
   }

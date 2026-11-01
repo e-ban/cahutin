@@ -109,14 +109,64 @@ fn continues(a: &Line, b: &Line, align: Align, all: &[Line], obstacles: &[Frame]
     align == Align::Left && !has_side_neighbour(a, all) && !has_side_neighbour(b, all) && a.x_mm + a.w_mm + first_word_mm(b) > column_right(a, all, obstacles)
 }
 
+/// Deux morceaux d'une même ligne : même police, même taille, même hauteur, et le second commence au plus à
+/// 0,6 hauteur de police de la fin du premier (deux colonnes sont bien plus écartées). LibreOffice pose ainsi lettre par lettre un texte dont il
+/// place chaque caractère (une cursive, une police aux lettres liées).
+fn same_line(a: &Line, b: &Line) -> bool {
+    let em = a.size_pt * MM_PER_PT;
+    a.font == b.font
+        && (a.size_pt - b.size_pt).abs() < 0.01
+        && (a.y_mm - b.y_mm).abs() < 0.2 * em
+        && (a.h_mm - b.h_mm).abs() < 0.2 * em
+        && b.x_mm >= a.x_mm
+        && b.x_mm <= a.x_mm + a.w_mm + 0.6 * em
+}
+
+/// Les morceaux d'une même ligne réunis, avec les indices (dans l'entrée) du premier et du dernier venus. Une
+/// espace sépare deux morceaux écartés de plus de 0,4 hauteur de police : en deçà, c'est le cadre qui déborde
+/// de ses lettres (« No » et « s p » dans « Nos plantations » : 0,28).
+fn join_pieces(lines: Vec<Line>) -> Vec<(Line, usize, usize)> {
+    let mut order: Vec<usize> = (0..lines.len()).collect();
+    order.sort_by(|&a, &b| lines[a].y_mm.total_cmp(&lines[b].y_mm).then(lines[a].x_mm.total_cmp(&lines[b].x_mm)));
+    let mut out: Vec<(Line, usize, usize)> = Vec::new();
+    for i in order {
+        let l = &lines[i];
+        if let Some((cur, first, last)) = out.iter_mut().rev().find(|(cur, _, _)| same_line(cur, l)) {
+            let em = cur.size_pt * MM_PER_PT;
+            let gap = l.x_mm - (cur.x_mm + cur.w_mm);
+            let spaced = cur.runs.last().is_some_and(|r| r.text.ends_with(' ')) || l.runs.first().is_some_and(|r| r.text.starts_with(' '));
+            let mut runs = l.runs.clone();
+            if gap > 0.4 * em && !spaced && let Some(r) = runs.first_mut() {
+                r.text.insert(0, ' ');
+            }
+            for r in runs {
+                match cur.runs.last_mut() {
+                    Some(prev) if Run { text: String::new(), ..prev.clone() } == Run { text: String::new(), ..r.clone() } => prev.text.push_str(&r.text),
+                    _ => cur.runs.push(r),
+                }
+            }
+            let right = (cur.x_mm + cur.w_mm).max(l.x_mm + l.w_mm);
+            cur.w_mm = right - cur.x_mm;
+            cur.h_mm = cur.h_mm.max(l.h_mm);
+            *first = (*first).min(i);
+            *last = (*last).max(i);
+        } else {
+            out.push((l.clone(), i, i));
+        }
+    }
+    out
+}
+
 /// Lignes rattachées en blocs ; les blocs suivent l'ordre de leur première ligne dans l'entrée.
 /// `obstacles` : cadres des images et des formes de la page (habillage, encadrés).
 pub fn merge_lines(obstacles: &[Frame], lines: Vec<Line>) -> Vec<Block> {
+    let pieces = join_pieces(lines);
+    let lines: Vec<Line> = pieces.iter().map(|(l, _, _)| l.clone()).collect();
     let mut order: Vec<usize> = (0..lines.len()).collect();
     order.sort_by(|&a, &b| lines[a].y_mm.total_cmp(&lines[b].y_mm).then(lines[a].x_mm.total_cmp(&lines[b].x_mm)));
     let mut blocks: Vec<Block> = Vec::new();
-    for i in order {
-        let l = &lines[i];
+    for p in order {
+        let (l, i_first, i_last) = (&lines[p], pieces[p].1, pieces[p].2);
         let target = blocks.iter_mut().rev().find_map(|b| {
             let last = b.lines.last().unwrap();
             if !follows(last, l, obstacles) {
@@ -130,10 +180,10 @@ pub fn merge_lines(obstacles: &[Frame], lines: Vec<Line>) -> Vec<Block> {
             Some((b, align)) => {
                 b.align = align;
                 b.lines.push(l.clone());
-                b.first = b.first.min(i);
-                b.last = b.last.max(i);
+                b.first = b.first.min(i_first);
+                b.last = b.last.max(i_last);
             }
-            None => blocks.push(Block { align: Align::Left, lines: vec![l.clone()], first: i, last: i, joins: Vec::new() }),
+            None => blocks.push(Block { align: Align::Left, lines: vec![l.clone()], first: i_first, last: i_last, joins: Vec::new() }),
         }
     }
     for b in &mut blocks {
@@ -182,7 +232,10 @@ pub fn block_element(b: &Block) -> Element {
     let left = b.lines.iter().map(|l| l.x_mm).fold(f64::INFINITY, f64::min);
     let right = b.lines.iter().map(|l| l.x_mm + l.w_mm).fold(f64::NEG_INFINITY, f64::max);
     let top = first.y_mm;
-    let bottom = b.lines.iter().map(|l| l.y_mm + l.h_mm).fold(f64::NEG_INFINITY, f64::max);
+    // Les lignes dessinées dans une police intégrée prennent sa hauteur de ligne : le cadre les contient (une
+    // cursive a de grandes boucles, plus hautes que la boîte que LibreOffice donne à ses lettres).
+    let drawn = crate::fonts::builtin_line_height_mm(&first.font, first.size_pt).map_or(0.0, |lh| top + lh * b.lines.len() as f64);
+    let bottom = b.lines.iter().map(|l| l.y_mm + l.h_mm).fold(drawn, f64::max);
     Element {
         id: new_id(),
         frame: Frame { x_mm: left - pad, y_mm: top - pad, w_mm: right - left + 2.0 * pad + 1.0, h_mm: bottom - top + 2.0 * pad, rotation_deg: 0.0 },
@@ -337,5 +390,45 @@ mod tests {
         assert!((e.frame.x_mm - 18.5).abs() < 1e-9 && (e.frame.w_mm - 54.0).abs() < 1e-9, "{:?}", e.frame);
         assert!((e.frame.y_mm - 38.5).abs() < 1e-9 && (e.frame.h_mm - (4.71 + 3.0)).abs() < 1e-9, "{:?}", e.frame);
         assert!(!e.locked && !e.zone);
+    }
+
+    /// Un titre en cursive tel que LibreOffice le lit dans un PDF : un cadre par morceau, parfois par lettre
+    /// (positions relevées sur « Nos plantations », Playwrite 28 pt).
+    fn piece(x_cm: f64, w_cm: f64, text: &str) -> Line {
+        let r = Run { text: text.into(), bold: false, italic: false, underline: false, color: Some("#222222".into()), font: Some("Playwrite FR Moderne".into()), size_pt: Some(28.0) };
+        Line { x_mm: x_cm * 10.0, y_mm: 21.22, w_mm: w_cm * 10.0, h_mm: 13.43, font: "Playwrite FR Moderne".into(), size_pt: 28.0, runs: vec![r] }
+    }
+
+    #[test]
+    fn pieces_of_a_cursive_title_become_one_line() {
+        let xs = [(6.389, 1.348, "No"), (8.017, 1.338, "s p"), (9.463, 0.987, "l"), (9.783, 0.987, "a"), (10.409, 0.987, "n"), (11.071, 0.987, "t"), (11.453, 0.987, "a"), (12.08, 0.987, "t"), (12.463, 0.987, "i"), (12.783, 0.987, "o"), (13.376, 0.987, "n")];
+        let mut lines: Vec<Line> = xs.iter().map(|&(x, w, t)| piece(x, w, t)).collect();
+        // LibreOffice ne les donne pas toujours dans l'ordre : le dernier « s » vient après d'autres éléments.
+        lines.push(piece(14.087, 0.987, "s"));
+        lines.swap(3, 7);
+        let blocks = merge_lines(&[], lines);
+        assert_eq!(blocks.len(), 1);
+        let e = block_element(&blocks[0]);
+        assert_eq!(text_of(&e), "Nos plantations");
+        let ElementKind::Text(t) = &e.kind else { unreachable!() };
+        assert_eq!(t.content.paragraphs[0].runs.len(), 1, "un seul passage, pas un par lettre");
+        assert_eq!((blocks[0].first, blocks[0].last), (0, 11));
+        let lh = crate::fonts::builtin_line_height_mm("Playwrite FR Moderne", 28.0).expect("police intégrée");
+        assert!(e.frame.h_mm >= lh + 2.0 * TEXT_PADDING_MM - 1e-9, "le titre tient en hauteur : {} < {}", e.frame.h_mm, lh);
+    }
+
+    #[test]
+    fn two_columns_on_the_same_height_stay_apart() {
+        let a = line(20.0, 50.0, 60.0, "Colonne de gauche");
+        let b = line(110.0, 50.0, 60.0, "Colonne de droite");
+        let blocks = merge_lines(&[], vec![a, b]);
+        assert_eq!(blocks.len(), 2);
+    }
+
+    #[test]
+    fn a_wide_gap_between_pieces_is_a_space() {
+        let lines = vec![piece(5.0, 1.0, "Bonjour"), piece(6.5, 1.0, "Léa")];
+        let blocks = merge_lines(&[], lines);
+        assert_eq!(text_of(&block_element(&blocks[0])), "Bonjour Léa");
     }
 }

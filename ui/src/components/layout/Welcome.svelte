@@ -80,7 +80,7 @@
 {/snippet}
 
 <!-- La page « Ma classe », par-dessus, garde Échap pour elle. -->
-<svelte:window onkeydown={(e) => e.key === "Escape" && modal.message === null && !editor.showClassPage && (step !== "choices" ? (step = "choices") : close())} />
+<svelte:window onkeydown={(e) => e.key === "Escape" && modal.message === null && !editor.showClassPage && !editor.showCollection && (step !== "choices" ? (step = "choices") : close())} />
 
 <div class="welcome">
   {#if step === "choices"}
@@ -103,6 +103,10 @@
       <button class="choice" onclick={() => openDoc()}><b>📂</b><span>{fr.welcomeResume}</span><small>{fr.welcomeResumeSub}</small></button>
       <button class="choice" onclick={() => importFiles(undefined, { fresh: true })}><b>📥</b><span>{fr.welcomeImport}</span><small>{fr.welcomeImportSub}</small></button>
       <button class="choice" onclick={showExamples}><b>✨</b><span>{fr.welcomeExamples}</span><small>{fr.welcomeExamplesSub}</small></button>
+    </div>
+    <!-- Ce qui sert à tous les documents, à part : la collection d'images et la classe. -->
+    <div class="choices own">
+      <button class="choice" onclick={() => (editor.showCollection = true)}><b>🗂</b><span>{fr.welcomeCollection}</span><small>{fr.welcomeCollectionSub}</small></button>
       <button class="choice" onclick={() => (editor.showClassPage = true)}><b>🧒</b><span>{fr.welcomeClass}</span><small>{fr.welcomeClassSub}</small></button>
     </div>
     <h2>{fr.recentDocs}</h2>
@@ -212,14 +216,41 @@
   }
   .choices {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 14px;
   }
-  /* Six choix : une rangée si la fenêtre est large, sinon deux rangées de trois. */
+  /* Cinq choix pour un document : une rangée si la fenêtre est large, sinon deux rangées de trois places, le
+     premier choix en prenant deux. */
   @media (max-width: 1250px) {
     .choices {
       grid-template-columns: repeat(3, 1fr);
     }
+    .choice.main {
+      grid-column: span 2;
+    }
+  }
+  /* La collection et la classe : une rangée à part, plus basse, l'image à gauche du texte. */
+  .choices.own {
+    grid-template-columns: repeat(2, 1fr);
+    margin-top: 22px;
+  }
+  .own .choice {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 14px;
+    row-gap: 2px;
+    align-items: center;
+    text-align: left;
+    padding: 14px 20px;
+  }
+  .own .choice b {
+    grid-row: span 2;
+  }
+  .own .choice span,
+  .own .choice small {
+    justify-self: start;
+    text-align: left;
   }
   .choice {
     display: flex;

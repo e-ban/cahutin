@@ -22,6 +22,12 @@ export const myImagesAdd = (paths: string[]) => invoke<MyImagesAdded>("my_images
 export const myImagesRemove = (name: string) => invoke<MyImage[]>("my_images_remove", { name });
 export const myImagesUse = (name: string) => invoke<AssetMeta>("my_images_use", { name });
 export const myImagesKeep = (asset: string, name: string) => invoke<MyImageKept>("my_images_keep", { asset, name });
+export const myImagesRemoved = () => invoke<MyImage[]>("my_images_removed");
+export const myImagesRestore = (name: string) => invoke<MyImage[]>("my_images_restore", { name });
+export const myImagesRename = (name: string, newName: string) => invoke<MyImage[]>("my_images_rename", { name, newName });
+export const myImagesTheme = (names: string[], add: string | null, remove: string | null) => invoke<MyImage[]>("my_images_theme", { names, add, remove });
+/** Une image retirée de la collection, pour l'aperçu. */
+export const removedImageUrl = (name: string) => `${assetBase()}/mine/${encodeURIComponent("Retirées/" + name)}`;
 export const existingPaths = (paths: string[]) => invoke<string[]>("existing_paths", { paths });
 export const listImportableIn = (dir: string) => invoke<string[]>("list_importable_in", { dir });
 export const saveDocument = (path: string, doc: Document) => invoke<void>("save_document", { path, doc });

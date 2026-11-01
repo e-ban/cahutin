@@ -68,6 +68,8 @@ class Editor {
   showClassPage = $state(false);
   /** Photothèque de la classe (page entière). */
   showPhototheque = $state(false);
+  /** Page de la collection (thèmes, noms, images retirées), par-dessus tout. */
+  showCollection = $state(false);
   /** Fenêtre des nouveautés de la version. */
   showWhatsNew = $state(false);
   /** Photo dont on floute des visages (id de l'image). */

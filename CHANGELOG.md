@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- Page « Ma collection », depuis l'accueil ou le tiroir Images (« Organiser ma collection ») : choisir des images d'un clic et les ranger dans un thème (« Automne », « Animaux »… une image peut en avoir plusieurs), renommer une image en cliquant son nom, retirer des images et remettre celles retirées, ajouter un dossier entier. Les thèmes servent de filtres dans le tiroir Images, et la recherche les trouve aussi.
+- Accueil : « Ma collection » et « Ma classe » ont leur propre rangée, sous les choix pour faire un document.
 - Frises : les motifs se choisissent parmi les pictogrammes et les images de votre collection, ramenées à la taille d'un pictogramme sans être déformées. Deux réglages dans Décors avant de poser : taille des images (15 mm par défaut) et espacement. Une frise déjà posée se règle après coup : sélectionnez-la, puis « Frise » dans sa barre ; elle est refaite à la même place, avec les mêmes motifs dans le même ordre.
 - Tiroir Formes : le champ « Lignes » du graphisme ne déborde plus du tiroir.
 - Tiroir Images : le tiroir Photos devient Images, avec trois rubriques. Photos (celles de ce document, et la photothèque de la classe), Collection (vos dessins, gardés pour tous vos documents) et Pictogrammes, qui quittent le tiroir Décors. Une recherche cherche à la fois dans la Collection et les pictogrammes. « Remplacer » ouvre la bonne rubrique. Un message dans Décors le signale aux habitués.

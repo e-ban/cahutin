@@ -1,6 +1,6 @@
 // « Mes images » : la liste du dossier de l'enseignant, l'ajout, le retrait, et le passage d'une image dans le
 // document (copiée dedans, une seule fois).
-import { myImagesAdd, myImagesKeep, myImagesList, myImagesRemove, myImagesUse } from "./api";
+import { myImagesAdd, myImagesKeep, myImagesList, myImagesRemove, myImagesRemoved, myImagesRename, myImagesRestore, myImagesTheme, myImagesUse } from "./api";
 import { classes } from "./classStore.svelte";
 import { editor } from "./docStore.svelte";
 import { fr } from "./i18n/fr";
@@ -10,6 +10,8 @@ import type { AssetMeta, MyImage } from "./types";
 
 class MyImages {
   images = $state.raw<MyImage[]>([]);
+  /** Images retirées (sous-dossier Retirées), chargées par la page de la collection. */
+  removed = $state.raw<MyImage[]>([]);
 
   async load() {
     try {
@@ -29,6 +31,24 @@ class MyImages {
 
   async remove(name: string) {
     this.images = await myImagesRemove(name);
+  }
+
+  async loadRemoved() {
+    this.removed = await myImagesRemoved().catch(() => []);
+  }
+
+  async restore(name: string) {
+    this.images = await myImagesRestore(name);
+    await this.loadRemoved();
+  }
+
+  async rename(name: string, newName: string) {
+    this.images = await myImagesRename(name, newName);
+  }
+
+  /** Range les images dans un thème (`add`) ou les en sort (`remove`). */
+  async theme(names: string[], add: string | null, remove: string | null = null) {
+    this.images = await myImagesTheme(names, add, remove);
   }
 
   use(name: string): Promise<AssetMeta> {

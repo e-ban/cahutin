@@ -50,6 +50,7 @@
   import TopBar from "./components/layout/TopBar.svelte";
   import FontsDrawer from "./components/drawers/FontsDrawer.svelte";
   import ImagesDrawer from "./components/drawers/ImagesDrawer.svelte";
+  import CollectionPage from "./components/layout/CollectionPage.svelte";
   import ShapesDrawer from "./components/drawers/ShapesDrawer.svelte";
   import TemplatesDrawer from "./components/drawers/TemplatesDrawer.svelte";
   import TextDrawer from "./components/drawers/TextDrawer.svelte";
@@ -313,6 +314,7 @@
   {#if editor.showWelcome}<Welcome />{/if}
   {#if editor.showClassPage}<ClassPage />{/if}
   {#if editor.showPhototheque}<PhotothequePage />{/if}
+  {#if editor.showCollection}<CollectionPage />{/if}
   {#if editor.showAbout}<About />{/if}
   <UpdateBanner />
   {#if editor.showBackground}<BackgroundPanel />{/if}

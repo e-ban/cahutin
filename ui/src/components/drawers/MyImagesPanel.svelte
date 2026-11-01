@@ -9,7 +9,7 @@
   import { MY_IMAGE_MIME } from "../../lib/dnd";
   import { usePhoto } from "../../lib/editActions";
   import { fr } from "../../lib/i18n/fr";
-  import { displayName, searchMyImages } from "../../lib/myImages";
+  import { displayName, filterByTheme, searchMyImages, themeCounts, type ThemeFilter } from "../../lib/myImages";
   import { myImages } from "../../lib/myImages.svelte";
   import { mineMotif } from "../../lib/friezeMotifs.svelte";
 
@@ -23,7 +23,10 @@
 
   myImages.load();
 
-  const shown = $derived(searchMyImages(myImages.images, query));
+  let filter = $state<ThemeFilter>({ kind: "all" });
+  const themes = $derived(themeCounts(myImages.images));
+  const shown = $derived(searching ? searchMyImages(myImages.images, query) : filterByTheme(searchMyImages(myImages.images, query), filter));
+  const isFilter = (f: ThemeFilter) => JSON.stringify(f) === JSON.stringify(filter);
 
   async function add() {
     const picked = await open({ multiple: true, filters: [{ name: fr.myImages, extensions: ["png", "jpg", "jpeg", "webp", "svg", "PNG", "JPG", "JPEG", "WEBP", "SVG"] }] });
@@ -57,6 +60,14 @@
 {/if}
 {#if myImages.images.length && (!searching || shown.length)}
   {#if searching}<h4>{fr.myImages}</h4>{/if}
+  {#if !searching && themes.length}
+    <div class="chips">
+      <button class:on={isFilter({ kind: "all" })} onclick={() => (filter = { kind: "all" })}>{fr.allPictures}</button>
+      {#each themes as t (t.theme)}
+        <button class:on={isFilter({ kind: "theme", theme: t.theme })} onclick={() => (filter = { kind: "theme", theme: t.theme })}>{t.theme} ({t.count})</button>
+      {/each}
+    </div>
+  {/if}
   <div class="grid">
     {#each shown as img (img.name)}
       {@const rank = chosen.indexOf(mineMotif(img.name))}
@@ -87,6 +98,7 @@
   <p class="hint">{fr.myImagesEmpty}</p>
 {/if}
 {#if !searching && !onpick}
+  <button class="organize" onclick={() => (editor.showCollection = true)}>🗂 {fr.collectionOrganize}</button>
   <p class="hint">{fr.myImagesWhere}</p>
   {#if onphotos}<button class="link" onclick={onphotos}>{fr.myImagesPhotosLink}</button>{/if}
 {/if}
@@ -176,6 +188,21 @@
     background: #d32f2f;
     border-color: #d32f2f;
     color: white;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .chips button {
+    border-radius: 12px;
+    padding: 2px 9px;
+    font-size: 12px;
+  }
+  .chips .on {
+    background: #e8f1fb;
+    border-color: var(--accent);
+    color: var(--accent);
   }
   h4 {
     margin: 4px 0 0;

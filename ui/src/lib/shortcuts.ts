@@ -47,7 +47,7 @@ export function handleShortcut(ev: KeyboardEvent) {
   }
   // Sous l'écran d'accueil, le panneau Astuces, la classe ou la photothèque, la page n'est pas visible :
   // rien ne doit la modifier.
-  if (typing(ev) || editor.showWelcome || editor.showTips || editor.showClassPage || editor.showPhototheque) return;
+  if (typing(ev) || editor.showWelcome || editor.showTips || editor.showClassPage || editor.showPhototheque || editor.showCollection) return;
   const editActions: Partial<Record<ShortcutAction, () => void>> = {
     undo: () => editor.undo(),
     redo: () => editor.redo(),

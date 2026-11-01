@@ -8,4 +8,8 @@ name: string, size: number,
 /**
  * Date de modification, en secondes : une image remplacée sous le même nom n'est pas confondue.
  */
-modified: number, };
+modified: number, 
+/**
+ * Thèmes où l'image est rangée, par ordre alphabétique.
+ */
+themes: Array<string>, };

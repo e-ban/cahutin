@@ -1,12 +1,14 @@
-//! « Mes images » : les images de l'enseignant (dessins téléchargés, cliparts, images faites à la main),
+//! La collection : les images de l'enseignant (dessins téléchargés, cliparts, images faites à la main),
 //! gardées d'un document à l'autre dans `Documents/Cahutin/Images`, à côté des classes. Le dossier est la
 //! liste : une image qu'on y dépose avec l'explorateur de fichiers apparaît aussi. Posée sur une page, une
-//! image est copiée dans le document, qui reste complet si on l'envoie à une collègue.
+//! image est copiée dans le document, qui reste complet si on l'envoie à une collègue. Les thèmes
+//! (« Automne », « Animaux ») sont notés dans `themes.json`, à côté des images : les fichiers ne bougent pas.
 
 use crate::state::AppState;
 use carnet_core::{AssetMeta, Mime};
 use carnet_core::photo::import_path;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 use tauri::State;
@@ -25,6 +27,31 @@ pub struct MyImage {
     /// Date de modification, en secondes : une image remplacée sous le même nom n'est pas confondue.
     #[ts(type = "number")]
     pub modified: u64,
+    /// Thèmes où l'image est rangée, par ordre alphabétique.
+    pub themes: Vec<String>,
+}
+
+const THEMES_FILE: &str = "themes.json";
+/// Longueur maximale d'un nom de thème ou d'image.
+const MAX_LABEL: usize = 80;
+
+/// Thèmes de chaque image (nom de fichier → thèmes) ; vide si le fichier manque ou est illisible.
+fn read_themes(dir: &Path) -> BTreeMap<String, Vec<String>> {
+    std::fs::read(dir.join(THEMES_FILE)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+}
+
+fn write_themes(dir: &Path, themes: &BTreeMap<String, Vec<String>>) -> Result<(), String> {
+    let kept: BTreeMap<_, _> = themes.iter().filter(|(_, t)| !t.is_empty()).collect();
+    let json = serde_json::to_vec_pretty(&kept).map_err(|e| e.to_string())?;
+    let tmp = dir.join(".themes.json.tmp");
+    std::fs::write(&tmp, json).and_then(|_| std::fs::rename(&tmp, dir.join(THEMES_FILE))).map_err(|_| "Les thèmes n'ont pas pu être enregistrés.".to_string())
+}
+
+/// Un libellé propre (thème ou nom d'image) : sans espaces en trop, sans séparateur de dossier, pas trop long.
+fn clean_label(s: &str) -> Option<String> {
+    let t: String = s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let ok = !t.is_empty() && !t.starts_with('.') && !t.contains(['/', '\\']) && !t.chars().any(char::is_control);
+    ok.then(|| t.chars().take(MAX_LABEL).collect())
 }
 
 pub fn images_dir(state: &AppState) -> PathBuf {
@@ -43,12 +70,14 @@ pub fn is_image_name(name: &str) -> bool {
 /// Les images du dossier, par ordre alphabétique (sans tenir compte des majuscules).
 pub fn list_in(dir: &Path) -> Vec<MyImage> {
     let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
+    let themes = read_themes(dir);
     let mut out: Vec<MyImage> = entries
         .flatten()
         .filter_map(|e| {
             let name = e.file_name().to_str()?.to_string();
             let meta = e.metadata().ok().filter(|m| m.is_file())?;
-            is_image_name(&name).then(|| MyImage { name, size: meta.len(), modified: meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs()) })
+            let modified = meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs());
+            is_image_name(&name).then(|| MyImage { themes: themes.get(&name).cloned().unwrap_or_default(), name, size: meta.len(), modified })
         })
         .collect();
     out.sort_by_key(|i| i.name.to_lowercase());
@@ -136,7 +165,7 @@ pub fn my_images_add(state: State<'_, AppState>, paths: Vec<String>) -> Result<M
 }
 
 /// Sous-dossier des images retirées : rien n'est effacé, l'image peut y être reprise.
-const REMOVED: &str = "Retirées";
+pub const REMOVED: &str = "Retirées";
 
 /// Retire une image de la liste en la rangeant dans « Retirées » (les documents qui l'utilisent gardent leur
 /// copie ; le fichier était peut-être le seul exemplaire).
@@ -148,7 +177,90 @@ pub fn remove_in(dir: &Path, name: &str) -> Result<Vec<MyImage>, String> {
     std::fs::create_dir_all(&removed)
         .and_then(|_| std::fs::rename(dir.join(name), removed.join(free_name(&removed, name))))
         .map_err(|_| "L'image n'a pas pu être retirée.".to_string())?;
+    let mut themes = read_themes(dir);
+    if themes.remove(name).is_some() {
+        write_themes(dir, &themes)?;
+    }
     Ok(list_in(dir))
+}
+
+/// Les images retirées, qu'on peut remettre.
+pub fn removed_in(dir: &Path) -> Vec<MyImage> {
+    list_in(&dir.join(REMOVED))
+}
+
+/// Remet une image retirée dans la collection (sous un nom libre).
+pub fn restore_in(dir: &Path, name: &str) -> Result<Vec<MyImage>, String> {
+    if !is_image_name(name) {
+        return Err("Image inconnue.".into());
+    }
+    std::fs::rename(dir.join(REMOVED).join(name), dir.join(free_name(dir, name))).map_err(|_| "L'image n'a pas pu être remise.".to_string())?;
+    Ok(list_in(dir))
+}
+
+/// Renomme une image : le nouveau nom garde l'extension, et prend « (2) » s'il est déjà pris. Ses thèmes la
+/// suivent.
+pub fn rename_in(dir: &Path, name: &str, new_name: &str) -> Result<Vec<MyImage>, String> {
+    let label = clean_label(new_name).ok_or("Ce nom ne convient pas.")?;
+    if !is_image_name(name) || !dir.join(name).is_file() {
+        return Err("Image inconnue.".into());
+    }
+    let ext = extension(name).unwrap_or_else(|| "png".into());
+    let wanted = format!("{label}.{ext}");
+    if wanted == name {
+        return Ok(list_in(dir));
+    }
+    let target = if wanted.to_lowercase() == name.to_lowercase() { wanted } else { free_name(dir, &wanted) };
+    std::fs::rename(dir.join(name), dir.join(&target)).map_err(|_| "L'image n'a pas pu être renommée.".to_string())?;
+    let mut themes = read_themes(dir);
+    if let Some(t) = themes.remove(name) {
+        themes.insert(target, t);
+        write_themes(dir, &themes)?;
+    }
+    Ok(list_in(dir))
+}
+
+/// Range des images dans un thème (`add`), ou les en sort (`remove`).
+pub fn theme_in(dir: &Path, names: &[String], add: Option<&str>, remove: Option<&str>) -> Result<Vec<MyImage>, String> {
+    let add = match add {
+        Some(a) => Some(clean_label(a).ok_or("Ce nom de thème ne convient pas.")?),
+        None => None,
+    };
+    let mut themes = read_themes(dir);
+    for n in names.iter().filter(|n| is_image_name(n) && dir.join(n).is_file()) {
+        let t = themes.entry(n.clone()).or_default();
+        if let Some(r) = remove {
+            t.retain(|x| x != r);
+        }
+        if let Some(a) = &add
+            && !t.contains(a)
+        {
+            t.push(a.clone());
+            t.sort_by_key(|x| x.to_lowercase());
+        }
+    }
+    write_themes(dir, &themes)?;
+    Ok(list_in(dir))
+}
+
+#[tauri::command]
+pub fn my_images_removed(state: State<'_, AppState>) -> Vec<MyImage> {
+    removed_in(&images_dir(&state))
+}
+
+#[tauri::command(async)]
+pub fn my_images_restore(state: State<'_, AppState>, name: String) -> Result<Vec<MyImage>, String> {
+    restore_in(&images_dir(&state), &name)
+}
+
+#[tauri::command(async)]
+pub fn my_images_rename(state: State<'_, AppState>, name: String, new_name: String) -> Result<Vec<MyImage>, String> {
+    rename_in(&images_dir(&state), &name, &new_name)
+}
+
+#[tauri::command(async)]
+pub fn my_images_theme(state: State<'_, AppState>, names: Vec<String>, add: Option<String>, remove: Option<String>) -> Result<Vec<MyImage>, String> {
+    theme_in(&images_dir(&state), &names, add.as_deref(), remove.as_deref())
 }
 
 #[tauri::command(async)]
@@ -234,6 +346,33 @@ mod tests {
         assert!(list.iter().any(|i| i.name == "image.jpg"));
         let (list, _) = keep_in(&dir, b"third", Mime::Png, "vache.png").unwrap();
         assert!(list.iter().any(|i| i.name == "vache (2).png"));
+    }
+
+    #[test]
+    fn themes_follow_renames_and_removals_and_removed_pictures_come_back() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("Images");
+        add_in(&dir, &[svg(tmp.path(), "vache.svg"), svg(tmp.path(), "citrouille.svg")]).unwrap();
+        let names = |l: &[MyImage]| l.iter().map(|i| (i.name.clone(), i.themes.clone())).collect::<Vec<_>>();
+        let all = ["vache.svg".to_string(), "citrouille.svg".to_string()];
+        theme_in(&dir, &all, Some("  Automne "), None).unwrap();
+        let l = theme_in(&dir, &all[..1], Some("Animaux"), None).unwrap();
+        assert_eq!(names(&l), [("citrouille.svg".into(), vec!["Automne".to_string()]), ("vache.svg".into(), vec!["Animaux".to_string(), "Automne".to_string()])]);
+        // Renommée : l'extension reste, les thèmes suivent.
+        let l = rename_in(&dir, "vache.svg", "La vache Marguerite").unwrap();
+        assert!(l.iter().any(|i| i.name == "La vache Marguerite.svg" && i.themes.len() == 2));
+        assert!(rename_in(&dir, "citrouille.svg", "../x").is_err());
+        let l = rename_in(&dir, "citrouille.svg", "La vache Marguerite").unwrap();
+        assert!(l.iter().any(|i| i.name == "La vache Marguerite (2).svg"));
+        let l = theme_in(&dir, &["La vache Marguerite (2).svg".into()], None, Some("Automne")).unwrap();
+        assert!(l.iter().find(|i| i.name == "La vache Marguerite (2).svg").unwrap().themes.is_empty());
+        // Retirée puis remise.
+        remove_in(&dir, "La vache Marguerite.svg").unwrap();
+        assert_eq!(removed_in(&dir).len(), 1);
+        let l = restore_in(&dir, "La vache Marguerite.svg").unwrap();
+        assert_eq!(l.len(), 2);
+        assert!(removed_in(&dir).is_empty());
+        assert!(theme_in(&dir, &all, Some(" "), None).is_err());
     }
 
     #[test]

@@ -77,10 +77,16 @@ fn library_response(state: &AppState, rest: &str) -> Response<Cow<'static, [u8]>
 /// `mine/<nom>` : une image de « Mes images », telle quelle (le nom vient de l'adresse, encodé).
 fn my_image_response(state: &AppState, name: &str) -> Response<Cow<'static, [u8]>> {
     let Ok(name) = percent_decode(name) else { return not_found() };
+    // Une image retirée se montre aussi (pour la remettre) : seul ce sous-dossier est permis.
+    let dir = crate::images_commands::images_dir(state);
+    let (dir, name) = match name.strip_prefix(crate::images_commands::REMOVED).and_then(|r| r.strip_prefix('/')) {
+        Some(rest) => (dir.join(crate::images_commands::REMOVED), rest.to_string()),
+        None => (dir, name),
+    };
     if !crate::images_commands::is_image_name(&name) {
         return not_found();
     }
-    let Ok(bytes) = std::fs::read(crate::images_commands::images_dir(state).join(&name)) else { return not_found() };
+    let Ok(bytes) = std::fs::read(dir.join(&name)) else { return not_found() };
     let mime = match name.rsplit('.').next().map(str::to_ascii_lowercase).as_deref() {
         Some("svg") => "image/svg+xml",
         Some("png") => "image/png",

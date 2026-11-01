@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { displayName, searchMyImages, showsChildren } from "./myImages";
+import { displayName, filterByTheme, searchMyImages, showsChildren, themeCounts } from "./myImages";
 
-const img = (name: string) => ({ name, size: 1, modified: 0 });
+const img = (name: string, themes: string[] = []) => ({ name, size: 1, modified: 0, themes });
 
 describe("Mes images", () => {
   it("shows a clean name for downloaded files", () => {
@@ -16,6 +16,14 @@ describe("Mes images", () => {
     expect(searchMyImages(all, "ecole").map((i) => i.name)).toEqual(["École-maternelle.png", "cour d'école.jpg"]);
     expect(searchMyImages(all, "VACHE").map((i) => i.name)).toEqual(["vache.svg"]);
     expect(searchMyImages(all, "")).toHaveLength(3);
+  });
+
+  it("finds by theme, counts themes and filters by them", () => {
+    const all = [img("vache.png", ["Animaux", "Ferme"]), img("citrouille.png", ["Automne"]), img("logo.png")];
+    expect(searchMyImages(all, "ferme").map((i) => i.name)).toEqual(["vache.png"]);
+    expect(themeCounts(all)).toEqual([{ theme: "Animaux", count: 1 }, { theme: "Automne", count: 1 }, { theme: "Ferme", count: 1 }]);
+    expect(filterByTheme(all, { kind: "theme", theme: "Automne" }).map((i) => i.name)).toEqual(["citrouille.png"]);
+    expect(filterByTheme(all, { kind: "none" }).map((i) => i.name)).toEqual(["logo.png"]);
   });
 
   it("never keeps a photo that shows children of the class", () => {

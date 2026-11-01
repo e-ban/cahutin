@@ -19,7 +19,7 @@ export const TOUR_STEPS: TourStep[] = [
     title: "Modifier un élément",
     text: "Cliquez sur un élément : une barre apparaît au-dessus pour changer sa police, sa couleur ou son cadre. Le clic droit propose copier, dupliquer, mettre devant.",
   },
-  { target: ".right, button.tab", title: "Les réglages", text: "Ce panneau, à ouvrir ou fermer, règle la position, la taille, les marges et l'alignement au millimètre près." },
+  { target: ".right, button.tab", title: "Les réglages", text: "Ce panneau, à ouvrir ou fermer, règle l'élément choisi au millimètre près : position, taille, rotation, miroir, devant ou derrière, et ses couleurs." },
   { target: ".pagebar", title: "Les pages", text: "Ajoutez, dupliquez ou supprimez une page, changez son fond ou passez-la en paysage." },
   {
     target: '.rail [data-tour="class"]',
@@ -29,7 +29,7 @@ export const TOUR_STEPS: TourStep[] = [
   {
     target: ".top",
     title: "Enregistrer et imprimer",
-    text: "Le menu Fichier enregistre, ouvre et importe vos documents. « Imprimer / Exporter » imprime, crée un PDF ou un fichier pour LibreOffice.",
+    text: "Le menu Fichier enregistre, ouvre et importe vos documents. « Imprimer / Exporter » imprime, crée un PDF ou un fichier pour LibreOffice. « Préférences » adapte Cahutin à votre vue : taille, police, contraste, couleurs pour les daltoniens.",
   },
 ];
 

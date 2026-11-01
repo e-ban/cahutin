@@ -1,5 +1,5 @@
 // Astuces à feuilleter (menu Aide > Astuces), rangées par thème. Chacune décrit une fonction qui existe.
-export type TipTheme = "Photos" | "Texte" | "Mise en page" | "Pages et modèles" | "Classe" | "Fichiers";
+export type TipTheme = "Photos" | "Texte" | "Mise en page" | "Pages et modèles" | "Classe" | "Fichiers" | "Préférences";
 
 export interface Tip {
   id: string;
@@ -9,13 +9,13 @@ export interface Tip {
   text: string;
 }
 
-export const TIP_THEMES: TipTheme[] = ["Photos", "Texte", "Mise en page", "Pages et modèles", "Classe", "Fichiers"];
+export const TIP_THEMES: TipTheme[] = ["Photos", "Texte", "Mise en page", "Pages et modèles", "Classe", "Fichiers", "Préférences"];
 
 export const TIPS: Tip[] = [
   { id: "drop-photo", theme: "Photos", icon: "🖼️", title: "Placer une photo", text: "Tiroir Images > Photos : importez vos photos, puis glissez-les sur une zone de la page. La croix d'une photo la retire du document." },
   { id: "crop", theme: "Photos", icon: "✂️", title: "Recadrer", text: "Double-cliquez sur une photo, puis faites-la glisser dans son cadre ; la molette zoome. Entrée ou un clic ailleurs valide." },
   { id: "photo-style", theme: "Photos", icon: "🟦", title: "Coins, bordure, ombre", text: "Sélectionnez une photo : la barre flottante arrondit ses coins, ajoute une bordure (pleine, en tirets ou en pointillés) ou une ombre." },
-  { id: "mirror", theme: "Photos", icon: "⇋", title: "Miroir", text: "« Miroir gauche-droite » et « Miroir haut-bas », dans la barre de l'élément ou dans Réglages, retournent une photo, une image ou une forme, de gauche à droite ou de haut en bas : un enfant qui regarde vers le texte, la queue d'une bulle de parole de l'autre côté. Sur un groupe, tout le groupe se retourne ; les textes restent lisibles." },
+  { id: "mirror", theme: "Photos", icon: "⇋", title: "Miroir", text: "L'outil « Miroir » de la barre de l'élément a deux moitiés : ⇋ retourne de gauche à droite, ⇅ de haut en bas (aussi dans Réglages). Pour une photo, une image ou une forme : un enfant qui regarde vers le texte, la queue d'une bulle de parole de l'autre côté. Sur un groupe, tout le groupe se retourne ; les textes restent lisibles." },
   { id: "blur-faces", theme: "Photos", icon: "◍", title: "Flouter des visages", text: "Sélectionnez une photo, puis « Flouter » : cliquez sur les visages des enfants sans autorisation photo, ou tracez une zone en glissant. Le repérage automatique (un petit modèle d'intelligence artificielle intégré, hors ligne) n'est utilisé qu'avec votre accord, demandé la première fois, et peut être coupé. La photo d'origine n'est plus enregistrée dans le document." },
   { id: "caption", theme: "Photos", icon: "🏷️", title: "Légende", text: "Le bouton « Légende » ajoute un texte sous la photo. Sur une photo libre, la légende est groupée avec elle et la suit quand on la déplace." },
   { id: "library", theme: "Photos", icon: "📚", title: "Photothèque", text: "Les photos importées mais pas encore placées restent dans le tiroir Images, onglet Photos. À la réouverture du document, elles reviennent si leurs fichiers sont toujours sur l'ordinateur." },
@@ -30,6 +30,8 @@ export const TIPS: Tip[] = [
   { id: "centre", theme: "Mise en page", icon: "📏", title: "Centrer", text: "En déplaçant un bloc, une ligne bleue apparaît quand il est centré sur la page ou aligné sur un autre bloc." },
   { id: "group", theme: "Mise en page", icon: "🧩", title: "Grouper", text: "Sélectionnez plusieurs éléments puis Ctrl+G : ils se déplacent et s'agrandissent ensemble. Ctrl+Maj+G les sépare. Grouper des groupes les garde entiers : « Dissocier » n'enlève alors qu'un niveau, et un double-clic entre dans le groupe (Échap en ressort)." },
   { id: "box-select", theme: "Mise en page", icon: "⬚", title: "Sélectionner plusieurs éléments", text: "Tracez un cadre autour des éléments, même en partant de la marge grise, ou cliquez en maintenant Maj." },
+  { id: "rotate", theme: "Mise en page", icon: "↻", title: "Tourner", text: "La poignée ronde au-dessus de l'élément le tourne par crans de 15° ; avec Maj, degré par degré. ↺ et ↻, dans la barre ou dans Réglages, font un quart de tour." },
+  { id: "small", theme: "Mise en page", icon: "•", title: "Petits éléments, formes sans fond", text: "Autour d'un tout petit élément (un point de départ), les poignées s'écartent : saisissez-le par son centre pour le déplacer. Une forme sans fond se saisit n'importe où à l'intérieur, comme une forme remplie." },
   { id: "nudge", theme: "Mise en page", icon: "⌨️", title: "Déplacer au clavier", text: "Les flèches déplacent l'élément choisi de 1 mm, de 5 mm avec Maj." },
   { id: "lock", theme: "Mise en page", icon: "🔒", title: "Verrouiller", text: "Un élément verrouillé (clic droit ou Réglages) ne bouge plus par mégarde." },
   { id: "table", theme: "Mise en page", icon: "▦", title: "Tableaux", text: "Tiroir Texte > « Ajouter un tableau ». Double-cliquez dans une case pour écrire ; la barre sous la case ajoute ou retire des lignes et des colonnes, fusionne des cases et y met un picto ou une photo." },
@@ -59,5 +61,9 @@ export const TIPS: Tip[] = [
   { id: "import", theme: "Fichiers", icon: "📥", title: "Reprendre une ancienne fiche", text: "Fichier > Importer reprend une fiche Word, PDF ou Publisher (LibreOffice doit être installé), un fichier LibreOffice Draw ou les pages d'un autre carnet. Les tracés d'un PDF (graphisme, cadres) deviennent des formes modifiables ; une illustration faite de très nombreux tracés devient une image fixe." },
   { id: "odg", theme: "Fichiers", icon: "📤", title: "Exporter pour LibreOffice", text: "« Imprimer / Exporter » crée un fichier LibreOffice Draw où chaque texte et chaque photo restent modifiables. Les polices voyagent avec le fichier, sauf celles marquées « ⚠ export »." },
   { id: "pages-nav", theme: "Pages et modèles", icon: "🔢", title: "Aller à une page", text: "Pg.Suiv. et Pg.Préc. passent d'une page à l'autre ; le champ à gauche des miniatures mène à une page par son numéro, ou à celle d'un enfant par son prénom. Une page faite pour un enfant montre son prénom au survol de sa miniature." },
+  { id: "prefs-display", theme: "Préférences", icon: "⚙", title: "Une interface à votre vue", text: "Bouton « Préférences », en haut : taille de l'interface (jusqu'à 150 %), police des menus (Andika très lisible, OpenDyslexic), contraste élevé, grandes poignées pour un écran tactile ou un tableau blanc, animations réduites." },
+  { id: "prefs-toolbar", theme: "Préférences", icon: "🧰", title: "Une barre plus courte", text: "Préférences > « Icônes seules » : la barre au-dessus de l'élément ne montre que les icônes, le nom apparaît au survol (tout de suite ou après une attente, au choix). Les outils moins utilisés peuvent aussi se ranger dans un menu « Plus »." },
+  { id: "prefs-new-page", theme: "Préférences", icon: "📄", title: "Une nouvelle page à votre goût", text: "Préférences > Nouvelle page : le format (A5, A4, A3, portrait ou paysage) et la police des nouveaux textes. La section des fiches de graphisme et l'export proposé en premier s'y règlent aussi." },
+  { id: "prefs-colour-blind", theme: "Préférences", icon: "👁", title: "Daltonisme", text: "Préférences > Daltonisme : chaque couleur dit son nom, ce qui ne se voyait qu'à la couleur reçoit aussi un signe, des couleurs que les daltoniens distinguent pour des fiches lisibles par tous, et un bouton « Vision daltonienne » qui montre la page comme la voit un enfant daltonien." },
   { id: "undo", theme: "Fichiers", icon: "↶", title: "Revenir en arrière", text: "Ctrl+Z annule la dernière action, Ctrl+Y la rétablit." },
 ];

@@ -56,6 +56,8 @@ class Editor {
   spread = $state(false);
   /** Panneau du fond de page. */
   showBackground = $state(false);
+  /** La page vue comme la voit une personne daltonienne (bouton des Préférences). */
+  cvdView = $state(false);
   /** Écran À propos (menu Aide). */
   showAbout = $state(false);
   /** Fenêtre des préférences de l'application. */

@@ -94,6 +94,9 @@
     root.style.setProperty("--ui-font", `"${settings.uiFont}", system-ui, sans-serif`);
     root.toggleAttribute("data-contrast", settings.highContrast);
     root.toggleAttribute("data-big-handles", settings.bigHandles);
+    root.toggleAttribute("data-reduce-motion", settings.reduceMotion);
+    root.toggleAttribute("data-cues", settings.doubleCues);
+    root.style.setProperty("--label-delay", `${settings.labelDelay}s`);
   });
   $effect(() => {
     const scale = settings.uiScale;
@@ -275,6 +278,7 @@
   {/if}
   <main
     class="stage"
+    class:cvd={editor.cvdView && settings.cvdPreview}
     bind:this={stageEl}
     bind:clientWidth={stageWidth}
     bind:clientHeight={stageHeight}
@@ -355,6 +359,12 @@
 {#if editor.showTips}<TipsPanel />{/if}
 {#if editor.showWhatsNew}<WhatsNew onclose={closeWhatsNew} />{/if}
 <Tour />
+<!-- Vision daltonienne (rouge-vert, deutéranopie) : matrice de Machado, Oliveira et Fernandes (2009). -->
+<svg class="filters" aria-hidden="true">
+  <filter id="cvd-deuteranopia">
+    <feColorMatrix type="matrix" values="0.367 0.861 -0.228 0 0  0.280 0.673 0.047 0 0  -0.012 0.043 0.969 0 0  0 0 0 1 0" />
+  </filter>
+</svg>
 {#if editor.printing}<PrintRoot />{/if}
 
 <style>
@@ -390,6 +400,27 @@
     height: 26px !important;
     margin-top: -13px !important;
     margin-left: -13px !important;
+  }
+  /* Animations réduites : tout passe d'un coup (les attentes, comme celle des languettes, restent). */
+  :global(:root[data-reduce-motion] *),
+  :global(:root[data-reduce-motion] *::before),
+  :global(:root[data-reduce-motion] *::after) {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
+  /* Repères doublés : un bouton actif est aussi souligné, pas seulement coloré. */
+  :global(:root[data-cues] button.on),
+  :global(:root[data-cues] button[aria-pressed="true"]) {
+    box-shadow: inset 0 -3px 0 currentColor;
+  }
+  .filters {
+    position: absolute;
+    width: 0;
+    height: 0;
+  }
+  .stage.cvd :global(.page) {
+    filter: url(#cvd-deuteranopia);
   }
   :global(html, body) {
     margin: 0;

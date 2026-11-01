@@ -9,7 +9,7 @@
   import { EMBEDDED_FAMILIES } from "../../lib/fontNames";
   import type { Level } from "../../lib/graphisme";
   import type { Format } from "../../lib/pageFormat";
-  import { UI_FONTS, UI_SCALES, settings, type UiFont, type UiScale } from "../../lib/settings.svelte";
+  import { LABEL_DELAYS, UI_FONTS, UI_SCALES, settings, type LabelDelay, type UiFont, type UiScale } from "../../lib/settings.svelte";
   import { updates } from "../../lib/updates.svelte";
 
   const close = () => (editor.showPreferences = false);
@@ -49,6 +49,30 @@
         <input type="checkbox" checked={settings.bigHandles} onchange={(e) => settings.set("bigHandles", e.currentTarget.checked)} />
         <span><b>{fr.prefsBigHandles}</b><small>{fr.prefsBigHandlesHint}</small></span>
       </label>
+      <label class="choice">
+        <input type="checkbox" checked={settings.reduceMotion} onchange={(e) => settings.set("reduceMotion", e.currentTarget.checked)} />
+        <span><b>{fr.prefsReduceMotion}</b><small>{fr.prefsReduceMotionHint}</small></span>
+      </label>
+    </section>
+
+    <section>
+      <h3>{fr.prefsColorBlind}</h3>
+      <label class="choice">
+        <input type="checkbox" checked={settings.colorNames} onchange={(e) => settings.set("colorNames", e.currentTarget.checked)} />
+        <span><b>{fr.prefsColorNames}</b><small>{fr.prefsColorNamesHint}</small></span>
+      </label>
+      <label class="choice">
+        <input type="checkbox" checked={settings.doubleCues} onchange={(e) => settings.set("doubleCues", e.currentTarget.checked)} />
+        <span><b>{fr.prefsDoubleCues}</b><small>{fr.prefsDoubleCuesHint}</small></span>
+      </label>
+      <label class="choice">
+        <input type="checkbox" checked={settings.cvdPalette} onchange={(e) => settings.set("cvdPalette", e.currentTarget.checked)} />
+        <span><b>{fr.prefsCvdPalette}</b><small>{fr.prefsCvdPaletteHint}</small></span>
+      </label>
+      <label class="choice">
+        <input type="checkbox" checked={settings.cvdPreview} onchange={(e) => settings.set("cvdPreview", e.currentTarget.checked)} />
+        <span><b>{fr.prefsCvdPreview}</b><small>{fr.prefsCvdPreviewHint}</small></span>
+      </label>
     </section>
 
     <section>
@@ -61,6 +85,14 @@
         <input type="radio" name="toolbar" checked={settings.compactToolbar} onchange={() => settings.setCompactToolbar(true)} />
         <span><b>{fr.prefsToolbarCompact}</b><small>{fr.prefsToolbarCompactHint}</small></span>
       </label>
+      {#if settings.compactToolbar}
+        <div class="row sub">
+          <span><b>{fr.prefsLabelDelay}</b><small>{fr.prefsLabelDelayHint}</small></span>
+          <select value={settings.labelDelay} aria-label={fr.prefsLabelDelay} onchange={(e) => settings.set("labelDelay", Number(e.currentTarget.value) as LabelDelay)}>
+            {#each LABEL_DELAYS as d (d)}<option value={d}>{fr.prefsLabelDelays[d]}</option>{/each}
+          </select>
+        </div>
+      {/if}
       <label class="choice">
         <input type="checkbox" checked={settings.moreMenu} onchange={(e) => settings.setMoreMenu(e.currentTarget.checked)} />
         <span><b>{fr.prefsMoreMenu}</b><small>{fr.prefsMoreMenuHint}</small></span>
@@ -198,6 +230,9 @@
   }
   .row small {
     color: var(--muted);
+  }
+  .row.sub {
+    padding-left: 26px;
   }
   .controls {
     display: flex;

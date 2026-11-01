@@ -804,7 +804,7 @@
     background: #f3efe8;
   }
   /* Icône et nom écrits par défaut. Avec la préférence « icônes seules » (.compact), seul le nom des outils
-     disparaît (pas celui de l'action principale, .main) : au survol ou au clavier, il apparaît aussitôt dans une
+     disparaît (pas celui de l'action principale, .main) : au survol ou au clavier, il apparaît dans une
      languette de la barre, au-dessus de l'icône, de la même couleur et collée à son bord, sans rien déplacer. */
   .compact > button:not(.main),
   .compact > .wrap > button:not(.main),
@@ -829,7 +829,8 @@
     white-space: nowrap;
     pointer-events: none;
     box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.08);
-    display: none;
+    /* Cachée, puis montrée après l'attente choisie dans les Préférences (aucune par défaut) ; cachée aussitôt. */
+    visibility: hidden;
   }
   .compact > button:not(.main):hover > :global(.lbl),
   .compact > button:not(.main):focus-visible > :global(.lbl),
@@ -837,7 +838,8 @@
   .compact .mirror > button:focus-visible > :global(.lbl),
   .compact > .wrap > button:not(.main):hover > :global(.lbl),
   .compact > .wrap > button:not(.main):focus-visible > :global(.lbl) {
-    display: block;
+    visibility: visible;
+    transition: visibility 0s var(--label-delay, 0s);
   }
   /* L'espace entre l'icône et le nom écrit (Svelte retire l'espace au début du nom). */
   .ctx:not(.compact) :global(.lbl)::before,

@@ -13,6 +13,19 @@ export type UiFont = (typeof UI_FONTS)[number];
 
 export type ExportKind = "pdf" | "odg";
 
+/** Attente avant la languette du nom d'un outil (barre en icônes seules), en secondes. */
+export const LABEL_DELAYS = [0, 0.5, 1] as const;
+export type LabelDelay = (typeof LABEL_DELAYS)[number];
+
+/** Animations réduites par défaut si le système le demande. */
+function systemReducesMotion(): boolean {
+  try {
+    return matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+}
+
 class Settings {
   /** Barre au-dessus de l'élément choisi : icônes seules, le nom au-dessus de l'icône au survol. Par défaut,
    *  l'icône et le nom sont écrits (plus facile à lire, et sans survol sur un écran tactile). */
@@ -28,6 +41,16 @@ class Settings {
   highContrast = $state(readPref("highContrast", false));
   /** Poignées deux fois plus grosses : écran tactile, tableau blanc, souris difficile. */
   bigHandles = $state(readPref("bigHandles", false));
+  /** Rien ne glisse ni ne s'anime. */
+  reduceMotion = $state(readPref("reduceMotion", systemReducesMotion()));
+  labelDelay = $state<LabelDelay>(readPref("labelDelay", 0));
+
+  /** Daltonisme : chaque couleur proposée dit son nom ; ce qui ne se distingue que par la couleur reçoit aussi un
+   *  signe ; couleurs proposées que les daltoniens distinguent ; bouton qui montre la page comme ils la voient. */
+  colorNames = $state(readPref("colorNames", true));
+  doubleCues = $state(readPref("doubleCues", true));
+  cvdPalette = $state(readPref("cvdPalette", false));
+  cvdPreview = $state(readPref("cvdPreview", false));
 
   /** Une nouvelle page (document neuf, « Ajouter une page ») : son format et la police de ses textes. */
   pageFormat = $state<Format>(readPref("pageFormat", "A4"));
@@ -56,6 +79,21 @@ class Settings {
   }
 }
 
-type Stored = "uiScale" | "uiFont" | "highContrast" | "bigHandles" | "pageFormat" | "pageLandscape" | "textFont" | "graphismeLevel" | "preferredExport";
+type Stored =
+  | "uiScale"
+  | "uiFont"
+  | "highContrast"
+  | "bigHandles"
+  | "reduceMotion"
+  | "labelDelay"
+  | "colorNames"
+  | "doubleCues"
+  | "cvdPalette"
+  | "cvdPreview"
+  | "pageFormat"
+  | "pageLandscape"
+  | "textFont"
+  | "graphismeLevel"
+  | "preferredExport";
 
 export const settings = new Settings();

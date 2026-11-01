@@ -325,6 +325,26 @@
     outline: 3px solid var(--accent-strong);
     background: rgba(192, 57, 43, 0.15);
   }
+  /* Repères doublés (Préférences) : la fusion possible ou non se lit aussi à un signe, pas seulement à la couleur. */
+  :global(:root[data-cues]) .element.merge-ok::after,
+  :global(:root[data-cues]) .element.merge-bad::after {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: 700 28px var(--ui-font);
+    pointer-events: none;
+    z-index: 5;
+  }
+  :global(:root[data-cues]) .element.merge-ok::after {
+    content: "✓";
+    color: var(--accent);
+  }
+  :global(:root[data-cues]) .element.merge-bad::after {
+    content: "✗";
+    color: var(--accent-strong);
+  }
   .element.selected {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
@@ -339,6 +359,10 @@
   .page.template .element.zone-text {
     outline: 2px dashed var(--zone-text);
     outline-offset: -1px;
+  }
+  /* Repères doublés : une zone de texte en pointillés ronds, une zone photo en tirets. */
+  :global(:root[data-cues]) .page.template .element.zone-text {
+    outline-style: dotted;
   }
   .page.template .element.selected {
     outline: 3px solid var(--accent);

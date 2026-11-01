@@ -8,6 +8,7 @@
   import { remapTables } from "../../lib/table";
   import { deletePage } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
+  import { settings } from "../../lib/settings.svelte";
   import { classes } from "../../lib/classStore.svelte";
   import { childOfPage, findChildPage } from "../../lib/classFill";
   import type { Page } from "../../lib/types";
@@ -111,6 +112,7 @@
     <option value="A3">A3</option>
   </select>
   <button class="ghost" class:on={editor.spread} aria-pressed={editor.spread} title={fr.spreadHint} onclick={() => (editor.spread = !editor.spread)}>📖 {fr.spread}</button>
+  {#if settings.cvdPreview}<button class="ghost" class:on={editor.cvdView} aria-pressed={editor.cvdView} title={fr.cvdViewHint} onclick={() => (editor.cvdView = !editor.cvdView)}>👁 {fr.cvdView}</button>{/if}
   <button class="ghost" onclick={rotate}>⟳ {editor.page.size.width_mm > editor.page.size.height_mm ? fr.portrait : fr.landscape}</button>
   <button class="ghost" disabled={editor.doc.pages.length === 1} onclick={() => deletePage(editor.pageIndex)}>🗑 {fr.deletePage}</button>
   <span class="spacer"></span>

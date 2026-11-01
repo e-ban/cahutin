@@ -137,6 +137,12 @@ Le workflow « Construction » lance les tests sous Windows et Linux, construit 
 
 Microsoft Store : la CI construit aussi `Cahutin_<version>_x64.msix` (`scripts/build-msix.ps1`, manifeste dans `packaging/msix`), une version sans avis de nouvelle version (`CAHUTIN_STORE=1`) que le Store signe et met à jour. L'identité du paquet vient des variables du dépôt `STORE_IDENTITY_NAME`, `STORE_PUBLISHER` et `STORE_PUBLISHER_DISPLAY` (Partner Center > Gestion des produits > Identité du produit). À chaque version, envoyer l'artefact `cahutin-msix-…` du workflow dans une nouvelle soumission Partner Center.
 
+Fiche du Store (description, notes de version, fonctionnalités, captures) : elle vit dans Partner Center, pas dans ce dépôt (`packaging/store/` et les exports `listingData-*.csv` sont ignorés). Pour la mettre à jour par import :
+1. Dans la nouvelle soumission, « Exporter les fiches » : les adresses des captures en ligne sont propres à cette soumission.
+2. Modifier seulement les champs voulus, sans toucher aux colonnes Field, ID et Type. Garder le format de l'export : UTF-8 avec BOM, lignes terminées par CRLF (LF à l'intérieur d'un texte), pas de fin de ligne après la dernière.
+3. Pour une nouvelle image, la mettre dans le dossier à importer et écrire son chemin en commençant par le nom de ce dossier (`fiche/captures/guides.png`, pas `captures/guides.png`).
+4. « Importer les fiches » > « Importer un dossier » : le dossier ne contient que le .csv et les images. En cas d'échec, « Afficher les erreurs » nomme le champ en cause.
+
 ## Contribuer
 
 Signalements, idées et code sont bienvenus : voir [CONTRIBUTING.md](CONTRIBUTING.md) et le [code de conduite](CODE_OF_CONDUCT.md). Une faille de sécurité se signale en privé : voir [SECURITY.md](SECURITY.md).

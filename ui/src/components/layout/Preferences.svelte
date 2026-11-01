@@ -26,6 +26,10 @@
         <input type="radio" name="toolbar" checked={settings.compactToolbar} onchange={() => settings.setCompactToolbar(true)} />
         <span><b>{fr.prefsToolbarCompact}</b><small>{fr.prefsToolbarCompactHint}</small></span>
       </label>
+      <label class="choice">
+        <input type="checkbox" checked={settings.moreMenu} onchange={(e) => settings.setMoreMenu(e.currentTarget.checked)} />
+        <span><b>{fr.prefsMoreMenu}</b><small>{fr.prefsMoreMenuHint}</small></span>
+      </label>
     </section>
 
     <section>

@@ -41,6 +41,8 @@
   let pop = $state<Pop | null>(null);
   let barEl = $state<HTMLElement>();
   let pos = $state<{ left: number; top: number } | null>(null);
+  /** Largeur au plus de la barre : celle de la zone de travail ; au-delà, ses outils passent à la ligne. */
+  let maxWidth = $state<number | null>(null);
 
   const inGrid = (id: string) => !!editor.page.grid?.cells.some((c) => c.element_id === id);
   // Sélection qui est exactement un groupe : on propose Dissocier ; sinon Grouper (hors cases de grille).
@@ -75,6 +77,10 @@
       return;
     }
     const s = stageEl.getBoundingClientRect();
+    if (maxWidth !== Math.floor(s.width - 16)) {
+      maxWidth = Math.floor(s.width - 16);
+      await tick();
+    }
     // La poignée de rotation (Moveable) dépasse au-dessus d'un élément libre sélectionné seul.
     const e = selected;
     const handles = many
@@ -89,7 +95,7 @@
   }
 
   $effect(() => {
-    void [editor.doc, editor.selection, editor.effectiveZoom, editor.drawer, editor.inspectorOpen, editor.editingText, visible, barEl, settings.compactToolbar];
+    void [editor.doc, editor.selection, editor.effectiveZoom, editor.drawer, editor.inspectorOpen, editor.editingText, visible, barEl, settings.compactToolbar, settings.moreMenu];
     reposition();
   });
 
@@ -251,6 +257,7 @@
     tabindex="-1"
     aria-label="Barre de l'élément"
     bind:this={barEl}
+    style:max-width={maxWidth ? `${maxWidth}px` : null}
     style:left={pos ? `${pos.left}px` : "-9999px"}
     style:top={pos ? `${pos.top}px` : "-9999px"}
     onpointerdown={keepFocus}
@@ -330,6 +337,9 @@
         <button class:on={editor.replacingPhoto} title={fr.replacePhotoHint} onclick={() => ((editor.replacingPhoto = true), editor.openImages("photos"))}>⇄<span class="lbl"> {fr.replace}</span></button>
         <button onclick={() => (editor.cropping = selected.id)}>⛶<span class="lbl"> {fr.crop}</span></button>
         <button title={fr.blurHint} onclick={() => (editor.blurring = ph.asset)}>◍<span class="lbl"> {fr.blurButton}</span></button>
+        {#if !settings.moreMenu}
+        <button title={fr.keepInMyImagesHint} onclick={() => ph.asset && myImages.keep(ph.asset)}>⭐<span class="lbl"> {fr.keepInMyImages}</span></button>
+        {/if}
         <div class="wrap">
           <button class:on={pop === "corners"} onclick={() => toggle("corners")}>◜<span class="lbl"> {fr.corners}</span></button>
           {#if pop === "corners"}
@@ -354,6 +364,9 @@
             </div>
           {/if}
         </div>
+        {#if !settings.moreMenu}
+        <button class:on={ph.shadow} aria-pressed={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}>◩<span class="lbl"> {fr.shadow}</span></button>
+        {/if}
         <button onclick={() => addCaption(selected.id)}>✎<span class="lbl"> {fr.caption}</span></button>
         {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
       {/if}
@@ -523,60 +536,113 @@
       {/if}
       {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
     {/if}
+    {#if settings.moreMenu}
     <!-- Les outils de tous les jours sont dans la barre ; les autres dans « Plus », où s'ouvrent aussi leurs
-         réglages (taille de la frise, répéter, repères de découpe). -->
-    <span class="sep"></span>
-    <div class="wrap">
-      <button class:on={pop === "more" || pop === "frieze" || pop === "repeat" || pop === "cut"} aria-haspopup="menu" title={fr.moreTools} onclick={() => toggle("more")}>⋯<span class="lbl"> {fr.moreTools} ▾</span></button>
-      {#if pop === "more"}
-        {@const ph = selected?.kind.type === "Photo" && selected.kind.asset ? selected.kind : null}
-        <div class="pop list more" role="menu">
-          {#if ph}
-            <button role="menuitem" class:on={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}>◩ {fr.shadow}</button>
-            <button role="menuitem" title={fr.keepInMyImagesHint} onclick={() => ((pop = null), ph.asset && myImages.keep(ph.asset))}>⭐ {fr.keepInMyImages}</button>
+           réglages (taille de la frise, répéter, repères de découpe). -->
+      <span class="sep"></span>
+      <div class="wrap">
+        <button class:on={pop === "more" || pop === "frieze" || pop === "repeat" || pop === "cut"} aria-haspopup="menu" title={fr.moreTools} onclick={() => toggle("more")}>⋯<span class="lbl"> {fr.moreTools} ▾</span></button>
+        {#if pop === "more"}
+          {@const ph = selected?.kind.type === "Photo" && selected.kind.asset ? selected.kind : null}
+          <div class="pop list more" role="menu">
+            {#if ph}
+              <button role="menuitem" class:on={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}>◩ {fr.shadow}</button>
+              <button role="menuitem" title={fr.keepInMyImagesHint} onclick={() => ((pop = null), ph.asset && myImages.keep(ph.asset))}>⭐ {fr.keepInMyImages}</button>
+            {/if}
+            {#if canMirror}
+              <button role="menuitem" title={fr.mirrorHHint} onclick={() => mirrorSelection("h")}>⇋ {fr.mirrorH}</button>
+              <button role="menuitem" title={fr.mirrorVHint} onclick={() => mirrorSelection("v")}>⇅ {fr.mirrorV}</button>
+            {/if}
+            {#if canRotate}
+              <button role="menuitem" onclick={() => rotateSelection(-90)}>↺ {fr.rotateLeftShort}</button>
+              <button role="menuitem" onclick={() => rotateSelection(90)}>↻ {fr.rotateRightShort}</button>
+            {/if}
+            {#if canFrieze}
+              <button role="menuitem" title={fr.blockFriezeHint} onclick={() => ((pop = null), addBlockFrieze())}>❀ {fr.blockFriezeAround}</button>
+            {/if}
+            {#if friezeIds && friezeNow}
+              <button role="menuitem" title={fr.friezeSettingsHint} onclick={() => (pop = "frieze")}>❀ {fr.friezeSettingsMenu} ▸</button>
+            {/if}
+            {#if canCut}
+              <button role="menuitem" title={fr.repeatHint} onclick={() => (pop = "repeat")}>▦ {fr.repeat} ▸</button>
+              <button role="menuitem" title={fr.cutMarksHint} onclick={() => (pop = "cut")}>✂ {fr.cutMarks} ▸</button>
+            {/if}
+            {#if !many}
+              <button role="menuitem" onclick={() => ((pop = null), (editor.inspectorOpen = true))}>⚙ {fr.allSettings}</button>
+            {/if}
+          </div>
+        {:else if pop === "frieze" && friezeNow}
+          <div class="pop frieze">
+            <label>{fr.friezeSize} <input type="range" min="6" max="40" step="1" value={friezeNow.size} onchange={(e) => setFrieze(Number(e.currentTarget.value), friezeNow.gap)} /> {friezeNow.size} mm</label>
+            <label>{fr.friezeGap} <input type="range" min="0" max="30" step="1" value={friezeNow.gap} onchange={(e) => setFrieze(friezeNow.size, Number(e.currentTarget.value))} /> {friezeNow.gap} mm</label>
+          </div>
+        {:else if pop === "repeat"}
+          <div class="pop repeat">
+            <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
+            <label>{fr.tableRows} <input type="number" min="1" max="20" bind:value={repeatRows} /></label>
+            <button class="primary" disabled={repeatCols * repeatRows < 2} onclick={() => repeat(false)}>{fr.repeatApply(repeatCols * repeatRows)}</button>
+            <button onclick={() => repeat(true)}>{fr.repeatFill}</button>
+          </div>
+        {:else if pop === "cut"}
+          <div class="pop list">
+            <button onclick={() => setCutMarks("corners")}>⌜ ⌝ {fr.cutCorners}</button>
+            <button onclick={() => setCutMarks("dashed")}>✂ ┄ {fr.cutDashed}</button>
+            <button onclick={() => setCutMarks(null)}>{fr.cutNone}</button>
+          </div>
+        {/if}
+      </div>
+    {:else}
+    {#if canMirror}
+        {@const mh = selected ? (selected.kind.type === "Photo" ? !!selected.kind.mirrored : !!selected.flip_h) : false}
+        <button class:on={mh} aria-pressed={mh} title={fr.mirrorHHint} onclick={() => mirrorSelection("h")}>⇋<span class="lbl"> {fr.mirrorH}</span></button>
+        <button class:on={!!selected?.flip_v} aria-pressed={!!selected?.flip_v} title={fr.mirrorVHint} onclick={() => mirrorSelection("v")}>⇅<span class="lbl"> {fr.mirrorV}</span></button>
+      {/if}
+      {#if canRotate}
+        <button title={fr.rotateLeft} aria-label={fr.rotateLeft} onclick={() => rotateSelection(-90)}>↺</button>
+        <button title={fr.rotateRight} aria-label={fr.rotateRight} onclick={() => rotateSelection(90)}>↻</button>
+      {/if}
+      {#if canFrieze}
+        <button title={fr.blockFriezeHint} onclick={addBlockFrieze}>❀<span class="lbl"> {fr.blockFriezeAround}</span></button>
+      {/if}
+      {#if friezeIds && friezeNow}
+        <div class="wrap">
+          <button class:on={pop === "frieze"} title={fr.friezeSettingsHint} onclick={() => toggle("frieze")}>❀<span class="lbl"> {fr.friezeSettingsMenu} ▾</span></button>
+          {#if pop === "frieze"}
+            <div class="pop frieze">
+              <label>{fr.friezeSize} <input type="range" min="6" max="40" step="1" value={friezeNow.size} onchange={(e) => setFrieze(Number(e.currentTarget.value), friezeNow.gap)} /> {friezeNow.size} mm</label>
+              <label>{fr.friezeGap} <input type="range" min="0" max="30" step="1" value={friezeNow.gap} onchange={(e) => setFrieze(friezeNow.size, Number(e.currentTarget.value))} /> {friezeNow.gap} mm</label>
+            </div>
           {/if}
-          {#if canMirror}
-            <button role="menuitem" title={fr.mirrorHHint} onclick={() => mirrorSelection("h")}>⇋ {fr.mirrorH}</button>
-            <button role="menuitem" title={fr.mirrorVHint} onclick={() => mirrorSelection("v")}>⇅ {fr.mirrorV}</button>
-          {/if}
-          {#if canRotate}
-            <button role="menuitem" onclick={() => rotateSelection(-90)}>↺ {fr.rotateLeftShort}</button>
-            <button role="menuitem" onclick={() => rotateSelection(90)}>↻ {fr.rotateRightShort}</button>
-          {/if}
-          {#if canFrieze}
-            <button role="menuitem" title={fr.blockFriezeHint} onclick={() => ((pop = null), addBlockFrieze())}>❀ {fr.blockFriezeAround}</button>
-          {/if}
-          {#if friezeIds && friezeNow}
-            <button role="menuitem" title={fr.friezeSettingsHint} onclick={() => (pop = "frieze")}>❀ {fr.friezeSettingsMenu} ▸</button>
-          {/if}
-          {#if canCut}
-            <button role="menuitem" title={fr.repeatHint} onclick={() => (pop = "repeat")}>▦ {fr.repeat} ▸</button>
-            <button role="menuitem" title={fr.cutMarksHint} onclick={() => (pop = "cut")}>✂ {fr.cutMarks} ▸</button>
-          {/if}
-          {#if !many}
-            <button role="menuitem" onclick={() => ((pop = null), (editor.inspectorOpen = true))}>⚙ {fr.allSettings}</button>
-          {/if}
-        </div>
-      {:else if pop === "frieze" && friezeNow}
-        <div class="pop frieze">
-          <label>{fr.friezeSize} <input type="range" min="6" max="40" step="1" value={friezeNow.size} onchange={(e) => setFrieze(Number(e.currentTarget.value), friezeNow.gap)} /> {friezeNow.size} mm</label>
-          <label>{fr.friezeGap} <input type="range" min="0" max="30" step="1" value={friezeNow.gap} onchange={(e) => setFrieze(friezeNow.size, Number(e.currentTarget.value))} /> {friezeNow.gap} mm</label>
-        </div>
-      {:else if pop === "repeat"}
-        <div class="pop repeat">
-          <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
-          <label>{fr.tableRows} <input type="number" min="1" max="20" bind:value={repeatRows} /></label>
-          <button class="primary" disabled={repeatCols * repeatRows < 2} onclick={() => repeat(false)}>{fr.repeatApply(repeatCols * repeatRows)}</button>
-          <button onclick={() => repeat(true)}>{fr.repeatFill}</button>
-        </div>
-      {:else if pop === "cut"}
-        <div class="pop list">
-          <button onclick={() => setCutMarks("corners")}>⌜ ⌝ {fr.cutCorners}</button>
-          <button onclick={() => setCutMarks("dashed")}>✂ ┄ {fr.cutDashed}</button>
-          <button onclick={() => setCutMarks(null)}>{fr.cutNone}</button>
         </div>
       {/if}
-    </div>
+      {#if canCut}
+        <div class="wrap">
+          <button title={fr.repeatHint} onclick={() => toggle("repeat")}>▦<span class="lbl"> {fr.repeat} ▾</span></button>
+          {#if pop === "repeat"}
+            <div class="pop repeat">
+              <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
+              <label>{fr.tableRows} <input type="number" min="1" max="20" bind:value={repeatRows} /></label>
+              <button class="primary" disabled={repeatCols * repeatRows < 2} onclick={() => repeat(false)}>{fr.repeatApply(repeatCols * repeatRows)}</button>
+              <button onclick={() => repeat(true)}>{fr.repeatFill}</button>
+            </div>
+          {/if}
+        </div>
+        <div class="wrap">
+          <button title={fr.cutMarksHint} onclick={() => toggle("cut")}>✂<span class="lbl"> {fr.cutMarks} ▾</span></button>
+          {#if pop === "cut"}
+            <div class="pop list">
+              <button onclick={() => setCutMarks("corners")}>⌜ ⌝ {fr.cutCorners}</button>
+              <button onclick={() => setCutMarks("dashed")}>✂ ┄ {fr.cutDashed}</button>
+              <button onclick={() => setCutMarks(null)}>{fr.cutNone}</button>
+            </div>
+          {/if}
+        </div>
+      {/if}
+      {#if !many}
+        <span class="sep"></span>
+        <button title={fr.allSettings} aria-label={fr.allSettings} onclick={() => (editor.inspectorOpen = true)}>⋯</button>
+      {/if}
+    {/if}
   </div>
 {/if}
 
@@ -679,6 +745,8 @@
   .ctx {
     position: fixed;
     display: flex;
+    /* Trop d'outils pour la largeur de l'écran : ils passent à la ligne, aucun n'est caché. */
+    flex-wrap: wrap;
     gap: 2px;
     align-items: center;
     background: white;

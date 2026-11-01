@@ -117,6 +117,10 @@ pub struct MyImageKept {
 /// « Garder dans Mes images » : l'image `asset` du document rejoint le dossier.
 #[tauri::command(async)]
 pub fn my_images_keep(state: State<'_, AppState>, asset: String, name: String) -> Result<MyImageKept, String> {
+    // Posée depuis « Mes images » (copie réencodée, autres octets que le fichier) : elle y est déjà.
+    if state.my_images.lock().unwrap().values().any(|m| m.id == asset) {
+        return Ok(MyImageKept { images: list_in(&images_dir(&state)), added: false });
+    }
     let a = state.store.lock().unwrap().get(&asset).ok_or("Image introuvable.")?;
     keep_in(&images_dir(&state), &a.bytes, a.meta.mime, &name).map(|(images, added)| MyImageKept { images, added })
 }

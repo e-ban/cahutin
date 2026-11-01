@@ -38,6 +38,9 @@ class MyImages {
   /** « Garder dans Mes images » : l'image posée rejoint le dossier, sous le nom de son fichier ; jamais une
    *  photo d'enfants. Le résultat est dit en bas de l'écran. */
   async keep(assetId: string) {
+    // La photothèque de la classe n'est chargée qu'à son ouverture : sans elle, une photo d'enfant passerait.
+    const cls = classes.current?.path;
+    if (cls && classLibrary.classPath !== cls) await classLibrary.open(cls).catch(() => {});
     if (showsChildren(assetId, classLibrary.photos, classes.current?.class.photos ?? {})) {
       editor.notice = fr.keepRefusedChildren;
       return;

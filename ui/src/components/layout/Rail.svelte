@@ -37,7 +37,7 @@
     </button>
   {/each}
   {#if editor.templateMode}
-    <button class="item" title={fr.photoZoneHint} onclick={() => addZone(photoZoneElement(editor.page))}><b>🖼</b>{fr.photoZone}</button>
+    <button class="item" title={fr.photoZoneHint} onclick={() => addZone(photoZoneElement(editor.page))}><b>⬚</b>{fr.photoZone}</button>
     <button class="item" title={fr.textZoneHint} onclick={() => addZone(textElement(centeredFrame(editor.page, 120, 20), true))}><b>✎</b>{fr.textZone}</button>
     <button class="item" title={fr.logoHint} onclick={pickLogo}><b>⭐</b>{fr.logo}</button>
   {/if}

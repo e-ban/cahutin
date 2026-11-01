@@ -518,7 +518,7 @@ export const fr = {
   alreadyInMyImages: "Cette image est déjà dans Mes images.",
   keepRefusedChildren: "Cette photo montre des enfants : elle reste dans la photothèque de la classe, avec les autorisations.",
   friezePickTitle: "Images de la frise",
-  picturesMoved: "Les pictogrammes sont maintenant dans le tiroir Images.",
+  picturesMoved: "Les pictogrammes sont dans le tiroir Images.",
   picturesMovedOpen: "Ouvrir Images",
   myImagesEmpty: "Ajoutez ici les images que vous avez trouvées ou dessinées : elles resteront prêtes pour tous vos documents.",
   myImagesWhere: "Elles sont gardées sur cet ordinateur, dans Documents › Cahutin › Images.",

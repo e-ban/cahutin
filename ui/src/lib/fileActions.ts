@@ -10,7 +10,7 @@ import { fr } from "./i18n/fr";
 import { importReportText, placeImported } from "./importPages";
 import { summarizeImport } from "./importSummary";
 import { pendingPaths } from "./photoLibrary";
-import { addRecent, writeRecents } from "./recents";
+import { addRecent, withoutRecent, writeRecents } from "./recents";
 import { missingFamilies } from "./fontNames";
 import type { Document, ImportedPages, ImportOutcome } from "./types";
 import { modal } from "./modal.svelte";
@@ -122,6 +122,31 @@ export async function openDoc() {
   if (!(await confirmLeave())) return;
   const picked = await open({ filters: [{ name: "Carnet (Cahutin)", extensions: ["carnet"] }] });
   if (typeof picked === "string") await openPath(picked, false);
+}
+
+/** Retire un document de la liste des récents (le fichier reste). */
+export function forgetRecent(path: string) {
+  editor.recents = withoutRecent(editor.recents, path);
+  writeRecents(editor.recents);
+}
+
+/** Vide la liste des récents, après confirmation (les fichiers restent). */
+export async function clearRecents() {
+  if (!(await ask(fr.recentsClearConfirm, fr.recentsClear))) return;
+  editor.recents = [];
+  writeRecents([]);
+}
+
+/** Met un document récent à la corbeille de l'ordinateur, après confirmation, et le retire de la liste. */
+export async function trashRecent(path: string, title: string) {
+  if (!(await ask(fr.recentTrashConfirm(title), fr.recentTrash))) return;
+  try {
+    await api.documentTrash(path);
+    forgetRecent(path);
+    editor.notice = fr.recentTrashed(title);
+  } catch (e) {
+    editor.notice = String(e);
+  }
 }
 
 /** Ouvre un document (choisi, ou dans les documents récents). Un récent introuvable est retiré de la liste. */

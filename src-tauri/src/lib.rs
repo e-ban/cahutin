@@ -76,6 +76,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::import_photos,
             commands::existing_paths,
+            commands::document_trash,
             commands::list_importable_in,
             commands::save_document,
             commands::open_document,

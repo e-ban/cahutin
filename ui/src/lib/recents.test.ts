@@ -18,3 +18,10 @@ test("addRecent keeps at most 8 documents", () => {
   expect(list[0].path).toBe("/9.carnet");
   expect(list[7].path).toBe("/2.carnet");
 });
+
+test("a document taken off the list leaves the others in order", async () => {
+  const { withoutRecent } = await import("./recents");
+  const list = [1, 2, 3].map((i) => ({ path: `/d/${i}.carnet`, title: `${i}`, openedAt: i }));
+  expect(withoutRecent(list, "/d/2.carnet").map((r) => r.title)).toEqual(["1", "3"]);
+  expect(withoutRecent(list, "/d/absent.carnet")).toHaveLength(3);
+});

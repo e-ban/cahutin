@@ -16,3 +16,6 @@ export function addRecent(list: Recent[], r: Recent, max = MAX_RECENTS): Recent[
 
 export const readRecents = (): Recent[] => readPref<Recent[]>("recents", []);
 export const writeRecents = (list: Recent[]) => writePref("recents", list);
+
+/** La liste sans ce document. */
+export const withoutRecent = (list: Recent[], path: string): Recent[] => list.filter((r) => r.path !== path);

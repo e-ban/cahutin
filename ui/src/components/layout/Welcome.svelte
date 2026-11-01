@@ -5,7 +5,7 @@
   import PageView from "../PageView.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { listExamples, openExample, previewDocument } from "../../lib/api";
-  import { freshFromHome, importFiles, openDoc, openExampleDoc, openPath } from "../../lib/fileActions";
+  import { clearRecents, forgetRecent, freshFromHome, importFiles, openDoc, openExampleDoc, openPath, trashRecent } from "../../lib/fileActions";
   import type { Document, ExampleInfo } from "../../lib/types";
   import { fr } from "../../lib/i18n/fr";
   import { modal } from "../../lib/modal.svelte";
@@ -27,6 +27,16 @@
     }
   });
   let step = $state<"choices" | "layouts" | "examples">("choices");
+  /** Menu du clic droit sur un document récent. */
+  let menu = $state<{ path: string; title: string; x: number; y: number } | null>(null);
+
+  /** Échap ferme le menu du clic droit, sinon revient aux choix, sinon ferme l'accueil. */
+  function onEscape(e: KeyboardEvent) {
+    if (e.key !== "Escape" || modal.message !== null || editor.showClassPage || editor.showCollection) return;
+    if (menu) menu = null;
+    else if (step !== "choices") step = "choices";
+    else close();
+  }
   // Aperçus des exemples : chargés une fois, à la première visite de l'étape.
   let examples = $state<{ info: ExampleInfo; doc: Document }[]>([]);
 
@@ -80,7 +90,7 @@
 {/snippet}
 
 <!-- La page « Ma classe », par-dessus, garde Échap pour elle. -->
-<svelte:window onkeydown={(e) => e.key === "Escape" && modal.message === null && !editor.showClassPage && !editor.showCollection && (step !== "choices" ? (step = "choices") : close())} />
+<svelte:window onkeydown={onEscape} />
 
 <div class="welcome">
   {#if step === "choices"}
@@ -109,14 +119,17 @@
       <button class="choice" onclick={() => (editor.showCollection = true)}><b>🗂</b><span>{fr.welcomeCollection}</span><small>{fr.welcomeCollectionSub}</small></button>
       <button class="choice" onclick={() => (editor.showClassPage = true)}><b>🧒</b><span>{fr.welcomeClass}</span><small>{fr.welcomeClassSub}</small></button>
     </div>
-    <h2>{fr.recentDocs}</h2>
+    <div class="recents-head">
+      <h2>{fr.recentDocs}</h2>
+      {#if editor.recents.length}<button class="plain" onclick={clearRecents}>{fr.recentsClear}</button>{/if}
+    </div>
     {#if editor.recents.length === 0}
       <p class="hint">{fr.noRecents}</p>
     {:else}
       <ul class="recents">
         {#each editor.recents as r (r.path)}
           {@const doc = previews[r.path]}
-          <li>
+          <li oncontextmenu={(e) => (e.preventDefault(), (menu = { path: r.path, title: r.title, x: e.clientX, y: e.clientY }))}>
             <button class="card" onclick={() => openPath(r.path)} title={fileName(r.path)}>
               <div class="mini small">
                 {#if doc}<PageView page={doc.pages[0]} {doc} zoom={RECENT} />{:else}<span class="blank">📄</span>{/if}
@@ -124,9 +137,21 @@
               <span class="title">{r.title}</span>
               <small>{new Date(r.openedAt).toLocaleDateString("fr-FR")}</small>
             </button>
+            <button class="forget" title={fr.recentForget} aria-label={`${fr.recentForget} : ${r.title}`} onclick={() => forgetRecent(r.path)}>×</button>
           </li>
         {/each}
       </ul>
+      <p class="hint small-hint">{fr.recentsHint}</p>
+    {/if}
+    {#if menu}
+      {@const m = menu}
+      <!-- Menu du clic droit : un clic ailleurs ou Échap le ferme. -->
+      <div class="menu-backdrop" role="presentation" onclick={() => (menu = null)} oncontextmenu={(e) => (e.preventDefault(), (menu = null))}></div>
+      <div class="menu" role="menu" style:left="{m.x}px" style:top="{m.y}px">
+        <button role="menuitem" onclick={() => ((menu = null), openPath(m.path))}>{fr.recentOpen}</button>
+        <button role="menuitem" onclick={() => ((menu = null), forgetRecent(m.path))}>{fr.recentForget}</button>
+        <button role="menuitem" class="danger" onclick={() => ((menu = null), trashRecent(m.path, m.title))}>🗑 {fr.recentTrashMenu}</button>
+      </div>
     {/if}
   {:else if step === "examples"}
     <div class="head">
@@ -288,6 +313,77 @@
   .recents .card {
     width: 100%;
     gap: 6px;
+  }
+  .recents li {
+    position: relative;
+  }
+  /* Toujours visible pour qu'on la trouve, rouge au survol. */
+  .forget {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 22px;
+  }
+  .forget:hover,
+  .forget:focus-visible {
+    background: #d32f2f;
+    border-color: #d32f2f;
+    color: white;
+  }
+  .recents-head {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+  .plain {
+    border-color: transparent;
+    background: transparent;
+    color: var(--muted);
+    text-decoration: underline;
+  }
+  .small-hint {
+    margin-top: 10px;
+    font-size: 13px;
+  }
+  .menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+  }
+  .menu {
+    position: fixed;
+    z-index: 51;
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    padding: 4px;
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  }
+  .menu button {
+    text-align: left;
+    border: 0;
+    background: transparent;
+    padding: 7px 10px;
+  }
+  .menu button:hover {
+    background: #e8f1fb;
+  }
+  .menu .danger {
+    color: #c0392b;
+  }
+  .menu .danger:hover {
+    background: #fdecea;
   }
   .recents .title {
     max-width: 100%;

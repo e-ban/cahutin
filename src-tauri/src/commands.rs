@@ -70,6 +70,21 @@ pub fn import_photos(state: State<'_, AppState>, paths: Vec<String>, on_progress
     Ok(())
 }
 
+/// Seul un document Cahutin (`.carnet`) peut être mis à la corbeille depuis l'accueil.
+fn trashable(path: &std::path::Path) -> bool {
+    path.extension().is_some_and(|e| e.eq_ignore_ascii_case("carnet")) && path.is_file()
+}
+
+/// Met un document à la corbeille de l'ordinateur (d'où on peut le récupérer), jamais un autre fichier.
+#[tauri::command(async)]
+pub fn document_trash(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !trashable(p) {
+        return Err("Seul un document Cahutin (.carnet) peut être supprimé ici.".into());
+    }
+    trash::delete(p).map_err(|_| "Le document n'a pas pu être mis à la corbeille.".to_string())
+}
+
 /// Garde les chemins qui désignent encore un fichier.
 #[tauri::command]
 pub fn existing_paths(paths: Vec<String>) -> Vec<String> {
@@ -570,6 +585,21 @@ pub async fn export_pdf(webview: tauri::Webview, path: String, width_mm: f64, he
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn only_carnet_documents_can_go_to_the_trash() {
+        let dir = tempfile::tempdir().unwrap();
+        let doc = dir.path().join("fiche.CARNET");
+        let other = dir.path().join("notes.txt");
+        std::fs::write(&doc, b"x").unwrap();
+        std::fs::write(&other, b"x").unwrap();
+        assert!(trashable(&doc));
+        assert!(!trashable(&other));
+        assert!(!trashable(dir.path()));
+        assert!(!trashable(&dir.path().join("absent.carnet")));
+        assert!(document_trash(other.to_string_lossy().into_owned()).is_err());
+        assert!(other.exists());
+    }
+
     use super::*;
     use carnet_core::photo::AssetStore;
     use carnet_core::templates::Library;

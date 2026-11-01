@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { blockFrieze, frieze, friezeIn, friezeSettings, pageFrame, resizeFrieze, toggleMotif } from "./decor";
+import { blockFrieze, frieze, friezeIn, friezeSettings, isPageFrame, pageFrame, resizeFrieze, toggleMotif } from "./decor";
 import { ungroup } from "./groups";
 import type { Element, Page } from "./types";
 
@@ -21,6 +21,14 @@ test("pageFrame double makes a grouped pair inside the margin", () => {
   expect(thin[0].group ?? null).toBeNull();
   expect(thin[0].frame).toMatchObject({ x_mm: 8, y_mm: 8, w_mm: 194, h_mm: 281 });
   expect(pageFrame(a4(), "rounded")[0].kind.type === "Shape" && pageFrame(a4(), "rounded")[0].kind.corner_radius_mm).toBe(8);
+});
+
+test("a page frame is told apart from a smaller hollow rectangle", () => {
+  const page = a4();
+  for (const style of ["thin", "thick", "rounded", "double"] as const) expect(pageFrame(page, style).every((e) => isPageFrame(e, page.size))).toBe(true);
+  const [frame] = pageFrame(page, "thin");
+  expect(isPageFrame({ ...frame, frame: { ...frame.frame, w_mm: 80, h_mm: 60 } }, page.size)).toBe(false);
+  expect(isPageFrame({ ...frame, kind: { ...frame.kind, fill: "#ffffff" } as Element["kind"] }, page.size)).toBe(false);
 });
 
 test("frieze top spaces copies evenly within the margins", () => {

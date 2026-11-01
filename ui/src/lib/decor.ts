@@ -44,6 +44,13 @@ export function pageFrame(page: Page, style: FrameStyle): Element[] {
   }
 }
 
+/** Rectangle vide qui entoure presque toute la page : un cadre de page, posé derrière tout. Son intérieur laisse
+ *  passer les clics vers la page, sinon il serait choisi à chaque clic dans le vide. */
+export function isPageFrame(e: Element, size: PageSize): boolean {
+  const k = e.kind;
+  return k.type === "Shape" && k.shape === "Rect" && k.fill === null && e.frame.w_mm >= 0.8 * size.width_mm && e.frame.h_mm >= 0.8 * size.height_mm;
+}
+
 export type FriezeSide = "top" | "bottom" | "around";
 /** Taille des motifs d'une frise et écart minimal entre eux, par défaut. */
 export const FRIEZE_SIZE_MM = 15;

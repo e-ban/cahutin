@@ -6,7 +6,8 @@
   import { mmToPx } from "../../lib/units";
   import type { Frame, ShapeProps } from "../../lib/types";
 
-  let { props, frame, zoom }: { props: ShapeProps; frame: Frame; zoom: number } = $props();
+  // `solid` : l'intérieur d'une forme vide se clique comme celui d'une forme pleine (sinon, le contour seul).
+  let { props, frame, zoom, solid = false }: { props: ShapeProps; frame: Frame; zoom: number; solid?: boolean } = $props();
 
   // Tracé libre (graphisme, chemin) : le sien ; sinon celui de la sorte de forme.
   const path = $derived(props.shape === "Path" ? (props.path ?? undefined) : SHAPE_PATHS[props.shape]);
@@ -32,7 +33,7 @@
   </svg>
 {:else if path}
   <svg class="shape" class:hollow={!props.fill} viewBox="0 0 {SHAPE_VIEWBOX} {SHAPE_VIEWBOX}" preserveAspectRatio="none" aria-hidden="true">
-    {#if !props.fill}<path class="hit" d={path} stroke-width={Math.max(strokePx, HIT_PX)} vector-effect="non-scaling-stroke" />{/if}
+    {#if !props.fill}<path class="hit" class:solid d={path} stroke-width={Math.max(strokePx, HIT_PX)} vector-effect="non-scaling-stroke" />{/if}
     <path
       d={path}
       fill={props.fill ?? "none"}
@@ -44,17 +45,17 @@
     />
   </svg>
 {:else if !props.fill || !isSolid(props.stroke)}
-  <!-- Forme vide (le contour seul se clique, intérieur transparent aux clics) ou bordure en tirets
+  <!-- Forme vide (contour cliquable, intérieur aussi si `solid`) ou bordure en tirets
        (dessinée en SVG : les tirets CSS dépendent du moteur du navigateur). -->
   {@const sw = strokePx}
   {@const r = props.shape === "Ellipse" ? null : Math.max(0, mmToPx(props.corner_radius_mm, zoom) - sw / 2)}
   {@const hollow = !props.fill}
   <svg class="shape" class:hollow width={w} height={h} aria-hidden="true">
     {#if r === null}
-      {#if hollow}<ellipse class="hit" cx={w / 2} cy={h / 2} rx={Math.max(0, w / 2 - sw / 2)} ry={Math.max(0, h / 2 - sw / 2)} stroke-width={Math.max(sw, HIT_PX)} />{/if}
+      {#if hollow}<ellipse class="hit" class:solid cx={w / 2} cy={h / 2} rx={Math.max(0, w / 2 - sw / 2)} ry={Math.max(0, h / 2 - sw / 2)} stroke-width={Math.max(sw, HIT_PX)} />{/if}
       <ellipse cx={w / 2} cy={h / 2} rx={Math.max(0, w / 2 - sw / 2)} ry={Math.max(0, h / 2 - sw / 2)} fill={props.fill ?? "none"} stroke={props.stroke?.color ?? "none"} stroke-width={sw} stroke-dasharray={dash} />
     {:else}
-      {#if hollow}<rect class="hit" x={sw / 2} y={sw / 2} width={Math.max(0, w - sw)} height={Math.max(0, h - sw)} rx={r} stroke-width={Math.max(sw, HIT_PX)} />{/if}
+      {#if hollow}<rect class="hit" class:solid x={sw / 2} y={sw / 2} width={Math.max(0, w - sw)} height={Math.max(0, h - sw)} rx={r} stroke-width={Math.max(sw, HIT_PX)} />{/if}
       <rect x={sw / 2} y={sw / 2} width={Math.max(0, w - sw)} height={Math.max(0, h - sw)} rx={r} fill={props.fill ?? "none"} stroke={props.stroke?.color ?? "none"} stroke-width={sw} stroke-dasharray={dash} />
     {/if}
   </svg>
@@ -78,7 +79,8 @@
     width: 100%;
     height: 100%;
   }
-  /* Forme vide : ni le dessin ni sa boîte ne captent les clics, seul le contour (.hit) les reçoit. */
+  /* Forme vide : ni le dessin ni sa boîte ne captent les clics, seul le tracé .hit les reçoit : son contour, ou
+     toute sa surface quand l'absence de fond n'est qu'un choix d'apparence (.solid). */
   svg.hollow {
     pointer-events: none;
   }
@@ -86,5 +88,8 @@
     fill: none;
     stroke: transparent;
     pointer-events: stroke;
+  }
+  .hit.solid {
+    pointer-events: all;
   }
 </style>

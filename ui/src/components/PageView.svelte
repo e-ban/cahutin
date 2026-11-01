@@ -11,7 +11,8 @@
   import { TEXT_PADDING_MM } from "../lib/richtext";
   import PictoEl from "./elements/PictoEl.svelte";
   import { marks } from "../lib/background";
-  import { CREDIT_SIZE_PT, creditFrame } from "../lib/decor";
+  import { isCutMark } from "../lib/cutMarks";
+  import { CREDIT_SIZE_PT, creditFrame, isPageFrame } from "../lib/decor";
   import { PX_PER_MM, mmToPx, ptToPx } from "../lib/units";
   import type { Crop, Document, Element, Frame, Page, RichText } from "../lib/types";
 
@@ -80,9 +81,14 @@
     return n?.dataset.id ?? null;
   }
 
-  // Forme vide (sans remplissage) : seul son contour se clique, l'intérieur laisse passer vers la page.
+  // Forme vide (sans remplissage) : sa boîte laisse passer les clics, ShapeEl dessine la surface qui les reçoit.
   // Un tableau laisse passer tous les clics vers ses cases.
   const isHollow = (e: Element) => e.kind.type === "Table" || (e.kind.type === "Shape" && e.kind.fill === null && e.kind.shape !== "Line" && e.kind.shape !== "Arrow");
+
+  /** Une forme vide se clique dans tout son intérieur, comme une pleine : l'absence de fond n'est qu'une
+   *  apparence. Sauf ce qui entoure d'autres éléments (cadre de page, repères de découpe) et les tracés de
+   *  graphisme, qui ne se cliquent que sur leur trait. */
+  const solidInside = (e: Element) => e.kind.type === "Shape" && e.kind.shape !== "Path" && !isCutMark(e) && !isPageFrame(e, page.size);
 
   function frameStyle(e: Element): string {
     return rectStyle(e.frame);
@@ -149,7 +155,7 @@
   {:else if e.kind.type === "Image"}
     <PictoEl code={e.kind.code} outline={e.kind.outline === true} />
   {:else if e.kind.type === "Shape"}
-    <ShapeEl props={e.kind} frame={e.frame} {zoom} />
+    <ShapeEl props={e.kind} frame={e.frame} {zoom} solid={solidInside(e)} />
   {:else if e.kind.type === "Table"}
     <TableEl props={e.kind} frame={e.frame} {zoom} />
   {/if}

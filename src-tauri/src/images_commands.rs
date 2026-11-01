@@ -98,7 +98,7 @@ fn free_name(dir: &Path, name: &str) -> String {
 /// Copie les fichiers choisis dans le dossier, sans jamais en écraser un ; ceux qui ne sont pas des images
 /// sont laissés. Rend la liste à jour et le nombre de fichiers laissés.
 pub fn add_in(dir: &Path, paths: &[String]) -> Result<(Vec<MyImage>, usize), String> {
-    std::fs::create_dir_all(dir).map_err(|_| "Le dossier « Mes images » ne peut pas être créé.".to_string())?;
+    std::fs::create_dir_all(dir).map_err(|_| "Le dossier de la collection ne peut pas être créé.".to_string())?;
     let mut refused = 0;
     for p in paths.iter().map(Path::new) {
         let Some(name) = p.file_name().and_then(|n| n.to_str()).filter(|n| is_image_name(n)) else {
@@ -124,7 +124,7 @@ pub struct MyImagesAdded {
 /// Garde une image du document dans le dossier, sous un nom tiré de `name` (sans chemin) : rend `false` si
 /// elle y est déjà, à l'octet près.
 pub fn keep_in(dir: &Path, bytes: &[u8], mime: Mime, name: &str) -> Result<(Vec<MyImage>, bool), String> {
-    std::fs::create_dir_all(dir).map_err(|_| "Le dossier « Mes images » ne peut pas être créé.".to_string())?;
+    std::fs::create_dir_all(dir).map_err(|_| "Le dossier de la collection ne peut pas être créé.".to_string())?;
     let same = list_in(dir).iter().any(|i| i.size == bytes.len() as u64 && std::fs::read(dir.join(&i.name)).is_ok_and(|b| b == bytes));
     if same {
         return Ok((list_in(dir), false));
@@ -272,7 +272,7 @@ pub fn my_images_remove(state: State<'_, AppState>, name: String) -> Result<Vec<
 /// changé : dix clics ne la copient pas dix fois dans le document).
 pub fn use_in(state: &AppState, name: &str) -> Result<AssetMeta, String> {
     let dir = images_dir(state);
-    let image = list_in(&dir).into_iter().find(|i| i.name == name).ok_or("Cette image n'est plus dans « Mes images ».")?;
+    let image = list_in(&dir).into_iter().find(|i| i.name == name).ok_or("Cette image n'est plus dans la collection.")?;
     let key = (image.name.clone(), image.modified, image.size);
     if let Some(meta) = state.my_images.lock().unwrap().get(&key).cloned()
         && state.store.lock().unwrap().get(&meta.id).is_some()

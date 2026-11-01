@@ -18,6 +18,36 @@ export interface Release {
 /** De la plus récente à la plus ancienne. */
 export const RELEASES: Release[] = [
   {
+    version: "0.10",
+    items: [
+      {
+        title: "Graphisme, labyrinthes, symétrie",
+        text: "Tiroir Formes : des lignes de graphisme à repasser (ponts, vagues, boucles…) à la taille de la section, un labyrinthe différent à chaque clic, des dessins à compléter par symétrie et des repères pour écrire.",
+        image: "/nouveautes/0.10/graphisme.webp",
+      },
+      {
+        title: "Des images à colorier",
+        text: "Tiroir Images > Pictogrammes : cochez « À colorier » pour poser les images en contour noir seul, à colorier ou à repasser.",
+        image: "/nouveautes/0.10/colorier.webp",
+      },
+      {
+        title: "Toutes les images au même endroit",
+        text: "Le tiroir Photos devient Images : vos photos, votre collection et les pictogrammes. Vos propres dessins y restent pour tous vos documents ; une image posée s'y ajoute avec « Ajouter à ma collection ».",
+        image: "/nouveautes/0.10/images.webp",
+      },
+      {
+        title: "Votre collection, rangée par thème",
+        text: "Accueil > « Ma collection » : choisissez des images et rangez-les dans un thème (« Automne », « Animaux »), renommez-les, remettez celles retirées. Les thèmes se retrouvent dans le tiroir Images.",
+        image: "/nouveautes/0.10/collection.webp",
+      },
+      {
+        title: "Des frises à votre goût",
+        text: "Une frise peut mêler pictogrammes et images de votre collection. Réglez la taille et l'espacement dans Décors, ou après coup : sélectionnez la frise, puis « Frise » dans sa barre.",
+        image: "/nouveautes/0.10/frise.webp",
+      },
+    ],
+  },
+  {
     version: "0.9",
     items: [
       {

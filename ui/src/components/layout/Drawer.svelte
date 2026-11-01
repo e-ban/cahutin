@@ -47,4 +47,9 @@
     gap: 10px;
     min-height: 0;
   }
+  /* Le tiroir défile : ses blocs gardent leur hauteur (le WebKit écrasait une grille de boutons sous le texte
+     qui la suit quand la fenêtre est haute). */
+  .body > :global(*) {
+    flex-shrink: 0;
+  }
 </style>

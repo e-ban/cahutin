@@ -197,7 +197,8 @@ export const CAPTION_HEIGHT_MM = 10;
  * posée par ce bouton (invite « Légende… »).
  */
 function captionOf(photo: Element): Element | undefined {
-  const f = photo.frame;
+  // La photo telle qu'elle s'affiche : une photo tournée n'occupe pas son cadre d'origine.
+  const f = boundsOf([photo.frame]);
   const bottom = f.y_mm + f.h_mm;
   return editor.page.elements.find((e) => {
     if (e.kind.type !== "Text" || e.id === photo.id) return false;
@@ -227,12 +228,13 @@ export function addCaption(photoId: string) {
   // La légende rejoint le plus petit groupe de la photo (tout son chemin), ou un groupe nouveau avec elle.
   const path = inGrid ? [] : photo.group ? pathOf(photo) : [newId()];
   const group = path[0] ?? null;
-  const f = photo.frame;
+  // Sous la photo telle qu'elle s'affiche (tournée, elle n'occupe pas son cadre d'origine), aussi large qu'elle.
+  const f = boundsOf([photo.frame]);
   // Toujours sur la page (marge de 2 mm en bas), quitte à mordre sur le bas de la photo.
   const maxY = editor.page.size.height_mm - CAPTION_HEIGHT_MM - CAPTION_GAP_MM;
   const caption: Element = withPath({
     id: newId(),
-    frame: { x_mm: f.x_mm, y_mm: Math.round(Math.min(f.y_mm + f.h_mm + CAPTION_GAP_MM, maxY) * 10) / 10, w_mm: f.w_mm, h_mm: CAPTION_HEIGHT_MM, rotation_deg: 0 },
+    frame: { x_mm: Math.round(f.x_mm * 10) / 10, y_mm: Math.round(Math.min(f.y_mm + f.h_mm + CAPTION_GAP_MM, maxY) * 10) / 10, w_mm: Math.round(f.w_mm * 10) / 10, h_mm: CAPTION_HEIGHT_MM, rotation_deg: 0 },
     locked: false,
     zone: false,
     kind: { type: "Text", content: { paragraphs: [] }, style: { font: "Andika", size_pt: 12, color: "#333333", align: "Center" }, prompt: CAPTION_PROMPT },

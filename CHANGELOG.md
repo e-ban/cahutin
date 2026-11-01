@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- La légende d'une photo tournée se place sous la photo telle qu'elle s'affiche, aussi large qu'elle, au lieu de la recouvrir.
 - Recadrer une photo tournée (ou en miroir) : la photo suit maintenant la souris, au lieu d'aller dans le sens qu'elle avait avant d'être tournée.
 - Tourner plus simplement : la poignée de rotation avance par crans de 15° (Maj enfoncée pour tourner librement), et deux boutons de la barre, ↺ et ↻, tournent d'un quart de tour (un groupe autour de son centre).
 - Un clic pour choisir une image ne la déplace plus par mégarde : un bloc ne bouge qu'à partir d'un vrai glisser.

@@ -284,3 +284,25 @@ test("a quarter turn turns one element in place, and a group around its centre",
   expect(c.y_mm - b.y_mm).toBeCloseTo(40, 1);
   expect(b.rotation_deg).toBe(90);
 });
+
+test("the caption of a turned photo goes under the photo as it shows, not over it", async () => {
+  const { addCaption } = await import("./editActions");
+  const doc = newDocument("légende");
+  // Photo de 80 × 40 tournée d'un quart de tour : à l'écran, 40 de large et 80 de haut, de y 100 à 180.
+  doc.pages[0].elements.push({
+    id: "ph",
+    frame: { x_mm: 60, y_mm: 120, w_mm: 80, h_mm: 40, rotation_deg: 90 },
+    locked: false,
+    zone: false,
+    kind: { type: "Photo", asset: "img1", crop: { scale: 1, center_x: 0.5, center_y: 0.5 }, corner_radius_mm: 0, border: null, shadow: false },
+  });
+  editor.reset(doc, null);
+  addCaption("ph");
+  const caption = editor.page.elements.find((e) => e.kind.type === "Text")!;
+  expect(caption.frame.y_mm).toBeGreaterThanOrEqual(180);
+  expect(caption.frame).toMatchObject({ x_mm: 80, w_mm: 40, rotation_deg: 0 });
+  // Un second clic retrouve cette légende au lieu d'en ajouter une autre.
+  editor.editingText = null;
+  addCaption("ph");
+  expect(editor.page.elements.filter((e) => e.kind.type === "Text")).toHaveLength(1);
+});

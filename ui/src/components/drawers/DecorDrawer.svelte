@@ -274,6 +274,12 @@
     right: -3px;
     background: white;
   }
+  .mine-thumb .remove:hover,
+  .mine-thumb .remove:focus-visible {
+    background: #d32f2f;
+    border-color: #d32f2f;
+    color: white;
+  }
   /* Catégories de la classe, en tête et colorées. */
   .chips .classe {
     border-color: #f0c98a;

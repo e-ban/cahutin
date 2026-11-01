@@ -296,6 +296,13 @@ export const fr = {
   thumbMedium: "Moyennes",
   thumbLarge: "Grandes",
   usedInDocument: "Déjà dans le document",
+  photoRemove: "Retirer cette photo",
+  photoRemoveConfirm: (pages: number[]) =>
+    (pages.length === 0
+      ? "Retirer cette photo du document ?"
+      : pages.length === 1
+        ? `Retirer cette photo du document ? Elle est posée page ${pages[0]} : sa case restera, vide.`
+        : `Retirer cette photo du document ? Elle est posée pages ${pages.join(", ")} : ses cases resteront, vides.`) + " Le fichier sur l'ordinateur n'est pas touché.",
   photoClickHint: "Cliquez une photo pour la poser sur la page, ou pour remplir la case photo choisie. Vous pouvez aussi la glisser. Pour changer une photo déjà posée : sélectionnez-la, puis « Remplacer ».",
   noPhotosYet: "Ajoutez les photos de la sortie : elles restent ici, prêtes à être glissées sur les pages.",
   // Polices

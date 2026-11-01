@@ -88,3 +88,24 @@ test("a change that keeps the selected elements keeps the selection itself (open
   editor.updatePage((p) => ({ ...p, elements: [] }));
   expect(editor.selection).toEqual([]);
 });
+
+test("a photo removed from the drawer comes back with undo, on the page and in the drawer", () => {
+  const meta = { id: "ph1", width_px: 40, height_px: 30, mime: "Jpeg" as const };
+  const doc = newDocument("retrait");
+  doc.assets = { ph1: meta };
+  doc.pages[0].elements.push({
+    id: "e1",
+    frame: { x_mm: 0, y_mm: 0, w_mm: 40, h_mm: 30, rotation_deg: 0 },
+    locked: false,
+    zone: false,
+    kind: { type: "Photo", asset: "ph1", crop: { scale: 1, center_x: 0.5, center_y: 0.5 }, corner_radius_mm: 0, border: null, shadow: false },
+  });
+  editor.reset(doc, null);
+  editor.replaceLibrary([{ meta, path: "/p/ph1.jpg", folder: "p" }]);
+  editor.removePhoto("ph1");
+  expect(editor.photos).toHaveLength(0);
+  expect(editor.page.elements[0].kind).toMatchObject({ asset: null });
+  editor.undo();
+  expect(editor.page.elements[0].kind).toMatchObject({ asset: "ph1" });
+  expect(editor.photos.map((p) => p.meta.id)).toEqual(["ph1"]);
+});

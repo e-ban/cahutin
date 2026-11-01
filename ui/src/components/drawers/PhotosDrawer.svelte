@@ -3,12 +3,13 @@
   import { onDestroy } from "svelte";
   import Drawer from "../layout/Drawer.svelte";
   import { assetUrl, listImportableIn } from "../../lib/api";
+  import { ask } from "../../lib/ask";
   import { editor } from "../../lib/docStore.svelte";
   import { ASSET_MIME } from "../../lib/dnd";
   import { usePhoto } from "../../lib/editActions";
   import { importPaths } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
-  import { filterPhotos, folderChips, usedAssetIds, type PhotoFilter } from "../../lib/photoLibrary";
+  import { filterPhotos, folderChips, pagesUsing, usedAssetIds, type PhotoFilter } from "../../lib/photoLibrary";
   import { readPref, writePref } from "../../lib/prefs";
 
   const EXTENSIONS = ["jpg", "jpeg", "png", "webp", "svg", "heic", "heif", "JPG", "JPEG", "PNG", "WEBP", "SVG", "HEIC", "HEIF"];
@@ -46,6 +47,10 @@
   async function pickFiles() {
     const picked = await open({ multiple: true, filters: [{ name: "Images", extensions: EXTENSIONS }] });
     if (picked) await importPaths(Array.isArray(picked) ? picked : [picked]);
+  }
+
+  async function remove(id: string) {
+    if (await ask(fr.photoRemoveConfirm(pagesUsing(editor.doc, id)), fr.photoRemove)) editor.removePhoto(id);
   }
 
   async function pickFolder() {
@@ -89,6 +94,7 @@
     </div>
     <div class="thumbs" style:--thumb="{thumbSize}px">
       {#each shown as p (p.meta.id)}
+        <div class="cell">
         <button
           class="thumb"
           draggable="true"
@@ -102,6 +108,8 @@
           <img src={assetUrl(p.meta.id, true)} alt="" loading="lazy" decoding="async" draggable="false" data-asset={p.meta.id} />
           {#if used.has(p.meta.id)}<span class="check" aria-label={fr.usedInDocument}>✓</span>{/if}
         </button>
+        <button class="remove" title={fr.photoRemove} aria-label={fr.photoRemove} onclick={() => remove(p.meta.id)}>×</button>
+        </div>
       {/each}
     </div>
     <p class="hint">{fr.photoClickHint}</p>
@@ -109,6 +117,30 @@
 </Drawer>
 
 <style>
+  .cell {
+    position: relative;
+  }
+  /* Toujours visible pour qu'on la trouve, rouge au survol. */
+  .remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 18px;
+  }
+  .remove:hover,
+  .remove:focus-visible {
+    background: #d32f2f;
+    border-color: #d32f2f;
+    color: white;
+  }
   .replacing {
     margin: 0;
     padding: 6px 8px;
@@ -170,6 +202,8 @@
   }
   .thumb {
     position: relative;
+    width: 100%;
+    display: block;
     padding: 0;
     border: 0;
     border-radius: 4px;

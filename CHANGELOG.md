@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Tiroir Photos : une croix en haut à droite de chaque photo la retire du document, après confirmation. Si elle est posée sur une page, sa case reste, vide ; le fichier sur l'ordinateur n'est pas touché, et « Annuler » la remet.
 - Mes images : dans le tiroir Décors, « Mes images » garde vos propres images (dessins téléchargés, cliparts, images faites à la main) pour tous vos documents. « Ajouter mes images » les choisit sur l'ordinateur ; un clic en pose une, ou on la glisse sur la page. Une image retirée de la liste n'est pas effacée : elle est rangée dans le sous-dossier Retirées. Elles sont rangées dans Documents/Cahutin/Images ; une image posée est copiée dans le document, qui reste complet si on l'envoie à une collègue ou si l'image est retirée de « Mes images ».
 - Une photo posée deux fois de suite d'un clic se décale un peu au lieu de se cacher sous la première. La barre d'une photo n'affiche plus deux boutons « Remplacer ».
 - Fiches de graphisme : tiroir Formes > Graphisme. Des lignes de ponts, coupes, vagues, boucles, créneaux, dents de scie, traits ou ronds à repasser, à la taille de la section (PS, MS, GS) : un point vert pour commencer, le modèle en trait plein, la suite en pointillés gris. Et des « Chemins à suivre » en pointillés, à étirer entre deux images. Ces tracés s'impriment et s'exportent pour LibreOffice tels quels ; un document qui en contient demande cette version de Cahutin.

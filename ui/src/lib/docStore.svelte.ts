@@ -1,7 +1,7 @@
 // État de l'éditeur : le document (immuable, avec historique), la page courante, la sélection, le zoom.
 import { createHistory, type History } from "./history";
 import { newDocument } from "./factory";
-import type { LibraryPhoto } from "./photoLibrary";
+import { pagesUsing, usedAssetIds, withoutAsset, type LibraryPhoto } from "./photoLibrary";
 import { readRecents, type Recent } from "./recents";
 import { readPref, writePref } from "./prefs";
 import type { AssetMeta, Document, Element, Page } from "./types";
@@ -128,6 +128,9 @@ class Editor {
   undo() {
     this.#history.undo();
     this.#sync();
+    // Une photo retirée revient sur la page : elle revient aussi dans le tiroir.
+    const used = usedAssetIds(this.doc);
+    this.addPhotos(this.#removedPhotos.filter((p) => used.has(p.meta.id)));
   }
 
   redo() {
@@ -204,6 +207,17 @@ class Editor {
       fresh.push(p);
     }
     if (fresh.length) this.photos = [...this.photos, ...fresh];
+  }
+
+  /** Retire une photo du tiroir, et des pages où elle est posée (ses cases restent, vides) : annulable. Le
+   *  fichier sur l'ordinateur n'est pas touché. */
+  #removedPhotos: LibraryPhoto[] = [];
+  removePhoto(id: string) {
+    const gone = this.photos.find((p) => p.meta.id === id);
+    if (gone) this.#removedPhotos.push(gone);
+    this.photos = this.photos.filter((p) => p.meta.id !== id);
+    if (gone?.path) this.carriedPending = this.carriedPending.filter((path) => path !== gone.path);
+    if (pagesUsing(this.doc, id).length) this.commit(withoutAsset(this.doc, id));
   }
 
   /** Document ouvert : la photothèque devient la sienne (ses photos, puis ses photos en attente). */

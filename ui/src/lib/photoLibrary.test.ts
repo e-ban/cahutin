@@ -64,3 +64,12 @@ test("pendingPaths keeps the opened document's paths that are not re-imported ye
   const carried = ["/usb/x.jpg", "/photos/Ferme/b.jpg", "/photos/Ferme/a.jpg"];
   expect(pendingPaths(photos, doc([["a", "c"]]), carried)).toEqual(["/photos/Ferme/b.jpg", "/photos/Ferme/d.jpg", "/usb/x.jpg"]);
 });
+
+test("a photo removed from the document leaves its photo boxes empty, in place", async () => {
+  const { pagesUsing, withoutAsset } = await import("./photoLibrary");
+  const d = doc([["a", "b"], [], ["a"]]);
+  expect(pagesUsing(d, "a")).toEqual([1, 3]);
+  const out = withoutAsset(d, "a");
+  expect(out.pages.map((p) => p.elements.map((e) => (e.kind.type === "Photo" ? e.kind.asset : "?")))).toEqual([[null, "b"], [], [null]]);
+  expect(pagesUsing(out, "a")).toEqual([]);
+});

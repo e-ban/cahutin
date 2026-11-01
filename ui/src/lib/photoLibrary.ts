@@ -52,3 +52,20 @@ export function pendingPaths(photos: LibraryPhoto[], doc: Document, carried: str
   for (const path of carried) if (!inLibrary.has(path) && !out.includes(path)) out.push(path);
   return out;
 }
+
+/** Numéros (à partir de 1) des pages où l'image est posée. */
+export function pagesUsing(doc: Document, id: string): number[] {
+  return doc.pages.flatMap((p, i) => (p.elements.some((e) => elementAssets(e).includes(id)) ? [i + 1] : []));
+}
+
+/** Le document sans l'image : ses cases photo restent, vides (la mise en page ne bouge pas), et les cadres de
+ *  texte perdent leur image de fond. */
+export function withoutAsset(doc: Document, id: string): Document {
+  const strip = (e: Element): Element => {
+    const k = e.kind;
+    if (k.type === "Photo" && k.asset === id) return { ...e, kind: { ...k, asset: null } };
+    if (k.type === "Text" && k.frame?.image === id) return { ...e, kind: { ...k, frame: { ...k.frame, image: null } } };
+    return e;
+  };
+  return { ...doc, pages: doc.pages.map((p) => ({ ...p, elements: p.elements.map(strip) })) };
+}

@@ -35,7 +35,7 @@
 
   const ROTATION_HANDLE_GAP = 44;
 
-  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields" | "repeat" | "styles" | "frieze";
+  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields" | "repeat" | "styles" | "frieze" | "more";
   /** Champs de la classe, remplacés pour chaque élève quand on génère les pages. */
   const CLASS_FIELDS = ["{prénom}", "{PRÉNOM}", "{nom}", "{groupe}", "{âge}", "{anniversaire}"];
   let pop = $state<Pop | null>(null);
@@ -330,7 +330,6 @@
         <button class:on={editor.replacingPhoto} title={fr.replacePhotoHint} onclick={() => ((editor.replacingPhoto = true), editor.openImages("photos"))}>⇄<span class="lbl"> {fr.replace}</span></button>
         <button onclick={() => (editor.cropping = selected.id)}>⛶<span class="lbl"> {fr.crop}</span></button>
         <button title={fr.blurHint} onclick={() => (editor.blurring = ph.asset)}>◍<span class="lbl"> {fr.blurButton}</span></button>
-        <button title={fr.keepInMyImagesHint} onclick={() => ph.asset && myImages.keep(ph.asset)}>⭐<span class="lbl"> {fr.keepInMyImages}</span></button>
         <div class="wrap">
           <button class:on={pop === "corners"} onclick={() => toggle("corners")}>◜<span class="lbl"> {fr.corners}</span></button>
           {#if pop === "corners"}
@@ -355,7 +354,6 @@
             </div>
           {/if}
         </div>
-        <button class:on={ph.shadow} aria-pressed={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}>◩<span class="lbl"> {fr.shadow}</span></button>
         <button onclick={() => addCaption(selected.id)}>✎<span class="lbl"> {fr.caption}</span></button>
         {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
       {/if}
@@ -525,56 +523,60 @@
       {/if}
       {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
     {/if}
-    {#if canMirror}
-      {@const mh = selected ? (selected.kind.type === "Photo" ? !!selected.kind.mirrored : !!selected.flip_h) : false}
-      <button class:on={mh} aria-pressed={mh} title={fr.mirrorHHint} onclick={() => mirrorSelection("h")}>⇋<span class="lbl"> {fr.mirrorH}</span></button>
-      <button class:on={!!selected?.flip_v} aria-pressed={!!selected?.flip_v} title={fr.mirrorVHint} onclick={() => mirrorSelection("v")}>⇅<span class="lbl"> {fr.mirrorV}</span></button>
-    {/if}
-    {#if canRotate}
-      <button title={fr.rotateLeft} aria-label={fr.rotateLeft} onclick={() => rotateSelection(-90)}>↺</button>
-      <button title={fr.rotateRight} aria-label={fr.rotateRight} onclick={() => rotateSelection(90)}>↻</button>
-    {/if}
-    {#if canFrieze}
-      <button title={fr.blockFriezeHint} onclick={addBlockFrieze}>❀<span class="lbl"> {fr.blockFrieze}</span></button>
-    {/if}
-    {#if friezeIds && friezeNow}
-      <div class="wrap">
-        <button class:on={pop === "frieze"} title={fr.friezeSettingsHint} onclick={() => toggle("frieze")}>❀<span class="lbl"> {fr.friezeSettings} ▾</span></button>
-        {#if pop === "frieze"}
-          <div class="pop frieze">
-            <label>{fr.friezeSize} <input type="range" min="6" max="40" step="1" value={friezeNow.size} onchange={(e) => setFrieze(Number(e.currentTarget.value), friezeNow.gap)} /> {friezeNow.size} mm</label>
-            <label>{fr.friezeGap} <input type="range" min="0" max="30" step="1" value={friezeNow.gap} onchange={(e) => setFrieze(friezeNow.size, Number(e.currentTarget.value))} /> {friezeNow.gap} mm</label>
-          </div>
-        {/if}
-      </div>
-    {/if}
-    {#if canCut}
-      <div class="wrap">
-        <button title={fr.repeatHint} onclick={() => toggle("repeat")}>▦<span class="lbl"> {fr.repeat} ▾</span></button>
-        {#if pop === "repeat"}
-          <div class="pop repeat">
-            <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
-            <label>{fr.tableRows} <input type="number" min="1" max="20" bind:value={repeatRows} /></label>
-            <button class="primary" disabled={repeatCols * repeatRows < 2} onclick={() => repeat(false)}>{fr.repeatApply(repeatCols * repeatRows)}</button>
-            <button onclick={() => repeat(true)}>{fr.repeatFill}</button>
-          </div>
-        {/if}
-      </div>
-      <div class="wrap">
-        <button title={fr.cutMarksHint} onclick={() => toggle("cut")}>✂<span class="lbl"> {fr.cutMarks} ▾</span></button>
-        {#if pop === "cut"}
-          <div class="pop list">
-            <button onclick={() => setCutMarks("corners")}>⌜ ⌝ {fr.cutCorners}</button>
-            <button onclick={() => setCutMarks("dashed")}>✂ ┄ {fr.cutDashed}</button>
-            <button onclick={() => setCutMarks(null)}>{fr.cutNone}</button>
-          </div>
-        {/if}
-      </div>
-    {/if}
-    {#if !many}
-      <span class="sep"></span>
-      <button title={fr.more} aria-label={fr.more} onclick={() => (editor.inspectorOpen = true)}>⋯</button>
-    {/if}
+    <!-- Les outils de tous les jours sont dans la barre ; les autres dans « Plus », où s'ouvrent aussi leurs
+         réglages (taille de la frise, répéter, repères de découpe). -->
+    <span class="sep"></span>
+    <div class="wrap">
+      <button class:on={pop === "more" || pop === "frieze" || pop === "repeat" || pop === "cut"} aria-haspopup="menu" title={fr.moreTools} onclick={() => toggle("more")}>⋯<span class="lbl"> {fr.moreTools} ▾</span></button>
+      {#if pop === "more"}
+        {@const ph = selected?.kind.type === "Photo" && selected.kind.asset ? selected.kind : null}
+        <div class="pop list more" role="menu">
+          {#if ph}
+            <button role="menuitem" class:on={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}>◩ {fr.shadow}</button>
+            <button role="menuitem" title={fr.keepInMyImagesHint} onclick={() => ((pop = null), ph.asset && myImages.keep(ph.asset))}>⭐ {fr.keepInMyImages}</button>
+          {/if}
+          {#if canMirror}
+            <button role="menuitem" title={fr.mirrorHHint} onclick={() => mirrorSelection("h")}>⇋ {fr.mirrorH}</button>
+            <button role="menuitem" title={fr.mirrorVHint} onclick={() => mirrorSelection("v")}>⇅ {fr.mirrorV}</button>
+          {/if}
+          {#if canRotate}
+            <button role="menuitem" onclick={() => rotateSelection(-90)}>↺ {fr.rotateLeftShort}</button>
+            <button role="menuitem" onclick={() => rotateSelection(90)}>↻ {fr.rotateRightShort}</button>
+          {/if}
+          {#if canFrieze}
+            <button role="menuitem" title={fr.blockFriezeHint} onclick={() => ((pop = null), addBlockFrieze())}>❀ {fr.blockFriezeAround}</button>
+          {/if}
+          {#if friezeIds && friezeNow}
+            <button role="menuitem" title={fr.friezeSettingsHint} onclick={() => (pop = "frieze")}>❀ {fr.friezeSettingsMenu} ▸</button>
+          {/if}
+          {#if canCut}
+            <button role="menuitem" title={fr.repeatHint} onclick={() => (pop = "repeat")}>▦ {fr.repeat} ▸</button>
+            <button role="menuitem" title={fr.cutMarksHint} onclick={() => (pop = "cut")}>✂ {fr.cutMarks} ▸</button>
+          {/if}
+          {#if !many}
+            <button role="menuitem" onclick={() => ((pop = null), (editor.inspectorOpen = true))}>⚙ {fr.allSettings}</button>
+          {/if}
+        </div>
+      {:else if pop === "frieze" && friezeNow}
+        <div class="pop frieze">
+          <label>{fr.friezeSize} <input type="range" min="6" max="40" step="1" value={friezeNow.size} onchange={(e) => setFrieze(Number(e.currentTarget.value), friezeNow.gap)} /> {friezeNow.size} mm</label>
+          <label>{fr.friezeGap} <input type="range" min="0" max="30" step="1" value={friezeNow.gap} onchange={(e) => setFrieze(friezeNow.size, Number(e.currentTarget.value))} /> {friezeNow.gap} mm</label>
+        </div>
+      {:else if pop === "repeat"}
+        <div class="pop repeat">
+          <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
+          <label>{fr.tableRows} <input type="number" min="1" max="20" bind:value={repeatRows} /></label>
+          <button class="primary" disabled={repeatCols * repeatRows < 2} onclick={() => repeat(false)}>{fr.repeatApply(repeatCols * repeatRows)}</button>
+          <button onclick={() => repeat(true)}>{fr.repeatFill}</button>
+        </div>
+      {:else if pop === "cut"}
+        <div class="pop list">
+          <button onclick={() => setCutMarks("corners")}>⌜ ⌝ {fr.cutCorners}</button>
+          <button onclick={() => setCutMarks("dashed")}>✂ ┄ {fr.cutDashed}</button>
+          <button onclick={() => setCutMarks(null)}>{fr.cutNone}</button>
+        </div>
+      {/if}
+    </div>
   </div>
 {/if}
 
@@ -621,6 +623,15 @@
     padding: 0 8px;
     font-size: 12px;
     color: #b35c00;
+  }
+  /* « Plus » est au bout de la barre : son menu s'aligne sur son bord droit, une ligne par outil. */
+  .pop.more {
+    left: auto;
+    right: 0;
+  }
+  .pop.more > button {
+    white-space: nowrap;
+    text-align: left;
   }
   .pop.frieze {
     min-width: 260px;
@@ -689,8 +700,8 @@
     background: #f3efe8;
   }
   /* Icône et nom écrits par défaut. Avec la préférence « icônes seules » (.compact), seul le nom des outils
-     disparaît (pas celui de l'action principale, .main) : au survol ou au clavier, il apparaît dans une étiquette
-     au-dessus de l'icône, sans rien déplacer dans la barre. */
+     disparaît (pas celui de l'action principale, .main) : au survol ou au clavier, il apparaît aussitôt dans une
+     languette de la barre, au-dessus de l'icône, de la même couleur et collée à son bord, sans rien déplacer. */
   .compact > button:not(.main),
   .compact > .wrap > button:not(.main) {
     position: relative;
@@ -698,38 +709,27 @@
   .compact > button:not(.main) > :global(.lbl),
   .compact > .wrap > button:not(.main) > :global(.lbl) {
     position: absolute;
-    bottom: calc(100% + 9px);
+    /* Le bas de la languette recouvre le bord haut de la barre (marge de 3 px, bord de 1 px) : elle en sort. */
+    bottom: calc(100% + 2px);
     left: 50%;
     transform: translateX(-50%);
-    padding: 4px 9px;
-    border-radius: 6px;
-    background: #2f2a25;
-    color: white;
+    padding: 4px 10px 3px;
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
+    background: white;
+    color: inherit;
     font-size: 13px;
     white-space: nowrap;
     pointer-events: none;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.1s ease 0.15s, visibility 0s linear 0.25s;
-  }
-  /* La petite pointe vers l'icône. */
-  .compact > button:not(.main) > :global(.lbl)::after,
-  .compact > .wrap > button:not(.main) > :global(.lbl)::after {
-    content: "";
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    margin-left: -6px;
-    border: 6px solid transparent;
-    border-top-color: #2f2a25;
+    box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.08);
+    display: none;
   }
   .compact > button:not(.main):hover > :global(.lbl),
   .compact > button:not(.main):focus-visible > :global(.lbl),
   .compact > .wrap > button:not(.main):hover > :global(.lbl),
   .compact > .wrap > button:not(.main):focus-visible > :global(.lbl) {
-    opacity: 1;
-    visibility: visible;
-    transition: opacity 0.1s ease 0.15s, visibility 0s linear 0.15s;
+    display: block;
   }
   /* L'espace entre l'icône et le nom écrit (Svelte retire l'espace au début du nom). */
   .ctx:not(.compact) :global(.lbl)::before,

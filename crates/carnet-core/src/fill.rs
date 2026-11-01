@@ -373,6 +373,7 @@ mod tests {
             group: None,
             kind: ElementKind::Text(TextProps { content: RichText::plain(content), style: TextStyle::default_zone(), prompt: prompt.map(String::from), frame: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         }
     }
 
@@ -385,6 +386,7 @@ mod tests {
             group: None,
             kind: ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         }
     }
 
@@ -600,6 +602,7 @@ mod tests {
                 group: None,
                 kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 3.0, path: None }),
                 subgroups: Vec::new(),
+                flip_h: false, flip_v: false,
             });
             p.elements.push(styled(None, "{PRÉNOM}", "Andika", frame(x + 5.0, 12.0, 80.0, 10.0)));
             p.elements.push(styled(None, "{prénom}", "Andika", frame(x + 5.0, 24.0, 80.0, 10.0)));

@@ -61,7 +61,7 @@ pub(crate) fn frame(x: f64, y: f64, w: f64, h: f64) -> Frame {
 }
 
 pub(crate) fn el(f: Frame, kind: ElementKind) -> Element {
-    Element { id: new_id(), frame: f, locked: false, zone: false, group: None, kind, subgroups: Vec::new() }
+    Element { id: new_id(), frame: f, locked: false, zone: false, group: None, kind, subgroups: Vec::new(), flip_h: false, flip_v: false }
 }
 
 pub(crate) fn text(f: Frame, content: &str, font: &str, size_pt: f64, color: &str, align: Align) -> Element {

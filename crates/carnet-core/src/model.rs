@@ -47,8 +47,8 @@ pub fn renew_ids(page: &mut Page) {
 /// Version la plus récente que cette application sait lire (2 : élément image ; 3 : cadre de texte,
 /// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau, lettres creuses ; 5 : photo en
 /// miroir, lignes d'écriture, styles nommés ; 6 : image à colorier ou en couleur de peau, tracé libre, groupe dans
-/// un groupe).
-pub const FORMAT_VERSION: u32 = 6;
+/// un groupe ; 7 : miroir d'un élément autre qu'une photo, ou de haut en bas).
+pub const FORMAT_VERSION: u32 = 7;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -182,6 +182,15 @@ pub struct Element {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<Id>>", optional)]
     pub subgroups: Vec<Id>,
+    /// Retourné de gauche à droite (dans son cadre, avant la rotation). Pour une photo, c'est `PhotoProps::mirrored`
+    /// qui le dit (lu par les versions plus anciennes) : celui-ci sert aux autres éléments.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub flip_h: bool,
+    /// Retourné de haut en bas (dans son cadre, avant la rotation).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub flip_v: bool,
     pub kind: ElementKind,
 }
 
@@ -510,6 +519,7 @@ mod tests {
                 mirrored: false,
             }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         page.elements.push(Element {
             id: new_id(),
@@ -537,6 +547,7 @@ mod tests {
                 frame: None,
             }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         page.elements.push(Element {
             id: new_id(),
@@ -552,6 +563,7 @@ mod tests {
                 path: None,
             }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         d.assets.insert(
             "a1".into(),
@@ -610,6 +622,7 @@ mod tests {
             group: Some(g.into()),
             kind: ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None }),
             subgroups: sub.iter().map(|s| s.to_string()).collect(),
+            flip_h: false, flip_v: false,
         };
         page.elements = vec![el("g", &["f"]), el("g", &["f"]), el("g", &[])];
         let mut copy = page.clone();
@@ -631,6 +644,7 @@ mod tests {
             group: Some("g".into()),
             kind: ElementKind::Text(TextProps { content: RichText::default(), style: TextStyle::default_zone(), prompt: None, frame: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         };
         let cell = |id: &str, col| GridCell { element_id: id.into(), col, row: 0, col_span: 1, row_span: 1 };
         let table = Element {

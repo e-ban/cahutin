@@ -129,9 +129,18 @@ impl Writer<'_> {
     /// Image OpenMoji : le SVG d'origine, ajouté une seule fois à l'archive.
     fn picture(&mut self, e: &Element, code: &str, outline: bool) -> Result<(), OdgError> {
         let svg = if outline { picto::outline_svg(code) } else { picto::svg(code) }.ok_or_else(|| OdgError::MissingPicture(code.to_string()))?;
-        let path = if outline { format!("Pictures/openmoji-contour-{}.svg", picto::base_code(code)) } else { format!("Pictures/openmoji-{code}.svg") };
+        // En miroir : une copie retournée, nommée `…-miroir-h.svg` (`-v`, `-hv`) pour être relue en miroir.
+        let mirror = match (e.flip_h, e.flip_v) {
+            (false, false) => "",
+            (true, false) => "-miroir-h",
+            (false, true) => "-miroir-v",
+            (true, true) => "-miroir-hv",
+        };
+        let base = if outline { format!("Pictures/openmoji-contour-{}", picto::base_code(code)) } else { format!("Pictures/openmoji-{code}") };
+        let path = format!("{base}{mirror}.svg");
         if !self.pictures.iter().any(|p| p.path == path) {
-            self.pictures.push(Picture { path: path.clone(), media_type: "image/svg+xml", bytes: svg.to_vec() });
+            let bytes = if mirror.is_empty() { Some(svg.to_vec()) } else { picto::mirrored_svg(svg, e.flip_h, e.flip_v) };
+            self.pictures.push(Picture { path: path.clone(), media_type: "image/svg+xml", bytes: bytes.ok_or_else(|| OdgError::MissingPicture(code.to_string()))? });
         }
         let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", vec![("draw:stroke", "none".into()), ("draw:fill", "none".into())])]);
         let mut a = vec![("draw:style-name", style)];
@@ -150,7 +159,7 @@ impl Writer<'_> {
         style.color = CREDIT_COLOR.into();
         style.align = Align::Center;
         let t = TextProps { content: RichText::plain(OPENMOJI_CREDIT_PAGE), style, prompt: None, frame: None };
-        let e = Element { id: String::new(), frame: f, locked: true, zone: false, group: None, kind: ElementKind::Text(t.clone()), subgroups: Vec::new() };
+        let e = Element { id: String::new(), frame: f, locked: true, zone: false, group: None, kind: ElementKind::Text(t.clone()), subgroups: Vec::new(), flip_h: false, flip_v: false };
         self.protect_next = true;
         // Sans image de fond, l'écriture du texte ne peut pas échouer.
         let _ = self.text(&e, &t);
@@ -158,7 +167,7 @@ impl Writer<'_> {
 
     /// Image de la photothèque prérecadrée pour le cadre : LibreOffice reçoit exactement les pixels visibles.
     /// Renvoie son chemin dans l'archive.
-    fn cropped_picture(&mut self, asset_id: &Id, f: &Frame, crop: &Crop, mirrored: bool, name: &str) -> Result<String, OdgError> {
+    fn cropped_picture(&mut self, asset_id: &Id, f: &Frame, crop: &Crop, (flip_h, flip_v): (bool, bool), name: &str) -> Result<String, OdgError> {
         let asset = self.store.get(asset_id).ok_or_else(|| OdgError::MissingAsset(asset_id.clone()))?;
         let img = image::load_from_memory(&asset.bytes).map_err(|_| OdgError::Image)?;
         let r = source_rect(img.width(), img.height(), f.w_mm, f.h_mm, crop);
@@ -166,8 +175,11 @@ impl Writer<'_> {
         let w = (r.w.round() as u32).clamp(1, img.width() - x);
         let h = (r.h.round() as u32).clamp(1, img.height() - y);
         let mut cropped = img.crop_imm(x, y, w, h);
-        if mirrored {
+        if flip_h {
             cropped = cropped.fliph();
+        }
+        if flip_v {
+            cropped = cropped.flipv();
         }
         if w.max(h) > MAX_LONG_EDGE_PX {
             cropped = cropped.resize(MAX_LONG_EDGE_PX, MAX_LONG_EDGE_PX, FilterType::Lanczos3);
@@ -185,7 +197,7 @@ impl Writer<'_> {
 
     fn photo(&mut self, e: &Element, p: &PhotoProps) -> Result<(), OdgError> {
         let Some(asset_id) = &p.asset else { return Ok(()) };
-        let path = self.cropped_picture(asset_id, &e.frame, &p.crop, p.mirrored, &e.id)?;
+        let path = self.cropped_picture(asset_id, &e.frame, &p.crop, (p.mirrored || e.flip_h, e.flip_v), &e.id)?;
         let geo = geometry(&e.frame);
         let decorated = p.corner_radius_mm > 0.0 || p.border.is_some() || p.shadow;
         if !decorated {
@@ -289,7 +301,7 @@ impl Writer<'_> {
         let frame = t.frame.as_ref();
         let mut props: Vec<(&'static str, String)> = match (frame.and_then(|f| f.image.as_ref()), frame.and_then(|f| f.fill.clone())) {
             (Some(image), _) => {
-                let path = self.cropped_picture(image, &e.frame, &Crop::COVER, false, &format!("{}-fond", e.id))?;
+                let path = self.cropped_picture(image, &e.frame, &Crop::COVER, (false, false), &format!("{}-fond", e.id))?;
                 let fill_name = format!("img_{}_fond", e.id);
                 self.reg.fill_image(fill_name.clone(), path);
                 vec![("draw:fill", "bitmap".into()), ("draw:fill-image-name", fill_name), ("style:repeat", "stretch".into())]
@@ -391,7 +403,12 @@ impl Writer<'_> {
         let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", props)]);
         let mut a = vec![("draw:style-name", style)];
         if stroke_only {
-            a.extend(line_ends(&e.frame));
+            let mut ends = line_ends(&e.frame);
+            if e.flip_h {
+                let [x1, y1, x2, y2] = [0, 1, 2, 3].map(|i| ends[i].1.clone());
+                ends = vec![("svg:x1", x2), ("svg:y1", y2), ("svg:x2", x1), ("svg:y2", y1)];
+            }
+            a.extend(ends);
             self.body.empty("draw:line", &attrs(&a));
             return;
         }
@@ -400,7 +417,14 @@ impl Writer<'_> {
             self.body.open("draw:custom-shape", &attrs(&a));
             let viewbox = format!("0 0 {0} {0}", shapes::VIEWBOX);
             let enhanced = format!("{path} N");
-            self.body.empty("draw:enhanced-geometry", &[("svg:viewBox", viewbox.as_str()), ("draw:enhanced-path", enhanced.as_str())]);
+            let mut g = vec![("svg:viewBox", viewbox.as_str()), ("draw:enhanced-path", enhanced.as_str())];
+            if e.flip_h {
+                g.push(("draw:mirror-horizontal", "true"));
+            }
+            if e.flip_v {
+                g.push(("draw:mirror-vertical", "true"));
+            }
+            self.body.empty("draw:enhanced-geometry", &g);
             self.body.close();
             return;
         }

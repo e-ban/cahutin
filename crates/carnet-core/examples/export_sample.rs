@@ -14,7 +14,7 @@ fn gradient_photo(w: u32, h: u32) -> Vec<u8> {
 }
 
 fn element(frame: Frame, kind: ElementKind) -> Element {
-    Element { id: new_id(), frame, locked: false, zone: false, group: None, kind, subgroups: Vec::new() }
+    Element { id: new_id(), frame, locked: false, zone: false, group: None, kind, subgroups: Vec::new(), flip_h: false, flip_v: false }
 }
 
 fn frame(x: f64, y: f64, w: f64, h: f64, r: f64) -> Frame {

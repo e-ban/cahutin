@@ -245,6 +245,29 @@ export function rotateElements(els: Element[], deg: number, center: Point): Elem
   });
 }
 
+/** Un élément retourné dans son cadre, de gauche à droite (`h`) ou de haut en bas (`v`). Le miroir gauche-droite
+ *  d'une photo est celui qu'elle avait déjà (`mirrored`, lu par les versions plus anciennes) ; un texte et un
+ *  tableau ne se retournent pas. */
+export function flipped(e: Element, axis: "h" | "v"): Element {
+  const k = e.kind;
+  if (k.type === "Text" || k.type === "Table") return e;
+  if (axis === "h" && k.type === "Photo") return { ...e, kind: { ...k, mirrored: !k.mirrored } };
+  return axis === "h" ? { ...e, flip_h: !e.flip_h } : { ...e, flip_v: !e.flip_v };
+}
+
+/** Miroir d'un ensemble autour de l'axe passant par `center` : chaque élément change de côté, sa rotation
+ *  s'inverse, et il est lui-même retourné (sauf un texte, qui reste lisible). */
+export function mirrorElements(els: Element[], axis: "h" | "v", center: Point): Element[] {
+  return els.map((e) => {
+    const f = e.frame;
+    const frame =
+      axis === "h"
+        ? { ...f, x_mm: round(2 * center.x_mm - f.x_mm - f.w_mm), rotation_deg: f.rotation_deg ? -f.rotation_deg : 0 }
+        : { ...f, y_mm: round(2 * center.y_mm - f.y_mm - f.h_mm), rotation_deg: f.rotation_deg ? -f.rotation_deg : 0 };
+    return flipped({ ...e, frame }, axis);
+  });
+}
+
 /** Éléments entièrement couverts par le rectangle (coins tournés compris). */
 export function elementsInRect(page: Page, rect: Rect): string[] {
   return page.elements

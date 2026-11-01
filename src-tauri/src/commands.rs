@@ -727,6 +727,7 @@ mod tests {
             group: None,
             kind: carnet_core::ElementKind::Text(carnet_core::TextProps { content: carnet_core::RichText::plain("bonjour"), style, prompt: None, frame: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         doc.pages[0].elements.push(carnet_core::Element {
             id: carnet_core::new_id(),
@@ -736,6 +737,7 @@ mod tests {
             group: None,
             kind: carnet_core::ElementKind::Photo(carnet_core::PhotoProps { asset: Some(meta.id.clone()), crop: carnet_core::Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         doc.assets.insert(meta.id.clone(), meta.clone());
         let path = dir.path().join("sortie.carnet");
@@ -766,6 +768,7 @@ mod tests {
             group: None,
             kind: carnet_core::ElementKind::Text(carnet_core::TextProps { content: carnet_core::RichText::plain("bonjour"), style, prompt: None, frame: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         let path = dir.join(format!("{name}.carnet"));
         save_document_in(&author, &path, &doc).unwrap();
@@ -827,6 +830,7 @@ mod tests {
             group: None,
             kind: carnet_core::ElementKind::Photo(carnet_core::PhotoProps { asset: Some(meta.id.clone()), crop: carnet_core::Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         doc.assets.insert(meta.id.clone(), meta.clone());
         let path = dir.path().join("sortie.carnet");
@@ -868,6 +872,7 @@ mod tests {
                 frame: None,
             }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         let path = dir.path().join("partagé.carnet");
         save_document_in(&author, &path, &doc).unwrap();

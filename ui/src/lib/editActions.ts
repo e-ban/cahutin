@@ -2,7 +2,7 @@
 import { warnConsent } from "./phototheque.svelte";
 import { copyElements, duplicateElements, pasteElements, removeElements, reorder } from "./clipboard";
 import { editor } from "./docStore.svelte";
-import { boundsOf, existingIds, expandSelection, groupElements, pathOf, isLockedSelection, rotateElements, scaleElements, ungroup, withPath } from "./groups";
+import { boundsOf, existingIds, flipped, expandSelection, groupElements, pathOf, isLockedSelection, mirrorElements, rotateElements, scaleElements, ungroup, withPath } from "./groups";
 import { newId } from "./factory";
 import { elementAssets } from "./photoLibrary";
 import { textFrame } from "./elementEdit";
@@ -110,6 +110,19 @@ export function rotateSelection(deg: number) {
   const b = boundsOf(els.map((e) => e.frame));
   const turned = new Map(rotateElements(els, deg, { x_mm: b.x_mm + b.w_mm / 2, y_mm: b.y_mm + b.h_mm / 2 }).map((e) => [e.id, e]));
   editor.updatePage((p) => ({ ...p, elements: p.elements.map((e) => turned.get(e.id) ?? e) }));
+}
+
+/** Miroir de la sélection, de gauche à droite (`h`) ou de haut en bas (`v`) : un élément se retourne dans son
+ *  cadre, un groupe tout entier autour de son centre ; mêmes limites que `rotateSelection`. */
+export function mirrorSelection(axis: "h" | "v") {
+  const ids = selected();
+  const page = editor.page;
+  if (!ids.length || isLockedSelection(page, ids, editor.inside) || ids.some((id) => inTableGroup(page, id) || !!page.grid?.cells.some((c) => c.element_id === id))) return;
+  const els = page.elements.filter((e) => ids.includes(e.id));
+  const b = boundsOf(els.map((e) => e.frame));
+  const done = els.length === 1 ? [flipped(els[0], axis)] : mirrorElements(els, axis, { x_mm: b.x_mm + b.w_mm / 2, y_mm: b.y_mm + b.h_mm / 2 });
+  const byId = new Map(done.map((e) => [e.id, e]));
+  editor.updatePage((p) => ({ ...p, elements: p.elements.map((e) => byId.get(e.id) ?? e) }));
 }
 
 /** Grouper la sélection (Ctrl+G) : un seul pas d'annulation. */

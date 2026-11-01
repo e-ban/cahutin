@@ -74,6 +74,7 @@ fn new_cell(group: &Id) -> Element {
         group: Some(group.clone()),
         kind: text_cell_kind(),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     }
 }
 
@@ -104,6 +105,7 @@ pub fn add_table(page: &mut Page, frame: Frame, cols: u8, rows: u8) -> Id {
             border: Some(default_border()),
         }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     };
     let id = table.id.clone();
     page.elements.extend(elements);
@@ -488,6 +490,7 @@ pub fn dissolve(page: &mut Page, table: &str) -> Result<(), TableError> {
                     group: t.group.clone(),
                     kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Line, fill: None, stroke: Some(stroke.clone()), corner_radius_mm: 0.0, path: None }),
                     subgroups: Vec::new(),
+                    flip_h: false, flip_v: false,
                 }
             })
             .collect(),

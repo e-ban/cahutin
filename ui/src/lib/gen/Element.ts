@@ -15,4 +15,13 @@ group?: string | null,
  * Groupes dans le groupe, du plus large au plus petit : « Dissocier » n'enlève qu'un niveau. Vide le
  * plus souvent, et sans effet sans `group`.
  */
-subgroups?: Array<string>, kind: ElementKind, };
+subgroups?: Array<string>, 
+/**
+ * Retourné de gauche à droite (dans son cadre, avant la rotation). Pour une photo, c'est `PhotoProps::mirrored`
+ * qui le dit (lu par les versions plus anciennes) : celui-ci sert aux autres éléments.
+ */
+flip_h?: boolean, 
+/**
+ * Retourné de haut en bas (dans son cadre, avant la rotation).
+ */
+flip_v?: boolean, kind: ElementKind, };

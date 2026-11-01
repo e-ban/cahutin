@@ -153,6 +153,7 @@ mod tests {
                 mirrored: false,
             }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         }
     }
 
@@ -165,6 +166,7 @@ mod tests {
             group: None,
             kind: ElementKind::Text(TextProps { content, style: TextStyle::default_zone(), prompt: prompt.map(String::from), frame: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         }
     }
 
@@ -265,6 +267,29 @@ mod tests {
     }
 
     /// Une image à colorier part en contour noir et revient à colorier.
+    /// Une étoile, un pictogramme et une flèche en miroir : LibreOffice reçoit le miroir (géométrie, style de
+    /// l'image, bouts de la flèche échangés), et la relecture d'un export retrouve celui des deux premiers.
+    #[test]
+    fn mirrored_shapes_and_pictures_go_to_libreoffice_and_come_back() {
+        let star = Element { flip_h: true, ..shape_el(ShapeKind::Star, frame(20.0, 20.0, 30.0, 30.0)) };
+        let picto = Element { flip_v: true, ..picture_el("1F98A", None) };
+        let arrow = Element { flip_h: true, ..shape_el(ShapeKind::Arrow, frame(20.0, 100.0, 60.0, 10.0)) };
+        let doc = doc_with(vec![star, picto, arrow]);
+        assert_eq!(crate::native::written_version(&doc), 7);
+        let content = export(&doc, &AssetStore::default()).xml("content.xml");
+        assert!(content.contains(r#"draw:mirror-horizontal="true""#), "{content}");
+        assert!(content.contains("openmoji-1F98A-miroir-v.svg"));
+        // La flèche part de la droite (80 mm) vers la gauche (20 mm).
+        assert!(content.contains(r#"svg:x1="80.000mm""#) && content.contains(r#"svg:x2="20.000mm""#), "{content}");
+        let mut buf = Cursor::new(Vec::new());
+        export_odg(&doc, &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
+        buf.set_position(0);
+        let back = crate::import::odg::read_drawing(buf, &[]).unwrap();
+        let els = &back.pages[0].elements;
+        assert!(els.iter().any(|e| matches!(&e.kind, ElementKind::Shape(_)) && e.flip_h && !e.flip_v));
+        assert!(els.iter().any(|e| matches!(&e.kind, ElementKind::Image(_)) && e.flip_v && !e.flip_h));
+    }
+
     #[test]
     fn an_outlined_picture_goes_and_comes_back_as_an_outline() {
         let el = Element {
@@ -275,6 +300,7 @@ mod tests {
             group: None,
             kind: ElementKind::Image(ImageProps { code: "1F98A".into(), outline: Some(true) }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         };
         let mut e = export(&doc_with(vec![el.clone()]), &AssetStore::default());
         assert_eq!(e.read("Pictures/openmoji-contour-1F98A.svg"), crate::picto::outline_svg("1F98A").unwrap());
@@ -299,6 +325,7 @@ mod tests {
             group: None,
             kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Path, fill: None, stroke: Some(Stroke { width_mm: 0.8, color: "#9e9e9e".into(), style: Some(StrokeStyle::Dotted) }), corner_radius_mm: 0.0, path: Some(path.into()) }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         };
         let mut buf = Cursor::new(Vec::new());
         export_odg(&doc_with(vec![shape(bridges)]), &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
@@ -457,6 +484,7 @@ mod tests {
             group: None,
             kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: stroke(style), corner_radius_mm: 0.0, path: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         };
         let mut e = export(&doc_with(vec![shape(StrokeStyle::Dashed), shape(StrokeStyle::Dotted), shape(StrokeStyle::Solid)]), &AssetStore::default());
         let content = e.xml("content.xml");
@@ -682,6 +710,7 @@ mod tests {
                 path: None,
             }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         }
     }
 
@@ -724,6 +753,7 @@ mod tests {
             group: group.map(String::from),
             kind: ElementKind::Image(ImageProps { code: code.into(), outline: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         }
     }
 

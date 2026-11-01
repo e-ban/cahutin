@@ -196,6 +196,7 @@ pub fn block_element(b: &Block) -> Element {
             frame: None,
         }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     }
 }
 

@@ -29,7 +29,7 @@ mod tests {
     use std::io::{Cursor, Write};
 
     fn el(kind: ElementKind, group: Option<&str>) -> Element {
-        Element { id: new_id(), frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 50.0, h_mm: 30.0, rotation_deg: 0.0 }, locked: false, zone: false, group: group.map(String::from), kind, subgroups: Vec::new() }
+        Element { id: new_id(), frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 50.0, h_mm: 30.0, rotation_deg: 0.0 }, locked: false, zone: false, group: group.map(String::from), kind, subgroups: Vec::new(), flip_h: false, flip_v: false }
     }
 
     fn text() -> ElementKind {

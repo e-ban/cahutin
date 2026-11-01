@@ -386,6 +386,7 @@ pub fn builtin() -> Vec<Template> {
             frame: None,
         }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     });
 
     vec![
@@ -749,6 +750,7 @@ mod tests {
             group: None,
             kind: ElementKind::Photo(PhotoProps { asset: Some(logo_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         let t = from_page("Mon modèle", &page, &store);
         assert_eq!(t.info.name, "Mon modèle");
@@ -780,6 +782,7 @@ mod tests {
             group: None,
             kind,
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         };
         page.elements.push(free(ElementKind::Photo(PhotoProps { asset: Some(child_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false })));
         page.elements.push(free(ElementKind::Text(TextProps { content: RichText::plain("Léa a ri"), style: TextStyle::default_zone(), prompt: None, frame: None })));
@@ -864,6 +867,7 @@ mod tests {
                 frame: Some(TextFrame { image: Some(id.clone()), ..TextFrame::default() }),
             }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         let t = from_page("étiquettes", &page, &store);
         let ElementKind::Text(text) = &t.page.elements[0].kind else { panic!() };
@@ -883,6 +887,7 @@ mod tests {
             group: Some("g".into()),
             kind,
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         };
         page.elements.push(base(ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None })));
         page.elements.push(base(ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false })));

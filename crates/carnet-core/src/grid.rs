@@ -44,6 +44,7 @@ fn empty_photo_zone() -> Element {
             mirrored: false,
         }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     }
 }
 
@@ -276,6 +277,7 @@ mod tests {
             group: None,
             kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0, path: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         };
         p.elements.push(band);
         set_grid(&mut p, 2, 3);

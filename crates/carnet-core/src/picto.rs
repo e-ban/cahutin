@@ -28,6 +28,22 @@ pub fn svg(code: &str) -> Option<&'static [u8]> {
     bank().get(code).map(Vec::as_slice)
 }
 
+/// L'image retournée (de gauche à droite `h`, de haut en bas `v`) : son contenu dans un groupe qui la retourne
+/// à l'intérieur de son `viewBox`. LibreOffice n'applique pas le miroir d'une image SVG : l'export en écrit une
+/// copie retournée.
+pub fn mirrored_svg(svg: &[u8], h: bool, v: bool) -> Option<Vec<u8>> {
+    let text = std::str::from_utf8(svg).ok()?;
+    let open = text.find("<svg")?;
+    let open_end = open + text[open..].find('>')? + 1;
+    let close = text.rfind("</svg>")?;
+    let vb = text[open..open_end].split("viewBox=\"").nth(1)?.split('"').next()?;
+    let n: Vec<f64> = vb.split([' ', ',']).filter(|s| !s.is_empty()).filter_map(|s| s.parse().ok()).collect();
+    let [x, y, w, hh] = n[..] else { return None };
+    let (a, d) = (if h { -1.0 } else { 1.0 }, if v { -1.0 } else { 1.0 });
+    let (e, f) = (if h { 2.0 * x + w } else { 0.0 }, if v { 2.0 * y + hh } else { 0.0 });
+    Some(format!("{}<g transform=\"matrix({a} 0 0 {d} {e} {f})\">{}</g>{}", &text[..open_end], &text[open_end..close], &text[close..]).into_bytes())
+}
+
 /// Version au trait noir (à colorier) de l'image ; une couleur de peau n'en a pas d'autre que celle de
 /// l'image de base.
 pub fn outline_svg(code: &str) -> Option<&'static [u8]> {

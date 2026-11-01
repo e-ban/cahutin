@@ -103,6 +103,7 @@ mod tests {
             group: None,
             kind: ElementKind::Shape(ShapeProps { shape: kind, fill: fill.map(String::from), stroke: None, corner_radius_mm: 0.0, path: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         }
     }
 

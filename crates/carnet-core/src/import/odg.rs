@@ -329,7 +329,7 @@ fn rotate_translate(t: &str) -> Option<(f64, f64, f64)> {
 }
 
 fn element(frame: Frame, kind: ElementKind) -> Element {
-    Element { id: new_id(), frame, locked: false, zone: false, group: None, kind, subgroups: Vec::new() }
+    Element { id: new_id(), frame, locked: false, zone: false, group: None, kind, subgroups: Vec::new(), flip_h: false, flip_v: false }
 }
 
 /// Caractères de la zone privée (puces des polices de symboles : OpenSymbol, Symbol, Wingdings) : « • ».
@@ -551,13 +551,18 @@ impl<R: Read + Seek> PageReader<'_, R> {
         let image = images[0];
         // Image de la banque OpenMoji, telle que l'export de Cahutin la range : elle redevient une image de la banque.
         // Une image à colorier est rangée sous `openmoji-contour-<code>.svg`.
+        // En miroir, l'export de Cahutin écrit une copie retournée nommée `…-miroir-h.svg` (`-v`, `-hv`).
         let name = image.attribute((XLINK, "href")).and_then(|h| h.strip_prefix("Pictures/openmoji-")).and_then(|h| h.strip_suffix(".svg"));
+        let (name, flip_h, flip_v) = match name.and_then(|n| n.rsplit_once("-miroir-")) {
+            Some((n, m)) if matches!(m, "h" | "v" | "hv") => (Some(n), m.contains('h'), m.contains('v')),
+            _ => (name, false, false),
+        };
         let (code, outline) = match name.map(|n| n.strip_prefix("contour-")) {
             Some(Some(c)) => (Some(c), Some(true)),
             _ => (name, None),
         };
         if let Some(code) = code.filter(|c| crate::picto::svg(c).is_some()) {
-            self.items.push(Item::Element(Box::new(element(frame, ElementKind::Image(ImageProps { code: code.to_string(), outline })))));
+            self.items.push(Item::Element(Box::new(Element { flip_h, flip_v, ..element(frame, ElementKind::Image(ImageProps { code: code.to_string(), outline })) })));
             return;
         }
         if !images.iter().filter_map(|i| i.attribute((XLINK, "href"))).any(|href| self.photo(frame, href, 0.0)) {
@@ -585,6 +590,17 @@ impl<R: Read + Seek> PageReader<'_, R> {
         let photo = PhotoProps { asset: Some(asset), crop: Crop::COVER, corner_radius_mm, border: None, shadow: false, mirrored: false };
         self.items.push(Item::Element(Box::new(element(frame, ElementKind::Photo(photo)))));
         true
+    }
+
+    /// Le miroir d'une forme LibreOffice (`draw:mirror-horizontal`, `draw:mirror-vertical` de sa géométrie)
+    /// passe à la forme qui vient d'être lue.
+    fn mirror_last_shape(&mut self, n: Node) {
+        let Some(g) = n.children().find(|c| c.has_tag_name((DRAW, "enhanced-geometry"))) else { return };
+        let on = |a: &str| g.attribute((DRAW, a)) == Some("true");
+        if let Some(Item::Element(e)) = self.items.last_mut() {
+            e.flip_h = on("mirror-horizontal");
+            e.flip_v = on("mirror-vertical");
+        }
     }
 
     /// Une forme remplie d'une image (la façon de LibreOffice de poser une photo dans un cadre, arrondi ou non) :
@@ -647,9 +663,13 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 }
             }
             "custom-shape" => match (frame_of(n), custom_shape_kind(n), free_path(n)) {
-                (Some(f), Some(kind), _) => self.shape(n, f, kind),
+                (Some(f), Some(kind), _) => {
+                    self.shape(n, f, kind);
+                    self.mirror_last_shape(n);
+                }
                 (Some(f), None, Some(path)) => {
                     self.shape(n, f, ShapeKind::Path);
+                    self.mirror_last_shape(n);
                     if let Some(Item::Element(e)) = self.items.last_mut()
                         && let ElementKind::Shape(s) = &mut e.kind
                     {

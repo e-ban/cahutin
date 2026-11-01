@@ -135,6 +135,27 @@
   }
 </script>
 
+{#snippet content(e: Element)}
+  {#if e.kind.type === "Photo"}
+    <PhotoEl
+      element={e}
+      props={cropOf(e) ? { ...e.kind, crop: cropOf(e)! } : e.kind}
+      meta={e.kind.asset ? (doc.assets[e.kind.asset] ?? editor.assetMeta(e.kind.asset)) : undefined}
+      {zoom}
+    />
+  {:else if e.kind.type === "Text"}
+    <!-- Une page qu'on regarde sans la modifier (aperçus, miniatures) ne montre pas « Texte trop long ». -->
+    <TextEl element={e} props={e.kind} {zoom} editing={e.id === editingText} alerts={!!onselect} ondone={(content) => ontextdone?.(e.id, content)} />
+  {:else if e.kind.type === "Image"}
+    <PictoEl code={e.kind.code} outline={e.kind.outline === true} />
+  {:else if e.kind.type === "Shape"}
+    <ShapeEl props={e.kind} frame={e.frame} {zoom} />
+  {:else if e.kind.type === "Table"}
+    <TableEl props={e.kind} frame={e.frame} {zoom} />
+  {/if}
+{/snippet}
+
+
 <svelte:window
   onkeydown={(ev) => {
     if (cropping && (ev.key === "Escape" || ev.key === "Enter")) endCrop();
@@ -214,7 +235,7 @@
         if (e.id !== cropping || !dragFrom || e.kind.type !== "Photo" || !e.kind.asset) return;
         const meta = doc.assets[e.kind.asset] ?? editor.assetMeta(e.kind.asset);
         if (!meta) return;
-        liveCrop = dragCrop(liveCrop ?? e.kind.crop, ev.clientX - dragFrom.x, ev.clientY - dragFrom.y, meta, e.frame, zoom, !!e.kind.mirrored);
+        liveCrop = dragCrop(liveCrop ?? e.kind.crop, ev.clientX - dragFrom.x, ev.clientY - dragFrom.y, meta, e.frame, zoom, !!e.kind.mirrored, !!e.flip_v);
         dragFrom = { x: ev.clientX, y: ev.clientY };
       }}
       onpointerup={() => (dragFrom = null)}
@@ -234,22 +255,11 @@
         if (e.kind.type === "Photo" && !e.locked) drop(ev, e.id);
       }}
     >
-      {#if e.kind.type === "Photo"}
-        <PhotoEl
-          element={e}
-          props={cropOf(e) ? { ...e.kind, crop: cropOf(e)! } : e.kind}
-          meta={e.kind.asset ? (doc.assets[e.kind.asset] ?? editor.assetMeta(e.kind.asset)) : undefined}
-          {zoom}
-        />
-      {:else if e.kind.type === "Text"}
-        <!-- Une page qu'on regarde sans la modifier (aperçus, miniatures) ne montre pas « Texte trop long ». -->
-        <TextEl element={e} props={e.kind} {zoom} editing={e.id === editingText} alerts={!!onselect} ondone={(content) => ontextdone?.(e.id, content)} />
-      {:else if e.kind.type === "Image"}
-        <PictoEl code={e.kind.code} outline={e.kind.outline === true} />
-      {:else if e.kind.type === "Shape"}
-        <ShapeEl props={e.kind} frame={e.frame} {zoom} />
-      {:else if e.kind.type === "Table"}
-        <TableEl props={e.kind} frame={e.frame} {zoom} />
+      <!-- En miroir : le dessin est retourné dans son cadre (sous la rotation) ; un texte ne l'est jamais. -->
+      {#if (e.flip_h || e.flip_v) && e.kind.type !== "Text" && e.kind.type !== "Table"}
+        <div class="flip" style:transform="scale({e.flip_h ? -1 : 1}, {e.flip_v ? -1 : 1})">{@render content(e)}</div>
+      {:else}
+        {@render content(e)}
       {/if}
     </div>
   {/each}
@@ -263,6 +273,10 @@
 </div>
 
 <style>
+  .flip {
+    position: absolute;
+    inset: 0;
+  }
   .page {
     position: relative;
     background: white;

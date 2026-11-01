@@ -34,10 +34,10 @@ const WHEEL_STEP = 1.1;
 
 /** Glisser la photo dans son cadre : la partie visible se déplace en sens inverse, sans sortir de l'image. Le
  *  glisser à l'écran est ramené dans le cadre : une photo tournée (ou en miroir) suit la souris. */
-export function dragCrop(crop: Crop, screenDx: number, screenDy: number, meta: AssetMeta, frame: Frame, zoom: number, mirrored = false): Crop {
+export function dragCrop(crop: Crop, screenDx: number, screenDy: number, meta: AssetMeta, frame: Frame, zoom: number, mirrored = false, flippedV = false): Crop {
   const t = (-frame.rotation_deg * Math.PI) / 180;
   const dxPx = (screenDx * Math.cos(t) - screenDy * Math.sin(t)) * (mirrored ? -1 : 1);
-  const dyPx = screenDx * Math.sin(t) + screenDy * Math.cos(t);
+  const dyPx = (screenDx * Math.sin(t) + screenDy * Math.cos(t)) * (flippedV ? -1 : 1);
   const r = sourceRect(meta.width_px, meta.height_px, frame.w_mm, frame.h_mm, crop);
   const mmPerImgPx = frame.w_mm / r.w;
   const toImg = (px: number) => px / (PX_PER_MM * zoom) / mmPerImgPx;

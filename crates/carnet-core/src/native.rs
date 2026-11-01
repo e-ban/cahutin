@@ -85,6 +85,10 @@ pub fn written_version(doc: &Document) -> u32 {
     };
     // Image à colorier (contour), ou en couleur de peau : la banque d'une version plus ancienne ne l'a pas.
     // Groupe dans un groupe : une version plus ancienne le fondrait dans le grand groupe.
+    // Miroir d'un élément autre qu'une photo de gauche à droite, ou de haut en bas : inconnu avant la version 7.
+    if elements().any(|e| e.flip_h || e.flip_v) {
+        return 7;
+    }
     let v6 = |e: &Element| {
         !e.subgroups.is_empty()
             || match &e.kind {
@@ -257,6 +261,7 @@ mod tests {
                 mirrored: false,
             }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         }
     }
 
@@ -358,6 +363,7 @@ mod tests {
                 group: None,
                 kind: ElementKind::Text(TextProps { content: RichText::plain("bonjour"), style, prompt: None, frame: None }),
                 subgroups: Vec::new(),
+                flip_h: false, flip_v: false,
             });
         }
         let mut buf = Cursor::new(Vec::new());
@@ -385,6 +391,7 @@ mod tests {
             group: None,
             kind: ElementKind::Text(TextProps { content: RichText::plain("bonjour"), style, prompt: None, frame: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         let mut buf = Cursor::new(Vec::new());
         save(&doc, &AssetStore::default(), &fonts, &mut buf).unwrap();
@@ -415,6 +422,7 @@ mod tests {
                 group: None,
                 kind: ElementKind::Text(TextProps { content: RichText::plain("x"), style, prompt: None, frame: None }),
                 subgroups: Vec::new(),
+                flip_h: false, flip_v: false,
             });
         }
         let mut buf = Cursor::new(Vec::new());
@@ -433,6 +441,7 @@ mod tests {
             group: group.map(String::from),
             kind: ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         }
     }
 
@@ -486,6 +495,7 @@ mod tests {
             group: None,
             kind: ElementKind::Table(TableProps { cols: vec![1.0], rows: vec![1.0], cells: vec![], border: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         assert_eq!(written_version(&doc), 4);
     }
@@ -558,9 +568,9 @@ mod tests {
     }
 
     #[test]
-    fn newer_than_6_is_refused() {
+    fn newer_than_7_is_refused() {
         let mut doc = Document::new("futur");
-        doc.format_version = 7;
+        doc.format_version = 8;
         let json = serde_json::to_vec(&doc).unwrap();
         let mut buf = Cursor::new(Vec::new());
         {
@@ -571,7 +581,7 @@ mod tests {
         }
         buf.set_position(0);
         let err = load(buf).err().unwrap();
-        assert_eq!(err, NativeError::NewerVersion(7));
+        assert_eq!(err, NativeError::NewerVersion(8));
         assert!(err.message_fr().contains("plus récente"));
     }
 
@@ -584,6 +594,7 @@ mod tests {
             group: None,
             kind: ElementKind::Text(TextProps { content: RichText::plain("x"), style, prompt: None, frame }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         }
     }
 

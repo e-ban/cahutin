@@ -10,7 +10,7 @@
   import { alignFrames, distributeFrames, type AlignMode } from "../lib/align";
   import { placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
-  import { addCaption, deleteSelection, groupSelection, rotateSelection, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
+  import { addCaption, deleteSelection, groupSelection, mirrorSelection, rotateSelection, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
   import { assetUrl } from "../lib/api";
   import { applyStyle, followsStyle, lookOf, newStyleFrom, redefineStyle, stylesOf } from "../lib/namedStyles";
   import { fitCount, repeatBlock } from "../lib/repeat";
@@ -146,6 +146,9 @@
   const canRotate = $derived(
     editor.selection.length > 0 && !editor.selection.some((id) => inGrid(id) || isTableCell(editor.page, id) || inTableGroup(editor.page, id)) && !isLockedSelection(editor.page, editor.selection, editor.inside),
   );
+
+  /** Miroir : comme la rotation, et seulement s'il y a autre chose qu'un texte (un texte reste lisible). */
+  const canMirror = $derived(canRotate && editor.page.elements.some((e) => editor.selection.includes(e.id) && e.kind.type !== "Text" && e.kind.type !== "Table"));
 
   /** Repères de découpe : pas sur une case de grille ou de tableau, ni sur un bloc verrouillé. */
   const canCut = $derived(
@@ -351,7 +354,6 @@
           {/if}
         </div>
         <button class:on={ph.shadow} aria-pressed={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}>◩<span class="lbl"> {fr.shadow}</span></button>
-        <button class:on={!!ph.mirrored} aria-pressed={!!ph.mirrored} title={fr.mirrorHint} onclick={() => updatePhoto({ mirrored: !ph.mirrored })}>⇋<span class="lbl"> {fr.mirror}</span></button>
         <button onclick={() => addCaption(selected.id)}>✎<span class="lbl"> {fr.caption}</span></button>
         {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
       {/if}
@@ -520,6 +522,11 @@
         </div>
       {/if}
       {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
+    {/if}
+    {#if canMirror}
+      {@const mh = selected ? (selected.kind.type === "Photo" ? !!selected.kind.mirrored : !!selected.flip_h) : false}
+      <button class:on={mh} aria-pressed={mh} title={fr.mirrorHHint} onclick={() => mirrorSelection("h")}>⇋<span class="lbl"> {fr.mirrorH}</span></button>
+      <button class:on={!!selected?.flip_v} aria-pressed={!!selected?.flip_v} title={fr.mirrorVHint} onclick={() => mirrorSelection("v")}>⇅<span class="lbl"> {fr.mirrorV}</span></button>
     {/if}
     {#if canRotate}
       <button title={fr.rotateLeft} aria-label={fr.rotateLeft} onclick={() => rotateSelection(-90)}>↺</button>

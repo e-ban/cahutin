@@ -44,6 +44,7 @@ fn text_element(c: &Case) -> Element {
         group: None,
         kind: ElementKind::Text(TextProps { content: RichText::plain(&c.text), style, prompt: None, frame: None }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     }
 }
 
@@ -136,6 +137,7 @@ fn photo_document(store: &mut AssetStore, n: usize) -> Document {
                 mirrored: false,
             }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         doc.assets.insert(a.meta.id.clone(), a.meta.clone());
         store.insert(a).unwrap();
@@ -223,6 +225,7 @@ fn user_font_is_embedded_in_rendering() {
         group: None,
         kind: ElementKind::Text(TextProps { content: RichText::plain("Police ajoutée"), style, prompt: None, frame: None }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     });
     let (_dir, pdf) = render_with(&doc, &AssetStore::default(), &FontSet::with_user_dir(fonts_dir.path()));
     let fonts = run(Command::new("pdffonts").arg(&pdf));
@@ -248,6 +251,7 @@ fn system_font_is_embedded_in_rendering() {
         group: None,
         kind: ElementKind::Text(TextProps { content: RichText::plain("Police du poste"), style, prompt: None, frame: None }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     });
     let (_dir, pdf) = render_with(&doc, &AssetStore::default(), &fonts);
     let out = run(Command::new("pdffonts").arg(&pdf));
@@ -335,6 +339,7 @@ fn drawn_shapes_keep_their_geometry() {
             group: None,
             kind: ElementKind::Shape(ShapeProps { shape: kind, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0, path: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         doc.pages.push(page);
     }
@@ -368,6 +373,7 @@ fn arrow_has_its_head() {
             path: None,
         }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     });
     let (_dir, pdf) = render(&doc, &AssetStore::default());
     let (w, _, px) = gray_page(&pdf, 1, DPI);
@@ -391,6 +397,7 @@ fn picture_element(code: &str, x: f64, group: Option<&str>) -> Element {
         group: group.map(String::from),
         kind: ElementKind::Image(ImageProps { code: code.into(), outline: None }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     }
 }
 
@@ -532,6 +539,7 @@ fn several_fonts_in_one_text_are_rendered() {
         group: None,
         kind: ElementKind::Text(TextProps { content: rt, style: TextStyle::default_zone(), prompt: None, frame: None }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     });
     let (_dir, pdf) = render(&doc, &AssetStore::default());
     let fonts = run(Command::new("pdffonts").arg(&pdf));
@@ -561,6 +569,7 @@ fn vertical_alignment_and_padding_are_rendered() {
             group: None,
             kind: ElementKind::Text(TextProps { content: RichText::plain("Milieu"), style, prompt: None, frame: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         doc.pages.push(page);
     }
@@ -606,6 +615,7 @@ fn dashes_have_the_screen_lengths() {
                 path: None,
             }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         doc.pages.push(page);
     }
@@ -684,6 +694,7 @@ fn text_frame_is_rendered() {
             }),
         }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     });
     let (_dir, pdf) = render(&doc, &AssetStore::default());
     let (pw, _ph, px) = rgb_page(&pdf, 1, DPI);
@@ -735,6 +746,7 @@ fn frame_image_and_dotted_photo_border_are_rendered() {
             frame: Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 8.0, image: Some(id.clone()), pattern: None }),
         }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     });
     let (py, ph) = (100.0, 60.0);
     doc.pages[0].elements.push(Element {
@@ -752,6 +764,7 @@ fn frame_image_and_dotted_photo_border_are_rendered() {
             mirrored: false,
         }),
         subgroups: Vec::new(),
+        flip_h: false, flip_v: false,
     });
     let (_dir, pdf) = render(&doc, &store);
     let (pw, _ph, px) = rgb_page(&pdf, 1, DPI);

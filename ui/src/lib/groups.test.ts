@@ -219,3 +219,21 @@ test("inside a group, each sub-group is one block to align", () => {
   expect(alignUnits(p, ["a", "c"])).toEqual([["a", "b", "c"]]);
   expect(alignUnits(p, ["a", "c"], ["g"])).toEqual([["a", "b"], ["c"]]);
 });
+
+test("mirroring a group swaps sides, reverses rotations and flips pictures, not texts", async () => {
+  const { mirrorElements } = await import("./groups");
+  const pic: Element = { ...shape("p", 0), frame: { x_mm: 0, y_mm: 0, w_mm: 20, h_mm: 10, rotation_deg: 30 }, kind: { type: "Image", code: "1F449" } };
+  const photo: Element = { ...shape("ph", 0), frame: { x_mm: 80, y_mm: 0, w_mm: 20, h_mm: 10, rotation_deg: 0 }, kind: { type: "Photo", asset: "a", crop: { scale: 1, center_x: 0.5, center_y: 0.5 }, corner_radius_mm: 0, border: null, shadow: false } };
+  const label = { ...text("t", 12), frame: { x_mm: 40, y_mm: 0, w_mm: 20, h_mm: 10, rotation_deg: 0 } };
+  const [p, ph, t] = mirrorElements([pic, photo, label], "h", { x_mm: 50, y_mm: 5 });
+  expect(p.frame).toMatchObject({ x_mm: 80, rotation_deg: -30 });
+  expect(p.flip_h).toBe(true);
+  expect(ph.frame.x_mm).toBe(0);
+  expect(ph.kind).toMatchObject({ mirrored: true });
+  expect(ph.flip_h).toBeUndefined();
+  expect(t.frame.x_mm).toBe(40);
+  expect(t.flip_h).toBeUndefined();
+  const [down] = mirrorElements([pic], "v", { x_mm: 50, y_mm: 50 });
+  expect(down.frame.y_mm).toBe(90);
+  expect(down.flip_v).toBe(true);
+});

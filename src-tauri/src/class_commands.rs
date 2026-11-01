@@ -213,6 +213,7 @@ mod tests {
             group: None,
             kind: ElementKind::Text(TextProps { content: RichText::default(), style: TextStyle::default_zone(), prompt: Some("Prénom".into()), frame: None }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         p.elements.push(Element {
             id: new_id(),
@@ -222,6 +223,7 @@ mod tests {
             group: None,
             kind: ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
             subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
         });
         p
     }

@@ -1,5 +1,5 @@
-// Guides : comment se sert une fonction, en deux temps. Le livret se feuillette (une capture animée et deux ou
-// trois phrases par panneau) ; « Me guider » montre ensuite, sur l'écran, le vrai bouton de chaque étape et
+// Guides : comment se sert une fonction, en deux temps. Le livret se feuillette (une capture et deux ou trois
+// phrases par panneau ; une courte vidéo seulement pour un geste, comme glisser d'une case à l'autre) ; « Me guider » montre ensuite, sur l'écran, le vrai bouton de chaque étape et
 // passe à la suivante quand l'action est faite. Pour un nouveau guide : l'ajouter à GUIDES, ses captures dans
 // `assets/guides/<id>/`.
 import { editor } from "./docStore.svelte";
@@ -9,7 +9,7 @@ import { templates } from "./templates.svelte";
 export interface GuidePanel {
   title: string;
   text: string;
-  /** Capture animée, servie depuis `assets/guides/<id>`. */
+  /** Capture (image fixe, ou animée pour un geste), servie depuis `assets/guides/<id>`. */
   image: string;
 }
 

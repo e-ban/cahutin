@@ -29,6 +29,7 @@
   import FaceBlurDialog from "./components/FaceBlurDialog.svelte";
   import { classes } from "./lib/classStore.svelte";
   import About from "./components/layout/About.svelte";
+  import Preferences from "./components/layout/Preferences.svelte";
   import BackgroundPanel from "./components/BackgroundPanel.svelte";
   import Hint from "./components/layout/Hint.svelte";
   import Tour from "./components/Tour.svelte";
@@ -316,6 +317,7 @@
   {#if editor.showPhototheque}<PhotothequePage />{/if}
   {#if editor.showCollection}<CollectionPage />{/if}
   {#if editor.showAbout}<About />{/if}
+{#if editor.showPreferences}<Preferences />{/if}
   <UpdateBanner />
   {#if editor.showBackground}<BackgroundPanel />{/if}
   <Modal />

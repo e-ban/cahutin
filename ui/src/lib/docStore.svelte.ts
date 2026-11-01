@@ -58,6 +58,8 @@ class Editor {
   showBackground = $state(false);
   /** Écran À propos (menu Aide). */
   showAbout = $state(false);
+  /** Fenêtre des préférences de l'application. */
+  showPreferences = $state(false);
   /** Panneau « Astuces » (menu Aide). */
   showTips = $state(false);
   /** Écran d'accueil : au démarrage et pour un nouveau document. */

@@ -18,6 +18,7 @@
   import { textPadding } from "../lib/richtext";
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
+  import { settings } from "../lib/settings.svelte";
   import { hasTemplateRole, templateRole, withTemplateRole } from "../lib/templateRole";
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
@@ -88,7 +89,7 @@
   }
 
   $effect(() => {
-    void [editor.doc, editor.selection, editor.effectiveZoom, editor.drawer, editor.inspectorOpen, editor.editingText, visible, barEl];
+    void [editor.doc, editor.selection, editor.effectiveZoom, editor.drawer, editor.inspectorOpen, editor.editingText, visible, barEl, settings.compactToolbar];
     reposition();
   });
 
@@ -245,6 +246,7 @@
 {#if visible}
   <div
     class="ctx"
+    class:compact={settings.compactToolbar}
     role="toolbar"
     tabindex="-1"
     aria-label="Barre de l'élément"
@@ -686,25 +688,52 @@
   .wrap > button:not(:disabled):hover {
     background: #f3efe8;
   }
-  /* Barre compacte : chaque outil ne montre que son icône, et son nom (.lbl) se déroule au survol ou au clavier.
-     L'action principale du type d'élément (.main) reste écrite en entier ; les fenêtres (.pop) aussi. */
-  .ctx > button:not(.main) > :global(.lbl),
-  .ctx > .wrap > button:not(.main) > :global(.lbl) {
-    display: inline-block;
-    max-width: 0;
-    overflow: hidden;
-    vertical-align: bottom;
+  /* Icône et nom écrits par défaut. Avec la préférence « icônes seules » (.compact), seul le nom des outils
+     disparaît (pas celui de l'action principale, .main) : au survol ou au clavier, il apparaît dans une étiquette
+     au-dessus de l'icône, sans rien déplacer dans la barre. */
+  .compact > button:not(.main),
+  .compact > .wrap > button:not(.main) {
+    position: relative;
+  }
+  .compact > button:not(.main) > :global(.lbl),
+  .compact > .wrap > button:not(.main) > :global(.lbl) {
+    position: absolute;
+    bottom: calc(100% + 9px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 9px;
+    border-radius: 6px;
+    background: #2f2a25;
+    color: white;
+    font-size: 13px;
     white-space: nowrap;
-    transition: max-width 0.15s ease;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.1s ease 0.15s, visibility 0s linear 0.25s;
   }
-  .ctx > button:hover > :global(.lbl),
-  .ctx > button:focus-visible > :global(.lbl),
-  .ctx > .wrap > button:hover > :global(.lbl),
-  .ctx > .wrap > button:focus-visible > :global(.lbl) {
-    max-width: 20em;
+  /* La petite pointe vers l'icône. */
+  .compact > button:not(.main) > :global(.lbl)::after,
+  .compact > .wrap > button:not(.main) > :global(.lbl)::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -6px;
+    border: 6px solid transparent;
+    border-top-color: #2f2a25;
   }
-  /* L'espace entre l'icône et le nom (Svelte retire l'espace au début du nom). */
-  .ctx :global(.lbl)::before {
+  .compact > button:not(.main):hover > :global(.lbl),
+  .compact > button:not(.main):focus-visible > :global(.lbl),
+  .compact > .wrap > button:not(.main):hover > :global(.lbl),
+  .compact > .wrap > button:not(.main):focus-visible > :global(.lbl) {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.1s ease 0.15s, visibility 0s linear 0.15s;
+  }
+  /* L'espace entre l'icône et le nom écrit (Svelte retire l'espace au début du nom). */
+  .ctx:not(.compact) :global(.lbl)::before,
+  .ctx .main :global(.lbl)::before {
     content: "\00a0";
   }
   .on {

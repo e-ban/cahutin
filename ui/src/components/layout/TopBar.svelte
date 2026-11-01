@@ -16,6 +16,7 @@
 <header class="top">
   <button class="logo" title={fr.homeHint} onclick={goHome}><img src="/logo/cahutin.svg" alt="" />{fr.appName}</button>
   <FileMenu />
+  <button class="ghost" title={fr.preferencesHint} onclick={() => (editor.showPreferences = true)}>⚙ {fr.preferences}</button>
   <HelpMenu />
   <input
     class="title"

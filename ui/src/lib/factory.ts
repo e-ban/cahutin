@@ -1,11 +1,12 @@
+import { sizeIn } from "./pageFormat";
+import { settings } from "./settings.svelte";
 import type { Document, Element, Frame, Page, ShapeKind, Stroke, TextStyle } from "./types";
-
-export const A4_PORTRAIT = { width_mm: 210, height_mm: 297 };
 
 export const newId = () => crypto.randomUUID();
 
+/** Page vierge, au format choisi dans les Préférences (A4 en portrait par défaut). */
 export function newPage(): Page {
-  return { id: newId(), size: { ...A4_PORTRAIT }, elements: [], grid: null };
+  return { id: newId(), size: sizeIn(settings.pageFormat, settings.pageLandscape), elements: [], grid: null };
 }
 
 export function newDocument(title = ""): Document {
@@ -13,7 +14,7 @@ export function newDocument(title = ""): Document {
 }
 
 export function defaultTextStyle(): TextStyle {
-  return { font: "Andika", size_pt: 14, color: "#222222", align: "Left" };
+  return { font: settings.textFont, size_pt: 14, color: "#222222", align: "Left" };
 }
 
 /** Cadre centré sur la page ; si un élément y est déjà centré, décalé de 8 mm en diagonale (autant de fois

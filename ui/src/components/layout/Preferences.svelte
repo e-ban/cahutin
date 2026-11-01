@@ -1,13 +1,22 @@
 <script lang="ts">
-  // Préférences de l'application : affichage de la barre d'outils, astuces, avis de nouvelles versions. Chaque
-  // choix s'applique tout de suite et reste sur le poste.
+  // Préférences de l'application : affichage (taille, police, contraste, poignées), barre d'outils, nouvelle
+  // page, graphisme, export, astuces, avis de nouvelles versions. Chaque choix s'applique tout de suite et reste
+  // sur le poste.
+  import { canExportPdf } from "../../lib/api";
   import { editor } from "../../lib/docStore.svelte";
   import { hints } from "../../lib/hints.svelte";
   import { fr } from "../../lib/i18n/fr";
-  import { settings } from "../../lib/settings.svelte";
+  import { EMBEDDED_FAMILIES } from "../../lib/fontNames";
+  import type { Level } from "../../lib/graphisme";
+  import type { Format } from "../../lib/pageFormat";
+  import { UI_FONTS, UI_SCALES, settings, type UiFont, type UiScale } from "../../lib/settings.svelte";
   import { updates } from "../../lib/updates.svelte";
 
   const close = () => (editor.showPreferences = false);
+
+  // Le choix de l'export n'a de sens que là où le PDF est proposé.
+  let pdf = $state(false);
+  canExportPdf().then((v) => (pdf = v)).catch(() => (pdf = false));
 </script>
 
 <svelte:window onkeydown={(e) => e.key === "Escape" && close()} />
@@ -15,6 +24,32 @@
 <div class="backdrop" role="presentation" onclick={close}>
   <div class="box" role="dialog" aria-modal="true" aria-labelledby="prefs-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
     <h2 id="prefs-title">⚙ {fr.preferences}</h2>
+
+    <section>
+      <h3>{fr.prefsDisplay}</h3>
+      <div class="row">
+        <span><b>{fr.prefsUiScale}</b><small>{fr.prefsUiScaleHint}</small></span>
+        <div class="seg" role="radiogroup" aria-label={fr.prefsUiScale}>
+          {#each UI_SCALES as scale (scale)}
+            <button role="radio" aria-checked={settings.uiScale === scale} class:on={settings.uiScale === scale} onclick={() => settings.set("uiScale", scale as UiScale)}>{Math.round(scale * 100)} %</button>
+          {/each}
+        </div>
+      </div>
+      <div class="row">
+        <span><b>{fr.prefsUiFont}</b><small>{fr.prefsUiFontHint}</small></span>
+        <select value={settings.uiFont} style:font-family={`"${settings.uiFont}"`} onchange={(e) => settings.set("uiFont", e.currentTarget.value as UiFont)}>
+          {#each UI_FONTS as font (font)}<option value={font} style:font-family={`"${font}"`}>{fr.prefsUiFontNames[font]}</option>{/each}
+        </select>
+      </div>
+      <label class="choice">
+        <input type="checkbox" checked={settings.highContrast} onchange={(e) => settings.set("highContrast", e.currentTarget.checked)} />
+        <span><b>{fr.prefsContrast}</b><small>{fr.prefsContrastHint}</small></span>
+      </label>
+      <label class="choice">
+        <input type="checkbox" checked={settings.bigHandles} onchange={(e) => settings.set("bigHandles", e.currentTarget.checked)} />
+        <span><b>{fr.prefsBigHandles}</b><small>{fr.prefsBigHandlesHint}</small></span>
+      </label>
+    </section>
 
     <section>
       <h3>{fr.prefsToolbar}</h3>
@@ -31,6 +66,56 @@
         <span><b>{fr.prefsMoreMenu}</b><small>{fr.prefsMoreMenuHint}</small></span>
       </label>
     </section>
+
+    <section>
+      <h3>{fr.prefsNewPage}</h3>
+      <div class="row">
+        <span><b>{fr.prefsPageFormat}</b><small>{fr.prefsNewPageHint}</small></span>
+        <span class="controls">
+          <select value={settings.pageFormat} aria-label={fr.prefsPageFormat} onchange={(e) => settings.set("pageFormat", e.currentTarget.value as Format)}>
+            <option value="A5">A5</option>
+            <option value="A4">A4</option>
+            <option value="A3">A3</option>
+          </select>
+          <select value={settings.pageLandscape ? "l" : "p"} aria-label={fr.landscape} onchange={(e) => settings.set("pageLandscape", e.currentTarget.value === "l")}>
+            <option value="p">{fr.portrait}</option>
+            <option value="l">{fr.landscape}</option>
+          </select>
+        </span>
+      </div>
+      <div class="row">
+        <span><b>{fr.prefsTextFont}</b><small>{fr.prefsTextFontHint}</small></span>
+        <select value={settings.textFont} style:font-family={`"${settings.textFont}"`} onchange={(e) => settings.set("textFont", e.currentTarget.value)}>
+          {#each EMBEDDED_FAMILIES as font (font)}<option value={font} style:font-family={`"${font}"`}>{font}</option>{/each}
+        </select>
+      </div>
+    </section>
+
+    <section>
+      <h3>{fr.prefsGraphisme}</h3>
+      <div class="row">
+        <span><b>{fr.graphismeLevel}</b><small>{fr.prefsGraphismeHint}</small></span>
+        <select value={settings.graphismeLevel} aria-label={fr.graphismeLevel} onchange={(e) => settings.set("graphismeLevel", e.currentTarget.value as Level)}>
+          <option value="PS">PS</option>
+          <option value="MS">MS</option>
+          <option value="GS">GS</option>
+        </select>
+      </div>
+    </section>
+
+    {#if pdf}
+      <section>
+        <h3>{fr.prefsExport}</h3>
+        <label class="choice">
+          <input type="radio" name="export" checked={settings.preferredExport === "pdf"} onchange={() => settings.set("preferredExport", "pdf")} />
+          <span><b>{fr.prefsExportPdf}</b><small>{fr.prefsExportHint}</small></span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="export" checked={settings.preferredExport === "odg"} onchange={() => settings.set("preferredExport", "odg")} />
+          <span><b>{fr.prefsExportOdg}</b></span>
+        </label>
+      </section>
+    {/if}
 
     <section>
       <h3>{fr.prefsHelp}</h3>
@@ -64,7 +149,10 @@
     background: var(--panel);
     border-radius: 12px;
     padding: 20px 24px;
-    width: min(520px, 92vw);
+    width: min(560px, 92vw);
+    max-height: 88vh;
+    overflow-y: auto;
+    box-sizing: border-box;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   }
   h2 {
@@ -92,6 +180,52 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+  .row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+  }
+  .row > span:first-child {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .row b {
+    font-weight: 500;
+  }
+  .row small {
+    color: var(--muted);
+  }
+  .controls {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .row select {
+    flex-shrink: 0;
+    max-width: 260px;
+  }
+  .seg {
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+  .seg button {
+    border-radius: 0;
+    margin-left: -1px;
+  }
+  .seg button:first-child {
+    border-radius: 6px 0 0 6px;
+  }
+  .seg button:last-child {
+    border-radius: 0 6px 6px 0;
+  }
+  .seg button.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
   }
   .choice b {
     font-weight: 500;

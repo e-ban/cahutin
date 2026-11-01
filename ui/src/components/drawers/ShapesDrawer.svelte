@@ -3,6 +3,7 @@
   import ShapeEl from "../elements/ShapeEl.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { centeredFrame, shapeElement } from "../../lib/factory";
+  import { settings } from "../../lib/settings.svelte";
   import { MOTIFS, PATHS, dottedPath, graphismeRows, motifPreview, type Level, type Motif } from "../../lib/graphisme";
   import { readPref, writePref } from "../../lib/prefs";
   import { SYMMETRY_FIGURES, maze, symmetry } from "../../lib/fiches";
@@ -24,10 +25,10 @@
   // Aperçu dessiné par le même composant que la page.
   const previews: Element[] = shapes.map((s) => shapeElement(editor.page, s.shape, s.radius));
 
-  // Lignes de graphisme : la section (taille des motifs) et le nombre de lignes, gardés d'une fois sur l'autre.
-  let level = $state<Level>(readPref("graphismeLevel", "MS"));
+  // Lignes de graphisme : la section (taille des motifs, aussi réglée dans les Préférences) et le nombre de
+  // lignes, gardés d'une fois sur l'autre.
+  const level = $derived(settings.graphismeLevel);
   let rows = $state<number>(readPref("graphismeRows", 4));
-  $effect(() => writePref("graphismeLevel", level));
   $effect(() => writePref("graphismeRows", rows));
 
   const pathProps = (path: string) => ({ shape: "Path" as const, path, fill: null, stroke: { width_mm: 0.6, color: "#333333" }, corner_radius_mm: 0 });
@@ -93,7 +94,7 @@
   <h3>{fr.graphisme}</h3>
   <div class="options">
     <label>{fr.graphismeLevel}
-      <select bind:value={level}>
+      <select value={level} onchange={(e) => settings.set("graphismeLevel", e.currentTarget.value as Level)}>
         <option value="PS">PS</option>
         <option value="MS">MS</option>
         <option value="GS">GS</option>

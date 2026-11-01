@@ -66,6 +66,8 @@
   import { mmToPx } from "./lib/units";
   import type { AssetMeta, Crop, RichText } from "./lib/types";
   import { myImages } from "./lib/myImages.svelte";
+  import { settings } from "./lib/settings.svelte";
+  import { getCurrentWebview } from "@tauri-apps/api/webview";
 
   editor.reset(newDocument(), null);
   editor.showWelcome = true;
@@ -84,6 +86,19 @@
   void updates.checkIfDue();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
   if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath, classes, classLibrary, exportPdf, exportOdg } });
+
+  // Préférences d'affichage : police et couleurs de l'interface, taille des poignées, taille de tout (la
+  // fenêtre zoome comme Ctrl+ dans un navigateur ; la page, en « Ajuster », reste à la largeur de l'écran).
+  $effect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--ui-font", `"${settings.uiFont}", system-ui, sans-serif`);
+    root.toggleAttribute("data-contrast", settings.highContrast);
+    root.toggleAttribute("data-big-handles", settings.bigHandles);
+  });
+  $effect(() => {
+    const scale = settings.uiScale;
+    getCurrentWebview().setZoom(scale).catch(() => {});
+  });
 
   // Visite guidée : au premier lancement, quand l'écran d'accueil se ferme.
   let welcomeWasOpen = editor.showWelcome;
@@ -355,6 +370,26 @@
     --zone-text: #e67e22;
     --ui-font: "Atkinson Hyperlegible", system-ui, sans-serif;
     --title-font: "Playwrite FR Moderne", cursive;
+  }
+  /* Contraste élevé : textes noirs, bordures foncées, fonds blancs, bleu plus sombre. */
+  :global(:root[data-contrast]) {
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --line: #5c554c;
+    --text: #000000;
+    --muted: #3a352f;
+    --accent: #0b4f99;
+    --accent-strong: #8e1d12;
+  }
+  :global(:root[data-contrast] button, :root[data-contrast] select, :root[data-contrast] input) {
+    border-width: 2px;
+  }
+  /* Grandes poignées : deux fois plus grosses, pour le doigt ou une souris difficile. */
+  :global(:root[data-big-handles] .moveable-control) {
+    width: 26px !important;
+    height: 26px !important;
+    margin-top: -13px !important;
+    margin-left: -13px !important;
   }
   :global(html, body) {
     margin: 0;

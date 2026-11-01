@@ -8,6 +8,7 @@
   import { editor } from "../lib/docStore.svelte";
   import { DRAG_DEAD_ZONE_PX, GUIDE_MARGIN_MM, ROTATE_STEP_DEG, SNAP_MM, rectPxToFrame, settleMove, settleResize, snapLines, type RectPx } from "../lib/geometry";
   import { boundsOf } from "../lib/groups";
+  import { settings } from "../lib/settings.svelte";
   import { isPlacedCell } from "../lib/table";
   import { PX_PER_MM, mmToPx } from "../lib/units";
 
@@ -16,6 +17,8 @@
   /** Taille à l'écran sous laquelle les poignées s'écartent de l'élément : sur un point de quelques
    *  millimètres, elles se touchent et couvrent tout, si bien qu'on le redimensionne en voulant le déplacer. */
   const MIN_FRAME_PX = 48;
+  /** Avec les grandes poignées (Préférences). */
+  const MIN_FRAME_BIG_PX = 80;
 
   let moveable: Moveable | null = null;
   let movedId: string | null = null;
@@ -155,8 +158,9 @@
       moveable.verticalGuidelines = [0, m, w / 2, w - m, w];
       moveable.horizontalGuidelines = [0, m, h / 2, h - m, h];
       // Marge autour d'un petit élément : les poignées s'en éloignent, son centre reste libre pour le déplacer.
-      const padX = Math.max(0, (MIN_FRAME_PX - mmToPx(t!.frame.w_mm, z)) / 2);
-      const padY = Math.max(0, (MIN_FRAME_PX - mmToPx(t!.frame.h_mm, z)) / 2);
+      const min = settings.bigHandles ? MIN_FRAME_BIG_PX : MIN_FRAME_PX;
+      const padX = Math.max(0, (min - mmToPx(t!.frame.w_mm, z)) / 2);
+      const padY = Math.max(0, (min - mmToPx(t!.frame.h_mm, z)) / 2);
       moveable.padding = { left: padX, right: padX, top: padY, bottom: padY };
       moveable.updateRect();
     });

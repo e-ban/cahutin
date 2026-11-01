@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Un tout petit élément (le point de départ d'une ligne de graphisme, un repère) se déplace sans être redimensionné par erreur : ses poignées s'écartent autour de lui et son centre reste libre pour le saisir.
 - Une forme sans fond se choisit et se déplace en cliquant n'importe où à l'intérieur, comme une forme remplie, même posée sur une autre forme : l'absence de fond ne change que l'apparence. Le cadre de page des Décors, les repères de découpe et les tracés de graphisme laissent passer les clics à l'intérieur, vers ce qu'ils entourent ou vers la page.
 - Panneau Réglages : les mêmes réglages pour tout, photo, image, forme, texte ou groupe. Position, taille (avec « Garder les proportions », coché pour une photo ou une image), rotation avec quarts de tour, miroir (sauf un texte), devant ou derrière. Un groupe se règle comme un élément : sa taille l'agrandit en entier, à ses proportions.
 - Miroir pour tout : un seul outil « Miroir » dans la barre, en deux moitiés côte à côte, ⇋ (gauche-droite) et ⇅ (haut-bas), qui retournent une photo, une image ou une forme (la queue d'une bulle de parole, une flèche, une main qui montre l'autre côté). Sur un groupe, tout le groupe se retourne, les textes restant lisibles. Le miroir passe à l'export LibreOffice. Un document qui retourne autre chose qu'une photo de gauche à droite demande cette version de Cahutin.

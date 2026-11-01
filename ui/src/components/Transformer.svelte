@@ -13,6 +13,10 @@
 
   let { pageEl, zoom }: { pageEl: HTMLElement | undefined; zoom: number } = $props();
 
+  /** Taille à l'écran sous laquelle les poignées s'écartent de l'élément : sur un point de quelques
+   *  millimètres, elles se touchent et couvrent tout, si bien qu'on le redimensionne en voulant le déplacer. */
+  const MIN_FRAME_PX = 48;
+
   let moveable: Moveable | null = null;
   let movedId: string | null = null;
   let live: RectPx | null = null;
@@ -150,6 +154,10 @@
       moveable.elementGuidelines = [...container.querySelectorAll<HTMLElement>(".element")].filter((n) => n !== el);
       moveable.verticalGuidelines = [0, m, w / 2, w - m, w];
       moveable.horizontalGuidelines = [0, m, h / 2, h - m, h];
+      // Marge autour d'un petit élément : les poignées s'en éloignent, son centre reste libre pour le déplacer.
+      const padX = Math.max(0, (MIN_FRAME_PX - mmToPx(t!.frame.w_mm, z)) / 2);
+      const padY = Math.max(0, (MIN_FRAME_PX - mmToPx(t!.frame.h_mm, z)) / 2);
+      moveable.padding = { left: padX, right: padX, top: padY, bottom: padY };
       moveable.updateRect();
     });
   });

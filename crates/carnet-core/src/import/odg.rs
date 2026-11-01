@@ -5,7 +5,7 @@ use super::paragraphs::{Line, block_element, merge_lines};
 use super::vector::{self, Drawing};
 use super::{ImportError, ImportReport, Imported};
 use crate::model::*;
-use crate::photo::{Asset, import_bytes};
+use crate::photo::{Asset, import_bytes_many, looks_importable};
 use roxmltree::Node;
 use std::collections::HashMap;
 use std::io::{Read, Seek};
@@ -67,6 +67,8 @@ struct SpanStyle {
 #[derive(Clone, Default)]
 struct GraphicStyle {
     fill: Option<String>,
+    /// Remplie d'une image (photo dans une forme) : le nom de sa définition `draw:fill-image`.
+    fill_image: Option<String>,
     stroke: Option<Stroke>,
     /// Motif du pointillé (trait, espace, en mm), d'après sa définition `draw:stroke-dash`.
     dash: Option<(f64, f64)>,
@@ -79,6 +81,16 @@ struct Styles {
     graphic: HashMap<String, GraphicStyle>,
     /// Alignement des styles de paragraphe.
     align: HashMap<String, Align>,
+}
+
+/// Images de remplissage (`draw:fill-image`, le plus souvent dans `styles.xml`) : leur nom, et le chemin de
+/// l'image dans le fichier.
+fn fill_images(docs: &[&roxmltree::Document]) -> HashMap<String, String> {
+    docs.iter()
+        .flat_map(|d| d.descendants())
+        .filter(|n| n.has_tag_name((DRAW, "fill-image")))
+        .filter_map(|n| Some((n.attribute((DRAW, "name"))?.to_string(), n.attribute((XLINK, "href"))?.to_string())))
+        .collect()
 }
 
 /// Motifs de pointillé (`draw:stroke-dash`, dans `styles.xml` ou `content.xml`) : trait et espace en mm.
@@ -155,7 +167,8 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String], dashes: &HashM
                 _ => VAlign::Top,
             });
             let dash = (g.attribute((DRAW, "stroke")) == Some("dash")).then(|| g.attribute((DRAW, "stroke-dash")).and_then(|d| dashes.get(d)).copied()).flatten();
-            styles.graphic.insert(name.to_string(), GraphicStyle { fill, stroke, dash, valign, padding_mm: attr_mm(g, FO, "padding-left") });
+            let fill_image = (g.attribute((DRAW, "fill")) == Some("bitmap")).then(|| g.attribute((DRAW, "fill-image-name")).map(String::from)).flatten();
+            styles.graphic.insert(name.to_string(), GraphicStyle { fill, fill_image, stroke, dash, valign, padding_mm: attr_mm(g, FO, "padding-left") });
         }
     }
     styles
@@ -233,6 +246,13 @@ enum Item {
 
 struct PageReader<'a, R: Read + Seek> {
     styles: &'a Styles,
+    /// Images de remplissage, par nom (voir `fill_images`).
+    fill_images: &'a HashMap<String, String>,
+    /// Images déjà lues sur les pages précédentes : leur chemin dans le fichier, et leur image dans l'application.
+    known: &'a HashMap<String, String>,
+    /// Images de la page à décoder (chemin, octets, proportions de leur cadre), toutes ensemble à la fin de la
+    /// page (voir `decode_page`).
+    pending: Vec<(String, Vec<u8>, f64)>,
     zip: &'a mut ZipArchive<R>,
     items: Vec<Item>,
     lines: Vec<Line>,
@@ -525,7 +545,10 @@ impl<R: Read + Seek> PageReader<'_, R> {
         self.items.push(Item::Element(Box::new(element(frame, ElementKind::Text(props)))));
     }
 
-    fn image(&mut self, frame: Frame, image: Node) {
+    /// Les images d'un cadre : la première que Cahutin sait lire. LibreOffice range souvent une image en deux
+    /// exemplaires, un dessin (WMF, EMF, SVG) puis une copie en PNG pour les logiciels qui ne lisent pas le premier.
+    fn image(&mut self, frame: Frame, images: Vec<Node>) {
+        let image = images[0];
         // Image de la banque OpenMoji, telle que l'export de Cahutin la range : elle redevient une image de la banque.
         // Une image à colorier est rangée sous `openmoji-contour-<code>.svg`.
         let name = image.attribute((XLINK, "href")).and_then(|h| h.strip_prefix("Pictures/openmoji-")).and_then(|h| h.strip_suffix(".svg"));
@@ -537,15 +560,40 @@ impl<R: Read + Seek> PageReader<'_, R> {
             self.items.push(Item::Element(Box::new(element(frame, ElementKind::Image(ImageProps { code: code.to_string(), outline })))));
             return;
         }
-        let asset = image.attribute((XLINK, "href")).and_then(|href| read_entry(self.zip, href)).and_then(|bytes| import_bytes(&bytes).ok());
-        match asset {
-            Some(a) => {
-                let photo = PhotoProps { asset: Some(a.meta.id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false };
-                self.items.push(Item::Element(Box::new(element(frame, ElementKind::Photo(photo)))));
-                self.assets.push(a);
-            }
-            None => self.skipped += 1,
+        if !images.iter().filter_map(|i| i.attribute((XLINK, "href"))).any(|href| self.photo(frame, href, 0.0)) {
+            self.skipped += 1;
         }
+    }
+
+    /// Une photo dans `frame`, tirée de l'image `href` du fichier ; faux si ce n'est pas une image lisible. Elle
+    /// est décodée à la fin de la page (`decode_page`) ; d'ici là, son image est un repère `PENDING`.
+    fn photo(&mut self, frame: Frame, href: &str, corner_radius_mm: f64) -> bool {
+        let asset = match self.known.get(href) {
+            Some(id) => id.clone(),
+            None => {
+                let at = match self.pending.iter().position(|(h, _, _)| h == href) {
+                    Some(i) => i,
+                    None => {
+                        let Some(bytes) = read_entry(self.zip, href).filter(|b| looks_importable(b)) else { return false };
+                        self.pending.push((href.to_string(), bytes, frame.w_mm / frame.h_mm));
+                        self.pending.len() - 1
+                    }
+                };
+                format!("{PENDING}{at}")
+            }
+        };
+        let photo = PhotoProps { asset: Some(asset), crop: Crop::COVER, corner_radius_mm, border: None, shadow: false, mirrored: false };
+        self.items.push(Item::Element(Box::new(element(frame, ElementKind::Photo(photo)))));
+        true
+    }
+
+    /// Une forme remplie d'une image (la façon de LibreOffice de poser une photo dans un cadre, arrondi ou non) :
+    /// elle devient une photo, à sa place. Faux si la forme n'a pas d'image de remplissage lisible.
+    fn filled_with_image(&mut self, n: Node) -> bool {
+        let href = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s)).and_then(|g| g.fill_image.as_ref()).and_then(|name| self.fill_images.get(name)).cloned();
+        let (Some(href), Some(frame)) = (href, frame_of(n)) else { return false };
+        let radius = if n.has_tag_name((DRAW, "rect")) { n.attribute((DRAW, "corner-radius")).and_then(length_mm).unwrap_or(0.0) } else { 0.0 };
+        self.photo(frame, &href, radius)
     }
 
     fn node(&mut self, n: Node) {
@@ -562,13 +610,16 @@ impl<R: Read + Seek> PageReader<'_, R> {
         if tag.namespace() != Some(DRAW) {
             return;
         }
+        if matches!(tag.name(), "rect" | "polygon" | "path" | "custom-shape" | "ellipse" | "circle") && self.filled_with_image(n) {
+            return;
+        }
         match tag.name() {
             "frame" => {
                 let Some(frame) = frame_of(n) else { return self.skipped += 1 };
                 if let Some(tb) = n.children().find(|c| c.has_tag_name((DRAW, "text-box"))) {
                     self.text_box(frame, n, tb);
-                } else if let Some(img) = n.children().find(|c| c.has_tag_name((DRAW, "image"))) {
-                    self.image(frame, img);
+                } else if n.children().any(|c| c.has_tag_name((DRAW, "image"))) {
+                    self.image(frame, n.children().filter(|c| c.has_tag_name((DRAW, "image"))).collect());
                 } else {
                     self.skipped += 1;
                 }
@@ -685,7 +736,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
             .collect();
     }
 
-    fn finish(mut self) -> (Vec<Element>, Vec<Asset>, usize, Vec<Drawing>, usize) {
+    fn finish(mut self) -> (Vec<Element>, Vec<Asset>, usize, Vec<Drawing>, usize, Vec<(String, Vec<u8>, f64)>) {
         self.attach_bullets();
         let obstacles: Vec<Frame> = self.items.iter().filter_map(|it| if let Item::Element(e) = it { Some(e.frame) } else { None }).collect();
         let blocks = merge_lines(&obstacles, self.lines);
@@ -698,8 +749,46 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 Item::Line(i) => by_last.remove(&i),
             })
             .collect();
-        (elements, self.assets, self.skipped, self.drawings, self.shrunk)
+        (elements, self.assets, self.skipped, self.drawings, self.shrunk, self.pending)
     }
+}
+
+/// Repère d'une image en attente de décodage, suivi de son rang dans la page (voir `PageReader::photo`).
+const PENDING: &str = "\u{0}en-attente-";
+/// Fils pour décoder les images d'une page. Une grande photo (4000 × 3000) prend près de 150 Mo le temps d'être
+/// décodée et réduite : deux à la fois divisent le temps par deux (84 photos : 13 s au lieu de 24) sans dépasser
+/// 600 Mo, ce que supporte un ordinateur d'école.
+const DECODE_THREADS: usize = 2;
+
+/// Décode ensemble les images d'une page (plusieurs fils, une page à la fois pour ne pas tout garder en mémoire),
+/// puis donne aux photos leur image ; une photo dont l'image ne se décode pas est retirée. Rend le nombre de
+/// photos retirées.
+fn decode_page(elements: &mut Vec<Element>, pending: Vec<(String, Vec<u8>, f64)>, known: &mut HashMap<String, String>, assets: &mut Vec<Asset>) -> usize {
+    if pending.is_empty() {
+        return 0;
+    }
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(DECODE_THREADS);
+    // Chaque image tournée dans le sens de son cadre (voir `photo::import_bytes_many`).
+    let (hrefs, blobs): (Vec<String>, Vec<(Vec<u8>, Option<f64>)>) = pending.into_iter().map(|(h, b, aspect)| (h, (b, Some(aspect)))).unzip();
+    let ids: Vec<Option<String>> = import_bytes_many(&blobs, threads)
+        .into_iter()
+        .zip(hrefs)
+        .map(|(r, href)| {
+            let a = r.ok()?;
+            let id = a.meta.id.clone();
+            known.insert(href, id.clone());
+            assets.push(a);
+            Some(id)
+        })
+        .collect();
+    let before = elements.len();
+    elements.retain_mut(|e| {
+        let ElementKind::Photo(p) = &mut e.kind else { return true };
+        let Some(at) = p.asset.as_deref().and_then(|a| a.strip_prefix(PENDING)).and_then(|i| i.parse::<usize>().ok()) else { return true };
+        p.asset = ids.get(at).cloned().flatten();
+        p.asset.is_some()
+    });
+    before - elements.len()
 }
 
 /// Pages Carnet tirées de l'ODG produit par `draw_pdf_import`.
@@ -719,20 +808,25 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
     let styles_xml = read_entry(&mut zip, "styles.xml").and_then(|b| String::from_utf8(b).ok());
     let doc = roxmltree::Document::parse(&content).map_err(|_| ImportError::Unreadable)?;
     let styles_doc = styles_xml.as_deref().and_then(|x| roxmltree::Document::parse(x).ok());
-    let dashes = stroke_dashes(&[Some(&doc), styles_doc.as_ref()].into_iter().flatten().collect::<Vec<_>>());
+    let docs = [Some(&doc), styles_doc.as_ref()].into_iter().flatten().collect::<Vec<_>>();
+    let dashes = stroke_dashes(&docs);
+    let fills = fill_images(&docs);
     let styles = read_styles(&doc, known_fonts, &dashes);
     let sizes = page_sizes(styles_xml.as_deref());
     let mut pages = Vec::new();
     let mut assets = Vec::new();
     let mut skipped = 0;
     let (mut drawn, mut drawn_pages, mut shrunk) = (0, 0, 0);
+    // Images déjà décodées, par chemin dans le fichier : une image reprise sur plusieurs pages ne l'est qu'une fois.
+    let mut known: HashMap<String, String> = HashMap::new();
     for page_node in doc.descendants().filter(|n| n.has_tag_name((DRAW, "page"))) {
-        let mut reader = PageReader { styles: &styles, zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, drawings: Vec::new(), shrunk: 0, whole_frames };
+        let mut reader = PageReader { styles: &styles, fill_images: &fills, known: &known, pending: Vec::new(), zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, drawings: Vec::new(), shrunk: 0, whole_frames };
         for c in page_node.children() {
             reader.node(c);
         }
-        let (elements, page_assets, page_skipped, drawings, page_shrunk) = reader.finish();
+        let (mut elements, page_assets, page_skipped, drawings, page_shrunk, pending) = reader.finish();
         shrunk += page_shrunk;
+        skipped += decode_page(&mut elements, pending, &mut known, &mut assets);
         let size = page_node.attribute((DRAW, "master-page-name")).and_then(|m| sizes.by_master.get(m)).copied().unwrap_or(sizes.default);
         let background = page_node.attribute((DRAW, "master-page-name")).and_then(|m| sizes.background.get(m)).cloned();
         let mut page = Page { elements, background, ..Page::new(size) };
@@ -796,6 +890,7 @@ mod tests {
 <office:automatic-styles>
 <style:style style:name="gr1" style:family="graphic"><style:graphic-properties draw:stroke="solid" svg:stroke-width="0cm" svg:stroke-color="#3465a4" draw:fill="solid" draw:fill-color="#729fcf"/></style:style>
 <style:style style:name="gr2" style:family="graphic"><style:graphic-properties draw:stroke="none" draw:fill="none"/></style:style>
+<style:style style:name="grPhoto" style:family="graphic"><style:graphic-properties draw:stroke="none" draw:fill="bitmap" draw:fill-image-name="Bitmap_5f_1" style:repeat="stretch"/></style:style>
 <style:style style:name="gr3" style:family="graphic"><style:graphic-properties draw:stroke="none" draw:fill="solid" draw:fill-color="#ffffff"/></style:style>
 <style:style style:name="T1" style:family="text"><style:text-properties fo:color="#000000" style:font-name="Liberation Serif" fo:font-size="12pt" fo:font-weight="normal"/></style:style>
 <style:style style:name="T2" style:family="text"><style:text-properties fo:color="#c0392b" style:font-name="Liberation Sans" fo:font-size="24pt" fo:font-weight="bold"/></style:style>
@@ -807,7 +902,8 @@ mod tests {
         );
         let styles = format!(
             r#"<?xml version="1.0" encoding="UTF-8"?>
-<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink">
+<office:styles><draw:fill-image draw:name="Bitmap_5f_1" xlink:href="Pictures/remplissage.png" xlink:type="simple"/></office:styles>
 <office:automatic-styles>{layouts}</office:automatic-styles>
 <office:master-styles>{masters}</office:master-styles>
 </office:document-styles>"#
@@ -891,6 +987,35 @@ mod tests {
         let f = e.frame;
         assert!((f.x_mm - 65.02).abs() < 0.01 && (f.y_mm - 34.59).abs() < 0.01 && (f.w_mm - 79.98).abs() < 0.01 && (f.h_mm - 60.0).abs() < 0.01, "{f:?}");
         assert!(!e.zone && !e.locked);
+    }
+
+    /// LibreOffice range une image en deux exemplaires, un dessin WMF puis sa copie PNG : la copie est reprise.
+    #[test]
+    fn a_picture_stored_twice_is_read_from_the_copy_cahutin_can_read() {
+        let body = r#"<draw:frame svg:width="4cm" svg:height="3cm" svg:x="2cm" svg:y="2cm"><draw:image xlink:href="Pictures/dessin.wmf" draw:mime-type="image/x-wmf"><text:p/></draw:image><draw:image xlink:href="Pictures/copie.png" draw:mime-type="image/png"/></draw:frame>"#;
+        let wmf = b"\xd7\xcd\xc6\x9a\0\0 pas une image lisible".to_vec();
+        let imported = read_drawing(Cursor::new(odg_fixture(body, A4_LAYOUT, &[("dessin.wmf", wmf), ("copie.png", png())])), &known()).unwrap();
+        assert_eq!((imported.assets.len(), imported.report.skipped), (1, 0));
+        assert!(matches!(imported.pages[0].elements[0].kind, ElementKind::Photo(_)));
+    }
+
+    /// Une photo posée dans une forme (un rectangle arrondi, un polygone) est une forme remplie d'une image : elle
+    /// devient une photo à sa place, avec ses coins arrondis ; la même image sur deux pages n'est lue qu'une fois.
+    #[test]
+    fn a_shape_filled_with_a_picture_becomes_a_photo() {
+        let rect = r#"<draw:rect draw:style-name="grPhoto" draw:corner-radius="0.5cm" svg:width="6cm" svg:height="4cm" svg:x="2cm" svg:y="3cm"><text:p/></draw:rect>"#;
+        let poly = r#"<draw:polygon draw:style-name="grPhoto" svg:width="5cm" svg:height="5cm" svg:x="10cm" svg:y="3cm" svg:viewBox="0 0 5000 5000" draw:points="0,0 5000,0 5000,5000 0,5000"/>"#;
+        let pages = format!(r#"<draw:page draw:name="page1">{rect}{poly}</draw:page><draw:page draw:name="page2">{rect}</draw:page>"#);
+        let layouts = format!(r#"<style:page-layout style:name="PM1"><style:page-layout-properties fo:margin-top="2cm" {A4_LAYOUT}/></style:page-layout>"#);
+        let imported = read_drawing(Cursor::new(odg_raw(&pages, &layouts, "", &[("remplissage.png", png())])), &known()).unwrap();
+        assert_eq!(imported.assets.len(), 1, "une seule image, lue une fois");
+        let photos: Vec<(&Element, &PhotoProps)> = imported.pages.iter().flat_map(|p| &p.elements).filter_map(|e| if let ElementKind::Photo(p) = &e.kind { Some((e, p)) } else { None }).collect();
+        assert_eq!(photos.len(), 3);
+        assert!(photos.iter().all(|(_, p)| p.asset.as_deref() == Some(imported.assets[0].meta.id.as_str())));
+        let (rect_el, rect_photo) = photos[0];
+        assert!((rect_photo.corner_radius_mm - 5.0).abs() < 0.01);
+        assert!((rect_el.frame.x_mm - 20.0).abs() < 0.01 && (rect_el.frame.w_mm - 60.0).abs() < 0.01);
+        assert_eq!(photos[1].1.corner_radius_mm, 0.0);
     }
 
     /// Fond dessiné entre la ligne 1 et la ligne 2 d'un paragraphe : le texte recollé reste au-dessus.

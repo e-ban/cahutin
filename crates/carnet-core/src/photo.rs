@@ -188,6 +188,40 @@ fn clear_stale(root: &Path) {
     }
 }
 
+/// Vrai si les octets ressemblent à une image que `import_bytes` sait lire (sans la décoder) : de quoi choisir
+/// entre deux exemplaires d'une même image, un dessin WMF et sa copie PNG.
+pub fn looks_importable(data: &[u8]) -> bool {
+    !is_heic(data) && (is_svg(data) || image::guess_format(data).is_ok())
+}
+
+/// Vrai si l'image tournée selon son étiquette `orientation` va au moins aussi bien au cadre (largeur sur hauteur
+/// `aspect`) que l'image brute.
+fn oriented_fits(w: u32, h: u32, orientation: image::metadata::Orientation, aspect: f64) -> bool {
+    use image::metadata::Orientation::*;
+    let raw = w as f64 / h as f64;
+    let turned = if matches!(orientation, Rotate90 | Rotate270 | Rotate90FlipH | Rotate270FlipH) { 1.0 / raw } else { raw };
+    (turned.ln() - aspect.ln()).abs() <= (raw.ln() - aspect.ln()).abs() + 1e-9
+}
+
+/// Importe des images en mémoire sur `threads` fils, dans l'ordre ; avec les proportions de leur cadre, s'il y en
+/// a un (voir `import_with`).
+pub fn import_bytes_many(blobs: &[(Vec<u8>, Option<f64>)], threads: usize) -> Vec<Result<Asset, ImportError>> {
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let out: Vec<std::sync::Mutex<Option<Result<Asset, ImportError>>>> = blobs.iter().map(|_| std::sync::Mutex::new(None)).collect();
+    std::thread::scope(|s| {
+        for _ in 0..threads.max(1).min(blobs.len()) {
+            s.spawn(|| {
+                loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let Some((b, aspect)) = blobs.get(i) else { break };
+                    *out[i].lock().unwrap() = Some(import_with(b, *aspect));
+                }
+            });
+        }
+    });
+    out.into_iter().map(|m| m.into_inner().unwrap().unwrap_or(Err(ImportError::Decode))).collect()
+}
+
 /// Importe les fichiers sur `threads` fils ; `on_each` est appelé une fois par fichier, avec son indice, dès qu'il est prêt.
 pub fn import_many(paths: &[PathBuf], threads: usize, on_each: impl Fn(usize, Result<Asset, ImportError>) + Sync) {
     let next = std::sync::atomic::AtomicUsize::new(0);
@@ -290,6 +324,14 @@ fn fit(img: &DynamicImage, long_edge: u32) -> DynamicImage {
 
 /// Le réencodage n'écrit aucune métadonnée : c'est lui qui retire l'EXIF (dont la position GPS).
 pub fn import_bytes(data: &[u8]) -> Result<Asset, ImportError> {
+    import_with(data, None)
+}
+
+/// Avec `frame_aspect` (une image d'un document repris, largeur sur hauteur de son cadre) : l'image est tournée
+/// dans le sens qui va le mieux à son cadre, selon son étiquette d'orientation ou telle qu'elle est enregistrée.
+/// LibreOffice n'applique pas l'étiquette à une image qui remplit une forme : l'image brute est souvent la bonne,
+/// mais pas toujours.
+fn import_with(data: &[u8], frame_aspect: Option<f64>) -> Result<Asset, ImportError> {
     if is_heic(data) {
         return Err(ImportError::Heic);
     }
@@ -305,7 +347,9 @@ pub fn import_bytes(data: &[u8]) -> Result<Asset, ImportError> {
     let mut decoder = reader.into_decoder().map_err(|_| ImportError::Decode)?;
     let orientation = decoder.orientation().map_err(|_| ImportError::Decode)?;
     let mut img = DynamicImage::from_decoder(decoder).map_err(|_| ImportError::Decode)?;
-    img.apply_orientation(orientation);
+    if frame_aspect.is_none_or(|a| oriented_fits(img.width(), img.height(), orientation, a)) {
+        img.apply_orientation(orientation);
+    }
 
     let mime = if has_transparency(&img) { Mime::Png } else { Mime::Jpeg };
     let main = fit(&img, MAX_LONG_EDGE_PX);
@@ -420,6 +464,22 @@ mod tests {
         let a = import_path(&Path::new(FIXTURES).join("orientation6.jpg")).unwrap();
         assert_eq!((a.meta.width_px, a.meta.height_px), (20, 40));
         assert_eq!(decoded_dims(&a.bytes), (20, 40));
+    }
+
+    /// Une image de document repris est tournée dans le sens de son cadre : la photo de 40 × 20 enregistrée,
+    /// étiquetée « tourner de 90° », reste brute dans un cadre en paysage et se redresse dans un cadre en portrait.
+    #[test]
+    fn a_document_picture_is_turned_to_fit_its_frame() {
+        let data = std::fs::read(Path::new(FIXTURES).join("orientation6.jpg")).unwrap();
+        let dims = |aspect: f64| {
+            let a = import_bytes_many(&[(data.clone(), Some(aspect))], 1).pop().unwrap().unwrap();
+            (a.meta.width_px, a.meta.height_px)
+        };
+        assert_eq!(dims(2.0), (40, 20));
+        assert_eq!(dims(0.5), (20, 40));
+        // Sans cadre, l'étiquette s'applique toujours.
+        let a = import_bytes_many(&[(data.clone(), None)], 1).pop().unwrap().unwrap();
+        assert_eq!((a.meta.width_px, a.meta.height_px), (20, 40));
     }
 
     #[test]

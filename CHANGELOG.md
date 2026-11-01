@@ -1,5 +1,9 @@
 # Journal des versions
 
+## Non publié
+
+- Import d'un fichier LibreOffice Draw (.odg) : les photos posées dans une forme (cadre arrondi, polygone) et les images rangées en deux exemplaires (un dessin WMF et sa copie PNG) étaient perdues. Elles sont reprises, chacune tournée dans le sens de son cadre, et les images d'une page sont lues en parallèle : un document de 22 pages et 222 images s'ouvre en une dizaine de secondes.
+
 ## 0.10.0
 
 - Fiches de graphisme : tiroir Formes > Graphisme. Des lignes de ponts, coupes, vagues, boucles, créneaux, dents de scie, traits ou ronds à repasser, à la taille de la section (PS, MS, GS) : un point vert pour commencer, le modèle en trait plein, la suite en pointillés gris. Et des « Chemins à suivre » en pointillés, à étirer entre deux images. Ces tracés s'impriment et s'exportent pour LibreOffice tels quels ; un document qui en contient demande cette version de Cahutin.

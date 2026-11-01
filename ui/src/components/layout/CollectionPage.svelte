@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GuideLink from "../GuideLink.svelte";
   // Page de la collection : ranger ses images dans des thèmes (« Automne », « Animaux »), les renommer, les
   // retirer et remettre celles retirées, en ajouter (fichiers ou dossier entier).
   import { open } from "@tauri-apps/plugin-dialog";
@@ -106,6 +107,7 @@
     <h1>🗂 {fr.collectionTitle}</h1>
     <button onclick={addFiles}>＋ {fr.myImagesAdd}</button>
     <button onclick={addFolder}>{fr.addFolderButton}</button>
+    <GuideLink id="collection" />
   </div>
   <p class="intro">{fr.collectionIntro}</p>
   {#if error}<p class="error" role="alert">{error}</p>{/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GuideLink from "../GuideLink.svelte";
   // Tiroir Classe, à côté du document : la classe choisie et le remplissage de la page. La classe s'édite
   // sur sa page dédiée (« Modifier la classe… »).
   import Drawer from "../layout/Drawer.svelte";
@@ -21,12 +22,13 @@
       <span>{cls.year} · {fr.classCount(cls.students.length)}</span>
     </div>
     <button class="primary" disabled={!cls.students.length} onclick={ongenerate}>✨ {fr.classGenerate}</button>
-    <button onclick={() => (editor.showClassPage = true)}>✎ {fr.classEdit}</button>
-    <button title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}>🖼️ {fr.libraryTitle}</button>
+    <button data-guide="class-edit" onclick={() => (editor.showClassPage = true)}>✎ {fr.classEdit}</button>
+    <button data-guide="phototheque" title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}>🖼️ {fr.libraryTitle}</button>
   {:else}
     <p class="hint">{classes.list.length ? fr.classChoose : fr.classNone}</p>
-    <button class="primary" onclick={() => (editor.showClassPage = true)}>✎ {fr.classEdit}</button>
+    <button class="primary" data-guide="class-edit" onclick={() => (editor.showClassPage = true)}>✎ {fr.classEdit}</button>
   {/if}
+  <GuideLink id="classe" />
   {#if others.length}
     <h3>{cls ? fr.classSwitch : fr.classChoose}</h3>
     {#each others as c (c.path)}

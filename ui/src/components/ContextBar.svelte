@@ -4,6 +4,7 @@
   import { tick } from "svelte";
   import AlignIcon from "./AlignIcon.svelte";
   import ColorPicker from "./ColorPicker.svelte";
+  import GuideLink from "./GuideLink.svelte";
   import StrokeStylePicker from "./StrokeStylePicker.svelte";
   import VAlignIcon from "./VAlignIcon.svelte";
   import FontPicker from "./FontPicker.svelte";
@@ -336,7 +337,7 @@
       {:else}
         <button class:on={editor.replacingPhoto} title={fr.replacePhotoHint} onclick={() => ((editor.replacingPhoto = true), editor.openImages("photos"))}>⇄<span class="lbl"> {fr.replace}</span></button>
         <button onclick={() => (editor.cropping = selected.id)}>⛶<span class="lbl"> {fr.crop}</span></button>
-        <button title={fr.blurHint} onclick={() => (editor.blurring = ph.asset)}>◍<span class="lbl"> {fr.blurButton}</span></button>
+        <button data-guide="blur" title={fr.blurHint} onclick={() => (editor.blurring = ph.asset)}>◍<span class="lbl"> {fr.blurButton}</span></button>
         {#if !settings.moreMenu}
         <button title={fr.keepInMyImagesHint} onclick={() => ph.asset && myImages.keep(ph.asset)}>⭐<span class="lbl"> {fr.keepInMyImages}</span></button>
         {/if}
@@ -558,14 +559,14 @@
               <button role="menuitem" onclick={() => rotateSelection(90)}>↻ {fr.rotateRightShort}</button>
             {/if}
             {#if canFrieze}
-              <button role="menuitem" title={fr.blockFriezeHint} onclick={() => ((pop = null), addBlockFrieze())}>❀ {fr.blockFriezeAround}</button>
+              <button role="menuitem" data-guide="frieze-around" title={fr.blockFriezeHint} onclick={() => ((pop = null), addBlockFrieze())}>❀ {fr.blockFriezeAround}</button>
             {/if}
             {#if friezeIds && friezeNow}
-              <button role="menuitem" title={fr.friezeSettingsHint} onclick={() => (pop = "frieze")}>❀ {fr.friezeSettingsMenu} ▸</button>
+              <button role="menuitem" data-guide="frieze-size" title={fr.friezeSettingsHint} onclick={() => (pop = "frieze")}>❀ {fr.friezeSettingsMenu} ▸</button>
             {/if}
             {#if canCut}
-              <button role="menuitem" title={fr.repeatHint} onclick={() => (pop = "repeat")}>▦ {fr.repeat} ▸</button>
-              <button role="menuitem" title={fr.cutMarksHint} onclick={() => (pop = "cut")}>✂ {fr.cutMarks} ▸</button>
+              <button role="menuitem" data-guide="repeat" title={fr.repeatHint} onclick={() => (pop = "repeat")}>▦ {fr.repeat} ▸</button>
+              <button role="menuitem" data-guide="cut" title={fr.cutMarksHint} onclick={() => (pop = "cut")}>✂ {fr.cutMarks} ▸</button>
             {/if}
             {#if !many}
               <button role="menuitem" onclick={() => ((pop = null), (editor.inspectorOpen = true))}>⚙ {fr.allSettings}</button>
@@ -582,6 +583,7 @@
             <label>{fr.tableRows} <input type="number" min="1" max="20" bind:value={repeatRows} /></label>
             <button class="primary" disabled={repeatCols * repeatRows < 2} onclick={() => repeat(false)}>{fr.repeatApply(repeatCols * repeatRows)}</button>
             <button onclick={() => repeat(true)}>{fr.repeatFill}</button>
+            <GuideLink id="etiquettes" />
           </div>
         {:else if pop === "cut"}
           <div class="pop list">
@@ -606,11 +608,11 @@
         <button title={fr.rotateRight} aria-label={fr.rotateRight} onclick={() => rotateSelection(90)}>↻</button>
       {/if}
       {#if canFrieze}
-        <button title={fr.blockFriezeHint} onclick={addBlockFrieze}>❀<span class="lbl"> {fr.blockFriezeAround}</span></button>
+        <button data-guide="frieze-around" title={fr.blockFriezeHint} onclick={addBlockFrieze}>❀<span class="lbl"> {fr.blockFriezeAround}</span></button>
       {/if}
       {#if friezeIds && friezeNow}
         <div class="wrap">
-          <button class:on={pop === "frieze"} title={fr.friezeSettingsHint} onclick={() => toggle("frieze")}>❀<span class="lbl"> {fr.friezeSettingsMenu} ▾</span></button>
+          <button data-guide="frieze-size" class:on={pop === "frieze"} title={fr.friezeSettingsHint} onclick={() => toggle("frieze")}>❀<span class="lbl"> {fr.friezeSettingsMenu} ▾</span></button>
           {#if pop === "frieze"}
             <div class="pop frieze">
               <label>{fr.friezeSize} <input type="range" min="6" max="40" step="1" value={friezeNow.size} onchange={(e) => setFrieze(Number(e.currentTarget.value), friezeNow.gap)} /> {friezeNow.size} mm</label>
@@ -621,18 +623,19 @@
       {/if}
       {#if canCut}
         <div class="wrap">
-          <button title={fr.repeatHint} onclick={() => toggle("repeat")}>▦<span class="lbl"> {fr.repeat} ▾</span></button>
+          <button data-guide="repeat" title={fr.repeatHint} onclick={() => toggle("repeat")}>▦<span class="lbl"> {fr.repeat} ▾</span></button>
           {#if pop === "repeat"}
             <div class="pop repeat">
               <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
               <label>{fr.tableRows} <input type="number" min="1" max="20" bind:value={repeatRows} /></label>
               <button class="primary" disabled={repeatCols * repeatRows < 2} onclick={() => repeat(false)}>{fr.repeatApply(repeatCols * repeatRows)}</button>
               <button onclick={() => repeat(true)}>{fr.repeatFill}</button>
+              <GuideLink id="etiquettes" />
             </div>
           {/if}
         </div>
         <div class="wrap">
-          <button title={fr.cutMarksHint} onclick={() => toggle("cut")}>✂<span class="lbl"> {fr.cutMarks} ▾</span></button>
+          <button data-guide="cut" title={fr.cutMarksHint} onclick={() => toggle("cut")}>✂<span class="lbl"> {fr.cutMarks} ▾</span></button>
           {#if pop === "cut"}
             <div class="pop list">
               <button onclick={() => setCutMarks("corners")}>⌜ ⌝ {fr.cutCorners}</button>

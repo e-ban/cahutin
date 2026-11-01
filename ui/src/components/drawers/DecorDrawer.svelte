@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GuideLink from "../GuideLink.svelte";
   // Tiroir Décors : cadres de page et frises. Les motifs d'une frise se choisissent dans une fenêtre ; les
   // images à poser sont dans le tiroir Images.
   import Drawer from "../layout/Drawer.svelte";
@@ -57,7 +58,7 @@
     {/each}
   </div>
 
-  <h3>{fr.friezes}</h3>
+  <h3 class="with-guide">{fr.friezes}<GuideLink id="frise" /></h3>
   <span class="label">{fr.friezeMotifs}</span>
   <div class="motifs">
     {#each friezeMotifs.codes as code, i (code)}
@@ -69,7 +70,7 @@
       <span class="hint">{fr.friezeNoMotif}</span>
     {/each}
   </div>
-  <button onclick={() => (picking = true)}>＋ {fr.friezePick}</button>
+  <button data-guide="frieze-pick" onclick={() => (picking = true)}>＋ {fr.friezePick}</button>
   <label class="slider">
     <span>{fr.friezeSize}</span>
     <input type="range" min="6" max="40" step="1" bind:value={friezeMotifs.size} />
@@ -90,6 +91,11 @@
 {#if picking}<FriezePicker onclose={() => (picking = false)} />{/if}
 
 <style>
+  .with-guide {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
   h3 {
     margin: 2px 0 0;
   }

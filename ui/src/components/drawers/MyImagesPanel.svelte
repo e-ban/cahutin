@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GuideLink from "../GuideLink.svelte";
   // La collection : les images de l'enseignant, gardées d'un document à l'autre. `query` filtre ; pendant une
   // recherche (`searching`), seules les vignettes trouvées sont montrées. Avec `onpick` (choix des motifs d'une
   // frise), un clic ajoute l'image aux motifs ou l'en retire, et `chosen` numérote les motifs choisis.
@@ -56,7 +57,7 @@
 
 {#if !searching}
   <p class="what">{fr.myImagesWhat}</p>
-  <button class="add" onclick={add}>＋ {fr.myImagesAdd}</button>
+  <button class="add" data-guide="collection-add" onclick={add}>＋ {fr.myImagesAdd}</button>
 {/if}
 {#if myImages.images.length && (!searching || shown.length)}
   {#if searching}<h4>{fr.myImages}</h4>{/if}
@@ -98,7 +99,8 @@
   <p class="hint">{fr.myImagesEmpty}</p>
 {/if}
 {#if !searching && !onpick}
-  <button class="organize" onclick={() => (editor.showCollection = true)}>🗂 {fr.collectionOrganize}</button>
+  <button class="organize" data-guide="collection-organize" onclick={() => (editor.showCollection = true)}>🗂 {fr.collectionOrganize}</button>
+  <GuideLink id="collection" />
   <p class="hint">{fr.myImagesWhere}</p>
   {#if onphotos}<button class="link" onclick={onphotos}>{fr.myImagesPhotosLink}</button>{/if}
 {/if}

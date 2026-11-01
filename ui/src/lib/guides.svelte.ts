@@ -2,7 +2,12 @@
 // phrases par panneau ; une courte vidéo seulement pour un geste, comme glisser d'une case à l'autre) ; « Me guider » montre ensuite, sur l'écran, le vrai bouton de chaque étape et
 // passe à la suivante quand l'action est faite. Pour un nouveau guide : l'ajouter à GUIDES, ses captures dans
 // `assets/guides/<id>/`.
+import { hasNameFields } from "./classFill";
+import { classes } from "./classStore.svelte";
+import { isCutMark } from "./cutMarks";
 import { editor } from "./docStore.svelte";
+import { myImages } from "./myImages.svelte";
+import { classLibrary } from "./phototheque.svelte";
 import { isPlacedCell } from "./table";
 import { templates } from "./templates.svelte";
 
@@ -109,6 +114,382 @@ export const GUIDES: Guide[] = [
         title: "Retrouvez-le",
         text: "Le tiroir Modèles le propose désormais, comme « Partir d'un modèle » sur l'accueil.",
         done: () => editor.drawer === "templates",
+      },
+    ],
+  },
+  {
+    id: "classe",
+    icon: "🧒",
+    title: "Remplir avec ma classe",
+    summary: "La liste des prénoms collée une fois, puis une page par enfant ou une planche d'étiquettes, d'un clic.",
+    panels: [
+      {
+        title: "Ouvrir « Ma classe »",
+        text: "Accueil > « Ma classe », ou le tiroir Classe > « Modifier la classe… ». La classe reste sur l'ordinateur, dans Documents › Cahutin › Classes.",
+        image: img("classe", "ouvrir"),
+      },
+      {
+        title: "Coller la liste des prénoms",
+        text: "Un prénom par ligne, copiés d'un tableur ou d'un document, puis « Créer ma classe ». « Ouvrir un fichier… » lit aussi un export d'ONDE : nom, date de naissance, niveau et groupe viennent avec.",
+        image: img("classe", "coller"),
+      },
+      {
+        title: "Photos et autorisations",
+        text: "Cochez « autorisée » pour les enfants dont les parents ont donné leur accord (« Tout cocher » d'un coup). Sans autorisation, c'est le symbole de l'enfant qui va dans la case photo : « Symboles pour tous » en donne un à chacun.",
+        image: img("classe", "autorisations"),
+      },
+      {
+        title: "Une page qui attend des prénoms",
+        text: "Un modèle « Pour la classe » (étiquettes, memory, J'écris mon prénom…), ou le bouton « Prénom » pendant l'écriture : un bandeau bleu propose alors de remplir la page.",
+        image: img("classe", "bandeau"),
+      },
+      {
+        title: "Remplir",
+        text: "« Remplir avec… » : Cahutin dit ce qu'il va faire (une planche d'étiquettes, une page par enfant), pour toute la classe, un niveau ou un groupe. Ctrl+Z revient en arrière.",
+        image: img("classe", "remplir"),
+      },
+    ],
+    walk: [
+      {
+        target: '.rail [data-tour="class"]',
+        title: "Ouvrez le tiroir Classe",
+        text: "Cliquez sur « Classe », dans la colonne de gauche.",
+        done: () => editor.drawer === "class" || editor.showClassPage,
+      },
+      {
+        target: '[data-guide="class-edit"]',
+        title: "Ouvrez votre classe",
+        text: "« Modifier la classe… » ouvre la page « Ma classe ».",
+        done: () => editor.showClassPage,
+      },
+      {
+        target: ".class-page textarea, .class-page table",
+        title: "Collez la liste",
+        text: "Collez les prénoms, un par ligne, puis « Créer ma classe ». Si la classe existe déjà, passez à l'étape suivante.",
+        done: () => editor.showClassPage && (classes.current?.class.students.length ?? 0) > 0 && !!document.querySelector(".class-page table"),
+      },
+      {
+        target: '[data-guide="class-consent"]',
+        title: "Les autorisations photo",
+        text: "Cochez « autorisée » pour chaque enfant dont les parents ont donné leur accord, puis passez à l'étape suivante.",
+      },
+      {
+        target: ".class-page .back",
+        title: "Revenez au document",
+        text: "« Retour » : la classe est enregistrée.",
+        done: () => !editor.showClassPage,
+      },
+      {
+        target: '.rail [data-tour="templates"]',
+        title: "Une page à prénoms",
+        text: "Dans le tiroir Modèles, « Pour la classe », cliquez sur un modèle (des étiquettes, par exemple).",
+        done: () => hasNameFields(editor.page),
+      },
+      {
+        target: '[data-guide="class-fill"]',
+        title: "Remplissez",
+        text: "« Remplir avec… » dans le bandeau bleu, puis validez.",
+      },
+    ],
+  },
+  {
+    id: "phototheque",
+    icon: "📷",
+    title: "Photothèque de la classe",
+    summary: "Les photos de l'année rangées par jour, par enfant et par activité, et les enfants peu photographiés.",
+    panels: [
+      {
+        title: "Ouvrir la photothèque",
+        text: "Tiroir Classe > « Photothèque », ou le bouton « Photothèque » de la page « Ma classe ». Chaque classe a la sienne, dans Documents › Cahutin › Photos.",
+        image: img("phototheque", "ouvrir"),
+      },
+      {
+        title: "Ajouter les photos",
+        text: "En haut, « ＋ Photos » ou « 📁 Dossier » : elles se rangent par jour. Le lieu et l'appareil ne sont pas gardés.",
+        image: img("phototheque", "ajouter"),
+      },
+      {
+        title: "Qui est sur ces photos ?",
+        text: "Choisissez des photos (un clic, Ctrl ou Maj pour plusieurs, ou la date d'un jour), puis cliquez sur les prénoms des enfants présents et sur l'activité. Une nouvelle activité s'ajoute en bas.",
+        image: img("phototheque", "qui"),
+      },
+      {
+        title: "Retrouver et équilibrer",
+        text: "À gauche, les photos d'un enfant ou d'une activité. En haut, « Peu de photos » signale les enfants peu photographiés sur la période, pour penser à eux.",
+        image: img("phototheque", "retrouver"),
+      },
+      {
+        title: "Mettre dans le document",
+        text: "« Mettre ces photos dans le document » : elles attendent dans le tiroir Images, onglet Photos. Un enfant sans autorisation est signalé : floutez son visage avant d'imprimer.",
+        image: img("phototheque", "document"),
+      },
+    ],
+    walk: [
+      {
+        target: '.rail [data-tour="class"]',
+        title: "Ouvrez le tiroir Classe",
+        text: "Cliquez sur « Classe », dans la colonne de gauche.",
+        done: () => editor.drawer === "class" || editor.showPhototheque,
+      },
+      {
+        target: '[data-guide="phototheque"]',
+        title: "Ouvrez la photothèque",
+        text: "Cliquez sur « Photothèque ».",
+        done: () => editor.showPhototheque,
+      },
+      {
+        target: '[data-guide="library-add"]',
+        title: "Ajoutez des photos",
+        text: "« ＋ Photos » ou « 📁 Dossier ». S'il y en a déjà, passez à l'étape suivante.",
+        baseline: () => classLibrary.photos.length,
+        done: (base) => classLibrary.photos.length > base,
+      },
+      {
+        target: ".library-page .days",
+        title: "Choisissez des photos",
+        text: "Cliquez sur une photo (Ctrl ou Maj pour plusieurs), ou sur la date d'un jour pour toutes ses photos.",
+        done: () => !!document.querySelector(".library-page aside.panel"),
+      },
+      {
+        target: ".library-page aside.panel",
+        title: "Qui, et quelle activité ?",
+        text: "Cliquez sur les prénoms des enfants présents, puis sur l'activité. « Mettre ces photos dans le document » les envoie au tiroir Images.",
+        done: () => !editor.showPhototheque,
+      },
+    ],
+  },
+  {
+    id: "flou",
+    icon: "◍",
+    title: "Flouter des visages",
+    summary: "Le visage d'un enfant sans autorisation photo, caché avant d'imprimer ; la photo d'origine n'est pas gardée.",
+    panels: [
+      {
+        title: "Choisir la photo",
+        text: "Cliquez sur la photo dans la page, puis « Flouter » dans sa barre.",
+        image: img("flou", "choisir"),
+      },
+      {
+        title: "Repérage automatique, ou à la main",
+        text: "La première fois, Cahutin demande s'il peut repérer les visages tout seul. Le repérage se fait sur l'ordinateur, sans savoir qui est qui, et la photo ne part nulle part. Sinon, vous tracez les zones vous-même.",
+        image: img("flou", "accord"),
+      },
+      {
+        title: "Désigner les visages",
+        text: "Cliquez sur les visages repérés à flouter. Pour un visage non repéré, tracez une zone en glissant sur la photo ; la croix d'une zone la retire.",
+        image: img("flou", "tracer"),
+      },
+      {
+        title: "Flouter",
+        text: "« Flouter 1 visage » : le flou est fait, et la photo d'origine ne sera pas enregistrée dans le document. Ctrl+Z revient en arrière tant que le document est ouvert.",
+        image: img("flou", "resultat"),
+      },
+    ],
+    walk: [
+      {
+        target: "main.stage .page",
+        title: "Choisissez la photo",
+        text: "Cliquez sur la photo à flouter.",
+        done: () => editor.selected?.kind.type === "Photo" && !!editor.selected.kind.asset,
+      },
+      {
+        target: '[data-guide="blur"]',
+        title: "Flouter",
+        text: "Cliquez sur « Flouter » dans la barre de la photo.",
+        done: () => !!editor.blurring,
+      },
+      {
+        target: '[data-guide="blur-photo"]',
+        title: "Désignez les visages",
+        text: "Cliquez sur un visage repéré, ou tracez une zone en glissant sur le visage. Puis « Flouter » en bas.",
+        done: () => !editor.blurring,
+      },
+    ],
+  },
+  {
+    id: "etiquettes",
+    icon: "✂️",
+    title: "Étiquettes à découper",
+    summary: "Une étiquette ou une carte, répétée sur toute la page, avec des repères pour couper droit.",
+    panels: [
+      {
+        title: "Faire une étiquette",
+        text: "Un texte avec un cadre (bouton « Cadre »), une image, ou les deux, puis sélectionnez-les ensemble et groupez-les (Ctrl+G) : l'étiquette est un seul bloc. Les modèles Étiquettes en donnent toutes prêtes.",
+        image: img("etiquettes", "bloc"),
+      },
+      {
+        title: "Répéter",
+        text: "Le bloc choisi, « Répéter » dans sa barre : le nombre de colonnes et de lignes, ou « Remplir la page ». Chaque exemplaire garde ses zones à remplir avec la classe.",
+        image: img("etiquettes", "repeter"),
+      },
+      {
+        title: "Repères de découpe",
+        text: "Juste après « Répéter », toutes les étiquettes sont choisies : « Repères de découpe » met des traits aux coins, ou des pointillés avec des ciseaux, autour de chacune. Plus tard, tracez un cadre autour d'elles pour les choisir toutes.",
+        image: img("etiquettes", "reperes"),
+      },
+      {
+        title: "Imprimer",
+        text: "« Imprimer / Exporter ». Pour des cartes recto-verso, mettez les versos sur les pages 2, 4… et « Imprimer en recto-verso » : chaque verso tombe derrière son recto.",
+        image: img("etiquettes", "imprimer"),
+      },
+    ],
+    walk: [
+      {
+        target: "main.stage .page",
+        title: "Choisissez l'étiquette",
+        text: "Cliquez sur l'étiquette (un bloc groupé, une photo ou un texte).",
+        done: () => editor.selection.length > 0,
+      },
+      {
+        target: '[data-guide="repeat"]',
+        title: "Répétez-la",
+        text: "« Répéter », puis « Remplir la page » ou le nombre d'exemplaires.",
+        baseline: () => editor.page.elements.length,
+        done: (base) => editor.page.elements.length > base + 1,
+      },
+      {
+        target: '[data-guide="cut"]',
+        title: "Ajoutez les repères",
+        text: "Les étiquettes sont toutes choisies : « Repères de découpe », puis traits aux coins ou pointillés.",
+        done: () => editor.page.elements.some(isCutMark),
+      },
+      {
+        target: ".top",
+        title: "Imprimez",
+        text: "« Imprimer / Exporter », en haut à droite.",
+      },
+    ],
+  },
+  {
+    id: "import",
+    icon: "📥",
+    title: "Reprendre une ancienne fiche",
+    summary: "Une fiche Word, PDF, Publisher ou LibreOffice ouverte dans Cahutin, textes et photos modifiables.",
+    panels: [
+      {
+        title: "Importer",
+        text: "Fichier > « Importer… », ou Accueil > « Importer un fichier », puis choisissez la fiche. Pour Word, PDF et Publisher, LibreOffice doit être installé sur l'ordinateur : Cahutin s'en sert pour lire le fichier.",
+        image: img("import", "importer"),
+      },
+      {
+        title: "Ce qui devient modifiable",
+        text: "Les textes, les photos, les tableaux et les tracés (cadres, lignes de graphisme) arrivent à leur place et se modifient comme les vôtres. Une illustration faite de très nombreux tracés devient une image fixe.",
+        image: img("import", "resultat"),
+      },
+      {
+        title: "Ce qu'il faut vérifier",
+        text: "Un compte rendu dit ce qui a été repris. Relisez la page : une police absente de l'ordinateur est remplacée, et un texte peut déborder de son cadre (il est alors entouré de rouge).",
+        image: img("import", "verifier"),
+      },
+    ],
+    walk: [],
+  },
+  {
+    id: "frise",
+    icon: "🌸",
+    title: "Frise autour d'un bloc",
+    summary: "Des images répétées autour d'une photo ou d'un texte, réglables après coup.",
+    panels: [
+      {
+        title: "Choisir les images",
+        text: "Tiroir Décors > Frises > « Choisir les images » : des pictogrammes ou les images de votre collection, dans l'ordre où elles se suivront. « Taille » et « Espacement » se règlent dessous.",
+        image: img("frise", "motifs"),
+      },
+      {
+        title: "Entourer un bloc",
+        text: "Cliquez sur la photo ou le texte, puis « Frise tout autour » dans sa barre : les images l'entourent. Les boutons « En haut », « En bas », « Tout autour » du tiroir font une frise au bord de la page.",
+        image: img("frise", "autour"),
+      },
+      {
+        title: "Régler après coup",
+        text: "Cliquez sur la frise, puis « Taille de la frise » dans sa barre : la taille des images et l'espace entre elles changent, sans tout refaire.",
+        image: img("frise", "taille"),
+      },
+    ],
+    walk: [
+      {
+        target: '.rail [data-tour="decor"]',
+        title: "Ouvrez le tiroir Décors",
+        text: "Cliquez sur « Décors », dans la colonne de gauche.",
+        done: () => editor.drawer === "decor",
+      },
+      {
+        target: '[data-guide="frieze-pick"]',
+        title: "Choisissez les images",
+        text: "« Choisir les images », cliquez celles de la frise, puis « Terminé ».",
+      },
+      {
+        target: "main.stage .page",
+        title: "Choisissez le bloc",
+        text: "Cliquez sur la photo ou le texte à entourer.",
+        done: () => editor.selection.length > 0,
+      },
+      {
+        target: '[data-guide="frieze-around"]',
+        title: "Entourez-le",
+        text: "« Frise tout autour » dans sa barre.",
+        baseline: () => editor.page.elements.length,
+        done: (base) => editor.page.elements.length > base,
+      },
+      {
+        target: '[data-guide="frieze-size"]',
+        title: "Réglez",
+        text: "« Taille de la frise » change la taille des images et leur espacement.",
+      },
+    ],
+  },
+  {
+    id: "collection",
+    icon: "🗂",
+    title: "Ma collection",
+    summary: "Vos dessins et illustrations, gardés pour tous vos documents et rangés par thème.",
+    panels: [
+      {
+        title: "Ajouter des images",
+        text: "Tiroir Images > onglet Collection > « Ajouter des images ». Une image déjà posée sur la page s'y ajoute avec « Ajouter à ma collection » dans sa barre. Elles sont gardées dans Documents › Cahutin › Images.",
+        image: img("collection", "ajouter"),
+      },
+      {
+        title: "Ranger par thème",
+        text: "« Organiser ma collection » (ou Accueil > « Ma collection ») : cliquez des images, écrivez un thème (« Automne », « Animaux »), puis « Ranger ». Un clic sur un nom le change.",
+        image: img("collection", "ranger"),
+      },
+      {
+        title: "Retrouver et poser",
+        text: "Dans le tiroir, les thèmes trient la collection. Un clic pose l'image, ou glissez-la sur la page. Une image retirée n'est pas effacée : « Retirées », puis « Remettre ».",
+        image: img("collection", "poser"),
+      },
+    ],
+    walk: [
+      {
+        target: '.rail [data-tour="images"]',
+        title: "Ouvrez le tiroir Images",
+        text: "Cliquez sur « Images », dans la colonne de gauche.",
+        done: () => editor.drawer === "images",
+      },
+      {
+        target: '[data-guide="tab-mine"]',
+        title: "L'onglet Collection",
+        text: "Cliquez sur « Collection ».",
+        done: () => editor.drawer === "images" && editor.imagesTab === "mine",
+      },
+      {
+        target: '[data-guide="collection-add"]',
+        title: "Ajoutez des images",
+        text: "« Ajouter des images » et choisissez vos dessins. S'il y en a déjà, passez à l'étape suivante.",
+        baseline: () => myImages.images.length,
+        done: (base) => myImages.images.length > base,
+      },
+      {
+        target: '[data-guide="collection-organize"]',
+        title: "Rangez-les",
+        text: "« Organiser ma collection » ouvre la page où l'on range par thème.",
+        done: () => editor.showCollection,
+      },
+      {
+        target: ".collection-page",
+        title: "Un thème",
+        text: "Cliquez des images, écrivez un thème, puis « Ranger ».",
       },
     ],
   },

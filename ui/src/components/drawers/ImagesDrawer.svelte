@@ -46,7 +46,7 @@
 <Drawer title={fr.images}>
   <div class="tabs" role="tablist">
     {#each tabs as t (t.id)}
-      <button role="tab" aria-selected={tab === t.id} class:on={tab === t.id} onclick={() => ((query = ""), editor.setImagesTab(t.id))}>{t.label}</button>
+      <button role="tab" data-guide="tab-{t.id}" aria-selected={tab === t.id} class:on={tab === t.id} onclick={() => ((query = ""), editor.setImagesTab(t.id))}>{t.label}</button>
     {/each}
   </div>
   {#if tab === "photos" && editor.templateMode}

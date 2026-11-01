@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GuideLink from "../GuideLink.svelte";
   // Photothèque de la classe : toutes les photos de l'année, à trier (garder, supprimer), à étiqueter
   // (élèves présents, activités), à retrouver (par enfant, par activité, par période) et à poser dans le
   // document. Un bandeau signale les enfants peu photographiés et une pastille les photos d'un enfant
@@ -167,9 +168,10 @@
     <button class="back" onclick={close}>← {fr.classPageBack}</button>
     <h1>📷 {fr.libraryTitle}{#if classes.current}{` · ${classes.current.class.name}`}{/if}</h1>
     {#if classes.current}
-      <button onclick={addFiles}>{fr.addPhotosButton}</button>
+      <button data-guide="library-add" onclick={addFiles}>{fr.addPhotosButton}</button>
       <button onclick={addFolder}>{fr.addFolderButton}</button>
     {/if}
+    <GuideLink id="phototheque" />
   </div>
 
   {#if !classes.current}

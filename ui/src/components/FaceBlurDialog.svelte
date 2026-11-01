@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GuideLink from "./GuideLink.svelte";
   // Flouter des visages : la photo entière en grand ; les visages repérés (si le repérage est actif) se
   // cochent d'un clic, d'autres zones se tracent à la main en glissant. « Flouter » remplace la photo par sa
   // version floutée partout dans le document, en un pas d'annulation. Cahutin ne sait jamais qui est qui.
@@ -139,7 +140,7 @@
     {/if}
     <p class="hint">{auto ? fr.blurHintAuto : fr.blurHintManual}</p>
     {#if meta}
-      <div class="stage" style:aspect-ratio="{meta.width_px} / {meta.height_px}" style:width="min(100%, calc(70vh * {meta.width_px / meta.height_px}))">
+      <div class="stage" data-guide="blur-photo" style:aspect-ratio="{meta.width_px} / {meta.height_px}" style:width="min(100%, calc(70vh * {meta.width_px / meta.height_px}))">
         <img src={assetUrl(assetId)} alt="" draggable="false" />
         <!-- Calque des zones : glisser sur la photo trace une zone ; chaque visage repéré est un bouton. -->
         <div class="layer" bind:this={layerEl} role="presentation">
@@ -170,6 +171,7 @@
     </label>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <div class="buttons">
+      <span class="guide"><GuideLink id="flou" /></span>
       <button onclick={onclose} disabled={busy}>{fr.cancel}</button>
       <button class="primary" disabled={busy || zones.length === 0} onclick={apply}>{fr.blurApply(zones.length)}</button>
     </div>
@@ -297,6 +299,9 @@
     display: flex;
     gap: 8px;
     justify-content: flex-end;
+  }
+  .guide {
+    margin-right: auto;
   }
   .primary {
     background: var(--accent);

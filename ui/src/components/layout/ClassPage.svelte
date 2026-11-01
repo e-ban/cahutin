@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GuideLink from "../GuideLink.svelte";
   // Page « Ma classe » : la classe sur toute la largeur, un élève par ligne (photo, prénom, nom,
   // autorisation, symbole, niveau, groupe). Ouverte depuis l'accueil ou par « Modifier la classe… » du
   // tiroir. Tout s'enregistre seul dans Documents/Cahutin/Classes.
@@ -183,7 +184,7 @@
       <button class="primary" onclick={closeIntro}>{fr.classIntroOk}</button>
     </section>
   {:else}
-    <button class="link how" onclick={() => (intro = true)}>{fr.classIntroAgain}</button>
+    <span class="how"><button class="link" onclick={() => (intro = true)}>{fr.classIntroAgain}</button><GuideLink id="classe" /></span>
   {/if}
 
   {#if showCreate}
@@ -233,7 +234,7 @@
           <th>{fr.classPhoto}</th>
           <th>{fr.classFirstName}</th>
           <th>{fr.classLastName}</th>
-          <th title={fr.classConsent}>
+          <th title={fr.classConsent} data-guide="class-consent">
             📷 {fr.classConsentShort}
             {#if cls.students.length > 1}
               {@const all = cls.students.every((s) => s.photo_allowed)}
@@ -395,6 +396,9 @@
     gap: 6px;
   }
   .how {
+    display: flex;
+    gap: 12px;
+    align-items: center;
     margin-bottom: 8px;
   }
   .create {

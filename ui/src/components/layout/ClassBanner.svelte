@@ -16,7 +16,7 @@
 <div class="banner">
   <span class="text">🧒 {fr.classBanner}</span>
   <span class="spacer"></span>
-  <button class="primary" onclick={go}>{classes.current?.class.students.length ? fr.classBannerFill(classes.current.class.name) : fr.classBannerStart}</button>
+  <button class="primary" data-guide="class-fill" onclick={go}>{classes.current?.class.students.length ? fr.classBannerFill(classes.current.class.name) : fr.classBannerStart}</button>
 </div>
 
 <style>

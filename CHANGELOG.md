@@ -1,6 +1,6 @@
 # Journal des versions
 
-## Non publié
+## 0.11.0
 
 - Import d'un PDF : un titre en cursive (ou toute police dont les lettres sont posées une à une) arrive en un seul texte, et non plus lettre par lettre ; son cadre est assez haut pour ses boucles, sans être signalé « Texte trop long ».
 - Guides (carte « Guides » de l'accueil, menu Aide > Guides, bouton « ? Comment faire » sur place, ou sous une astuce ; la visite guidée est en tête de la liste) : un livret qui se feuillette, une image (le bouton dont on parle entouré) ou, pour un geste, une courte vidéo lente, et deux ou trois phrases par étape ; à la fin, « Me guider » montre le vrai bouton de chaque étape sur l'écran et passe à la suivante quand c'est fait, sans rien bloquer. Huit guides : « Créer un modèle », « Remplir avec ma classe », « Photothèque de la classe », « Flouter des visages », « Étiquettes à découper », « Reprendre une ancienne fiche », « Frise autour d'un bloc » et « Ma collection ». Avec les animations réduites, les vidéos restent fixes.

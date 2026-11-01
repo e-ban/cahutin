@@ -18,6 +18,36 @@ export interface Release {
 /** De la plus récente à la plus ancienne. */
 export const RELEASES: Release[] = [
   {
+    version: "0.11",
+    items: [
+      {
+        title: "Des guides, pas à pas",
+        text: "Accueil > « Guides », ou « ? Comment faire » là où vous travaillez : créer un modèle, remplir avec sa classe, flouter un visage, faire des étiquettes à découper… À la fin, « Me guider » montre chaque bouton sur l'écran.",
+        image: "/nouveautes/0.11/guides.webp",
+      },
+      {
+        title: "Cahutin à votre vue",
+        text: "Le bouton « Préférences », en haut : une interface plus grande, une police très lisible ou pour les lecteurs dyslexiques, un contraste élevé, de grandes poignées pour un écran tactile, et le format d'une nouvelle page.",
+        image: "/nouveautes/0.11/preferences.webp",
+      },
+      {
+        title: "Pensé pour les daltoniens",
+        text: "Chaque couleur dit son nom, ce qui ne se voyait qu'à la couleur a aussi un signe, et des couleurs que tous les élèves distinguent. Le bouton « Vision daltonienne » montre la page comme la voit un enfant daltonien.",
+        image: "/nouveautes/0.11/daltonisme.webp",
+      },
+      {
+        title: "Tous les outils sous la main",
+        text: "La barre au-dessus de l'élément montre tous ses outils, avec leur nom. Un seul outil « Miroir » retourne photos, images, formes et groupes ; la rotation se fait par crans de 15° ou par quarts de tour.",
+        image: "/nouveautes/0.11/barre.webp",
+      },
+      {
+        title: "Un modèle plus simple à faire",
+        text: "En mode modèle, chaque texte et chaque image est « À remplir » (vidé à chaque utilisation) ou « Fixe » (un titre, le logo de l'école). Ce qui n'est ni l'un ni l'autre n'est pas gardé.",
+        image: "/nouveautes/0.11/modele.webp",
+      },
+    ],
+  },
+  {
     version: "0.10",
     items: [
       {

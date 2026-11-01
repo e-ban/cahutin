@@ -52,7 +52,8 @@
       {#if settings.reduceMotion}
         <canvas class="shot" use:still={panel.image} aria-hidden="true"></canvas>
       {:else}
-        <img class="shot" src={panel.image} alt="" />
+        <!-- Montrée une fois décodée (lib/guides : sinon la première lecture d'une vidéo paraît accélérée). -->
+        {#if guides.ready[panel.image]}<img class="shot" src={panel.image} alt="" />{:else}<div class="shot" aria-hidden="true"></div>{/if}
       {/if}
       <p class="text">{panel.text}</p>
       <div class="foot">

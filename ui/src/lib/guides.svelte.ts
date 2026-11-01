@@ -116,7 +116,29 @@ export const GUIDES: Guide[] = [
 
 export const guideById = (id: string) => GUIDES.find((g) => g.id === id) ?? null;
 
+/** Images d'un guide décodées à l'avance. Sans cela, WebKit décode une vidéo au fil de sa première lecture et,
+ *  en retard, saute des images pour rattraper : elle semble accélérée la première fois. Les images gardées ici
+ *  restent décodées. */
+const decoded = new Map<string, HTMLImageElement>();
+
 class Guides {
+  /** Les images déjà décodées : le livret n'affiche une capture qu'une fois prête. */
+  ready = $state<Record<string, true>>({});
+
+  /** Décode les images des guides donnés (tous si aucun), une seule fois chacune. */
+  preload(ids: string[] = GUIDES.map((g) => g.id)) {
+    for (const g of GUIDES.filter((g) => ids.includes(g.id)))
+      for (const { image } of g.panels) {
+        if (decoded.has(image)) continue;
+        const im = new Image();
+        im.src = image;
+        decoded.set(image, im);
+        im.decode()
+          .catch(() => {})
+          .then(() => (this.ready = { ...this.ready, [image]: true }));
+      }
+  }
+
   /** Fenêtre des guides : la liste, ou le livret d'un guide. */
   showList = $state(false);
   open = $state<string | null>(null);
@@ -125,6 +147,7 @@ class Guides {
 
   /** Ouvre la liste, ou directement le livret d'un guide. */
   show(id: string | null = null) {
+    this.preload(id ? [id] : undefined);
     this.showList = true;
     this.open = id;
   }

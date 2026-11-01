@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Version AppImage (Linux) : l'import d'un PDF, d'un document Word ou LibreOffice échouait (« LibreOffice n'a pas pu lire ce fichier ») : LibreOffice héritait des bibliothèques de l'AppImage et ne démarrait pas. Il est désormais lancé avec l'environnement du système.
 - Import d'un fichier LibreOffice Draw (.odg) : les photos posées dans une forme (cadre arrondi, polygone) et les images rangées en deux exemplaires (un dessin WMF et sa copie PNG) étaient perdues. Elles sont reprises, chacune tournée dans le sens de son cadre, et les images d'une page sont lues en parallèle : un document de 22 pages et 222 images s'ouvre en une dizaine de secondes.
 
 ## 0.10.0

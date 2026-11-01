@@ -118,9 +118,32 @@ fn kill_tree(child: &mut Child) {
     let _ = child.wait();
 }
 
+/// Dans une AppImage, Cahutin est lancé avec des chemins vers ses propres bibliothèques (`LD_LIBRARY_PATH`,
+/// `PYTHONHOME`, modules GTK…). LibreOffice en hériterait et ne démarrerait pas (une bibliothèque de l'AppImage
+/// trop ancienne pour le sien) : chaque variable perd ses chemins dans l'AppImage (`appdir`), et disparaît s'il
+/// ne lui en reste aucun. Rend les variables à changer : nouvelle valeur, ou `None` pour l'enlever.
+pub fn outside_appimage(vars: impl Iterator<Item = (OsString, OsString)>, appdir: Option<&OsString>) -> Vec<(OsString, Option<OsString>)> {
+    let Some(appdir) = appdir.map(|a| a.to_string_lossy().trim_end_matches('/').to_string()).filter(|a| !a.is_empty()) else { return Vec::new() };
+    vars.filter_map(|(k, v)| {
+        let v = v.to_string_lossy().into_owned();
+        if !v.contains(&appdir) {
+            return None;
+        }
+        let kept: Vec<&str> = v.split(':').filter(|p| !p.is_empty() && !p.starts_with(&appdir)).collect();
+        Some((k, (!kept.is_empty()).then(|| kept.join(":").into())))
+    })
+    .collect()
+}
+
 fn run(soffice: &Path, args: Vec<OsString>, deadline: Instant, cancel: &AtomicBool) -> Result<(), ImportError> {
     let mut cmd = Command::new(soffice);
     cmd.args(args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    for (k, v) in outside_appimage(std::env::vars_os(), std::env::var_os("APPDIR").as_ref()) {
+        match v {
+            Some(v) => cmd.env(k, v),
+            None => cmd.env_remove(k),
+        };
+    }
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -245,6 +268,28 @@ pub fn import_file(path: &Path, soffice: Option<&Path>, known_fonts: &[String], 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Dans une AppImage, LibreOffice est lancé sans les chemins de l'AppImage : le reste de chaque variable est
+    /// gardé, une variable qui n'en contenait pas d'autre disparaît, les autres ne bougent pas.
+    #[test]
+    fn libreoffice_runs_without_the_appimage_paths() {
+        let env = |pairs: &[(&str, &str)]| pairs.iter().map(|(k, v)| (OsString::from(k), OsString::from(v))).collect::<Vec<_>>();
+        let vars = env(&[
+            ("LD_LIBRARY_PATH", "/tmp/.mount_Cahut/usr/lib/:/tmp/.mount_Cahut/usr/lib64/:"),
+            ("PATH", "/tmp/.mount_Cahut/usr/bin/:/usr/local/bin:/usr/bin"),
+            ("PYTHONHOME", "/tmp/.mount_Cahut/usr/"),
+            ("HOME", "/home/lea"),
+        ]);
+        let appdir = OsString::from("/tmp/.mount_Cahut");
+        let fixes = outside_appimage(vars.clone().into_iter(), Some(&appdir));
+        let get = |k: &str| fixes.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone());
+        assert_eq!(get("LD_LIBRARY_PATH"), Some(None));
+        assert_eq!(get("PYTHONHOME"), Some(None));
+        assert_eq!(get("PATH"), Some(Some(OsString::from("/usr/local/bin:/usr/bin"))));
+        assert_eq!(get("HOME"), None);
+        // Hors AppImage, rien ne change.
+        assert!(outside_appimage(vars.into_iter(), None).is_empty());
+    }
     use std::sync::atomic::Ordering;
     use std::time::Instant;
 

@@ -1,7 +1,8 @@
 <script lang="ts">
-  // Bandeau du mode modèle : une phrase d'aide, enregistrer comme modèle, terminer.
+  // Bandeau du mode modèle : une phrase d'aide, enregistrer comme modèle, terminer, le guide.
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
+  import { guides } from "../../lib/guides.svelte";
   import { templates } from "../../lib/templates.svelte";
 
   let naming = $state(false);
@@ -36,9 +37,10 @@
     <button class="primary" onclick={save} disabled={!name.trim()}>{fr.save}</button>
     <button onclick={() => (naming = false)}>{fr.cancel}</button>
   {:else}
-    <button class="primary" onclick={() => (naming = true)}>💾 {fr.saveAsTemplate}</button>
+    <button class="primary" data-guide="save-template" onclick={() => (naming = true)}>💾 {fr.saveAsTemplate}</button>
   {/if}
-  <button onclick={finish}>✓ {fr.finishTemplate}</button>
+  <button data-guide="finish-template" onclick={finish}>✓ {fr.finishTemplate}</button>
+  <button class="help" title={fr.guideHelp} onclick={() => guides.show("modele")}>? {fr.guideHelp}</button>
 </div>
 
 <style>
@@ -57,6 +59,11 @@
   }
   button {
     white-space: nowrap;
+  }
+  .help {
+    border-color: transparent;
+    background: transparent;
+    color: inherit;
   }
   .primary {
     background: var(--accent);

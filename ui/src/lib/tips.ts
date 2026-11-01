@@ -7,6 +7,8 @@ export interface Tip {
   icon: string;
   title: string;
   text: string;
+  /** Guide de la même fonction (lib/guides), proposé sous l'astuce. */
+  guide?: string;
 }
 
 export const TIP_THEMES: TipTheme[] = ["Photos", "Texte", "Mise en page", "Pages et modèles", "Classe", "Fichiers", "Préférences"];
@@ -45,7 +47,7 @@ export const TIPS: Tip[] = [
   { id: "frieze-size", theme: "Mise en page", icon: "📏", title: "Taille d'une frise", text: "Tiroir Décors : « Taille » et « Espacement » règlent la frise avant de la poser, avec des pictogrammes ou les images de votre collection. Une frise déjà posée : sélectionnez-la, puis « Taille de la frise » dans sa barre." },
   { id: "collection", theme: "Mise en page", icon: "🗂", title: "Votre collection d'images", text: "Tiroir Images > Collection : vos dessins et illustrations, gardés pour tous vos documents. Une image posée s'y ajoute avec « Ajouter à ma collection » dans sa barre. Accueil > « Ma collection » : rangez-les par thème, renommez-les, remettez celles retirées." },
   { id: "templates", theme: "Pages et modèles", icon: "▦", title: "Partir d'un modèle", text: "Le tiroir Modèles ajoute une page toute prête : grille de photos, récit, étiquettes, affiche." },
-  { id: "save-template", theme: "Pages et modèles", icon: "💾", title: "Vos propres modèles", text: "« Partir d'un modèle » > « Créer un modèle », ou le bouton « Modèle » en haut : une grille, ou des textes et des images posés librement, puis « Enregistrer comme modèle ». Chaque texte et chaque image est « À remplir » (vidé, à remplir à chaque fois) ou « Fixe » (gardé tel quel : un titre, le logo de l'école) ; une case photo à remplir est dans le tiroir Images." },
+  { id: "save-template", theme: "Pages et modèles", icon: "💾", title: "Vos propres modèles", text: "« Partir d'un modèle » > « Créer un modèle », ou le bouton « Modèle » en haut : une grille, ou des textes et des images posés librement, puis « Enregistrer comme modèle ». Chaque texte et chaque image est « À remplir » (vidé, à remplir à chaque fois) ou « Fixe » (gardé tel quel : un titre, le logo de l'école) ; une case photo à remplir est dans le tiroir Images.", guide: "modele" },
   { id: "background", theme: "Pages et modèles", icon: "📒", title: "Fond de page", text: "Le bouton « Fond » de la bande des pages donne une couleur, des lignes Seyès, des petits carreaux ou du papier kraft." },
   { id: "landscape", theme: "Pages et modèles", icon: "🔄", title: "Paysage", text: "Le bouton « Paysage » de la bande des pages tourne la page courante." },
   { id: "formats", theme: "Pages et modèles", icon: "📐", title: "A5, A4, A3", text: "Le choix du format, dans la bande des pages, agrandit ou réduit la page avec son contenu. Une affiche A3 s'imprime aussi en deux feuilles A4 à coller (Imprimer / Exporter)." },

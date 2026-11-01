@@ -325,14 +325,13 @@
     outline: 3px solid var(--accent-strong);
     background: rgba(192, 57, 43, 0.15);
   }
-  /* Repères doublés (Préférences) : la fusion possible ou non se lit aussi à un signe, pas seulement à la couleur. */
+  /* Repères doublés (Préférences) : la fusion possible ou non se lit aussi à un signe dans le coin, pas seulement
+     à la couleur. */
   :global(:root[data-cues]) .element.merge-ok::after,
   :global(:root[data-cues]) .element.merge-bad::after {
     position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    top: 4px;
+    right: 8px;
     font: 700 28px var(--ui-font);
     pointer-events: none;
     z-index: 5;

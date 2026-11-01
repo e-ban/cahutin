@@ -87,5 +87,9 @@
     font: 600 13px var(--ui-font);
     text-align: center;
     padding: 4px;
+    /* L'invite ne se sélectionne pas quand on glisse d'une case à l'autre pour les fusionner (WebKitGTK ne
+       connaît que la forme préfixée). */
+    -webkit-user-select: none;
+    user-select: none;
   }
 </style>

@@ -67,6 +67,9 @@
   import type { AssetMeta, Crop, RichText } from "./lib/types";
   import { myImages } from "./lib/myImages.svelte";
   import { settings } from "./lib/settings.svelte";
+  import { guides } from "./lib/guides.svelte";
+  import GuideBook from "./components/layout/GuideBook.svelte";
+  import GuideWalk from "./components/GuideWalk.svelte";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
 
   editor.reset(newDocument(), null);
@@ -359,6 +362,8 @@
 {#if editor.showTips}<TipsPanel />{/if}
 {#if editor.showWhatsNew}<WhatsNew onclose={closeWhatsNew} />{/if}
 <Tour />
+{#if guides.showList}<GuideBook />{/if}
+<GuideWalk />
 <!-- Vision daltonienne (rouge-vert, deutéranopie) : matrice de Machado, Oliveira et Fernandes (2009). -->
 <svg class="filters" aria-hidden="true">
   <filter id="cvd-deuteranopia">

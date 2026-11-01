@@ -2,6 +2,7 @@
   // Panneau « Astuces » (menu Aide) : toutes les astuces, rangées par thème. Échap ou Fermer le ferme.
   import { editor } from "../lib/docStore.svelte";
   import { fr } from "../lib/i18n/fr";
+  import { guides } from "../lib/guides.svelte";
   import { TIP_THEMES, TIPS } from "../lib/tips";
 
   const close = () => (editor.showTips = false);
@@ -28,6 +29,7 @@
               <div>
                 <b>{tip.title}</b>
                 <p>{tip.text}</p>
+                {#if tip.guide}<button class="guide" onclick={() => (close(), guides.show(tip.guide))}>📘 {fr.guideSee}</button>{/if}
               </div>
             </div>
           {/each}
@@ -102,5 +104,10 @@
     margin: 2px 0 0;
     font-size: 14px;
     line-height: 1.4;
+  }
+  .guide {
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--accent);
   }
 </style>

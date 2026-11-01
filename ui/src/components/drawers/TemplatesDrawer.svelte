@@ -4,6 +4,7 @@
   import { ask } from "../../lib/ask";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
+  import { guideById, guides } from "../../lib/guides.svelte";
   import { templates } from "../../lib/templates.svelte";
 </script>
 
@@ -29,6 +30,7 @@
 {/snippet}
 
 <Drawer title={fr.templates}>
+  <button class="help" onclick={() => guides.show("modele")}>? {fr.guideHelp} : {guideById("modele")?.title}</button>
   <div class="templates">
     {#each templates.infos.filter((t) => !t.for_class) as t (t.id)}{@render tile(t)}{/each}
   </div>
@@ -39,6 +41,12 @@
 </Drawer>
 
 <style>
+  .help {
+    width: 100%;
+    margin-bottom: 10px;
+    border-style: dashed;
+    color: var(--accent);
+  }
   .templates {
     display: grid;
     grid-template-columns: repeat(2, 1fr);

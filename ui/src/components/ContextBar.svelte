@@ -594,8 +594,12 @@
     {:else}
     {#if canMirror}
         {@const mh = selected ? (selected.kind.type === "Photo" ? !!selected.kind.mirrored : !!selected.flip_h) : false}
-        <button class:on={mh} aria-pressed={mh} title={fr.mirrorHHint} onclick={() => mirrorSelection("h")}>⇋<span class="lbl"> {fr.mirrorH}</span></button>
-        <button class:on={!!selected?.flip_v} aria-pressed={!!selected?.flip_v} title={fr.mirrorVHint} onclick={() => mirrorSelection("v")}>⇅<span class="lbl"> {fr.mirrorV}</span></button>
+        <!-- Un seul outil, deux sens : gauche-droite et haut-bas côte à côte, sans menu. -->
+        <div class="mirror" role="group" aria-label={fr.mirrorRow}>
+          <span class="mirror-name">{fr.mirrorRow}</span>
+          <button class:on={mh} aria-pressed={mh} title={fr.mirrorHHint} aria-label={fr.mirrorH} onclick={() => mirrorSelection("h")}>⇋<span class="lbl">{fr.mirrorH}</span></button>
+          <button class:on={!!selected?.flip_v} aria-pressed={!!selected?.flip_v} title={fr.mirrorVHint} aria-label={fr.mirrorV} onclick={() => mirrorSelection("v")}>⇅<span class="lbl">{fr.mirrorV}</span></button>
+        </div>
       {/if}
       {#if canRotate}
         <button title={fr.rotateLeft} aria-label={fr.rotateLeft} onclick={() => rotateSelection(-90)}>↺</button>
@@ -690,6 +694,38 @@
     font-size: 12px;
     color: #b35c00;
   }
+  /* Miroir : le nom, puis les deux sens, réunis dans un même cadre. */
+  .mirror {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+  }
+  .mirror button:last-child {
+    border-radius: 0 6px 6px 0;
+  }
+  .compact .mirror button:first-of-type {
+    border-radius: 6px 0 0 6px;
+  }
+  .mirror-name {
+    padding: 0 6px 0 8px;
+  }
+  .compact .mirror-name,
+  .ctx:not(.compact) .mirror :global(.lbl) {
+    display: none;
+  }
+  .mirror button {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 4px 8px;
+  }
+  .mirror button + button {
+    border-left: 1px solid var(--line);
+  }
+  .mirror button:hover {
+    background: #f3efe8;
+  }
   /* « Plus » est au bout de la barre : son menu s'aligne sur son bord droit, une ligne par outil. */
   .pop.more {
     left: auto;
@@ -771,11 +807,13 @@
      disparaît (pas celui de l'action principale, .main) : au survol ou au clavier, il apparaît aussitôt dans une
      languette de la barre, au-dessus de l'icône, de la même couleur et collée à son bord, sans rien déplacer. */
   .compact > button:not(.main),
-  .compact > .wrap > button:not(.main) {
+  .compact > .wrap > button:not(.main),
+  .compact .mirror > button {
     position: relative;
   }
   .compact > button:not(.main) > :global(.lbl),
-  .compact > .wrap > button:not(.main) > :global(.lbl) {
+  .compact > .wrap > button:not(.main) > :global(.lbl),
+  .compact .mirror > button > :global(.lbl) {
     position: absolute;
     /* Le bas de la languette recouvre le bord haut de la barre (marge de 3 px, bord de 1 px) : elle en sort. */
     bottom: calc(100% + 2px);
@@ -795,6 +833,8 @@
   }
   .compact > button:not(.main):hover > :global(.lbl),
   .compact > button:not(.main):focus-visible > :global(.lbl),
+  .compact .mirror > button:hover > :global(.lbl),
+  .compact .mirror > button:focus-visible > :global(.lbl),
   .compact > .wrap > button:not(.main):hover > :global(.lbl),
   .compact > .wrap > button:not(.main):focus-visible > :global(.lbl) {
     display: block;

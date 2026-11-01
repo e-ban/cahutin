@@ -1,6 +1,8 @@
 // Groupes d'éléments : grouper, dissocier, développer une sélection, transformations d'ensemble,
-// sélection au cadre. Pas de groupe imbriqué ; les cases de grille ne sont jamais groupées, un tableau
-// garde son propre groupe.
+// sélection au cadre. Un groupe peut en contenir d'autres : le chemin d'un élément est son groupe (le plus
+// large, celui qu'un clic sélectionne) puis ses sous-groupes. `inside` est le chemin du groupe où l'on est
+// entré par double-clic : les blocs sont alors ses membres directs. Les cases de grille ne sont jamais
+// groupées, un tableau garde son propre groupe.
 import { newId } from "./factory";
 import type { Element, Frame, Page } from "./types";
 
@@ -14,48 +16,101 @@ export function existingIds(page: Page, ids: string[]): string[] {
   return ids.filter((id) => page.elements.some((e) => e.id === id));
 }
 
-/** Ids du groupe de l'élément, ou l'élément seul. */
-export function groupOf(page: Page, id: string): string[] {
-  const g = page.elements.find((e) => e.id === id)?.group;
-  return g ? page.elements.filter((e) => e.group === g).map((e) => e.id) : [id];
+/** Groupe puis sous-groupes de l'élément, du plus large au plus petit ; vide s'il n'est pas groupé. */
+export const pathOf = (e: Element): string[] => (e.group ? [e.group, ...(e.subgroups ?? [])] : []);
+
+/** L'élément avec ce chemin (sans sous-groupes notés s'il n'en a pas : le document ne change pas de version). */
+export function withPath(e: Element, path: string[]): Element {
+  const { subgroups: _, ...rest } = e;
+  return path.length > 1 ? { ...rest, group: path[0], subgroups: path.slice(1) } : { ...rest, group: path[0] ?? null };
 }
 
-/** La sélection, complétée par les autres membres des groupes touchés, dans l'ordre de la page. */
-export function expandSelection(page: Page, ids: string[]): string[] {
-  const groups = new Set(page.elements.filter((e) => ids.includes(e.id) && e.group).map((e) => e.group));
-  return page.elements.filter((e) => ids.includes(e.id) || (e.group && groups.has(e.group))).map((e) => e.id);
+const startsWith = (path: string[], prefix: string[]) => prefix.every((g, i) => path[i] === g);
+
+/** Le bloc de l'élément dans le groupe `inside` : le groupe (ou sous-groupe) suivant de son chemin, ou rien
+ *  s'il y est seul. */
+function blockKey(e: Element, inside: string[]): string | null {
+  const p = pathOf(e);
+  return p.length > inside.length && startsWith(p, inside) ? p[inside.length] : null;
 }
 
-/** Un seul groupe avec tous les éléments (et les groupes qu'ils touchent), rassemblés à la place du plus haut. */
-export function groupElements(page: Page, ids: string[]): { page: Page; group: string | null } {
+/** Ids du bloc de l'élément (son groupe, ou son sous-groupe dans le groupe où l'on est entré), ou l'élément seul. */
+export function groupOf(page: Page, id: string, inside: string[] = []): string[] {
+  const e = page.elements.find((x) => x.id === id);
+  const key = e && blockKey(e, inside);
+  return key ? page.elements.filter((x) => blockKey(x, inside) === key).map((x) => x.id) : [id];
+}
+
+/** La sélection, complétée par les autres membres des blocs touchés, dans l'ordre de la page. */
+export function expandSelection(page: Page, ids: string[], inside: string[] = []): string[] {
+  const keys = new Set<string | null>(page.elements.filter((e) => ids.includes(e.id)).map((e) => blockKey(e, inside)).filter((k) => k !== null));
+  return page.elements.filter((e) => ids.includes(e.id) || keys.has(blockKey(e, inside))).map((e) => e.id);
+}
+
+/** Un groupe de plus autour des blocs choisis : les groupes qu'ils forment déjà y restent, entiers (un groupe
+ *  dans un groupe) ; tous rassemblés à la place du plus haut. */
+export function groupElements(page: Page, ids: string[], inside: string[] = []): { page: Page; group: string | null } {
   // Les cases de grille et les tableaux sont écartés ; le reste est groupé s'il reste au moins deux éléments.
   const tableGroups = new Set(page.elements.filter((e) => e.kind.type === "Table" && e.group).map((e) => e.group));
   const inTable = (id: string) => tableGroups.has(page.elements.find((e) => e.id === id)?.group);
-  const expanded = expandSelection(page, ids).filter((id) => !isCell(page, id) && !inTable(id));
+  const expanded = expandSelection(page, ids, inside).filter((id) => !isCell(page, id) && !inTable(id));
   if (expanded.length < 2) return { page, group: null };
   const group = newId();
   const members = new Set(expanded);
+  // Le nouveau groupe se place juste sous la part de chemin commune à tous : dans le groupe qui les contient
+  // tous, s'il y en a un.
+  const paths = page.elements.filter((e) => members.has(e.id)).map(pathOf);
+  let common = 0;
+  while (paths.every((p) => p.length > common && p[common] === paths[0][common])) common++;
   const top = Math.max(...page.elements.map((e, i) => (members.has(e.id) ? i : -1)));
   const before = page.elements.slice(0, top).filter((e) => !members.has(e.id)).length;
   const rest = page.elements.filter((e) => !members.has(e.id));
-  const grouped = page.elements.filter((e) => members.has(e.id)).map((e) => ({ ...e, group }));
-  return { page: { ...page, elements: [...rest.slice(0, before), ...grouped, ...rest.slice(before)] }, group };
+  const grouped = page.elements.filter((e) => members.has(e.id)).map((e) => {
+    const p = pathOf(e);
+    return withPath(e, [...p.slice(0, common), group, ...p.slice(common)]);
+  });
+  return { page: normalizeGroups({ ...page, elements: [...rest.slice(0, before), ...grouped, ...rest.slice(before)] }), group };
 }
 
-/** Dissout les groupes des éléments désignés ; le groupe d'un tableau reste (il se dissocie par le moteur). */
-export function ungroup(page: Page, ids: string[]): Page {
+/** Dissocier : les blocs désignés perdent un seul niveau (leurs sous-groupes restent) ; le groupe d'un tableau
+ *  reste (il se dissocie par le moteur). */
+export function ungroup(page: Page, ids: string[], inside: string[] = []): Page {
   const tables = new Set(page.elements.filter((e) => e.kind.type === "Table" && e.group).map((e) => e.group));
-  const groups = new Set(page.elements.filter((e) => ids.includes(e.id) && e.group && !tables.has(e.group)).map((e) => e.group));
-  return { ...page, elements: page.elements.map((e) => (e.group && groups.has(e.group) ? { ...e, group: null } : e)) };
+  const keys = new Set(page.elements.filter((e) => ids.includes(e.id) && !tables.has(e.group)).map((e) => blockKey(e, inside)).filter((k) => k !== null));
+  return {
+    ...page,
+    elements: page.elements.map((e) => {
+      const key = blockKey(e, inside);
+      return key !== null && keys.has(key) ? withPath(e, pathOf(e).filter((_, i) => i !== inside.length)) : e;
+    }),
+  };
 }
 
-/** Un groupe réduit à un élément n'en est plus un. */
-export function dissolveSmallGroups(page: Page): Page {
-  const counts = new Map<string, number>();
-  for (const e of page.elements) if (e.group) counts.set(e.group, (counts.get(e.group) ?? 0) + 1);
-  if (![...counts.values()].some((n) => n < 2)) return page;
-  return { ...page, elements: page.elements.map((e) => (e.group && counts.get(e.group)! < 2 ? { ...e, group: null } : e)) };
+/** Remet les groupes d'aplomb, comme le moteur : un groupe garde la même place dans chaque chemin (sinon le
+ *  chemin s'arrête avant), et un groupe d'un seul membre (élément ou sous-groupe) disparaît, à chaque niveau.
+ *  Le groupe d'un tableau reste toujours. */
+export function normalizeGroups(page: Page): Page {
+  const paths = page.elements.map(pathOf);
+  const parent = new Map<string, string[]>();
+  paths.forEach((p, i) => {
+    const bad = p.findIndex((g, d) => p.slice(0, d).includes(g) || (parent.has(g) && parent.get(g)!.join("/") !== p.slice(0, d).join("/")));
+    if (bad >= 0) paths[i] = p.slice(0, bad);
+    paths[i].forEach((g, d) => parent.has(g) || parent.set(g, paths[i].slice(0, d)));
+  });
+  const tables = new Set(page.elements.filter((e) => e.kind.type === "Table" && e.group).map((e) => e.group!));
+  for (;;) {
+    const members = new Map<string, Set<string>>();
+    paths.forEach((p, i) => p.forEach((g, d) => members.set(g, (members.get(g) ?? new Set()).add(p[d + 1] ?? page.elements[i].id))));
+    const lone = new Set([...members].filter(([g, m]) => m.size < 2 && !tables.has(g)).map(([g]) => g));
+    if (!lone.size) break;
+    paths.forEach((p, i) => (paths[i] = p.filter((g) => !lone.has(g))));
+  }
+  if (page.elements.every((e, i) => pathOf(e).join("/") === paths[i].join("/"))) return page;
+  return { ...page, elements: page.elements.map((e, i) => (pathOf(e).join("/") === paths[i].join("/") ? e : withPath(e, paths[i]))) };
 }
+
+/** Un groupe réduit à un élément n'en est plus un (à chaque niveau). */
+export const dissolveSmallGroups = normalizeGroups;
 
 /** Vrai si un élément de la sélection (groupes compris) est verrouillé : rien ne bouge alors. */
 export function isLockedSelection(page: Page, ids: string[]): boolean {

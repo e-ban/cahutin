@@ -1,7 +1,7 @@
 // Copier, coller, dupliquer, ordre d'empilement et suppression d'éléments d'une page.
 // Le presse-papiers est interne à l'application : rien ne passe par celui du système.
 import { newId } from "./factory";
-import { dissolveSmallGroups, expandSelection } from "./groups";
+import { dissolveSmallGroups, expandSelection, pathOf, withPath } from "./groups";
 import { remapTables } from "./table";
 import type { Element, Page } from "./types";
 
@@ -28,14 +28,12 @@ export function pasteElements(page: Page, copied: Element[], offsetMm = PASTE_OF
     return groups.get(g)!;
   };
   const ids = new Map(copied.map((e) => [e.id, newId()]));
-  const pasted = copied.map((e) => ({
-    ...plainCopy(e),
-    id: ids.get(e.id)!,
-    group: regroup(e.group),
-    zone: false,
-    locked: false,
-    frame: { ...e.frame, x_mm: e.frame.x_mm + offsetMm, y_mm: e.frame.y_mm + offsetMm },
-  }));
+  const pasted = copied.map((e) =>
+    withPath(
+      { ...plainCopy(e), id: ids.get(e.id)!, zone: false, locked: false, frame: { ...e.frame, x_mm: e.frame.x_mm + offsetMm, y_mm: e.frame.y_mm + offsetMm } },
+      pathOf(e).map((g) => regroup(g)!),
+    ),
+  );
   // Un tableau collé désigne ses cases collées.
   const elements = remapTables(pasted, ids);
   return { page: { ...page, elements: [...page.elements, ...elements] }, ids: elements.map((e) => e.id) };

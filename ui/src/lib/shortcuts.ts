@@ -71,11 +71,12 @@ export function handleShortcut(ev: KeyboardEvent) {
     if (editor.selection.length === 0) return;
     ev.preventDefault();
     deleteSelection();
-  } else if (ev.key === "Escape" && editor.focusedMember) {
-    // Retour au groupe de l'élément modifié seul.
-    const id = editor.focusedMember;
+  } else if (ev.key === "Escape" && (editor.focusedMember || editor.inside.length)) {
+    // Retour d'un niveau : de l'élément modifié seul à son groupe, d'un sous-groupe au groupe qui le contient.
+    const id = editor.focusedMember ?? editor.selection[0];
     editor.focusedMember = null;
-    editor.selection = groupOf(editor.page, id);
+    editor.insideGroup = editor.inside.slice(0, -1);
+    editor.selection = groupOf(editor.page, id, editor.insideGroup);
   } else if (ev.key.startsWith("Arrow")) {
     const ids = editor.selection;
     const inGrid = ids.some((id) => isPlacedCell(editor.page, id));

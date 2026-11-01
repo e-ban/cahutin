@@ -2,7 +2,7 @@
 import { warnConsent } from "./phototheque.svelte";
 import { copyElements, duplicateElements, pasteElements, removeElements, reorder } from "./clipboard";
 import { editor } from "./docStore.svelte";
-import { existingIds, expandSelection, groupElements, rotateElements, scaleElements, ungroup } from "./groups";
+import { existingIds, expandSelection, groupElements, pathOf, rotateElements, scaleElements, ungroup, withPath } from "./groups";
 import { newId } from "./factory";
 import { elementAssets } from "./photoLibrary";
 import { textFrame } from "./elementEdit";
@@ -26,7 +26,7 @@ function assetsOf(elements: Element[]): Record<string, AssetMeta> {
 }
 
 /** La sélection, groupes complétés ; l'élément modifié seul après un double-clic reste seul. */
-const selected = () => (editor.focusedMember ? editor.selection : expandSelection(editor.page, editor.selection));
+const selected = () => (editor.focusedMember ? editor.selection : expandSelection(editor.page, editor.selection, editor.inside));
 
 export function copySelection() {
   if (editor.selection.length === 0) return;
@@ -102,10 +102,11 @@ export async function runOnPage(op: (p: Page) => Promise<Page>) {
 
 /** Grouper la sélection (Ctrl+G) : un seul pas d'annulation. */
 export function groupSelection() {
-  const { page, group } = groupElements(editor.page, editor.selection);
+  const { page, group } = groupElements(editor.page, editor.selection, editor.inside);
   if (!group) return;
   editor.updatePage(() => page);
-  editor.selection = page.elements.filter((e) => e.group === group).map((e) => e.id);
+  editor.focusedMember = null;
+  editor.selection = page.elements.filter((e) => pathOf(e).includes(group)).map((e) => e.id);
 }
 
 /** Dissocier (Ctrl+Maj+G) : les éléments restent sélectionnés. */
@@ -126,7 +127,8 @@ export function ungroupSelection() {
     });
     return;
   }
-  editor.updatePage((p) => ungroup(p, ids));
+  const inside = editor.inside;
+  editor.updatePage((p) => ungroup(p, ids, inside));
   editor.selection = ids;
 }
 
@@ -187,7 +189,7 @@ function captionOf(photo: Element): Element | undefined {
   const bottom = f.y_mm + f.h_mm;
   return editor.page.elements.find((e) => {
     if (e.kind.type !== "Text" || e.id === photo.id) return false;
-    const sameOwner = photo.group ? e.group === photo.group : !e.group && e.kind.prompt === CAPTION_PROMPT;
+    const sameOwner = photo.group ? pathOf(e).join("/") === pathOf(photo).join("/") : !e.group && e.kind.prompt === CAPTION_PROMPT;
     const below = e.frame.y_mm >= bottom - CAPTION_HEIGHT_MM - CAPTION_GAP_MM && e.frame.y_mm <= bottom + 2 * CAPTION_HEIGHT_MM;
     const overlap = Math.min(e.frame.x_mm + e.frame.w_mm, f.x_mm + f.w_mm) - Math.max(e.frame.x_mm, f.x_mm);
     return sameOwner && below && overlap > e.frame.w_mm / 2;
@@ -210,20 +212,21 @@ export function addCaption(photoId: string) {
     return;
   }
   const inGrid = !!editor.page.grid?.cells.some((c) => c.element_id === photo.id);
-  const group = inGrid ? null : (photo.group ?? newId());
+  // La légende rejoint le plus petit groupe de la photo (tout son chemin), ou un groupe nouveau avec elle.
+  const path = inGrid ? [] : photo.group ? pathOf(photo) : [newId()];
+  const group = path[0] ?? null;
   const f = photo.frame;
   // Toujours sur la page (marge de 2 mm en bas), quitte à mordre sur le bas de la photo.
   const maxY = editor.page.size.height_mm - CAPTION_HEIGHT_MM - CAPTION_GAP_MM;
-  const caption: Element = {
+  const caption: Element = withPath({
     id: newId(),
     frame: { x_mm: f.x_mm, y_mm: Math.round(Math.min(f.y_mm + f.h_mm + CAPTION_GAP_MM, maxY) * 10) / 10, w_mm: f.w_mm, h_mm: CAPTION_HEIGHT_MM, rotation_deg: 0 },
     locked: false,
     zone: false,
-    group,
     kind: { type: "Text", content: { paragraphs: [] }, style: { font: "Andika", size_pt: 12, color: "#333333", align: "Center" }, prompt: CAPTION_PROMPT },
-  };
+  }, path);
   editor.updatePage((p) => {
-    const elements = p.elements.map((e) => (e.id === photo.id && group ? { ...e, group } : e));
+    const elements = p.elements.map((e) => (e.id === photo.id && group && !e.group ? withPath(e, path) : e));
     // Groupée : juste après sa photo (le groupe reste d'un seul tenant). Case de grille : au-dessus
     // de toutes les cases, sinon la case du dessous la recouvrirait.
     if (group) elements.splice(p.elements.findIndex((e) => e.id === photo.id) + 1, 0, caption);

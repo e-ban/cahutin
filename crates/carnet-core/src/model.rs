@@ -22,7 +22,7 @@ pub fn renew_ids(page: &mut Page) {
     let mut groups = std::collections::HashMap::new();
     let mut renamed = std::collections::HashMap::new();
     for e in &mut page.elements {
-        if let Some(g) = &mut e.group {
+        for g in e.group.iter_mut().chain(e.subgroups.iter_mut()) {
             *g = groups.entry(g.clone()).or_insert_with(new_id).clone();
         }
         let old = std::mem::replace(&mut e.id, new_id());
@@ -46,7 +46,8 @@ pub fn renew_ids(page: &mut Page) {
 
 /// Version la plus récente que cette application sait lire (2 : élément image ; 3 : cadre de texte,
 /// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau, lettres creuses ; 5 : photo en
-/// miroir, lignes d'écriture, styles nommés ; 6 : image à colorier ou en couleur de peau, tracé libre).
+/// miroir, lignes d'écriture, styles nommés ; 6 : image à colorier ou en couleur de peau, tracé libre, groupe dans
+/// un groupe).
 pub const FORMAT_VERSION: u32 = 6;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
@@ -176,6 +177,11 @@ pub struct Element {
     #[serde(default)]
     #[ts(optional = nullable)]
     pub group: Option<Id>,
+    /// Groupes dans le groupe, du plus large au plus petit : « Dissocier » n'enlève qu'un niveau. Vide le
+    /// plus souvent, et sans effet sans `group`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<Id>>", optional)]
+    pub subgroups: Vec<Id>,
     pub kind: ElementKind,
 }
 
@@ -503,6 +509,7 @@ mod tests {
                 shadow: true,
                 mirrored: false,
             }),
+            subgroups: Vec::new(),
         });
         page.elements.push(Element {
             id: new_id(),
@@ -529,6 +536,7 @@ mod tests {
                 prompt: Some("Titre".into()),
                 frame: None,
             }),
+            subgroups: Vec::new(),
         });
         page.elements.push(Element {
             id: new_id(),
@@ -543,6 +551,7 @@ mod tests {
                 corner_radius_mm: 0.0,
                 path: None,
             }),
+            subgroups: Vec::new(),
         });
         d.assets.insert(
             "a1".into(),
@@ -588,6 +597,29 @@ mod tests {
         assert!(d.pending_photos.is_empty());
     }
 
+    /// Deux copies d'un groupe dans un groupe ne partagent aucun identifiant, à aucun niveau : dissocier
+    /// l'une ne touche pas l'autre.
+    #[test]
+    fn renew_ids_renames_every_level_consistently() {
+        let mut page = Page::new(A4_PORTRAIT);
+        let el = |g: &str, sub: &[&str]| Element {
+            id: new_id(),
+            frame: Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 10.0, h_mm: 10.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: Some(g.into()),
+            kind: ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None }),
+            subgroups: sub.iter().map(|s| s.to_string()).collect(),
+        };
+        page.elements = vec![el("g", &["f"]), el("g", &["f"]), el("g", &[])];
+        let mut copy = page.clone();
+        renew_ids(&mut copy);
+        let e = &copy.elements;
+        assert!(e[0].group != page.elements[0].group && e[0].subgroups != page.elements[0].subgroups);
+        assert_eq!((&e[0].group, &e[0].subgroups), (&e[1].group, &e[1].subgroups));
+        assert_eq!(e[2].group, e[0].group);
+    }
+
     #[test]
     fn renew_ids_remaps_table_cells() {
         let mut page = Page::new(A4_PORTRAIT);
@@ -598,6 +630,7 @@ mod tests {
             zone: false,
             group: Some("g".into()),
             kind: ElementKind::Text(TextProps { content: RichText::default(), style: TextStyle::default_zone(), prompt: None, frame: None }),
+            subgroups: Vec::new(),
         };
         let cell = |id: &str, col| GridCell { element_id: id.into(), col, row: 0, col_span: 1, row_span: 1 };
         let table = Element {

@@ -20,7 +20,7 @@
   import { fr } from "../lib/i18n/fr";
   import { isStrokeOnly } from "../lib/shapePaths";
   import { isTableCell, selectedTable } from "../lib/table";
-  import { alignUnits, arrangeUnits, expandSelection, isLockedSelection } from "../lib/groups";
+  import { alignUnits, arrangeUnits, expandSelection, groupOf, isLockedSelection } from "../lib/groups";
   import { blockFrieze } from "../lib/decor";
   import { cutMarks, type CutStyle } from "../lib/cutMarks";
   import { friezeMotifs } from "../lib/friezeMotifs.svelte";
@@ -42,9 +42,10 @@
   const inGrid = (id: string) => !!editor.page.grid?.cells.some((c) => c.element_id === id);
   // Sélection qui est exactement un groupe : on propose Dissocier ; sinon Grouper (hors cases de grille).
   const isGroup = $derived.by(() => {
-    const groups = new Set(editor.page.elements.filter((e) => editor.selection.includes(e.id)).map((e) => e.group ?? null));
-    const [g] = [...groups];
-    return groups.size === 1 && !!g && editor.page.elements.filter((e) => e.group === g).length === editor.selection.length;
+    const [first] = editor.selection;
+    if (!first || editor.focusedMember) return false;
+    const block = groupOf(editor.page, first, editor.inside);
+    return block.length > 1 && block.length === editor.selection.length && block.every((id) => editor.selection.includes(id));
   });
   const canGroup = $derived(!editor.selection.some(inGrid));
   const selected = $derived(editor.selected);

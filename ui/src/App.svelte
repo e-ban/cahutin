@@ -56,7 +56,7 @@
   import { editor } from "./lib/docStore.svelte";
   import { fonts } from "./lib/fonts.svelte";
   import { addPhotoAt } from "./lib/editActions";
-  import { expandSelection, groupOf } from "./lib/groups";
+  import { expandSelection, groupOf, pathOf } from "./lib/groups";
   import { pictoElement, pictos } from "./lib/pictos.svelte";
   import { handleShortcut } from "./lib/shortcuts";
   import { newDocument, newId } from "./lib/factory";
@@ -197,11 +197,15 @@
     if (id === null) {
       editor.selection = [];
       editor.focusedMember = null;
+      editor.insideGroup = [];
       return;
     }
     if (editor.focusedMember === id) return;
     editor.focusedMember = null;
-    const members = groupOf(editor.page, id);
+    // Dans le groupe où l'on est entré, un clic prend un de ses blocs ; hors de lui, on en sort.
+    const el = editor.page.elements.find((e) => e.id === id);
+    if (!el || !editor.insideGroup.every((g, i) => pathOf(el)[i] === g)) editor.insideGroup = [];
+    const members = groupOf(editor.page, id, editor.insideGroup);
     if (add) {
       const all = members.every((m) => editor.selection.includes(m));
       editor.selection = all ? editor.selection.filter((s) => !members.includes(s)) : expandSelection(editor.page, [...editor.selection, ...members]);
@@ -210,9 +214,23 @@
     }
   }
 
-  function focusMember(id: string) {
+  /** Double-clic dans un groupe : on entre d'un niveau. Le sous-groupe de l'élément est sélectionné ; s'il
+   *  n'y en a plus, l'élément est modifié seul (rend vrai). */
+  function focusMember(id: string): boolean {
+    const el = editor.page.elements.find((e) => e.id === id);
+    if (!el) return false;
+    const inside = editor.inside;
+    const path = pathOf(el);
+    if (path.length > inside.length + 1) {
+      editor.focusedMember = null;
+      editor.insideGroup = path.slice(0, inside.length + 1);
+      editor.selection = groupOf(editor.page, id, editor.insideGroup);
+      return false;
+    }
+    editor.insideGroup = path;
     editor.focusedMember = id;
     editor.selection = [id];
+    return true;
   }
 </script>
 

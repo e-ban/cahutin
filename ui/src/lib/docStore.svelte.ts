@@ -1,6 +1,7 @@
 // État de l'éditeur : le document (immuable, avec historique), la page courante, la sélection, le zoom.
 import { createHistory, type History } from "./history";
 import { newDocument } from "./factory";
+import { pathOf } from "./groups";
 import { pagesUsing, usedAssetIds, withoutAsset, type LibraryPhoto } from "./photoLibrary";
 import { readRecents, type Recent } from "./recents";
 import { readPref, writePref } from "./prefs";
@@ -38,6 +39,8 @@ class Editor {
   mergePreview = $state<{ ids: string[]; ok: boolean } | null>(null);
   /** Élément d'un groupe modifié seul après un double-clic (Échap ou un clic ailleurs revient au groupe). */
   focusedMember = $state<string | null>(null);
+  /** Groupe où l'on est entré par double-clic (son chemin) : un clic y prend un de ses sous-groupes. */
+  insideGroup = $state<string[]>([]);
   /** Déplacement, redimensionnement ou rotation à la souris en cours (Moveable). */
   gesture = $state(false);
   /** Photo en cours de recadrage (double-clic). */
@@ -103,6 +106,13 @@ class Editor {
 
   get effectiveZoom(): number {
     return this.zoom === "fit" ? this.fitZoom : this.zoom;
+  }
+
+  /** Le groupe où l'on est entré, tant que la sélection y reste ; sinon aucun. */
+  get inside(): string[] {
+    const sel = this.page.elements.filter((e) => this.selection.includes(e.id));
+    const inIt = (e: Element) => this.insideGroup.every((g, i) => pathOf(e)[i] === g);
+    return sel.length && sel.every(inIt) ? this.insideGroup : [];
   }
 
   get selected(): Element | undefined {

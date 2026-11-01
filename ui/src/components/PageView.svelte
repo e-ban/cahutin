@@ -53,7 +53,7 @@
     /** Clic droit sur un élément (id) ou sur la page (null), avec la position en mm sur la page. */
     oncontext?: (id: string | null, xMm: number, yMm: number, clientX: number, clientY: number) => void;
     /** Double-clic sur un élément groupé : il est modifié seul. */
-    onfocusmember?: (id: string) => void;
+    onfocusmember?: (id: string) => boolean;
     /** Image de la banque lâchée sur la page, au point (mm). */
     ondroppicto?: (code: string, xMm: number, yMm: number) => void;
     pageEl?: HTMLElement;
@@ -64,7 +64,8 @@
 
   /** Double-clic : un élément groupé est modifié seul ; une photo se recadre, un texte s'écrit. */
   function activate(e: Element) {
-    if (e.group) onfocusmember?.(e.id);
+    // Dans un groupe de groupes, le double-clic entre d'abord d'un niveau, sans recadrer ni écrire.
+    if (e.group && onfocusmember?.(e.id) === false) return;
     if (e.kind.type === "Photo" && e.kind.asset && !e.locked) {
       liveCrop = null;
       oncropstart?.(e.id);

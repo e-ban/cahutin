@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { blockFrieze, frieze, pageFrame, toggleMotif } from "./decor";
+import { ungroup } from "./groups";
 import type { Element, Page } from "./types";
 
 const a4 = (): Page => ({ id: "p", size: { width_mm: 210, height_mm: 297 }, elements: [], grid: null });
@@ -93,10 +94,16 @@ test("block frieze straddles the block edges and is grouped with it", () => {
   expect(codes(pics).slice(0, 4)).toEqual(["A", "B", "A", "B"]);
 });
 
-test("block frieze joins the block's existing group", () => {
+test("block frieze is grouped with the block's group, and Dissocier gives both back whole", () => {
   const other = { ...block(), id: "o", group: "g1" };
   const page = blockFrieze(withBlock(block({ group: "g1" }), [other]), "b", ["A"])!;
-  expect(new Set(page.elements.map((e) => e.group))).toEqual(new Set(["g1"]));
+  expect(new Set(page.elements.map((e) => e.group)).size).toBe(1);
+  expect(page.elements.filter((e) => e.subgroups?.[0] === "g1").map((e) => e.id)).toEqual(["b", "o"]);
+  const back = ungroup(page, ["b"]);
+  expect(back.elements.find((e) => e.id === "b")?.group).toBe("g1");
+  const friezeGroups = new Set(back.elements.filter((e) => e.kind.type === "Image").map((e) => e.group));
+  expect(friezeGroups.size).toBe(1);
+  expect([...friezeGroups][0]).not.toBe("g1");
 });
 
 test("block frieze follows a rotated block", () => {

@@ -150,7 +150,7 @@ impl Writer<'_> {
         style.color = CREDIT_COLOR.into();
         style.align = Align::Center;
         let t = TextProps { content: RichText::plain(OPENMOJI_CREDIT_PAGE), style, prompt: None, frame: None };
-        let e = Element { id: String::new(), frame: f, locked: true, zone: false, group: None, kind: ElementKind::Text(t.clone()) };
+        let e = Element { id: String::new(), frame: f, locked: true, zone: false, group: None, kind: ElementKind::Text(t.clone()), subgroups: Vec::new() };
         self.protect_next = true;
         // Sans image de fond, l'écriture du texte ne peut pas échouer.
         let _ = self.text(&e, &t);
@@ -468,21 +468,23 @@ pub(crate) fn content_xml(doc: &Document, store: &AssetStore, reg: &mut Registry
     for (i, page) in doc.pages.iter().enumerate() {
         let master = w.reg.master_page(page.size, page.background.as_ref());
         w.body.open("draw:page", &[("draw:name", &format!("page{}", i + 1)), ("draw:master-page-name", &master)]);
-        // Les membres consécutifs d'un même groupe sont écrits dans un groupe LibreOffice.
-        let mut open_group: Option<&str> = None;
+        // Les membres consécutifs d'un même groupe sont écrits dans un groupe LibreOffice, un groupe dans un
+        // groupe dans un groupe LibreOffice imbriqué.
+        let mut open: Vec<Id> = Vec::new();
         for e in &page.elements {
-            let g = e.group.as_deref();
-            if open_group.is_some() && open_group != g {
+            let path = crate::groups::path(e);
+            let common = open.iter().zip(&path).take_while(|(a, b)| a == b).count();
+            for _ in common..open.len() {
                 w.body.close();
-                open_group = None;
             }
-            if g.is_some() && open_group.is_none() {
+            open.truncate(common);
+            for g in &path[common..] {
                 w.body.open("draw:g", &[]);
-                open_group = g;
+                open.push(g.clone());
             }
             w.element(e)?;
         }
-        if open_group.is_some() {
+        for _ in 0..open.len() {
             w.body.close();
         }
         if page_has_pictures(page) {

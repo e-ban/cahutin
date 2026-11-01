@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { alignFrames, distributeFrames } from "./align";
-import { alignableIds, alignUnits, arrangeUnits, boundsOf, elementsInRect, existingIds, expandSelection, groupElements, isLockedSelection, rotateElements, scaleElements, ungroup } from "./groups";
+import { alignableIds, alignUnits, arrangeUnits, boundsOf, elementsInRect, existingIds, expandSelection, groupElements, groupOf, isLockedSelection, normalizeGroups, pathOf, rotateElements, scaleElements, ungroup } from "./groups";
 import type { Element, Page } from "./types";
 
 const shape = (id: string, x = 0, extra: Partial<Element> = {}): Element => ({
@@ -179,4 +179,37 @@ test("one group alone has nothing to align or distribute", () => {
 test("a locked member freezes align and distribute", () => {
   const page = pageWith([at("a", 0, 0, 10, 10), at("b", 40, 0, 10, 10, "g"), { ...at("c", 60, 0, 10, 10, "g"), locked: true }, at("d", 150, 0, 10, 10)]);
   expect(alignUnits(page, ["a", "b", "d"])).toEqual([]);
+});
+
+const paths = (p: Page) => p.elements.map((e) => pathOf(e).join("/"));
+
+test("grouping two groups puts them in a new one, whole, and Dissocier takes off only that level", () => {
+  // Une frise (f1, f2) et une photo avec sa légende (ph, cap).
+  const p = page([shape("f1", 0, { group: "f" }), shape("f2", 0, { group: "f" }), shape("ph", 0, { group: "p" }), shape("cap", 0, { group: "p" })]);
+  const r = groupElements(p, ["f1", "ph"]);
+  const g = r.group!;
+  expect(paths(r.page)).toEqual([`${g}/f`, `${g}/f`, `${g}/p`, `${g}/p`]);
+  expect(expandSelection(r.page, ["f1"])).toEqual(["f1", "f2", "ph", "cap"]);
+  const back = ungroup(r.page, ["f1"]);
+  expect(paths(back)).toEqual(["f", "f", "p", "p"]);
+  expect(back.elements[0].subgroups).toBeUndefined();
+});
+
+test("inside a group, a click takes the sub-group, and grouping stays inside", () => {
+  const p = page([shape("a", 0, { group: "g", subgroups: ["s"] }), shape("b", 0, { group: "g", subgroups: ["s"] }), shape("c", 0, { group: "g" }), shape("d", 0, { group: "g" })]);
+  expect(groupOf(p, "a")).toEqual(["a", "b", "c", "d"]);
+  expect(groupOf(p, "a", ["g"])).toEqual(["a", "b"]);
+  expect(groupOf(p, "c", ["g"])).toEqual(["c"]);
+  const r = groupElements(p, ["c", "d"], ["g"]);
+  expect(paths(r.page)).toEqual(["g/s", "g/s", `g/${r.group}`, `g/${r.group}`]);
+  // Dissocier dans le groupe : le sous-groupe seul se défait, le grand groupe reste.
+  expect(paths(ungroup(p, ["a"], ["g"]))).toEqual(["g", "g", "g", "g"]);
+});
+
+test("a group left with one member, at any level, is no longer a group", () => {
+  const p = page([shape("a", 0, { group: "g", subgroups: ["s"] }), shape("b", 0, { group: "g", subgroups: ["s"] }), shape("c", 0, { group: "h", subgroups: ["k"] })]);
+  // g n'a plus qu'un membre (s) : s remonte ; h et k n'ont qu'un élément.
+  expect(paths(normalizeGroups(p))).toEqual(["s", "s", ""]);
+  const flat = page([shape("x", 0, { group: "g" }), shape("y", 0, { group: "g" })]);
+  expect(normalizeGroups(flat)).toBe(flat);
 });

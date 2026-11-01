@@ -84,10 +84,14 @@ pub fn written_version(doc: &Document) -> u32 {
         _ => false,
     };
     // Image à colorier (contour), ou en couleur de peau : la banque d'une version plus ancienne ne l'a pas.
-    let v6 = |e: &Element| match &e.kind {
-        ElementKind::Image(i) => i.outline == Some(true) || crate::picto::has_skin_tone(&i.code),
-        ElementKind::Shape(s) => s.shape == ShapeKind::Path,
-        _ => false,
+    // Groupe dans un groupe : une version plus ancienne le fondrait dans le grand groupe.
+    let v6 = |e: &Element| {
+        !e.subgroups.is_empty()
+            || match &e.kind {
+                ElementKind::Image(i) => i.outline == Some(true) || crate::picto::has_skin_tone(&i.code),
+                ElementKind::Shape(s) => s.shape == ShapeKind::Path,
+                _ => false,
+            }
     };
     if elements().any(v6) {
         6
@@ -189,7 +193,11 @@ pub fn load(input: impl Read + Seek) -> Result<LoadedDocument, NativeError> {
     if found > FORMAT_VERSION {
         return Err(NativeError::NewerVersion(found));
     }
-    let doc: Document = serde_json::from_slice(&json).map_err(|_| NativeError::Corrupt)?;
+    let mut doc: Document = serde_json::from_slice(&json).map_err(|_| NativeError::Corrupt)?;
+    // Des niveaux de groupes incohérents (fichier modifié à la main) sont remis d'aplomb.
+    for page in &mut doc.pages {
+        crate::groups::dissolve_small_groups(page);
+    }
     if !doc.assets.values().all(|m| crate::model::is_safe_id(&m.id)) {
         return Err(NativeError::Corrupt);
     }
@@ -248,6 +256,7 @@ mod tests {
                 shadow: false,
                 mirrored: false,
             }),
+            subgroups: Vec::new(),
         }
     }
 
@@ -348,6 +357,7 @@ mod tests {
                 zone: false,
                 group: None,
                 kind: ElementKind::Text(TextProps { content: RichText::plain("bonjour"), style, prompt: None, frame: None }),
+                subgroups: Vec::new(),
             });
         }
         let mut buf = Cursor::new(Vec::new());
@@ -374,6 +384,7 @@ mod tests {
             zone: false,
             group: None,
             kind: ElementKind::Text(TextProps { content: RichText::plain("bonjour"), style, prompt: None, frame: None }),
+            subgroups: Vec::new(),
         });
         let mut buf = Cursor::new(Vec::new());
         save(&doc, &AssetStore::default(), &fonts, &mut buf).unwrap();
@@ -403,6 +414,7 @@ mod tests {
                 zone: false,
                 group: None,
                 kind: ElementKind::Text(TextProps { content: RichText::plain("x"), style, prompt: None, frame: None }),
+                subgroups: Vec::new(),
             });
         }
         let mut buf = Cursor::new(Vec::new());
@@ -420,7 +432,17 @@ mod tests {
             zone: false,
             group: group.map(String::from),
             kind: ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None }),
+            subgroups: Vec::new(),
         }
+    }
+
+    #[test]
+    fn nested_groups_are_version_6_plain_groups_are_not() {
+        let mut doc = Document::new("v");
+        doc.pages[0].elements = vec![picture(Some("g")), picture(Some("g"))];
+        assert!(written_version(&doc) < 6);
+        doc.pages[0].elements[0].subgroups = vec!["s".into()];
+        assert_eq!(written_version(&doc), 6);
     }
 
     #[test]
@@ -463,6 +485,7 @@ mod tests {
             zone: false,
             group: None,
             kind: ElementKind::Table(TableProps { cols: vec![1.0], rows: vec![1.0], cells: vec![], border: None }),
+            subgroups: Vec::new(),
         });
         assert_eq!(written_version(&doc), 4);
     }
@@ -560,6 +583,7 @@ mod tests {
             zone: false,
             group: None,
             kind: ElementKind::Text(TextProps { content: RichText::plain("x"), style, prompt: None, frame }),
+            subgroups: Vec::new(),
         }
     }
 

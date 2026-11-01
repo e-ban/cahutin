@@ -107,3 +107,15 @@ test("reorder moves the whole group", () => {
   const p = page([el("a", 0, { group: "g" }), el("b"), el("c", 0, { group: "g" }), el("d")]);
   expect(reorder(p, ["a"], "front").elements.map((e) => e.id)).toEqual(["b", "d", "a", "c"]);
 });
+
+test("a pasted group of groups gets its own ids at every level", () => {
+  const p = page([el("a", 10, { group: "g", subgroups: ["s"] }), el("b", 20, { group: "g", subgroups: ["s"] }), el("c", 30, { group: "g" })]);
+  const { page: out, ids } = pasteElements(p, copyElements(p, ["a", "b", "c"]));
+  const [a, b, c] = ids.map((id) => out.elements.find((e) => e.id === id)!);
+  expect(a.group).not.toBe("g");
+  expect(a.subgroups).toHaveLength(1);
+  expect(a.subgroups![0]).not.toBe("s");
+  expect([b.group, b.subgroups]).toEqual([a.group, a.subgroups]);
+  expect(c.group).toBe(a.group);
+  expect(c.subgroups).toBeUndefined();
+});

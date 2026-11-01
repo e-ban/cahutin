@@ -309,7 +309,7 @@ fn rotate_translate(t: &str) -> Option<(f64, f64, f64)> {
 }
 
 fn element(frame: Frame, kind: ElementKind) -> Element {
-    Element { id: new_id(), frame, locked: false, zone: false, group: None, kind }
+    Element { id: new_id(), frame, locked: false, zone: false, group: None, kind, subgroups: Vec::new() }
 }
 
 /// Caractères de la zone privée (puces des polices de symboles : OpenSymbol, Symbol, Wingdings) : « • ».

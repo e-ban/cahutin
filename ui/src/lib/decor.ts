@@ -1,6 +1,6 @@
 // Décors de page : mention de licence OpenMoji (même cadre que l'export ODG), cadres et frises.
 import { newId } from "./factory";
-import { rotateElements } from "./groups";
+import { normalizeGroups, pathOf, rotateElements, withPath } from "./groups";
 import { pictoElement } from "./pictos.svelte";
 import type { Element, Frame, Page, PageSize } from "./types";
 
@@ -109,10 +109,13 @@ export function blockFrieze(page: Page, id: string, codes: string[]): Page | nul
   const f = target.frame;
   const size = round(Math.min(15, Math.max(6, Math.min(f.w_mm, f.h_mm) / 4)));
   const rect = { x_mm: f.x_mm - size / 2, y_mm: f.y_mm - size / 2, w_mm: f.w_mm + size, h_mm: f.h_mm + size };
-  const group = target.group ?? newId();
-  let pics: Element[] = friezeInRect(page, rect, codes, "around", size).map((e) => ({ ...e, group }));
+  // Un groupe nouveau réunit le bloc et sa frise, qui reste un groupe à elle : dissocier rend l'un et l'autre
+  // intacts.
+  const group = newId();
+  let pics: Element[] = friezeInRect(page, rect, codes, "around", size).map((e) => withPath(e, [group, e.group!]));
   if (f.rotation_deg) pics = rotateElements(pics, f.rotation_deg, { x_mm: f.x_mm + f.w_mm / 2, y_mm: f.y_mm + f.h_mm / 2 });
-  const at = page.elements.indexOf(target);
-  const elements = [...page.elements.slice(0, at), { ...target, group }, ...pics, ...page.elements.slice(at + 1)];
-  return { ...page, elements };
+  const block = new Set(target.group ? page.elements.filter((e) => e.group === target.group).map((e) => e.id) : [id]);
+  const wrapped = page.elements.map((e) => (block.has(e.id) ? withPath(e, [group, ...pathOf(e)]) : e));
+  const at = wrapped.findIndex((e) => e.id === id);
+  return normalizeGroups({ ...page, elements: [...wrapped.slice(0, at + 1), ...pics, ...wrapped.slice(at + 1)] });
 }

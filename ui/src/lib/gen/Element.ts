@@ -10,4 +10,9 @@ zone: boolean,
 /**
  * Groupe : les éléments d'une page qui partagent cet identifiant se manient ensemble.
  */
-group?: string | null, kind: ElementKind, };
+group?: string | null, 
+/**
+ * Groupes dans le groupe, du plus large au plus petit : « Dissocier » n'enlève qu'un niveau. Vide le
+ * plus souvent, et sans effet sans `group`.
+ */
+subgroups?: Array<string>, kind: ElementKind, };

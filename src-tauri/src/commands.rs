@@ -696,6 +696,7 @@ mod tests {
             zone: false,
             group: None,
             kind: carnet_core::ElementKind::Text(carnet_core::TextProps { content: carnet_core::RichText::plain("bonjour"), style, prompt: None, frame: None }),
+            subgroups: Vec::new(),
         });
         doc.pages[0].elements.push(carnet_core::Element {
             id: carnet_core::new_id(),
@@ -704,6 +705,7 @@ mod tests {
             zone: false,
             group: None,
             kind: carnet_core::ElementKind::Photo(carnet_core::PhotoProps { asset: Some(meta.id.clone()), crop: carnet_core::Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
+            subgroups: Vec::new(),
         });
         doc.assets.insert(meta.id.clone(), meta.clone());
         let path = dir.path().join("sortie.carnet");
@@ -733,6 +735,7 @@ mod tests {
             zone: false,
             group: None,
             kind: carnet_core::ElementKind::Text(carnet_core::TextProps { content: carnet_core::RichText::plain("bonjour"), style, prompt: None, frame: None }),
+            subgroups: Vec::new(),
         });
         let path = dir.join(format!("{name}.carnet"));
         save_document_in(&author, &path, &doc).unwrap();
@@ -793,6 +796,7 @@ mod tests {
             zone: false,
             group: None,
             kind: carnet_core::ElementKind::Photo(carnet_core::PhotoProps { asset: Some(meta.id.clone()), crop: carnet_core::Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
+            subgroups: Vec::new(),
         });
         doc.assets.insert(meta.id.clone(), meta.clone());
         let path = dir.path().join("sortie.carnet");
@@ -833,6 +837,7 @@ mod tests {
                 prompt: None,
                 frame: None,
             }),
+            subgroups: Vec::new(),
         });
         let path = dir.path().join("partagé.carnet");
         save_document_in(&author, &path, &doc).unwrap();

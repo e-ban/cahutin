@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Groupes dans des groupes : grouper des éléments déjà groupés (une frise et une photo avec sa légende) les garde entiers dans le nouveau groupe, et « Dissocier » n'enlève plus qu'un niveau : on retrouve la frise et la photo avec sa légende, chacune toujours groupée. Un double-clic entre d'un niveau à la fois (puis modifie l'élément seul), Échap remonte d'un niveau. Une frise posée autour d'un bloc forme un groupe à elle dans ce groupe. Ces niveaux sont gardés à l'export LibreOffice ; un document qui en contient demande cette version de Cahutin.
 - Tiroir Photos : une croix en haut à droite de chaque photo la retire du document, après confirmation. Si elle est posée sur une page, sa case reste, vide ; le fichier sur l'ordinateur n'est pas touché, et « Annuler » la remet.
 - Mes images : dans le tiroir Décors, « Mes images » garde vos propres images (dessins téléchargés, cliparts, images faites à la main) pour tous vos documents. « Ajouter mes images » les choisit sur l'ordinateur ; un clic en pose une, ou on la glisse sur la page. Une image retirée de la liste n'est pas effacée : elle est rangée dans le sous-dossier Retirées. Elles sont rangées dans Documents/Cahutin/Images ; une image posée est copiée dans le document, qui reste complet si on l'envoie à une collègue ou si l'image est retirée de « Mes images ».
 - Une photo posée deux fois de suite d'un clic se décale un peu au lieu de se cacher sous la première. La barre d'une photo n'affiche plus deux boutons « Remplacer ».

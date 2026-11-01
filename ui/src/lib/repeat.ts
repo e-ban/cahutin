@@ -1,7 +1,7 @@
 // Répéter un bloc en grille sur la page : planches d'étiquettes ou de cartes sans modèle dédié.
 // Les copies gardent leurs zones à remplir, pour que la classe les remplisse ensuite.
 import { newId } from "./factory";
-import { boundsOf, expandSelection } from "./groups";
+import { boundsOf, expandSelection, pathOf, withPath } from "./groups";
 import { remapTables } from "./table";
 import type { Element, Page } from "./types";
 
@@ -26,10 +26,11 @@ export function repeatBlock(page: Page, selected: string[], cols: number, rows: 
   const block = page.elements.filter((e) => ids.includes(e.id));
   if (block.length === 0) return { page, ids: [] };
   const b = boundsOf(block.map((e) => e.frame));
-  // Plusieurs éléments sans groupe commun : le bloc d'origine devient un groupe, comme ses copies.
+  // Plusieurs éléments sans groupe commun : le bloc d'origine devient un groupe (autour de ceux qu'il
+  // contient déjà), comme ses copies.
   const shared = block.every((e) => e.group && e.group === block[0].group);
   const ownGroup = block.length > 1 && !shared ? newId() : null;
-  const original = block.map((e) => (ownGroup ? { ...e, group: ownGroup } : e));
+  const original = block.map((e) => (ownGroup ? withPath(e, [ownGroup, ...pathOf(e)]) : e));
   const copies: Element[] = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -37,13 +38,17 @@ export function repeatBlock(page: Page, selected: string[], cols: number, rows: 
       const groups = new Map<string, string>();
       const regroup = (g: string | null | undefined) => (g ? (groups.get(g) ?? groups.set(g, newId()).get(g)!) : null);
       const newIds = new Map(original.map((e) => [e.id, newId()]));
-      const one = original.map((e) => ({
-        ...(JSON.parse(JSON.stringify(e)) as Element),
-        id: newIds.get(e.id)!,
-        group: regroup(e.group),
-        locked: false,
-        frame: { ...e.frame, x_mm: e.frame.x_mm + c * (b.w_mm + gap), y_mm: e.frame.y_mm + r * (b.h_mm + gap) },
-      }));
+      const one = original.map((e) =>
+        withPath(
+          {
+            ...(JSON.parse(JSON.stringify(e)) as Element),
+            id: newIds.get(e.id)!,
+            locked: false,
+            frame: { ...e.frame, x_mm: e.frame.x_mm + c * (b.w_mm + gap), y_mm: e.frame.y_mm + r * (b.h_mm + gap) },
+          },
+          pathOf(e).map((g) => regroup(g)!),
+        ),
+      );
       copies.push(...remapTables(one, newIds));
     }
   }

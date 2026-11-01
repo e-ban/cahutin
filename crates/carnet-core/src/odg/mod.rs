@@ -152,6 +152,7 @@ mod tests {
                 shadow: false,
                 mirrored: false,
             }),
+            subgroups: Vec::new(),
         }
     }
 
@@ -163,6 +164,7 @@ mod tests {
             zone: true,
             group: None,
             kind: ElementKind::Text(TextProps { content, style: TextStyle::default_zone(), prompt: prompt.map(String::from), frame: None }),
+            subgroups: Vec::new(),
         }
     }
 
@@ -272,6 +274,7 @@ mod tests {
             zone: false,
             group: None,
             kind: ElementKind::Image(ImageProps { code: "1F98A".into(), outline: Some(true) }),
+            subgroups: Vec::new(),
         };
         let mut e = export(&doc_with(vec![el.clone()]), &AssetStore::default());
         assert_eq!(e.read("Pictures/openmoji-contour-1F98A.svg"), crate::picto::outline_svg("1F98A").unwrap());
@@ -295,6 +298,7 @@ mod tests {
             zone: false,
             group: None,
             kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Path, fill: None, stroke: Some(Stroke { width_mm: 0.8, color: "#9e9e9e".into(), style: Some(StrokeStyle::Dotted) }), corner_radius_mm: 0.0, path: Some(path.into()) }),
+            subgroups: Vec::new(),
         };
         let mut buf = Cursor::new(Vec::new());
         export_odg(&doc_with(vec![shape(bridges)]), &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
@@ -452,6 +456,7 @@ mod tests {
             zone: false,
             group: None,
             kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: stroke(style), corner_radius_mm: 0.0, path: None }),
+            subgroups: Vec::new(),
         };
         let mut e = export(&doc_with(vec![shape(StrokeStyle::Dashed), shape(StrokeStyle::Dotted), shape(StrokeStyle::Solid)]), &AssetStore::default());
         let content = e.xml("content.xml");
@@ -676,6 +681,7 @@ mod tests {
                 corner_radius_mm: 0.0,
                 path: None,
             }),
+            subgroups: Vec::new(),
         }
     }
 
@@ -717,6 +723,7 @@ mod tests {
             zone: false,
             group: group.map(String::from),
             kind: ElementKind::Image(ImageProps { code: code.into(), outline: None }),
+            subgroups: Vec::new(),
         }
     }
 
@@ -786,6 +793,22 @@ mod tests {
         let content = export(&grouped, &AssetStore::default()).xml("content.xml");
         let g = content.split("<draw:g>").nth(1).expect("draw:g").split("</draw:g>").next().unwrap();
         assert!(g.contains("openmoji-1F98A") && g.contains("draw:custom-shape") && !g.contains("openmoji-2600"));
+    }
+
+    #[test]
+    fn nested_groups_are_nested_draw_g() {
+        let mut d = doc_with(vec![picture_el("1F98A", Some("g")), picture_el("2600", Some("g")), picture_el("1F33B", Some("g")), picture_el("1F431", None)]);
+        d.pages[0].elements[0].subgroups = vec!["f".into()];
+        d.pages[0].elements[1].subgroups = vec!["f".into()];
+        let content = export(&d, &AssetStore::default()).xml("content.xml");
+        assert_eq!(content.matches("<draw:g>").count(), 2);
+        // Le petit groupe (renard, soleil) est dans le grand, avec le tournesol ; le chat est dehors.
+        let outer = content.split("<draw:g>").nth(1).unwrap();
+        let inner = content.split("<draw:g>").nth(2).unwrap().split("</draw:g>").next().unwrap();
+        assert!(inner.contains("openmoji-1F98A") && inner.contains("openmoji-2600") && !inner.contains("openmoji-1F33B"));
+        let after_inner = content.split("</draw:g>").nth(1).unwrap();
+        assert!(after_inner.contains("openmoji-1F33B") && !outer.contains("openmoji-1F431"));
+        assert!(content.split("</draw:g>").nth(2).unwrap().contains("openmoji-1F431"));
     }
 
     #[test]

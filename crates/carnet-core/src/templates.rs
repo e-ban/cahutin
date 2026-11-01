@@ -385,6 +385,7 @@ pub fn builtin() -> Vec<Template> {
             prompt: None,
             frame: None,
         }),
+        subgroups: Vec::new(),
     });
 
     vec![
@@ -747,6 +748,7 @@ mod tests {
             zone: false,
             group: None,
             kind: ElementKind::Photo(PhotoProps { asset: Some(logo_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
+            subgroups: Vec::new(),
         });
         let t = from_page("Mon modèle", &page, &store);
         assert_eq!(t.info.name, "Mon modèle");
@@ -777,6 +779,7 @@ mod tests {
             zone: false,
             group: None,
             kind,
+            subgroups: Vec::new(),
         };
         page.elements.push(free(ElementKind::Photo(PhotoProps { asset: Some(child_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false })));
         page.elements.push(free(ElementKind::Text(TextProps { content: RichText::plain("Léa a ri"), style: TextStyle::default_zone(), prompt: None, frame: None })));
@@ -860,6 +863,7 @@ mod tests {
                 prompt: Some("Prénom".into()),
                 frame: Some(TextFrame { image: Some(id.clone()), ..TextFrame::default() }),
             }),
+            subgroups: Vec::new(),
         });
         let t = from_page("étiquettes", &page, &store);
         let ElementKind::Text(text) = &t.page.elements[0].kind else { panic!() };
@@ -878,6 +882,7 @@ mod tests {
             zone: false,
             group: Some("g".into()),
             kind,
+            subgroups: Vec::new(),
         };
         page.elements.push(base(ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None })));
         page.elements.push(base(ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false })));

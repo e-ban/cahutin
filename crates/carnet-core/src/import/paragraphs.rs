@@ -195,6 +195,7 @@ pub fn block_element(b: &Block) -> Element {
             prompt: None,
             frame: None,
         }),
+        subgroups: Vec::new(),
     }
 }
 

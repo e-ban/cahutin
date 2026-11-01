@@ -2,7 +2,7 @@
 
 # Cahutin
 
-Cahutin aide les enseignants de l'école primaire à faire leurs fiches, leurs affiches, leurs étiquettes et leurs pages de cahier de vie : on part d'un modèle, on dépose ses photos, on écrit, et la page est prête à imprimer. Gratuit, libre, et **hors ligne** : aucun document ne quitte l'ordinateur.
+Cahutin aide les enseignants de l'école primaire à faire leurs fiches, leurs affiches, leurs étiquettes et leurs pages de cahier de vie : on part d'un modèle, on dépose ses photos, on écrit, et la page est prête à imprimer. Gratuit, libre, et **hors ligne** : aucune donnée ne quitte l'ordinateur.
 
 ![La page « Joyeux anniversaire » ouverte dans Cahutin](docs/capture.png)
 
@@ -64,6 +64,13 @@ Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvell
 - **Sorties** : impression (chaque page sur une feuille de son format, affiche A3 en deux feuilles A4, cartes en recto-verso), PDF, et export **ODG** pour LibreOffice Draw, où chaque texte, photo et forme reste modifiable et les polices voyagent avec le fichier.
 
 ## Confidentialité
+
+**Toutes les données restent sur l'ordinateur.** Cahutin fonctionne sans internet, sans compte et sans serveur :
+- les **documents et les photos** (celles des élèves, la photothèque de la classe, la collection d'images) ;
+- les **informations personnelles** : prénoms, noms, dates de naissance, groupes, autorisations photo des élèves ;
+- les **informations d'utilisation** : Cahutin ne mesure rien, ne compte rien et n'envoie aucune statistique ; ses réglages et son journal restent sur le poste.
+
+En détail :
 
 - Une seule connexion possible, facultative et désactivée tant que vous ne l'avez pas acceptée : une fois par jour, Cahutin lit le numéro de la dernière version sur l'API de GitHub (`api.github.com`). Rien d'autre n'est envoyé (ni document, ni identifiant, ni information sur l'ordinateur) ; GitHub voit seulement l'adresse IP de la connexion, comme pour toute visite d'un site. L'interface elle-même n'a accès à aucune adresse distante.
 - Les métadonnées des photos (lieu, appareil, date) sont retirées à l'import.

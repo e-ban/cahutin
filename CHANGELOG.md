@@ -1,5 +1,9 @@
 # Journal des versions
 
+## Non publié
+
+- La barre au-dessus de l'élément choisi est deux fois moins large : chaque outil n'y montre que son icône, et son nom apparaît quand on passe la souris dessus. L'action principale (« Choisir une photo », « Grouper ») reste écrite en entier.
+
 ## 0.10.1
 
 - Version AppImage (Linux) : l'import d'un PDF, d'un document Word ou LibreOffice échouait (« LibreOffice n'a pas pu lire ce fichier ») : LibreOffice héritait des bibliothèques de l'AppImage et ne démarrait pas. Il est désormais lancé avec l'environnement du système.

@@ -1,13 +1,13 @@
 # Journal des versions
 
-## Non publié
+## 0.10.1
 
-- La légende d'une photo tournée se place sous la photo telle qu'elle s'affiche, aussi large qu'elle, au lieu de la recouvrir.
+- Version AppImage (Linux) : l'import d'un PDF, d'un document Word ou LibreOffice échouait (« LibreOffice n'a pas pu lire ce fichier ») : LibreOffice héritait des bibliothèques de l'AppImage et ne démarrait pas. Il est désormais lancé avec l'environnement du système.
+- Import d'un fichier LibreOffice Draw (.odg) : les photos posées dans une forme (cadre arrondi, polygone) et les images rangées en deux exemplaires (un dessin WMF et sa copie PNG) étaient perdues. Elles sont reprises, chacune tournée dans le sens de son cadre, et les images d'une page sont lues en parallèle : un document de 22 pages et 222 images s'ouvre en une dizaine de secondes.
 - Recadrer une photo tournée (ou en miroir) : la photo suit maintenant la souris, au lieu d'aller dans le sens qu'elle avait avant d'être tournée.
 - Tourner plus simplement : la poignée de rotation avance par crans de 15° (Maj enfoncée pour tourner librement), et deux boutons de la barre, ↺ et ↻, tournent d'un quart de tour (un groupe autour de son centre).
 - Un clic pour choisir une image ne la déplace plus par mégarde : un bloc ne bouge qu'à partir d'un vrai glisser.
-- Version AppImage (Linux) : l'import d'un PDF, d'un document Word ou LibreOffice échouait (« LibreOffice n'a pas pu lire ce fichier ») : LibreOffice héritait des bibliothèques de l'AppImage et ne démarrait pas. Il est désormais lancé avec l'environnement du système.
-- Import d'un fichier LibreOffice Draw (.odg) : les photos posées dans une forme (cadre arrondi, polygone) et les images rangées en deux exemplaires (un dessin WMF et sa copie PNG) étaient perdues. Elles sont reprises, chacune tournée dans le sens de son cadre, et les images d'une page sont lues en parallèle : un document de 22 pages et 222 images s'ouvre en une dizaine de secondes.
+- La légende d'une photo tournée se place sous la photo telle qu'elle s'affiche, aussi large qu'elle, au lieu de la recouvrir.
 
 ## 0.10.0
 

@@ -215,9 +215,10 @@ class Editor {
     if (final !== base) this.commit(final);
   }
 
-  updatePage(fn: (p: Page) => Page) {
+  /** Modifie la page affichée ; `assets` : images qu'elle utilise désormais, ajoutées à celles du document. */
+  updatePage(fn: (p: Page) => Page, assets: AssetMeta[] = []) {
     const pages = this.doc.pages.map((p, i) => (i === this.pageIndex ? fn(p) : p));
-    this.commit({ ...this.doc, pages });
+    this.commit({ ...this.doc, pages, ...(assets.length ? { assets: { ...this.doc.assets, ...Object.fromEntries(assets.map((m) => [m.id, m])) } } : {}) });
   }
 
   /** Une photo déjà présente (même id, ou même fichier importé) n'est pas ajoutée une seconde fois. */

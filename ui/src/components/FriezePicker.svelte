@@ -1,14 +1,16 @@
 <script lang="ts">
   // Choix des motifs d'une frise, dans une fenêtre : un clic ajoute l'image à la suite (numérotée), un second
   // l'en retire.
+  import MyImagesPanel from "./drawers/MyImagesPanel.svelte";
   import PictoPanel from "./drawers/PictoPanel.svelte";
   import { toggleMotif } from "../lib/decor";
-  import { friezeMotifs } from "../lib/friezeMotifs.svelte";
+  import { friezeMotifs, motifUrl } from "../lib/friezeMotifs.svelte";
   import { fr } from "../lib/i18n/fr";
-  import { pictoUrl } from "../lib/pictos.svelte";
 
   let { onclose }: { onclose: () => void } = $props();
   let query = $state("");
+  let tab = $state<"pictos" | "mine">("pictos");
+  const pick = (key: string) => (friezeMotifs.codes = toggleMotif(friezeMotifs.codes, key));
 </script>
 
 <div class="backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && onclose()} onkeydown={(e) => e.key === "Escape" && onclose()}>
@@ -17,14 +19,22 @@
     <p class="hint">{fr.friezePickHint}</p>
     <div class="chosen">
       {#each friezeMotifs.codes as code, i (code)}
-        <span class="motif"><img src={pictoUrl(code)} alt="" /><b>{i + 1}</b></span>
+        <span class="motif"><img src={motifUrl(code)} alt="" /><b>{i + 1}</b></span>
       {:else}
         <span class="hint">{fr.friezeNoMotif}</span>
       {/each}
     </div>
+    <div class="tabs" role="tablist" aria-label={fr.friezePickTabs}>
+      <button role="tab" aria-selected={tab === "pictos"} class:on={tab === "pictos"} onclick={() => (tab = "pictos")}>{fr.pictograms}</button>
+      <button role="tab" aria-selected={tab === "mine"} class:on={tab === "mine"} onclick={() => (tab = "mine")}>{fr.myImages}</button>
+    </div>
     <input class="search" type="search" bind:value={query} placeholder={fr.searchPicture} aria-label={fr.searchPicture} />
     <div class="scroll">
-      <PictoPanel {query} chosen={friezeMotifs.codes} onpick={(code) => (friezeMotifs.codes = toggleMotif(friezeMotifs.codes, code))} />
+      {#if tab === "pictos"}
+        <PictoPanel {query} chosen={friezeMotifs.codes} onpick={pick} />
+      {:else}
+        <MyImagesPanel {query} chosen={friezeMotifs.codes} onpick={pick} />
+      {/if}
     </div>
     <div class="buttons">
       <button class="primary" onclick={onclose}>✓ {fr.friezePickDone}</button>
@@ -89,6 +99,27 @@
     font-size: 10px;
     line-height: 14px;
     text-align: center;
+  }
+  .tabs {
+    display: flex;
+    align-self: flex-start;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .tabs button {
+    border: 0;
+    border-radius: 0;
+    padding: 6px 14px;
+    background: white;
+  }
+  .tabs button + button {
+    border-left: 1px solid var(--line);
+  }
+  .tabs .on {
+    background: #e8f1fb;
+    color: var(--accent);
+    font-weight: 600;
   }
   .search {
     padding: 6px 8px;

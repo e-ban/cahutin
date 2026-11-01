@@ -170,7 +170,8 @@
   }
   .options {
     display: flex;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 6px 12px;
     margin-bottom: 8px;
     font-size: 13px;
   }
@@ -181,6 +182,7 @@
   }
   .options input {
     width: 4em;
+    box-sizing: border-box;
   }
   .hint {
     color: var(--muted);

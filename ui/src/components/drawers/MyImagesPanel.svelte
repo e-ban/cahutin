@@ -1,6 +1,7 @@
 <script lang="ts">
-  // « Mes images » : les images de l'enseignant, gardées d'un document à l'autre. `query` filtre ; pendant une
-  // recherche (`searching`), seules les vignettes trouvées sont montrées.
+  // La collection : les images de l'enseignant, gardées d'un document à l'autre. `query` filtre ; pendant une
+  // recherche (`searching`), seules les vignettes trouvées sont montrées. Avec `onpick` (choix des motifs d'une
+  // frise), un clic ajoute l'image aux motifs ou l'en retire, et `chosen` numérote les motifs choisis.
   import { open } from "@tauri-apps/plugin-dialog";
   import { ask } from "../../lib/ask";
   import { myImageUrl } from "../../lib/api";
@@ -10,8 +11,15 @@
   import { fr } from "../../lib/i18n/fr";
   import { displayName, searchMyImages } from "../../lib/myImages";
   import { myImages } from "../../lib/myImages.svelte";
+  import { mineMotif } from "../../lib/friezeMotifs.svelte";
 
-  let { query = "", searching = false, onphotos }: { query?: string; searching?: boolean; onphotos?: () => void } = $props();
+  let {
+    query = "",
+    searching = false,
+    onphotos,
+    onpick,
+    chosen = [],
+  }: { query?: string; searching?: boolean; onphotos?: () => void; onpick?: (key: string) => void; chosen?: string[] } = $props();
 
   myImages.load();
 
@@ -25,6 +33,10 @@
   }
 
   async function use(name: string) {
+    if (onpick) {
+      onpick(mineMotif(name));
+      return;
+    }
     try {
       usePhoto(await myImages.use(name));
     } catch {
@@ -47,11 +59,13 @@
   {#if searching}<h4>{fr.myImages}</h4>{/if}
   <div class="grid">
     {#each shown as img (img.name)}
+      {@const rank = chosen.indexOf(mineMotif(img.name))}
       <div class="cell">
         <button
           class="thumb"
+          class:chosen={rank >= 0}
           title={displayName(img.name)}
-          draggable="true"
+          draggable={!onpick}
           onclick={() => use(img.name)}
           ondragstart={(e) => {
             e.dataTransfer?.setData(MY_IMAGE_MIME, img.name);
@@ -60,18 +74,19 @@
         >
           <img src={`${myImageUrl(img.name)}?v=${img.modified}`} alt="" loading="lazy" decoding="async" draggable="false" />
           <span class="name">{displayName(img.name)}</span>
+          {#if rank >= 0}<span class="rank">{rank + 1}</span>{/if}
         </button>
-        <button class="remove" title={fr.myImagesRemove} aria-label={`${fr.myImagesRemove} : ${displayName(img.name)}`} onclick={() => remove(img.name)}>×</button>
+        {#if !onpick}<button class="remove" title={fr.myImagesRemove} aria-label={`${fr.myImagesRemove} : ${displayName(img.name)}`} onclick={() => remove(img.name)}>×</button>{/if}
       </div>
     {:else}
       <p class="hint">{fr.myImagesNone}</p>
     {/each}
   </div>
-  {#if !searching}<p class="hint">{fr.myImagesHint}</p>{/if}
+  {#if !searching && !onpick}<p class="hint">{fr.myImagesHint}</p>{/if}
 {:else if !searching}
   <p class="hint">{fr.myImagesEmpty}</p>
 {/if}
-{#if !searching}
+{#if !searching && !onpick}
   <p class="hint">{fr.myImagesWhere}</p>
   {#if onphotos}<button class="link" onclick={onphotos}>{fr.myImagesPhotosLink}</button>{/if}
 {/if}
@@ -107,6 +122,26 @@
     padding: 4px;
     border: 1px solid var(--line);
     background: white;
+  }
+  .thumb {
+    position: relative;
+  }
+  .thumb.chosen {
+    border-color: var(--accent);
+    background: #e8f1fb;
+  }
+  .rank {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: white;
+    font-size: 11px;
+    line-height: 16px;
+    text-align: center;
   }
   .thumb img {
     width: 100%;

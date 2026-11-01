@@ -22,9 +22,9 @@
   import { isStrokeOnly } from "../lib/shapePaths";
   import { isTableCell, selectedTable } from "../lib/table";
   import { alignUnits, arrangeUnits, expandSelection, groupOf, isLockedSelection } from "../lib/groups";
-  import { blockFrieze } from "../lib/decor";
+  import { blockFrieze, friezeIn, friezeSettings, resizeFrieze } from "../lib/decor";
   import { cutMarks, type CutStyle } from "../lib/cutMarks";
-  import { friezeMotifs } from "../lib/friezeMotifs.svelte";
+  import { friezeMotifs, resolveMotifs } from "../lib/friezeMotifs.svelte";
   import { setPictosOutline } from "../lib/pictos.svelte";
   import { ALIGNS, VALIGNS, currentFont, currentSize, insertAtCursor, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
   import type { NamedTextStyle, Frame } from "../lib/types";
@@ -33,7 +33,7 @@
 
   const ROTATION_HANDLE_GAP = 44;
 
-  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields" | "repeat" | "styles";
+  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields" | "repeat" | "styles" | "frieze";
   /** Champs de la classe, remplacés pour chaque élève quand on génère les pages. */
   const CLASS_FIELDS = ["{prénom}", "{PRÉNOM}", "{nom}", "{groupe}", "{âge}", "{anniversaire}"];
   let pop = $state<Pop | null>(null);
@@ -192,14 +192,31 @@
     pop = null;
   }
 
-  function addBlockFrieze() {
+  // Une frise posée (ou la frise d'un bloc) : sa taille et l'écart entre ses images se règlent après coup.
+  const friezeIds = $derived(editor.selection.length > 1 ? friezeIn(editor.page, editor.selection) : null);
+  const friezeNow = $derived(friezeIds ? friezeSettings(editor.page, friezeIds) : null);
+
+  function setFrieze(size: number, gap: number) {
+    const ids = friezeIds;
+    if (!ids) return;
+    let fresh: string[] = [];
+    editor.updatePage((p) => {
+      const r = resizeFrieze(p, ids, size, gap);
+      fresh = r.ids;
+      return r.page;
+    });
+    editor.selection = [...editor.selection.filter((id) => !ids.includes(id)), ...fresh];
+  }
+
+  async function addBlockFrieze() {
     const id = selected?.id;
     if (!id) return;
     if (friezeMotifs.codes.length === 0) {
       editor.drawer = "decor";
       return;
     }
-    editor.updatePage((p) => blockFrieze(p, id, friezeMotifs.codes) ?? p);
+    const { motifs, assets } = await resolveMotifs(friezeMotifs.codes);
+    editor.updatePage((p) => blockFrieze(p, id, motifs) ?? p, assets);
     editor.focusedMember = null;
     editor.insideGroup = [];
     editor.selection = expandSelection(editor.page, [id]);
@@ -485,6 +502,17 @@
     {#if canFrieze}
       <button title={fr.blockFriezeHint} onclick={addBlockFrieze}>❀ {fr.blockFrieze}</button>
     {/if}
+    {#if friezeIds && friezeNow}
+      <div class="wrap">
+        <button class:on={pop === "frieze"} title={fr.friezeSettingsHint} onclick={() => toggle("frieze")}>❀ {fr.friezeSettings} ▾</button>
+        {#if pop === "frieze"}
+          <div class="pop frieze">
+            <label>{fr.friezeSize} <input type="range" min="6" max="40" step="1" value={friezeNow.size} onchange={(e) => setFrieze(Number(e.currentTarget.value), friezeNow.gap)} /> {friezeNow.size} mm</label>
+            <label>{fr.friezeGap} <input type="range" min="0" max="30" step="1" value={friezeNow.gap} onchange={(e) => setFrieze(friezeNow.size, Number(e.currentTarget.value))} /> {friezeNow.gap} mm</label>
+          </div>
+        {/if}
+      </div>
+    {/if}
     {#if canCut}
       <div class="wrap">
         <button title={fr.repeatHint} onclick={() => toggle("repeat")}>⊞ {fr.repeat} ▾</button>
@@ -536,6 +564,16 @@
   }
   .new-style input {
     flex: 1;
+  }
+  .pop.frieze {
+    min-width: 260px;
+  }
+  .pop.frieze label {
+    display: grid;
+    grid-template-columns: 6em 1fr 3.5em;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
   }
   .pop.repeat {
     display: grid;

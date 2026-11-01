@@ -5,11 +5,10 @@
   import FriezePicker from "../FriezePicker.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
-  import { pictoUrl } from "../../lib/pictos.svelte";
   import { frieze, pageFrame, type FrameStyle, type FriezeSide } from "../../lib/decor";
-  import { friezeMotifs } from "../../lib/friezeMotifs.svelte";
+  import { friezeMotifs, motifUrl, resolveMotifs } from "../../lib/friezeMotifs.svelte";
   import { readPref, writePref } from "../../lib/prefs";
-  import type { Element } from "../../lib/types";
+  import type { AssetMeta, Element } from "../../lib/types";
 
   const frames: { style: FrameStyle; label: string }[] = [
     { style: "thin", label: fr.frameThin },
@@ -24,9 +23,14 @@
   ];
 
   /** Cadre : derrière tout le reste ; frise : devant. Les nouveaux éléments sont sélectionnés. */
-  function addDecor(els: Element[], behind: boolean) {
-    editor.updatePage((p) => ({ ...p, elements: behind ? [...els, ...p.elements] : [...p.elements, ...els] }));
+  function addDecor(els: Element[], behind: boolean, assets: AssetMeta[] = []) {
+    editor.updatePage((p) => ({ ...p, elements: behind ? [...els, ...p.elements] : [...p.elements, ...els] }), assets);
     editor.selection = els.map((e) => e.id);
+  }
+
+  async function addFrieze(side: FriezeSide) {
+    const { motifs, assets } = await resolveMotifs(friezeMotifs.codes);
+    if (motifs.length) addDecor(frieze(editor.page, motifs, side, friezeMotifs.size, friezeMotifs.gap), false, assets);
   }
 
   let picking = $state(false);
@@ -58,7 +62,7 @@
   <div class="motifs">
     {#each friezeMotifs.codes as code, i (code)}
       <span class="motif">
-        <img src={pictoUrl(code)} alt="" />
+        <img src={motifUrl(code)} alt="" />
         <button class="remove" title={fr.removeMotif} aria-label={fr.removeMotif} onclick={() => (friezeMotifs.codes = friezeMotifs.codes.filter((_, j) => j !== i))}>×</button>
       </span>
     {:else}
@@ -66,11 +70,22 @@
     {/each}
   </div>
   <button onclick={() => (picking = true)}>＋ {fr.friezePick}</button>
+  <label class="slider">
+    <span>{fr.friezeSize}</span>
+    <input type="range" min="6" max="40" step="1" bind:value={friezeMotifs.size} />
+    <span class="value">{friezeMotifs.size} mm</span>
+  </label>
+  <label class="slider">
+    <span>{fr.friezeGap}</span>
+    <input type="range" min="0" max="30" step="1" bind:value={friezeMotifs.gap} />
+    <span class="value">{friezeMotifs.gap} mm</span>
+  </label>
   <div class="sides">
     {#each sides as s (s.side)}
-      <button disabled={friezeMotifs.codes.length === 0} onclick={() => addDecor(frieze(editor.page, friezeMotifs.codes, s.side), false)}>{s.label}</button>
+      <button disabled={friezeMotifs.codes.length === 0} onclick={() => addFrieze(s.side)}>{s.label}</button>
     {/each}
   </div>
+  <p class="hint">{fr.friezeEditHint}</p>
 </Drawer>
 {#if picking}<FriezePicker onclose={() => (picking = false)} />{/if}
 
@@ -170,6 +185,20 @@
     border-radius: 50%;
     font-size: 11px;
     line-height: 14px;
+  }
+  .slider {
+    display: grid;
+    grid-template-columns: 6.5em 1fr 3.5em;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+  }
+  .slider input {
+    min-width: 0;
+  }
+  .value {
+    text-align: right;
+    color: var(--muted);
   }
   .sides {
     display: flex;

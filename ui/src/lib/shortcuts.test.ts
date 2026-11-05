@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { shortcutAction } from "./shortcuts";
+import { shortcutAction, wheelZoomStep } from "./shortcuts";
 
 const key = (k: string, o: { shift?: boolean; repeat?: boolean; ctrl?: boolean } = {}) => ({
   key: k,
@@ -29,6 +29,36 @@ test("shortcutAction ignores repeats and keys without Ctrl", () => {
   expect(shortcutAction(key("s", { repeat: true }))).toBeNull();
   expect(shortcutAction(key("s", { ctrl: false }))).toBeNull();
   expect(shortcutAction(key("q"))).toBeNull();
+});
+
+test("shortcutAction maps Ctrl with plus, minus and zero to the zoom", () => {
+  expect(shortcutAction(key("+", { shift: true }))).toBe("zoomIn");
+  expect(shortcutAction(key("="))).toBe("zoomIn");
+  expect(shortcutAction(key("-"))).toBe("zoomOut");
+  expect(shortcutAction(key("-", { repeat: true }))).toBe("zoomOut");
+  expect(shortcutAction(key("0"))).toBe("zoomFit");
+  expect(shortcutAction(key("à"))).toBe("zoomFit");
+  expect(shortcutAction(key("-", { ctrl: false }))).toBeNull();
+});
+
+test("wheelZoomStep zooms in on wheel up, out on wheel down, once per notch", () => {
+  expect(wheelZoomStep(0, -100, 0)).toEqual({ acc: 0, dir: 1 });
+  expect(wheelZoomStep(0, 100, 0)).toEqual({ acc: 0, dir: -1 });
+  expect(wheelZoomStep(0, 3, 1)).toEqual({ acc: 0, dir: -1 });
+});
+
+test("wheelZoomStep gathers the small steps of a touchpad pinch", () => {
+  let acc = 0;
+  const dirs: number[] = [];
+  for (let i = 0; i < 10; i++) {
+    const s = wheelZoomStep(acc, -8, 0);
+    acc = s.acc;
+    dirs.push(s.dir);
+  }
+  expect(dirs.filter((d) => d === 1)).toHaveLength(2);
+  expect(dirs.filter((d) => d === -1)).toHaveLength(0);
+  // Un changement de sens repart de zéro.
+  expect(wheelZoomStep(-30, 8, 0)).toEqual({ acc: 8, dir: 0 });
 });
 
 test("editing shortcuts do nothing under the welcome screen or a dialog", async () => {

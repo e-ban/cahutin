@@ -6,13 +6,14 @@ import { groupOf, isLockedSelection } from "./groups";
 import { modal } from "./modal.svelte";
 import { nudge, type ArrowKey } from "./geometry";
 import { tour } from "./tour.svelte";
+import { nextZoom } from "./units";
 
 function typing(ev: KeyboardEvent): boolean {
   const t = ev.target as HTMLElement | null;
   return !!t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
 }
 
-export type ShortcutAction = "new" | "open" | "save" | "print" | "duplicate" | "undo" | "redo" | "copy" | "cut" | "paste" | "group" | "ungroup";
+export type ShortcutAction = "new" | "open" | "save" | "print" | "duplicate" | "undo" | "redo" | "copy" | "cut" | "paste" | "group" | "ungroup" | "zoomIn" | "zoomOut" | "zoomFit";
 
 type KeyInfo = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "repeat">;
 
@@ -23,9 +24,51 @@ export function shortcutAction(ev: KeyInfo): ShortcutAction | null {
   if (k === "z") return ev.shiftKey ? "redo" : "undo";
   if (k === "y") return "redo";
   if (k === "g") return ev.repeat ? null : ev.shiftKey ? "ungroup" : "group";
+  // Zoom : Ctrl et +, -, 0 (« à » sur un clavier français), comme dans les autres logiciels.
+  if (k === "+" || k === "=") return "zoomIn";
+  if (k === "-") return "zoomOut";
+  if (k === "0" || k === "à") return ev.repeat ? null : "zoomFit";
   if (ev.repeat) return null;
   const actions: Record<string, ShortcutAction> = { n: "new", o: "open", s: "save", p: "print", d: "duplicate", c: "copy", x: "cut", v: "paste" };
   return actions[k] ?? null;
+}
+
+// Sous l'écran d'accueil, le panneau Astuces, la classe ou la photothèque, la page n'est pas visible :
+// rien ne doit la modifier.
+function pageHidden(): boolean {
+  return editor.showWelcome || editor.showTips || editor.showClassPage || editor.showPhototheque || editor.showCollection || editor.showPreferences;
+}
+
+/** Pixels de molette pour un cran de zoom : le pincement du pavé tactile envoie beaucoup de petits pas. */
+export const WHEEL_ZOOM_STEP = 40;
+
+/**
+ * Ctrl+molette : ajoute ce pas au cumul et dit s'il faut zoomer (1), dézoomer (-1) ou attendre (0).
+ * Molette vers le haut : on zoome. Un changement de sens repart de zéro.
+ */
+export function wheelZoomStep(acc: number, deltaY: number, deltaMode: number): { acc: number; dir: 1 | -1 | 0 } {
+  const px = deltaMode === 1 ? deltaY * 40 : deltaMode === 2 ? deltaY * 800 : deltaY;
+  const sum = Math.sign(px) === Math.sign(acc) ? acc + px : px;
+  if (sum <= -WHEEL_ZOOM_STEP) return { acc: 0, dir: 1 };
+  if (sum >= WHEEL_ZOOM_STEP) return { acc: 0, dir: -1 };
+  return { acc: sum, dir: 0 };
+}
+
+let wheelAcc = 0;
+
+/**
+ * Ctrl+molette, n'importe où dans la fenêtre : zoom de la page. Renvoie le nouveau zoom, ou null.
+ * La vue web ne zoome jamais toute l'interface (sa taille se règle dans les Préférences).
+ */
+export function handleWheelZoom(ev: WheelEvent): number | null {
+  if (!(ev.ctrlKey || ev.metaKey)) return null;
+  ev.preventDefault();
+  if (modal.message !== null || tour.step !== null || pageHidden()) return null;
+  const step = wheelZoomStep(wheelAcc, ev.deltaY, ev.deltaMode);
+  wheelAcc = step.acc;
+  if (step.dir === 0) return null;
+  editor.zoom = nextZoom(editor.effectiveZoom, step.dir);
+  return editor.zoom;
 }
 
 /** Raccourcis globaux : fichiers, annuler, rétablir, supprimer, déplacer au clavier. */
@@ -45,9 +88,7 @@ export function handleShortcut(ev: KeyboardEvent) {
     ev.preventDefault();
     return;
   }
-  // Sous l'écran d'accueil, le panneau Astuces, la classe ou la photothèque, la page n'est pas visible :
-  // rien ne doit la modifier.
-  if (typing(ev) || editor.showWelcome || editor.showTips || editor.showClassPage || editor.showPhototheque || editor.showCollection || editor.showPreferences) return;
+  if (typing(ev) || pageHidden()) return;
   const editActions: Partial<Record<ShortcutAction, () => void>> = {
     undo: () => editor.undo(),
     redo: () => editor.redo(),
@@ -57,6 +98,9 @@ export function handleShortcut(ev: KeyboardEvent) {
     paste,
     group: groupSelection,
     ungroup: ungroupSelection,
+    zoomIn: () => (editor.zoom = nextZoom(editor.effectiveZoom, 1)),
+    zoomOut: () => (editor.zoom = nextZoom(editor.effectiveZoom, -1)),
+    zoomFit: () => (editor.zoom = "fit"),
   };
   if (action && editActions[action]) {
     ev.preventDefault();

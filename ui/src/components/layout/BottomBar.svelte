@@ -24,6 +24,13 @@
     strip?.children[editor.pageIndex]?.scrollIntoView({ block: "nearest", inline: "nearest" });
   });
 
+  /** La molette fait défiler la bande des miniatures de gauche à droite ; Ctrl+molette reste le zoom. */
+  function scrollStrip(ev: WheelEvent) {
+    if (!strip || ev.ctrlKey || ev.metaKey || Math.abs(ev.deltaY) <= Math.abs(ev.deltaX)) return;
+    ev.preventDefault();
+    strip.scrollLeft += ev.deltaMode === 1 ? ev.deltaY * 40 : ev.deltaMode === 2 ? ev.deltaY * strip.clientWidth : ev.deltaY;
+  }
+
   // L'enfant de chaque page (pages générées pour la classe), pour les info-bulles et la recherche.
   const children = $derived(editor.doc.pages.map((p) => childOfPage(p, students)));
 
@@ -95,7 +102,7 @@
   <datalist id="page-children">
     {#each [...new Set(children.filter(Boolean))] as c (c)}<option value={c}></option>{/each}
   </datalist>
-  <div class="pages" bind:this={strip}>
+  <div class="pages" bind:this={strip} onwheel={scrollStrip}>
     {#each editor.doc.pages as p, i (p.id)}
       <button class="thumb" class:current={i === editor.pageIndex} title={thumbTitle(i)} onclick={() => ((editor.pageIndex = i), (editor.selection = []))}>
         <PageView page={p} doc={editor.doc} zoom={MINI} />

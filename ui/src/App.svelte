@@ -3,7 +3,7 @@
   import "./print.css";
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import Modal from "./components/Modal.svelte";
   import PrintRoot from "./components/PrintRoot.svelte";
   import { cancelFileImport, confirmLeave, exportOdg, exportPdf, importPaths, openPath, save } from "./lib/fileActions";
@@ -60,7 +60,7 @@
   import { addPhotoAt } from "./lib/editActions";
   import { expandSelection, groupOf, pathOf } from "./lib/groups";
   import { pictoElement, pictos } from "./lib/pictos.svelte";
-  import { handleShortcut } from "./lib/shortcuts";
+  import { handleShortcut, handleWheelZoom } from "./lib/shortcuts";
   import { newDocument, newId } from "./lib/factory";
   import { templates } from "./lib/templates.svelte";
   import { mmToPx } from "./lib/units";
@@ -163,6 +163,28 @@
     contextTarget = { id, xMm, yMm, clientX, clientY };
   }
   const facing = $derived(editor.spread ? facingOf(editor.pageIndex, editor.doc.pages.length) : null);
+
+  // Ctrl+molette : zoom de la page, le point sous la souris reste en place. Écouteur non passif, pour que
+  // la vue web ne zoome pas toute l'interface.
+  $effect(() => {
+    const stage = stageEl;
+    const onWheel = async (ev: WheelEvent) => {
+      const before = editor.effectiveZoom;
+      if (handleWheelZoom(ev) === null || !stage) return;
+      const r = stage.getBoundingClientRect();
+      if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) return;
+      const x = ev.clientX - r.left;
+      const y = ev.clientY - r.top;
+      const sx = stage.scrollLeft + x;
+      const sy = stage.scrollTop + y;
+      const ratio = editor.effectiveZoom / before;
+      await tick();
+      stage.scrollLeft = sx * ratio - x;
+      stage.scrollTop = sy * ratio - y;
+    };
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  });
 
   // « Ajuster » : la page entière est visible, marges de la scène comprises.
   $effect(() => {

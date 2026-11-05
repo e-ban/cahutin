@@ -246,7 +246,8 @@
       }}
       onpointerup={() => (dragFrom = null)}
       onwheel={(ev) => {
-        if (e.id !== cropping || e.kind.type !== "Photo") return;
+        // Ctrl+molette zoome la page, même pendant le recadrage.
+        if (e.id !== cropping || e.kind.type !== "Photo" || ev.ctrlKey || ev.metaKey) return;
         ev.preventDefault();
         liveCrop = wheelCrop(liveCrop ?? e.kind.crop, ev.deltaY);
       }}

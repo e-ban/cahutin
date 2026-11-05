@@ -13,12 +13,31 @@
   import { Slice } from "@tiptap/pm/model";
   import { onDestroy, onMount } from "svelte";
   import { editor as doc } from "../lib/docStore.svelte";
-  import { richToTiptap, sanitizePlainText, tiptapToRich } from "../lib/richtext";
+  import { cssFontFamily, fontFamilyName, richToTiptap, sanitizePlainText, tiptapToRich } from "../lib/richtext";
   import { textEditing } from "../lib/textEditing.svelte";
   import { copiedSlice, rememberCopy, withZoneStyle, type CopiedSlice } from "../lib/textClipboard";
   import type { RichText, TextProps } from "../lib/types";
 
   let { props, ondone }: { props: TextProps; ondone: (content: RichText) => void } = $props();
+
+  // Police d'un passage : nom entre guillemets, avec Andika en secours, comme hors édition (TipTap l'écrit
+  // nu, et un nom comme « Cursive 2 » est alors ignoré : le passage prenait la police de la zone).
+  const QuotedFontFamily = FontFamily.extend({
+    addGlobalAttributes() {
+      return [
+        {
+          types: this.options.types,
+          attributes: {
+            fontFamily: {
+              default: null,
+              parseHTML: (el: HTMLElement) => fontFamilyName(el.style.fontFamily),
+              renderHTML: (a: { fontFamily?: string | null }) => (a.fontFamily ? { style: `font-family: ${cssFontFamily(a.fontFamily)}, "Andika"` } : {}),
+            },
+          },
+        },
+      ];
+    },
+  });
 
   let host: HTMLDivElement;
   let editor: Editor | null = null;
@@ -43,7 +62,7 @@
         Underline,
         TextStyle,
         Color,
-        FontFamily,
+        QuotedFontFamily,
         FontSize,
         TextAlign.configure({ types: ["paragraph"], alignments: ["left", "center", "right", "justify"] }),
         UndoRedo,

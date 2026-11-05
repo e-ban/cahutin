@@ -1,7 +1,7 @@
 import type { JSONContent } from "@tiptap/core";
 import { expect, test } from "vitest";
 import { setKnownFamilies } from "./fontNames";
-import { richToTiptap, sanitizePlainText, textPadding, tiptapToRich } from "./richtext";
+import { cssFontFamily, fontFamilyName, richToTiptap, sanitizePlainText, textPadding, tiptapToRich } from "./richtext";
 import type { RichText, TextStyle } from "./types";
 
 const style: TextStyle = { font: "Andika", size_pt: 14, color: "#222222", align: "Left" };
@@ -105,4 +105,17 @@ test("text padding defaults to the engine's 1.5 mm and follows the setting", () 
   expect(textPadding({ ...style, padding_mm: null })).toBe(1.5);
   expect(textPadding({ ...style, padding_mm: 0 })).toBe(0);
   expect(textPadding({ ...style, padding_mm: 6 })).toBe(6);
+});
+
+test("cssFontFamily quotes the name, so a digit or a dot does not make the browser drop it", () => {
+  expect(cssFontFamily("Cursive 2")).toBe('"Cursive 2"');
+  expect(cssFontFamily('Il dit "oui"')).toBe('"Il dit \\"oui\\""');
+});
+
+test("fontFamilyName reads a name back with or without quotes", () => {
+  expect(fontFamilyName('"Cursive 2"')).toBe("Cursive 2");
+  expect(fontFamilyName("'Écolier.'")).toBe("Écolier.");
+  expect(fontFamilyName("OpenDyslexic")).toBe("OpenDyslexic");
+  expect(fontFamilyName('"Cursive 2", Andika')).toBe("Cursive 2");
+  expect(fontFamilyName("")).toBeNull();
 });

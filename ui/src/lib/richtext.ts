@@ -111,3 +111,16 @@ export function richToTiptap(rt: RichText): JSONContent {
     }),
   };
 }
+
+/** Nom de police pour le CSS, entre guillemets : sans eux, un nom avec un chiffre seul, un point ou une
+ *  parenthèse (« Cursive 2 ») est ignoré et le texte prend la police de sa zone. */
+export function cssFontFamily(name: string): string {
+  return `"${name.replace(/["\\]/g, "\\$&")}"`;
+}
+
+/** Le nom de police d'une valeur CSS `font-family` (le premier), avec ou sans guillemets. */
+export function fontFamilyName(css: string): string | null {
+  const first = css.trim().match(/^"((?:[^"\\]|\\.)*)"|^'((?:[^'\\]|\\.)*)'|^([^,]+)/);
+  const name = (first?.[1] ?? first?.[2] ?? first?.[3] ?? "").replace(/\\(.)/g, "$1").trim();
+  return name || null;
+}

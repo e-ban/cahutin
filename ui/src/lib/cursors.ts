@@ -12,9 +12,10 @@ export function screenDir(dir: HandleDir, rotationDeg: number): HandleDir {
   return DIRS[(((DIRS.indexOf(dir) + steps) % 8) + 8) % 8];
 }
 
-/** Flèche double noire bordée de blanc, 24 px, tournée de `deg` (0 : verticale). */
+/** Flèche double noire bordée de blanc, d'environ 15 px de long dans une case de 24 px (comme une flèche du
+ *  système, avec du vide autour), tournée de `deg` (0 : verticale). */
 function arrow(deg: number): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path transform="rotate(${deg} 12 12)" d="M12 2 L17.5 8 L14 8 L14 16 L17.5 16 L12 22 L6.5 16 L10 16 L10 8 L6.5 8 Z" fill="#000" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path transform="rotate(${deg} 12 12)" d="M12 4.5 L15.5 8.5 L13.1 8.5 L13.1 15.5 L15.5 15.5 L12 19.5 L8.5 15.5 L10.9 15.5 L10.9 8.5 L8.5 8.5 Z" fill="#000" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12`;
 }
 

@@ -31,6 +31,13 @@
   /** Menu du clic droit sur un document récent. */
   let menu = $state<{ path: string; title: string; x: number; y: number } | null>(null);
 
+  /** Action du menu sur son document, lu avant de fermer le menu : fermé, il n'est plus lisible. */
+  function fromMenu(action: (r: { path: string; title: string }) => unknown) {
+    const r = menu;
+    menu = null;
+    if (r) action(r);
+  }
+
   /** Échap ferme le menu du clic droit, sinon revient aux choix, sinon ferme l'accueil. */
   function onEscape(e: KeyboardEvent) {
     if (e.key !== "Escape" || modal.message !== null || editor.showClassPage || editor.showCollection) return;
@@ -150,9 +157,9 @@
       <!-- Menu du clic droit : un clic ailleurs ou Échap le ferme. -->
       <div class="menu-backdrop" role="presentation" onclick={() => (menu = null)} oncontextmenu={(e) => (e.preventDefault(), (menu = null))}></div>
       <div class="menu" role="menu" style:left="{m.x}px" style:top="{m.y}px">
-        <button role="menuitem" onclick={() => ((menu = null), openPath(m.path))}>{fr.recentOpen}</button>
-        <button role="menuitem" onclick={() => ((menu = null), forgetRecent(m.path))}>{fr.recentForget}</button>
-        <button role="menuitem" class="danger" onclick={() => ((menu = null), trashRecent(m.path, m.title))}>🗑 {fr.recentTrashMenu}</button>
+        <button role="menuitem" onclick={() => fromMenu((r) => openPath(r.path))}>{fr.recentOpen}</button>
+        <button role="menuitem" onclick={() => fromMenu((r) => forgetRecent(r.path))}>{fr.recentForget}</button>
+        <button role="menuitem" class="danger" onclick={() => fromMenu((r) => trashRecent(r.path, r.title))}>🗑 {fr.recentTrashMenu}</button>
       </div>
     {/if}
   {:else if step === "examples"}

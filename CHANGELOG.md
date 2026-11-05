@@ -5,6 +5,7 @@
 - La molette de la souris fait défiler la bande des pages, en bas à gauche.
 - Zoom comme dans les autres logiciels : Ctrl et la molette (le point sous la souris reste en place), Ctrl et + ou -, Ctrl et 0 pour « Ajuster ».
 - Une classe se supprime : bouton « Supprimer la classe… » dans la page Ma classe. Après confirmation, elle part dans la corbeille de l'ordinateur, d'où elle se récupère ; les documents déjà faits pour ses élèves ne changent pas.
+- Accueil, clic droit sur un document récent : « Ouvrir », « Retirer de la liste » et « Supprimer le fichier… » ne faisaient rien. Ils marchent.
 - La mise à la corbeille d'un document (ou d'une classe) qui échoue est notée dans le journal de l'application, avec la sorte d'erreur.
 
 ## 0.11.0

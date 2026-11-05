@@ -12,6 +12,7 @@
   import { isPlacedCell } from "../lib/table";
   import { PX_PER_MM, mmToPx } from "../lib/units";
   import { IS_LINUX, moveableCursorCss } from "../lib/cursors";
+  import { pixelRatio } from "../lib/pixelRatio.svelte";
 
   let { pageEl, zoom }: { pageEl: HTMLElement | undefined; zoom: number } = $props();
 
@@ -179,7 +180,7 @@
   onDestroy(() => moveable?.destroy());
 
   // Curseurs des poignées : ceux du système, dans le sens de la poignée sur l'élément tourné (voir cursors.ts).
-  const cursorCss = $derived(moveableCursorCss(".cahutin-single", target?.frame.rotation_deg ?? 0, IS_LINUX));
+  const cursorCss = $derived(moveableCursorCss(".cahutin-single", target?.frame.rotation_deg ?? 0, IS_LINUX, pixelRatio.value));
 </script>
 
 <svelte:head>{@html `<style>${cursorCss}</style>`}</svelte:head>

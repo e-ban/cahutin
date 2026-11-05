@@ -11,6 +11,7 @@
   import { boundsOf, isLockedSelection } from "../lib/groups";
   import { PX_PER_MM, mmToPx } from "../lib/units";
   import { IS_LINUX, moveableCursorCss } from "../lib/cursors";
+  import { pixelRatio } from "../lib/pixelRatio.svelte";
 
   let { pageEl, zoom, onpick }: { pageEl: HTMLElement | undefined; zoom: number; onpick: (id: string | null, add: boolean) => void } = $props();
 
@@ -204,7 +205,7 @@
   });
 
   // Curseurs des poignées : ceux du système (voir cursors.ts) ; le cadre d'un groupe n'est pas tourné.
-  const cursorCss = moveableCursorCss(".cahutin-group", 0, IS_LINUX);
+  const cursorCss = $derived(moveableCursorCss(".cahutin-group", 0, IS_LINUX, pixelRatio.value));
 </script>
 
 <svelte:head>{@html `<style>${cursorCss}</style>`}</svelte:head>

@@ -17,6 +17,7 @@
   import { settings } from "../lib/settings.svelte";
   import { isPlacedCell } from "../lib/table";
   import { IS_LINUX, resizeCursor } from "../lib/cursors";
+  import { pixelRatio } from "../lib/pixelRatio.svelte";
   import type { Crop, Document, Element, Frame, Page, RichText } from "../lib/types";
 
   let {
@@ -365,7 +366,7 @@
           <span
             class="trim {h}"
             class:big={settings.bigHandles}
-            style:cursor={resizeCursor(h, shown(e).frame.rotation_deg, IS_LINUX)}
+            style:cursor={resizeCursor(h, shown(e).frame.rotation_deg, IS_LINUX, pixelRatio.value)}
             role="presentation"
             onpointerdown={(ev) => startTrim(ev, e, h)}
             onpointermove={(ev) => moveTrim(ev, e)}

@@ -25,3 +25,13 @@ test("moveableCursorCss sets every Moveable handle of a scope to its cursor", ()
   expect(css).toContain('.scope .moveable-direction[data-direction="n"] { cursor: ew-resize !important; }');
   expect(css).toContain('.scope .moveable-direction[data-direction="nw"] { cursor: nesw-resize !important; }');
 });
+
+test("the drawn arrow keeps its size on a scaled screen: its box shrinks by the scale", () => {
+  const at1 = resizeCursor("nw", 0, true, 1);
+  const at2 = resizeCursor("nw", 0, true, 2);
+  expect(decodeURIComponent(at1)).toContain('width="24"');
+  expect(at1).toMatch(/\) 12 12, nwse-resize$/);
+  expect(decodeURIComponent(at2)).toContain('width="12"');
+  expect(at2).toMatch(/\) 6 6, nwse-resize$/);
+  expect(decodeURIComponent(resizeCursor("nw", 0, true, 1.5))).toContain('width="16"');
+});

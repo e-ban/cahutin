@@ -5,6 +5,7 @@
   import ColorPicker from "../ColorPicker.svelte";
   import StrokeStylePicker from "../StrokeStylePicker.svelte";
   import FontPicker from "../FontPicker.svelte";
+  import Section from "./InspectorSection.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { hasTemplateRole, templateRole, withTemplateRole } from "../../lib/templateRole";
@@ -134,6 +135,7 @@
   </header>
   {#if groupIds}
     <h3>{fr.groupOf(groupIds.length)}</h3>
+    <Section id="frame" title={fr.sectionFrame}>
     <div class="field">
       <span>{fr.groupPosition}</span>
       <div class="frame">
@@ -153,7 +155,8 @@
       <span>{fr.rotationRow}</span>
       <div class="row">{@render quarterTurns(groupLocked)}</div>
     </div>
-    {@render turnAndOrder(groupLocked, true)}
+    </Section>
+    <Section id="arrange" title={fr.sectionArrange} open={false}>{@render turnAndOrder(groupLocked, true)}</Section>
     <div class="actions">
       <button onclick={ungroupSelection}>⊟ {fr.ungroup}</button>
       <button onclick={toggleLockSelection}>{groupLocked ? `🔓 ${fr.unlock}` : `🔒 ${fr.lock}`}</button>
@@ -164,6 +167,7 @@
   {:else}
     <h3>{selected.kind.type === "Photo" ? fr.photo : selected.kind.type === "Text" ? fr.text : selected.kind.type === "Image" ? fr.picture : fr.shape}</h3>
 
+    <Section id="frame" title={fr.sectionFrame}>
     <div class="field">
       <span>{fr.positionOnly}</span>
       <div class="frame">
@@ -191,7 +195,8 @@
         {@render quarterTurns(frameFixed)}
       </div>
     </div>
-    {@render turnAndOrder(frameFixed, mirrorable)}
+    </Section>
+    <Section id="arrange" title={fr.sectionArrange} open={false}>{@render turnAndOrder(frameFixed, mirrorable)}</Section>
 
     {#if selected.kind.type === "Photo"}
       {@const ph = selected.kind}
@@ -200,8 +205,8 @@
         {@const trims = photoTrims(meta, selected.frame, ph.crop, ...flips(selected))}
         {@const pos = cropPosition(meta, selected.frame, ph.crop, ...flips(selected))}
         {@const cropFixed = selected.locked && !editor.templateMode}
+        <Section id="crop" title={fr.cropSection} open={false}>
         <div class="field crop">
-          <span><b>{fr.cropSection}</b></span>
           <p class="hint">{fr.cropHint}</p>
           <span>{fr.trimRow}</span>
           <div class="frame trims">
@@ -228,7 +233,9 @@
           {/each}
           <button disabled={frameFixed} title={fr.wholePhotoHint} onclick={() => reframe((m, e, crop) => wholePhoto(m, e.frame, crop, ...flips(e), editor.page.size.width_mm, editor.page.size.height_mm))}>🖼 {fr.wholePhoto}</button>
         </div>
+        </Section>
       {/if}
+      <Section id="look" title={fr.sectionLook}>
       <div class="field">
         <span>Coins arrondis : {ph.corner_radius_mm} mm</span>
         <input type="range" min="0" max="20" step="1" value={ph.corner_radius_mm} oninput={(e) => previewPhoto({ corner_radius_mm: Number(e.currentTarget.value) })} onchange={endPreview} />
@@ -263,6 +270,7 @@
           Ombre
         </label>
       </div>
+      </Section>
       {#if ph.asset}
         <button onclick={() => updatePhoto({ asset: null, crop: { scale: 1, center_x: 0.5, center_y: 0.5 } })}>Retirer la photo</button>
       {/if}
@@ -271,6 +279,7 @@
     {#if selected.kind.type === "Text"}
       {@const t = selected.kind}
       {@const family = fonts.families.find((f) => f.name === currentFont(t))}
+      <Section id="text" title={fr.sectionFormat}>
       {#if !tip}
         <p class="hint">Double-cliquez pour écrire. Sans édition, les réglages s'appliquent à toute la zone.</p>
       {/if}
@@ -313,10 +322,12 @@
           <input value={t.prompt ?? ""} onchange={(e) => updatePrompt(e.currentTarget.value || null)} />
         </div>
       {/if}
+      </Section>
     {/if}
 
     {#if selected.kind.type === "Shape"}
       {@const s = selected.kind}
+      <Section id="look" title={fr.sectionLook}>
       {#if !isStrokeOnly(s.shape)}
       <div class="field">
         <span>Remplissage</span>
@@ -348,6 +359,7 @@
           <input type="range" min="0" max="20" step="1" value={s.corner_radius_mm} oninput={(e) => previewShape({ corner_radius_mm: Number(e.currentTarget.value) })} onchange={endPreview} />
         </div>
       {/if}
+      </Section>
     {/if}
 
     {#if editor.templateMode && hasTemplateRole(selected)}
@@ -421,6 +433,9 @@
     padding: 3px 6px;
   }
   /* Rognage : « À gauche », « En haut » au-dessus de leur case, sur une ligne. */
+  .trims input {
+    box-sizing: border-box;
+  }
   .trims label {
     flex-direction: column;
     align-items: stretch;

@@ -260,6 +260,10 @@ export const fr = {
   // Barre flottante
   crop: "Recadrer",
   cropSection: "Recadrage",
+  sectionFrame: "Position et taille",
+  sectionArrange: "Miroir et ordre",
+  sectionLook: "Apparence",
+  sectionFormat: "Mise en forme",
   cropHint: "Double-cliquez sur la photo pour la recadrer : glissez-la, tournez la molette pour l'agrandir, ou tirez les poignées orange pour rogner ses bords. Puis Échap.",
   trimRow: "Rogner (mm)",
   trimTop: "En haut",

@@ -109,6 +109,8 @@ pub fn trash_error_kind(e: &trash::Error) -> &'static str {
     match e {
         trash::Error::Unknown { .. } => "unknown",
         trash::Error::Os { .. } => "os",
+        // Cette erreur n'existe que sous Linux (et les autres Unix hors Apple).
+        #[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))]
         trash::Error::FileSystem { .. } => "file_system",
         trash::Error::TargetedRoot => "targeted_root",
         trash::Error::CouldNotAccess { .. } => "could_not_access",

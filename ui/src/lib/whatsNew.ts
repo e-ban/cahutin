@@ -18,6 +18,36 @@ export interface Release {
 /** De la plus récente à la plus ancienne. */
 export const RELEASES: Release[] = [
   {
+    version: "0.12",
+    items: [
+      {
+        title: "Rogner une photo",
+        text: "Double-cliquez sur une photo : en plus de la glisser et de l'agrandir à la molette, tirez les poignées orange pour couper ses bords. La partie coupée reste visible en transparence. Agrandie ensuite par un coin, la photo garde son recadrage (Maj pour la déformer).",
+        image: "/nouveautes/0.12/rogner.webp",
+      },
+      {
+        title: "Des réglages bien rangés",
+        text: "Le panneau Réglages se range en sections qui se replient d'un clic. Pour une photo, « Recadrage » règle au millimètre ce que coupe chaque bord, l'agrandissement et la position ; « Photo entière » la remontre en entier.",
+        image: "/nouveautes/0.12/reglages.webp",
+      },
+      {
+        title: "Modifier une frise",
+        text: "Cliquez sur une frise : « Modifier la frise » change la taille des images, leur espacement, la marge avec le bord, ou les images elles-mêmes. « Supprimer la frise » la retire, en gardant ce qu'elle entoure.",
+        image: "/nouveautes/0.12/frise.webp",
+      },
+      {
+        title: "Enregistrer en un clic",
+        text: "Le bouton « Enregistrer » est à côté du titre, et le titre devient le nom du fichier. Sous Windows, un double-clic sur un document .carnet ouvre Cahutin.",
+        image: "/nouveautes/0.12/enregistrer.webp",
+      },
+      {
+        title: "Plus confortable",
+        text: "Des Préférences plus larges, sur deux colonnes. La molette fait défiler les pages en bas, Ctrl et la molette zooment, et un texte copié garde sa police et sa taille quand on le colle dans une autre zone.",
+        image: "/nouveautes/0.12/preferences.webp",
+      },
+    ],
+  },
+  {
     version: "0.11",
     items: [
       {

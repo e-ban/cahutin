@@ -1,27 +1,27 @@
 # Journal des versions
 
-## Non publié
+## 0.12.0
 
-- La molette de la souris fait défiler la bande des pages, en bas à gauche.
-- Zoom comme dans les autres logiciels : Ctrl et la molette (le point sous la souris reste en place), Ctrl et + ou -, Ctrl et 0 pour « Ajuster ».
-- Une classe se supprime : bouton « Supprimer la classe… » dans la page Ma classe. Après confirmation, elle part dans la corbeille de l'ordinateur, d'où elle se récupère ; les documents déjà faits pour ses élèves ne changent pas.
 - Rogner une photo : en mode Recadrer (bouton « Recadrer » ou double-clic), des poignées orange sur le cadre rognent ses bords, la photo restant en place ; la partie coupée se voit en transparence autour du cadre. Glisser la photo et la molette marchent comme avant ; chaque geste s'annule séparément.
 - Panneau Réglages d'une photo, section « Recadrage » : rognage de chaque bord en mm, « Agrandir dans le cadre » (100 à 500 %), position de gauche à droite et de haut en bas, et « Photo entière », qui retire le rognage (la photo garde sa taille, le cadre s'élargit, sans dépasser la page).
-- Double-clic sur un document .carnet : Cahutin s'ouvre sur ce document. L'installeur Windows (et le paquet du Microsoft Store) associe les fichiers .carnet à Cahutin, et retire l'association à la désinstallation.
-- Bouton « 💾 Enregistrer » à côté du titre du document. Le nom proposé au premier enregistrement est le titre, même tapé à l'instant sans quitter le champ (Ctrl+S proposait alors « Sans titre »).
-- Curseurs des poignées (redimensionner, rogner) : ceux de l'ordinateur, à leur taille habituelle, dans le sens de la poignée même sur un élément tourné, à la place des grosses flèches dessinées. Sous Linux, où certains thèmes n'ont pas les flèches diagonales, une flèche double dessinée les remplace, de la même taille sur un écran avec ou sans mise à l'échelle.
-- Pendant l'écriture, un passage dans une police dont le nom contient un chiffre seul, un point ou une parenthèse (« Cursive 2 ») s'affichait dans la police de la zone ; il garde maintenant sa police.
-- Barre d'un groupe : une fois le groupe verrouillé, le bouton devient « 🔓 Déverrouiller » (il restait « Verrouiller »). La barre et le panneau Réglages suivent la même règle : « Déverrouiller » quand tout le groupe est verrouillé, « Verrouiller » sinon.
-- Copier un passage d'un texte et le coller dans une autre zone garde sa mise en forme : police, taille, couleur, gras, italique, souligné, même quand elles venaient de la zone d'origine. Un texte copié hors de Cahutin reste collé sans mise en forme.
-- Frise posée : dans sa barre, « Modifier la frise » règle la taille des images, leur espacement et la distance au bord (la marge avec la page, ou l'écart avec le bloc qu'elle entoure), et « Changer les images… » met d'autres images à la même place ; « Supprimer la frise » la retire seule, en gardant le bloc qu'elle entourait.
-- La poignée de rotation est plus près de l'élément, et la barre au-dessus ne la recouvre plus, même sur un petit élément.
 - Agrandir ou réduire une photo par ses poignées garde ses proportions, donc son rognage, son zoom et son recadrage ; avec Maj enfoncée, elle se redimensionne librement. Pour les formes et les textes, rien ne change (Maj garde les proportions).
-- Version Linux : après avoir relâché Maj, le redimensionnement restait libre et la rotation sans crans. Maj relâchée est maintenant bien prise en compte (et oubliée si l'on quitte la fenêtre en la tenant).
-- Recadrer en glissant la photo ne l'emporte plus parfois comme une image de navigateur (image fantôme semi-transparente).
+- Frise posée : dans sa barre, « Modifier la frise » règle la taille des images, leur espacement et la distance au bord (la marge avec la page, ou l'écart avec le bloc qu'elle entoure), et « Changer les images… » met d'autres images à la même place ; « Supprimer la frise » la retire seule, en gardant le bloc qu'elle entourait.
+- Bouton « 💾 Enregistrer » à côté du titre du document. Le nom proposé au premier enregistrement est le titre, même tapé à l'instant sans quitter le champ (Ctrl+S proposait alors « Sans titre »).
+- Double-clic sur un document .carnet : Cahutin s'ouvre sur ce document. L'installeur Windows (et le paquet du Microsoft Store) associe les fichiers .carnet à Cahutin, et retire l'association à la désinstallation.
 - Panneau Réglages rangé en sections qui se replient d'un clic sur leur titre : « Position et taille », « Miroir et ordre », « Recadrage » (photo), « Apparence » (photo, forme), « Mise en forme » (texte). Au départ, Miroir et ordre et Recadrage sont repliés ; chaque section reste ensuite comme on l'a laissée, sur cet ordinateur.
 - Préférences plus larges, à la taille de l'écran : sur un grand écran, les réglages se rangent en deux colonnes et tiennent sans défiler.
 - Menu Fichier : les exemples sont rangés dans un sous-menu « Exemples ▸ », qui s'ouvre au survol ou au clic.
+- La molette de la souris fait défiler la bande des pages, en bas à gauche.
+- Zoom comme dans les autres logiciels : Ctrl et la molette (le point sous la souris reste en place), Ctrl et + ou -, Ctrl et 0 pour « Ajuster ».
+- Copier un passage d'un texte et le coller dans une autre zone garde sa mise en forme : police, taille, couleur, gras, italique, souligné, même quand elles venaient de la zone d'origine. Un texte copié hors de Cahutin reste collé sans mise en forme.
+- Une classe se supprime : bouton « Supprimer la classe… » dans la page Ma classe. Après confirmation, elle part dans la corbeille de l'ordinateur, d'où elle se récupère ; les documents déjà faits pour ses élèves ne changent pas.
+- Curseurs des poignées (redimensionner, rogner) : ceux de l'ordinateur, à leur taille habituelle, dans le sens de la poignée même sur un élément tourné, à la place des grosses flèches dessinées. Sous Linux, où certains thèmes n'ont pas les flèches diagonales, une flèche double dessinée les remplace, de la même taille sur un écran avec ou sans mise à l'échelle.
+- La poignée de rotation est plus près de l'élément, et la barre au-dessus ne la recouvre plus, même sur un petit élément.
+- Barre d'un groupe : une fois le groupe verrouillé, le bouton devient « 🔓 Déverrouiller » (il restait « Verrouiller »). La barre et le panneau Réglages suivent la même règle : « Déverrouiller » quand tout le groupe est verrouillé, « Verrouiller » sinon.
 - Accueil, clic droit sur un document récent : « Ouvrir », « Retirer de la liste » et « Supprimer le fichier… » ne faisaient rien. Ils marchent.
+- Version Linux : après avoir relâché Maj, le redimensionnement restait libre et la rotation sans crans. Maj relâchée est maintenant bien prise en compte (et oubliée si l'on quitte la fenêtre en la tenant).
+- Recadrer en glissant la photo ne l'emporte plus parfois comme une image de navigateur (image fantôme semi-transparente).
+- Pendant l'écriture, un passage dans une police dont le nom contient un chiffre seul, un point ou une parenthèse (« Cursive 2 ») s'affichait dans la police de la zone ; il garde maintenant sa police.
 - La mise à la corbeille d'un document (ou d'une classe) qui échoue est notée dans le journal de l'application, avec la sorte d'erreur.
 
 ## 0.11.0

@@ -22,8 +22,9 @@
           ...editor.recents.map((r) => ({ label: `   ${r.title}`, action: () => files.openPath(r.path) })),
         ]
       : []),
-    { label: fr.examplesMenu, disabled: true, separator: true, action: () => {} },
-    ...examples.map((ex) => ({ label: `   ${ex.name}`, action: () => files.openExampleDoc(ex.id) })),
+    ...(examples.length
+      ? [{ label: fr.examplesMenu, separator: true, children: examples.map((ex) => ({ label: ex.name, action: () => files.openExampleDoc(ex.id) })) }]
+      : []),
   ]);
 </script>
 

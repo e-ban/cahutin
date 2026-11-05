@@ -25,6 +25,8 @@
   <div class="box" role="dialog" aria-modal="true" aria-labelledby="prefs-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
     <h2 id="prefs-title">⚙ {fr.preferences}</h2>
 
+    <!-- Sur un grand écran, les sections se rangent en deux colonnes ; sur un petit, en une. -->
+    <div class="sections">
     <section>
       <h3>{fr.prefsDisplay}</h3>
       <div class="row">
@@ -162,6 +164,7 @@
         </label>
       {/if}
     </section>
+    </div>
 
     <div class="buttons"><button class="primary" onclick={close}>{fr.close}</button></div>
   </div>
@@ -181,11 +184,17 @@
     background: var(--panel);
     border-radius: 12px;
     padding: 20px 24px;
-    width: min(560px, 92vw);
+    width: min(1000px, 94vw);
     max-height: 88vh;
     overflow-y: auto;
     box-sizing: border-box;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  }
+  .sections {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+    gap: 4px 36px;
+    align-items: start;
   }
   h2 {
     font: 700 22px var(--title-font);

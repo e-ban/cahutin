@@ -6,7 +6,9 @@
     disabled?: boolean;
     /** Trait de séparation avant l'entrée. */
     separator?: boolean;
-    action: () => unknown;
+    /** Sous-menu : il s'ouvre au survol ou au clic, à côté de l'entrée. */
+    children?: MenuItem[];
+    action?: () => unknown;
   }
 </script>
 
@@ -16,6 +18,12 @@
 
   let open = $state(false);
   let root = $state<HTMLElement>();
+  /** Entrée dont le sous-menu est ouvert. */
+  let sub = $state<number | null>(null);
+
+  $effect(() => {
+    if (!open) sub = null;
+  });
 
   function onWindowPointer(e: PointerEvent) {
     if (open && root && !root.contains(e.target as Node)) open = false;
@@ -23,7 +31,7 @@
 
   function choose(item: MenuItem) {
     open = false;
-    item.action();
+    item.action?.();
   }
 </script>
 
@@ -35,12 +43,32 @@
   </button>
   {#if open}
     <div class="list" class:right={primary} role="menu">
-      {#each items as item}
+      {#each items as item, i}
         {#if item.separator}<hr />{/if}
-        <button role="menuitem" class="item" title={item.title} disabled={item.disabled} onclick={() => choose(item)}>
-          <span>{item.label}</span>
-          {#if item.shortcut}<kbd>{item.shortcut}</kbd>{/if}
-        </button>
+        {#if item.children}
+          <div class="sub-wrap" role="presentation" onpointerenter={() => (sub = i)}>
+            <button role="menuitem" class="item" class:active={sub === i} aria-haspopup="menu" aria-expanded={sub === i} title={item.title} disabled={item.disabled} onclick={() => (sub = i)}>
+              <span>{item.label}</span>
+              <span class="arrow" aria-hidden="true">▸</span>
+            </button>
+            {#if sub === i}
+              <div class="list sub" class:left={primary} role="menu">
+                {#each item.children as child}
+                  {#if child.separator}<hr />{/if}
+                  <button role="menuitem" class="item" title={child.title} disabled={child.disabled} onclick={() => choose(child)}>
+                    <span>{child.label}</span>
+                    {#if child.shortcut}<kbd>{child.shortcut}</kbd>{/if}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <button role="menuitem" class="item" title={item.title} disabled={item.disabled} onpointerenter={() => (sub = null)} onclick={() => choose(item)}>
+            <span>{item.label}</span>
+            {#if item.shortcut}<kbd>{item.shortcut}</kbd>{/if}
+          </button>
+        {/if}
       {/each}
     </div>
   {/if}
@@ -78,6 +106,26 @@
   .list.right {
     left: auto;
     right: 0;
+  }
+  .sub-wrap {
+    position: relative;
+  }
+  /* Sous-menu à droite de son entrée (à gauche pour un menu calé à droite), et défilant s'il est long. */
+  .list.sub {
+    top: -5px;
+    left: calc(100% + 4px);
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  .list.sub.left {
+    left: auto;
+    right: calc(100% + 4px);
+  }
+  .arrow {
+    color: var(--muted);
+  }
+  .item.active {
+    background: #eef5fc;
   }
   .item {
     display: flex;

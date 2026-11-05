@@ -8,6 +8,8 @@
 - Rogner une photo : en mode Recadrer (bouton « Recadrer » ou double-clic), des poignées orange sur le cadre rognent ses bords, la photo restant en place ; la partie coupée se voit en transparence autour du cadre. Glisser la photo et la molette marchent comme avant ; chaque geste s'annule séparément.
 - Panneau Réglages d'une photo, section « Recadrage » : rognage de chaque bord en mm, « Agrandir dans le cadre » (100 à 500 %), position de gauche à droite et de haut en bas, et « Photo entière », qui retire le rognage (la photo garde sa taille, le cadre s'élargit, sans dépasser la page).
 - Panneau Réglages rangé en sections qui se replient d'un clic sur leur titre : « Position et taille », « Miroir et ordre », « Recadrage » (photo), « Apparence » (photo, forme), « Mise en forme » (texte). Au départ, Miroir et ordre et Recadrage sont repliés ; chaque section reste ensuite comme on l'a laissée, sur cet ordinateur.
+- Préférences plus larges, à la taille de l'écran : sur un grand écran, les réglages se rangent en deux colonnes et tiennent sans défiler.
+- Menu Fichier : les exemples sont rangés dans un sous-menu « Exemples ▸ », qui s'ouvre au survol ou au clic.
 - Accueil, clic droit sur un document récent : « Ouvrir », « Retirer de la liste » et « Supprimer le fichier… » ne faisaient rien. Ils marchent.
 - La mise à la corbeille d'un document (ou d'une classe) qui échoue est notée dans le journal de l'application, avec la sorte d'erreur.
 

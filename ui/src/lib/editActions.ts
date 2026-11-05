@@ -63,9 +63,16 @@ export function bringSelection(where: "front" | "back") {
   if (editor.selection.length) editor.updatePage((p) => reorder(p, editor.selection, where));
 }
 
+/** Toute la sélection est verrouillée : le bouton propose de la déverrouiller (barre et Réglages). */
+export function selectionLocked(): boolean {
+  const ids = selected();
+  return editor.page.elements.filter((e) => ids.includes(e.id)).every((e) => e.locked);
+}
+
+/** Verrouille la sélection, ou la déverrouille si elle l'est toute (voir `selectionLocked`). */
 export function toggleLockSelection() {
   const ids = selected();
-  const lock = !editor.page.elements.filter((e) => ids.includes(e.id)).every((e) => e.locked);
+  const lock = !selectionLocked();
   editor.updatePage((p) => ({ ...p, elements: p.elements.map((e) => (ids.includes(e.id) ? { ...e, locked: lock } : e)) }));
 }
 

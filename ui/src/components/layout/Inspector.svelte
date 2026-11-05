@@ -14,7 +14,7 @@
   import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
   import { endPreview, previewPhoto, previewShape, previewTextStyle, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
   import { cropPosition, photoTrims, roundedFrame, wholePhoto, withPosition, withTrims, type Trims } from "../../lib/crop";
-  import { bringSelection, deleteSelection, mirrorSelection, rotateSelection, setSelectedFrame, setSelectionSize, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
+  import { bringSelection, deleteSelection, mirrorSelection, rotateSelection, selectionLocked, setSelectedFrame, setSelectionSize, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
   import { boundsOf, isLockedSelection } from "../../lib/groups";
   import type { AssetMeta, Crop, Element, Frame } from "../../lib/types";
   import { textPadding } from "../../lib/richtext";
@@ -159,7 +159,8 @@
     <Section id="arrange" title={fr.sectionArrange} open={false}>{@render turnAndOrder(groupLocked, true)}</Section>
     <div class="actions">
       <button onclick={ungroupSelection}>⊟ {fr.ungroup}</button>
-      <button onclick={toggleLockSelection}>{groupLocked ? `🔓 ${fr.unlock}` : `🔒 ${fr.lock}`}</button>
+      <!-- Même règle que la barre : tout le groupe verrouillé, on le déverrouille. -->
+      <button onclick={toggleLockSelection}>{selectionLocked() ? `🔓 ${fr.unlock}` : `🔒 ${fr.lock}`}</button>
       <button onclick={deleteSelection}>🗑 {fr.delete}</button>
     </div>
   {:else if !selected}

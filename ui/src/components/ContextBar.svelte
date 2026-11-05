@@ -11,7 +11,7 @@
   import { alignFrames, distributeFrames, type AlignMode } from "../lib/align";
   import { placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
-  import { addCaption, deleteSelection, groupSelection, mirrorSelection, rotateSelection, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
+  import { addCaption, deleteSelection, groupSelection, mirrorSelection, rotateSelection, selectionLocked, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
   import { assetUrl } from "../lib/api";
   import { applyStyle, followsStyle, lookOf, newStyleFrom, redefineStyle, stylesOf } from "../lib/namedStyles";
   import { fitCount, repeatBlock } from "../lib/repeat";
@@ -383,7 +383,7 @@
       <span class="sep"></span>
       {#if isGroup}
         <!-- Comme l'action : tout le groupe verrouillé, le bouton le déverrouille ; sinon il verrouille. -->
-        {@const allLocked = editor.page.elements.filter((e) => editor.selection.includes(e.id)).every((e) => e.locked)}
+        {@const allLocked = selectionLocked()}
         <button title={allLocked ? fr.unlock : fr.lock} aria-label={allLocked ? fr.unlock : fr.lock} aria-pressed={allLocked} onclick={toggleLockSelection}>{allLocked ? "🔓" : "🔒"}<span class="lbl"> {allLocked ? fr.unlock : fr.lock}</span></button>
       {/if}
       <button onclick={removeSelected}>🗑<span class="lbl"> {fr.delete}</span></button>

@@ -5,7 +5,7 @@ import type { AssetMeta, Crop, Frame } from "./types";
 
 describe("crop", () => {
   test("sourceRect matches shared vectors", () => {
-    expect(vectors.length).toBe(4);
+    expect(vectors.length).toBe(5);
     for (const v of vectors) {
       const r = sourceRect(v.img_w, v.img_h, v.frame_w, v.frame_h, v.crop);
       expect(r.x).toBeCloseTo(v.expected.x, 6);

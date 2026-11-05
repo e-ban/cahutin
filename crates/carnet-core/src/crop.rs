@@ -62,7 +62,7 @@ mod tests {
     fn matches_shared_vectors() {
         let vectors: Vec<Vector> =
             serde_json::from_str(include_str!("../../../fixtures/crop_vectors.json")).unwrap();
-        assert_eq!(vectors.len(), 4);
+        assert_eq!(vectors.len(), 5);
         for v in vectors {
             let r = source_rect(v.img_w, v.img_h, v.frame_w, v.frame_h, &v.crop);
             for (got, want) in [(r.x, v.expected.x), (r.y, v.expected.y), (r.w, v.expected.w), (r.h, v.expected.h)] {

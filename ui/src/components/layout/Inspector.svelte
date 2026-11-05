@@ -210,7 +210,7 @@
             {/each}
           </div>
           <span>{fr.cropZoom(Math.round(ph.crop.scale * 100))}</span>
-          <input type="range" min="100" max="500" step="5" disabled={cropFixed} value={Math.round(ph.crop.scale * 100)} oninput={(e) => previewCrop((_, __, crop) => ({ ...crop, scale: Number(e.currentTarget.value) / 100 }))} onchange={endPreview} />
+          <input type="range" min="100" max={Math.max(500, Math.ceil(ph.crop.scale * 100))} step="5" disabled={cropFixed} value={Math.round(ph.crop.scale * 100)} oninput={(e) => previewCrop((_, __, crop) => ({ ...crop, scale: Number(e.currentTarget.value) / 100 }))} onchange={endPreview} />
           {#each [["x", fr.cropPosX], ["y", fr.cropPosY]] as [axis, label] (axis)}
             {@const p = pos[axis as "x" | "y"]}
             <span>{label}</span>

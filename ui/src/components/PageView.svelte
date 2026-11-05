@@ -173,9 +173,10 @@
     if (!meta) return;
     ev.stopPropagation();
     (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
-    if (wheelTimer) commitLive(e);
+    // Lus avant d'enregistrer la molette en attente : après, `e` peut ne pas l'avoir encore reçue.
     const frame = liveFrame ?? e.frame;
     const crop = liveCrop ?? e.kind.crop;
+    if (wheelTimer) commitLive(e);
     trimFrom = { handle, x: ev.clientX, y: ev.clientY, frame, crop, trims: photoTrims(meta, frame, crop, ...flips(e)) };
   }
 

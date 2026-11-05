@@ -381,7 +381,11 @@
         {/if}
       </div>
       <span class="sep"></span>
-      {#if isGroup}<button title={fr.lock} aria-label={fr.lock} onclick={toggleLockSelection}>🔒</button>{/if}
+      {#if isGroup}
+        <!-- Comme l'action : tout le groupe verrouillé, le bouton le déverrouille ; sinon il verrouille. -->
+        {@const allLocked = editor.page.elements.filter((e) => editor.selection.includes(e.id)).every((e) => e.locked)}
+        <button title={allLocked ? fr.unlock : fr.lock} aria-label={allLocked ? fr.unlock : fr.lock} aria-pressed={allLocked} onclick={toggleLockSelection}>{allLocked ? "🔓" : "🔒"}<span class="lbl"> {allLocked ? fr.unlock : fr.lock}</span></button>
+      {/if}
       <button onclick={removeSelected}>🗑<span class="lbl"> {fr.delete}</span></button>
     {:else if selected?.kind.type === "Photo"}
       {@const ph = selected.kind}

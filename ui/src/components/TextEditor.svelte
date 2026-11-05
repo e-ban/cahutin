@@ -10,10 +10,12 @@
   import { Color, FontFamily, FontSize, TextStyle } from "@tiptap/extension-text-style";
   import Underline from "@tiptap/extension-underline";
   import { Placeholder, UndoRedo } from "@tiptap/extensions";
+  import { Slice } from "@tiptap/pm/model";
   import { onDestroy, onMount } from "svelte";
   import { editor as doc } from "../lib/docStore.svelte";
   import { richToTiptap, sanitizePlainText, tiptapToRich } from "../lib/richtext";
   import { textEditing } from "../lib/textEditing.svelte";
+  import { copiedSlice, rememberCopy, withZoneStyle, type CopiedSlice } from "../lib/textClipboard";
   import type { RichText, TextProps } from "../lib/types";
 
   let { props, ondone }: { props: TextProps; ondone: (content: RichText) => void } = $props();
@@ -50,10 +52,27 @@
       content: richToTiptap(props.content),
       editorProps: {
         attributes: { class: "tiptap-host", spellcheck: "true", lang: "fr" },
-        // Le collage et le dépôt ne gardent que le texte : pas de mise en forme impossible à exporter.
+        // Copie : le texte va au presse-papiers, le passage et sa mise en forme (avec le style de la zone) sont
+        // retenus pour un collage dans une autre zone.
+        clipboardTextSerializer(slice) {
+          const text = slice.content.textBetween(0, slice.content.size, "\n", "\n");
+          rememberCopy(text, withZoneStyle(slice.toJSON() as CopiedSlice, props.style));
+          return text;
+        },
+        // Un passage copié dans Cahutin revient avec sa mise en forme ; ce qui vient d'ailleurs, et le dépôt, ne
+        // gardent que le texte : pas de mise en forme impossible à exporter.
         handlePaste(view, event) {
           const text = event.clipboardData?.getData("text/plain");
           if (text == null) return false;
+          const copied = copiedSlice(text);
+          if (copied) {
+            try {
+              view.dispatch(view.state.tr.replaceSelection(Slice.fromJSON(view.state.schema, copied)).scrollIntoView());
+              return true;
+            } catch {
+              // Passage illisible pour cet éditeur : collé en texte brut.
+            }
+          }
           view.dispatch(view.state.tr.insertText(sanitizePlainText(text)));
           return true;
         },

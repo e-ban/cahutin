@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { nudge, rectPxToFrame, settle, settleMove, settleResize, settleScale, snapLines } from "./geometry";
+import { keepsRatio, nudge, rectPxToFrame, settle, settleMove, settleResize, settleScale, snapLines } from "./geometry";
 import { PX_PER_MM } from "./units";
 
 test("rectPxToFrame at zoom 1 rounds to 0.1 mm", () => {
@@ -62,4 +62,14 @@ test("a group scaled from a corner settles the factor on the nearest moving edge
   const f = settleScale(box, 50.1 / 40, [-1, -1], snapLines(A4, []), 0.3);
   expect(60 - box.w_mm * f).toBeCloseTo(10, 6);
   expect(settleScale(box, 1.31, [1, 1], snapLines(A4, []), 0.3)).toBe(1.31);
+});
+
+test("keepsRatio: a photo keeps its proportions unless Shift, a picture always, the rest only with Shift", () => {
+  expect(keepsRatio("Photo", false)).toBe(true);
+  expect(keepsRatio("Photo", true)).toBe(false);
+  expect(keepsRatio("Image", false)).toBe(true);
+  expect(keepsRatio("Image", true)).toBe(true);
+  expect(keepsRatio("Shape", false)).toBe(false);
+  expect(keepsRatio("Shape", true)).toBe(true);
+  expect(keepsRatio("Text", true)).toBe(true);
 });

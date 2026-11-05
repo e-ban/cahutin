@@ -1,5 +1,5 @@
 import { pxToMm } from "./units";
-import type { Frame, PageSize } from "./types";
+import type { ElementKind, Frame, PageSize } from "./types";
 
 /** Pas de la grille aimantée. */
 export const SNAP_MM = 5;
@@ -101,4 +101,14 @@ export function nudge(frame: Frame, key: ArrowKey, shift: boolean): Frame {
   const step = shift ? 5 : 1;
   const [dx, dy] = { ArrowUp: [0, -step], ArrowDown: [0, step], ArrowLeft: [-step, 0], ArrowRight: [step, 0] }[key];
   return { ...frame, x_mm: frame.x_mm + dx, y_mm: frame.y_mm + dy };
+}
+
+/**
+ * Redimensionner garde-t-il les proportions ? Une photo, oui (son recadrage reste le même), sauf avec Maj ;
+ * une image de la banque, toujours (elle est carrée) ; le reste, seulement avec Maj.
+ */
+export function keepsRatio(kind: ElementKind["type"], shift: boolean): boolean {
+  if (kind === "Image") return true;
+  if (kind === "Photo") return !shift;
+  return shift;
 }

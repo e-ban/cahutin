@@ -6,7 +6,7 @@
   import Moveable from "moveable";
   import { onDestroy, tick } from "svelte";
   import { editor } from "../lib/docStore.svelte";
-  import { DRAG_DEAD_ZONE_PX, GUIDE_MARGIN_MM, ROTATE_STEP_DEG, SNAP_MM, rectPxToFrame, settleMove, settleResize, snapLines, type RectPx } from "../lib/geometry";
+  import { DRAG_DEAD_ZONE_PX, GUIDE_MARGIN_MM, keepsRatio, ROTATE_STEP_DEG, SNAP_MM, rectPxToFrame, settleMove, settleResize, snapLines, type RectPx } from "../lib/geometry";
   import { boundsOf } from "../lib/groups";
   import { settings } from "../lib/settings.svelte";
   import { isPlacedCell } from "../lib/table";
@@ -59,7 +59,7 @@
     );
     const tol = 1 / (PX_PER_MM * zoom) + 0.05;
     if (gesture === "move") frame = settleMove(frame, lines, tol);
-    // Proportions gardées (image, Maj) : pas de retouche bord par bord, qui déformerait.
+    // Proportions gardées (photo, image, Maj) : pas de retouche bord par bord, qui déformerait.
     else if (gesture === "resize" && !keptRatio) frame = settleResize(f, frame, lines, tol);
     editor.updateElement(e.id, (el) => ({ ...el, frame }));
   }
@@ -81,8 +81,8 @@
       // Le centre du bloc s'accroche aussi : milieux de la page et centres des autres blocs.
       snapDirections: { left: true, top: true, right: true, bottom: true, center: true, middle: true },
       elementSnapDirections: { left: true, top: true, right: true, bottom: true, center: true, middle: true },
-      // Les images de la banque sont carrées : jamais déformées.
-      keepRatio: target?.kind.type === "Image",
+      // Une photo garde ses proportions (et son recadrage), une image de la banque aussi : voir `keepsRatio`.
+      keepRatio: !!target && keepsRatio(target.kind.type, false),
     });
     m.on("dragStart", start)
       .on("drag", (ev) => {
@@ -125,7 +125,7 @@
 
   function onKey(ev: KeyboardEvent) {
     if (!moveable) return;
-    moveable.keepRatio = ev.shiftKey || target?.kind.type === "Image";
+    moveable.keepRatio = !!target && keepsRatio(target.kind.type, ev.shiftKey);
     moveable.throttleRotate = ev.shiftKey ? 1 : ROTATE_STEP_DEG;
   }
 

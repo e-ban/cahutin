@@ -11,6 +11,7 @@
   import { settings } from "../lib/settings.svelte";
   import { isPlacedCell } from "../lib/table";
   import { PX_PER_MM, mmToPx } from "../lib/units";
+  import { IS_LINUX, moveableCursorCss } from "../lib/cursors";
 
   let { pageEl, zoom }: { pageEl: HTMLElement | undefined; zoom: number } = $props();
 
@@ -62,6 +63,7 @@
   function create(el: HTMLElement): Moveable {
     const m = new Moveable(pageEl!, {
       target: el,
+      className: "cahutin-single",
       draggable: true,
       resizable: true,
       rotatable: true,
@@ -175,4 +177,9 @@
   });
 
   onDestroy(() => moveable?.destroy());
+
+  // Curseurs des poignées : ceux du système, dans le sens de la poignée sur l'élément tourné (voir cursors.ts).
+  const cursorCss = $derived(moveableCursorCss(".cahutin-single", target?.frame.rotation_deg ?? 0, IS_LINUX));
 </script>
+
+<svelte:head>{@html `<style>${cursorCss}</style>`}</svelte:head>

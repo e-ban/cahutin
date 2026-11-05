@@ -16,6 +16,7 @@
   import { PX_PER_MM, mmToPx, ptToPx } from "../lib/units";
   import { settings } from "../lib/settings.svelte";
   import { isPlacedCell } from "../lib/table";
+  import { IS_LINUX, resizeCursor } from "../lib/cursors";
   import type { Crop, Document, Element, Frame, Page, RichText } from "../lib/types";
 
   let {
@@ -364,6 +365,7 @@
           <span
             class="trim {h}"
             class:big={settings.bigHandles}
+            style:cursor={resizeCursor(h, shown(e).frame.rotation_deg, IS_LINUX)}
             role="presentation"
             onpointerdown={(ev) => startTrim(ev, e, h)}
             onpointermove={(ev) => moveTrim(ev, e)}
@@ -497,14 +499,12 @@
     left: 50%;
     width: calc(var(--size) * 2);
     margin-left: calc(var(--size) * -1);
-    cursor: ns-resize;
   }
   .trim.e,
   .trim.w {
     top: 50%;
     height: calc(var(--size) * 2);
     margin-top: calc(var(--size) * -1);
-    cursor: ew-resize;
   }
   .trim.n,
   .trim.nw,
@@ -526,12 +526,5 @@
   .trim.se {
     left: 100%;
   }
-  .trim.nw,
-  .trim.se {
-    cursor: nwse-resize;
-  }
-  .trim.ne,
-  .trim.sw {
-    cursor: nesw-resize;
-  }
+
 </style>

@@ -10,6 +10,7 @@
   import { DRAG_DEAD_ZONE_PX, GUIDE_MARGIN_MM, ROTATE_STEP_DEG, SNAP_MM, settleMove, settleScale, shiftHeld, snapLines } from "../lib/geometry";
   import { boundsOf, isLockedSelection } from "../lib/groups";
   import { PX_PER_MM, mmToPx } from "../lib/units";
+  import { IS_LINUX, moveableCursorCss } from "../lib/cursors";
 
   let { pageEl, zoom, onpick }: { pageEl: HTMLElement | undefined; zoom: number; onpick: (id: string | null, add: boolean) => void } = $props();
 
@@ -92,6 +93,7 @@
   function create(targets: HTMLElement[]): Moveable {
     const m = new Moveable(pageEl!, {
       target: targets,
+      className: "cahutin-group",
       draggable: true,
       resizable: true,
       // Un tableau ne tourne pas : sa grille et son export restent droits.
@@ -200,4 +202,9 @@
     window.removeEventListener("blur", onBlur);
     moveable?.destroy();
   });
+
+  // Curseurs des poignées : ceux du système (voir cursors.ts) ; le cadre d'un groupe n'est pas tourné.
+  const cursorCss = moveableCursorCss(".cahutin-group", 0, IS_LINUX);
 </script>
+
+<svelte:head>{@html `<style>${cursorCss}</style>`}</svelte:head>

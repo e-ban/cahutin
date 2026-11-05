@@ -72,12 +72,17 @@
   import GuideBook from "./components/layout/GuideBook.svelte";
   import GuideWalk from "./components/GuideWalk.svelte";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
+  import { launchDocument } from "./lib/api";
 
   editor.reset(newDocument(), null);
   editor.showWelcome = true;
   fonts.load();
   templates.refresh();
   void classes.restore();
+  // Ouvert par un double-clic sur un fichier .carnet : ce document, à la place de l'accueil.
+  void launchDocument()
+    .then((path) => (path ? openPath(path, false) : undefined))
+    .catch(() => {});
   // Après une mise à jour : les nouveautés, une fois, pour qui utilisait déjà Cahutin.
   if (shouldShowWhatsNew(readPref<string | null>("whatsNewSeen", null), readPref("tourDone", false))) editor.showWhatsNew = true;
   function closeWhatsNew() {

@@ -31,6 +31,8 @@ export const removedImageUrl = (name: string) => `${assetBase()}/mine/${encodeUR
 export const existingPaths = (paths: string[]) => invoke<string[]>("existing_paths", { paths });
 /** Met un document .carnet à la corbeille de l'ordinateur. */
 export const documentTrash = (path: string) => invoke<void>("document_trash", { path });
+/** Le document reçu au lancement (fichier .carnet ouvert depuis l'explorateur), s'il y en a un. */
+export const launchDocument = () => invoke<string | null>("launch_document");
 export const listImportableIn = (dir: string) => invoke<string[]>("list_importable_in", { dir });
 export const saveDocument = (path: string, doc: Document) => invoke<void>("save_document", { path, doc });
 export const openDocument = (path: string) => invoke<OpenedDocument>("open_document", { path });

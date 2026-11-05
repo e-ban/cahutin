@@ -71,15 +71,29 @@ pub fn import_photos(state: State<'_, AppState>, paths: Vec<String>, on_progress
 }
 
 /// Seul un document Cahutin (`.carnet`) peut être mis à la corbeille depuis l'accueil.
-fn trashable(path: &std::path::Path) -> bool {
+/// Un document Cahutin (`.carnet`) qui existe.
+fn is_carnet_document(path: &std::path::Path) -> bool {
     path.extension().is_some_and(|e| e.eq_ignore_ascii_case("carnet")) && path.is_file()
+}
+
+/// Le document à ouvrir au lancement : Windows (ou le bureau Linux) lance `cahutin "…\\fiche.carnet"` quand on
+/// ouvre un fichier associé à Cahutin. Le premier argument qui désigne un document Cahutin existant.
+pub fn launch_document_in(args: impl IntoIterator<Item = std::ffi::OsString>) -> Option<String> {
+    args.into_iter().skip(1).map(PathBuf::from).find(|p| is_carnet_document(p)).map(|p| p.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub fn launch_document() -> Option<String> {
+    let found = launch_document_in(std::env::args_os());
+    log::info!("launch_document found={}", found.is_some());
+    found
 }
 
 /// Met un document à la corbeille de l'ordinateur (d'où on peut le récupérer), jamais un autre fichier.
 #[tauri::command(async)]
 pub fn document_trash(path: String) -> Result<(), String> {
     let p = std::path::Path::new(&path);
-    if !trashable(p) {
+    if !is_carnet_document(p) {
         return Err("Seul un document Cahutin (.carnet) peut être supprimé ici.".into());
     }
     trash::delete(p).map_err(|e| {
@@ -604,16 +618,31 @@ pub async fn export_pdf(webview: tauri::Webview, path: String, width_mm: f64, he
 #[cfg(test)]
 mod tests {
     #[test]
+    fn the_document_given_at_launch_is_the_first_existing_carnet() {
+        let dir = tempfile::tempdir().unwrap();
+        let doc = dir.path().join("Sortie au parc.carnet");
+        let other = dir.path().join("photo.jpg");
+        std::fs::write(&doc, b"x").unwrap();
+        std::fs::write(&other, b"x").unwrap();
+        let args = |rest: &[&std::path::Path]| std::iter::once("cahutin.exe".into()).chain(rest.iter().map(|p| p.as_os_str().to_owned())).collect::<Vec<std::ffi::OsString>>();
+        assert_eq!(launch_document_in(args(&[&other, &doc])), Some(doc.to_string_lossy().into_owned()));
+        assert_eq!(launch_document_in(args(&[&other])), None);
+        assert_eq!(launch_document_in(args(&[&dir.path().join("absent.carnet")])), None);
+        // Le programme lui-même n'est jamais pris pour un document.
+        assert_eq!(launch_document_in(vec![doc.as_os_str().to_owned()]), None);
+    }
+
+    #[test]
     fn only_carnet_documents_can_go_to_the_trash() {
         let dir = tempfile::tempdir().unwrap();
         let doc = dir.path().join("fiche.CARNET");
         let other = dir.path().join("notes.txt");
         std::fs::write(&doc, b"x").unwrap();
         std::fs::write(&other, b"x").unwrap();
-        assert!(trashable(&doc));
-        assert!(!trashable(&other));
-        assert!(!trashable(dir.path()));
-        assert!(!trashable(&dir.path().join("absent.carnet")));
+        assert!(is_carnet_document(&doc));
+        assert!(!is_carnet_document(&other));
+        assert!(!is_carnet_document(dir.path()));
+        assert!(!is_carnet_document(&dir.path().join("absent.carnet")));
         assert!(document_trash(other.to_string_lossy().into_owned()).is_err());
         assert!(other.exists());
     }

@@ -77,6 +77,7 @@ pub fn run() {
             commands::import_photos,
             commands::existing_paths,
             commands::document_trash,
+            commands::launch_document,
             commands::list_importable_in,
             commands::save_document,
             commands::open_document,

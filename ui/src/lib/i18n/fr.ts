@@ -172,6 +172,7 @@ export const fr = {
   generateGo: (n: number) => (n > 1 ? `Remplir pour ${n} élèves` : `Remplir pour ${n} élève`),
   generateDone: (n: number) => (n > 1 ? `${n} pages remplies.` : "1 page remplie."),
   save: "Enregistrer",
+  saveHint: "Enregistrer le document ; la première fois, il prend le titre comme nom",
   saveAs: "Enregistrer sous…",
   recentDocs: "Documents récents",
   reportProblem: "Signaler un problème…",

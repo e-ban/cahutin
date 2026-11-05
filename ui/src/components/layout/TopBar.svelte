@@ -2,9 +2,22 @@
   import FileMenu from "./FileMenu.svelte";
   import HelpMenu from "./HelpMenu.svelte";
   import OutputMenu from "./OutputMenu.svelte";
-  import { goHome } from "../../lib/fileActions";
+  import { goHome, save } from "../../lib/fileActions";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
+
+  let titleEl = $state<HTMLInputElement>();
+
+  function setTitle(title: string) {
+    if (title !== editor.doc.title) editor.commit({ ...editor.doc, title });
+  }
+
+  // Enregistrer (Ctrl+S) pendant la frappe du titre : le titre tapé compte, il devient le nom proposé.
+  $effect(() =>
+    editor.onFlush(() => {
+      if (titleEl && document.activeElement === titleEl) setTitle(titleEl.value);
+    }),
+  );
 
   function toggleTemplateMode() {
     editor.templateMode = !editor.templateMode;
@@ -23,9 +36,11 @@
     value={editor.doc.title}
     placeholder={fr.untitled}
     aria-label="Titre du document"
-    onchange={(e) => editor.commit({ ...editor.doc, title: e.currentTarget.value })}
+    bind:this={titleEl}
+    onchange={(e) => setTitle(e.currentTarget.value)}
   />
   {#if editor.dirty}<span class="dirty" title={fr.unsaved}>•</span>{/if}
+  <button class="save" title="{fr.saveHint} (Ctrl+S)" onclick={() => save()}>💾 {fr.save}</button>
   <button class="ghost" onclick={() => editor.undo()} disabled={!editor.canUndo} title="{fr.undo} (Ctrl+Z)" aria-label={fr.undo}>↶</button>
   <button class="ghost" onclick={() => editor.redo()} disabled={!editor.canRedo} title="{fr.redo} (Ctrl+Y)" aria-label={fr.redo}>↷</button>
   <span class="spacer"></span>
@@ -72,6 +87,17 @@
   .title:focus {
     border-color: var(--line);
     background: white;
+  }
+  /* Comme « Imprimer / Exporter » : la commande qu'on cherche, bien visible. */
+  .save {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .save:hover {
+    filter: brightness(1.08);
   }
   .dirty {
     color: var(--accent);

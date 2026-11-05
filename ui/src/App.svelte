@@ -61,10 +61,11 @@
   import { expandSelection, groupOf, pathOf } from "./lib/groups";
   import { pictoElement, pictos } from "./lib/pictos.svelte";
   import { handleShortcut, handleWheelZoom } from "./lib/shortcuts";
+  import { roundedFrame } from "./lib/crop";
   import { newDocument, newId } from "./lib/factory";
   import { templates } from "./lib/templates.svelte";
   import { mmToPx } from "./lib/units";
-  import type { AssetMeta, Crop, RichText } from "./lib/types";
+  import type { AssetMeta, Crop, Frame, RichText } from "./lib/types";
   import { myImages } from "./lib/myImages.svelte";
   import { settings } from "./lib/settings.svelte";
   import { guides } from "./lib/guides.svelte";
@@ -220,13 +221,9 @@
     addPhotoAt(meta, xMm, yMm);
   }
 
-  function endCrop(id: string, crop: Crop) {
-    editor.cropping = null;
-    const e = editor.page.elements.find((x) => x.id === id);
-    if (!e || e.kind.type !== "Photo") return;
-    const c = e.kind.crop;
-    if (c.scale === crop.scale && c.center_x === crop.center_x && c.center_y === crop.center_y) return;
-    editor.updateElement(id, (el) => (el.kind.type === "Photo" ? { ...el, kind: { ...el.kind, crop } } : el));
+  /** Un geste du recadrage (glisser, molette, rognage) : un pas d'annulation. */
+  function applyCrop(id: string, frame: Frame, crop: Crop) {
+    editor.updateElement(id, (el) => (el.kind.type === "Photo" ? { ...el, frame: roundedFrame(frame), kind: { ...el.kind, crop } } : el));
   }
 
   function endTextEdit(id: string, content: RichText) {
@@ -328,7 +325,8 @@
         editor.selection = [id];
         editor.cropping = id;
       }}
-      oncropend={endCrop}
+      oncrop={applyCrop}
+      oncropend={() => (editor.cropping = null)}
       onedittext={(id) => {
         editor.selection = [id];
         editor.editingText = id;

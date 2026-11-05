@@ -12,9 +12,10 @@
   import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
   import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
   import { endPreview, previewPhoto, previewShape, previewTextStyle, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
+  import { cropPosition, photoTrims, roundedFrame, wholePhoto, withPosition, withTrims, type Trims } from "../../lib/crop";
   import { bringSelection, deleteSelection, mirrorSelection, rotateSelection, setSelectedFrame, setSelectionSize, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
   import { boundsOf, isLockedSelection } from "../../lib/groups";
-  import type { Frame } from "../../lib/types";
+  import type { AssetMeta, Crop, Element, Frame } from "../../lib/types";
   import { textPadding } from "../../lib/richtext";
 
   const selected = $derived(editor.selected);
@@ -65,6 +66,36 @@
   /** Un texte ou un tableau ne se retourne pas (il resterait illisible). */
   const mirrorable = $derived(!!selected && selected.kind.type !== "Text" && selected.kind.type !== "Table");
   const num = (raw: string) => Number(raw.replace(",", "."));
+
+  // Recadrage d'une photo : rognage par bord, agrandissement et position dans le cadre.
+  const photoMeta = $derived(selected?.kind.type === "Photo" && selected.kind.asset ? (editor.doc.assets[selected.kind.asset] ?? editor.assetMeta(selected.kind.asset)) : undefined);
+  /** Photo retournée à l'écran : miroir de la photo et retournement de l'élément se combinent. */
+  const flips = (e: Element) => [e.kind.type === "Photo" && !!e.kind.mirrored !== !!e.flip_h, !!e.flip_v] as const;
+  const round1 = (v: number) => Math.round(v * 10) / 10;
+
+  /** Une photo rognée, son cadre ou son recadrage changé par `fn`. */
+  function reframe(fn: (meta: AssetMeta, e: Element, crop: Crop) => { frame: Frame; crop: Crop }) {
+    const meta = photoMeta;
+    if (!meta) return;
+    update((e) => {
+      if (e.kind.type !== "Photo") return e;
+      const r = fn(meta, e, e.kind.crop);
+      return { ...e, frame: roundedFrame(r.frame), kind: { ...e.kind, crop: r.crop } };
+    });
+  }
+
+  function trimSide(side: keyof Trims, raw: string) {
+    const v = num(raw);
+    if (!Number.isFinite(v)) return;
+    reframe((meta, e, crop) => withTrims(meta, e.frame, crop, { ...photoTrims(meta, e.frame, crop, ...flips(e)), [side]: v }, ...flips(e)));
+  }
+
+  function previewCrop(fn: (meta: AssetMeta, e: Element, crop: Crop) => Crop) {
+    const meta = photoMeta;
+    const e = selected;
+    if (!meta || !e || e.kind.type !== "Photo") return;
+    previewPhoto({ crop: fn(meta, e, e.kind.crop) });
+  }
 
 </script>
 
@@ -164,8 +195,39 @@
 
     {#if selected.kind.type === "Photo"}
       {@const ph = selected.kind}
-      {#if ph.asset}
-        <p class="hint">Double-cliquez sur la photo pour la recadrer (glisser, molette), puis Échap.</p>
+      {#if ph.asset && photoMeta}
+        {@const meta = photoMeta}
+        {@const trims = photoTrims(meta, selected.frame, ph.crop, ...flips(selected))}
+        {@const pos = cropPosition(meta, selected.frame, ph.crop, ...flips(selected))}
+        {@const cropFixed = selected.locked && !editor.templateMode}
+        <div class="field crop">
+          <span><b>{fr.cropSection}</b></span>
+          <p class="hint">{fr.cropHint}</p>
+          <span>{fr.trimRow}</span>
+          <div class="frame trims">
+            {#each [["top", fr.trimTop], ["bottom", fr.trimBottom], ["left", fr.trimLeft], ["right", fr.trimRight]] as [side, label] (side)}
+              <label>{label}<input type="number" step="0.5" min="0" disabled={frameFixed} value={round1(trims[side as keyof Trims])} onchange={(e) => trimSide(side as keyof Trims, e.currentTarget.value)} /></label>
+            {/each}
+          </div>
+          <span>{fr.cropZoom(Math.round(ph.crop.scale * 100))}</span>
+          <input type="range" min="100" max="500" step="5" disabled={cropFixed} value={Math.round(ph.crop.scale * 100)} oninput={(e) => previewCrop((_, __, crop) => ({ ...crop, scale: Number(e.currentTarget.value) / 100 }))} onchange={endPreview} />
+          {#each [["x", fr.cropPosX], ["y", fr.cropPosY]] as [axis, label] (axis)}
+            {@const p = pos[axis as "x" | "y"]}
+            <span>{label}</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              disabled={cropFixed || p === null}
+              title={p === null ? fr.cropNothingHidden : undefined}
+              value={p === null ? 50 : Math.round(p * 100)}
+              oninput={(e) => previewCrop((m, el, crop) => withPosition(m, el.frame, crop, { [axis]: Number(e.currentTarget.value) / 100 }, ...flips(el)))}
+              onchange={endPreview}
+            />
+          {/each}
+          <button disabled={frameFixed} title={fr.wholePhotoHint} onclick={() => reframe((m, e, crop) => wholePhoto(m, e.frame, crop, ...flips(e), editor.page.size.width_mm, editor.page.size.height_mm))}>🖼 {fr.wholePhoto}</button>
+        </div>
       {/if}
       <div class="field">
         <span>Coins arrondis : {ph.corner_radius_mm} mm</span>
@@ -357,6 +419,13 @@
     width: 100%;
     min-width: 0;
     padding: 3px 6px;
+  }
+  /* Rognage : « À gauche », « En haut » au-dessus de leur case, sur une ligne. */
+  .trims label {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    white-space: nowrap;
   }
   .hint {
     color: var(--muted);

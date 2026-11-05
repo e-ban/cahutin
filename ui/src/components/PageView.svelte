@@ -3,7 +3,7 @@
   import ShapeEl from "./elements/ShapeEl.svelte";
   import TableEl from "./elements/TableEl.svelte";
   import TextEl from "./elements/TextEl.svelte";
-  import { dragCrop, wheelCrop } from "../lib/crop";
+  import { dragCrop, photoTrims, wheelCrop, withTrims, type Trims } from "../lib/crop";
   import { editor } from "../lib/docStore.svelte";
   import { ASSET_MIME, MY_IMAGE_MIME, PICTO_MIME } from "../lib/dnd";
   import { fr } from "../lib/i18n/fr";
@@ -14,6 +14,8 @@
   import { isCutMark } from "../lib/cutMarks";
   import { CREDIT_SIZE_PT, creditFrame, isPageFrame } from "../lib/decor";
   import { PX_PER_MM, mmToPx, ptToPx } from "../lib/units";
+  import { settings } from "../lib/settings.svelte";
+  import { isPlacedCell } from "../lib/table";
   import type { Crop, Document, Element, Frame, Page, RichText } from "../lib/types";
 
   let {
@@ -29,6 +31,7 @@
     ondropmyimage,
     oncropstart,
     oncropend,
+    oncrop,
     onedittext,
     ontextdone,
     oncontext,
@@ -48,7 +51,10 @@
     /** Une image de la collection glissée : son nom de fichier. */
     ondropmyimage?: (name: string, elementId: string | null, xMm: number, yMm: number) => void;
     oncropstart?: (id: string) => void;
-    oncropend?: (id: string, crop: Crop) => void;
+    /** Sortie du recadrage, une fois le dernier geste enregistré par `oncrop`. */
+    oncropend?: (id: string) => void;
+    /** Fin d'un geste du recadrage (glisser, molette, poignée de rognage) : le cadre et le recadrage. */
+    oncrop?: (id: string, frame: Frame, crop: Crop) => void;
     onedittext?: (id: string) => void;
     ontextdone?: (id: string, content: RichText) => void;
     /** Clic droit sur un élément (id) ou sur la page (null), avec la position en mm sur la page. */
@@ -61,7 +67,16 @@
   } = $props();
 
   let liveCrop = $state<Crop | null>(null);
+  // Rognage en cours : le cadre bouge avec la poignée, la photo reste en place.
+  let liveFrame = $state<Frame | null>(null);
   let dragFrom: { x: number; y: number } | null = null;
+  let wheelTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Molette : enregistrée après une courte pause, en un seul pas d'annulation. */
+  const WHEEL_COMMIT_MS = 400;
+
+  type Handle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
+  const HANDLES: Handle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+  let trimFrom: { handle: Handle; x: number; y: number; frame: Frame; crop: Crop; trims: Trims } | null = null;
 
   /** Double-clic : un élément groupé est modifié seul ; une photo se recadre, un texte s'écrit. */
   function activate(e: Element) {
@@ -124,10 +139,74 @@
   const croppedElement = $derived(cropping ? page.elements.find((e) => e.id === cropping) : undefined);
 
   function endCrop() {
+    if (wheelTimer) clearTimeout(wheelTimer);
+    wheelTimer = null;
+    trimFrom = null;
     const e = croppedElement;
-    if (e && e.kind.type === "Photo" && liveCrop) oncropend?.(e.id, liveCrop);
-    else if (e) oncropend?.(e.id, e.kind.type === "Photo" ? e.kind.crop : { scale: 1, center_x: 0.5, center_y: 0.5 });
+    if (e) {
+      commitLive(e);
+      oncropend?.(e.id);
+    }
     liveCrop = null;
+    liveFrame = null;
+  }
+
+  /** Fin d'un geste : le recadrage en cours rejoint le document (un pas d'annulation). */
+  function commitLive(e: Element) {
+    if (wheelTimer) clearTimeout(wheelTimer);
+    wheelTimer = null;
+    if (e.kind.type !== "Photo" || !oncrop || (!liveCrop && !liveFrame)) return;
+    oncrop(e.id, liveFrame ?? e.frame, liveCrop ?? e.kind.crop);
+    liveCrop = null;
+    liveFrame = null;
+  }
+
+  /** Photo retournée à l'écran : miroir de la photo et retournement de l'élément se combinent. */
+  const flips = (e: Element) => [e.kind.type === "Photo" && !!e.kind.mirrored !== !!e.flip_h, !!e.flip_v] as const;
+
+  /** Les bords d'une photo se rognent, sauf dans une case de grille (la grille la place) ou verrouillée. */
+  const trimmable = (e: Element) => e.kind.type === "Photo" && !!e.kind.asset && (!e.locked || templateMode) && !isPlacedCell(page, e.id);
+
+  function startTrim(ev: PointerEvent, e: Element, handle: Handle) {
+    if (e.kind.type !== "Photo" || !e.kind.asset) return;
+    const meta = doc.assets[e.kind.asset] ?? editor.assetMeta(e.kind.asset);
+    if (!meta) return;
+    ev.stopPropagation();
+    (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+    if (wheelTimer) commitLive(e);
+    const frame = liveFrame ?? e.frame;
+    const crop = liveCrop ?? e.kind.crop;
+    trimFrom = { handle, x: ev.clientX, y: ev.clientY, frame, crop, trims: photoTrims(meta, frame, crop, ...flips(e)) };
+  }
+
+  function moveTrim(ev: PointerEvent, e: Element) {
+    const t = trimFrom;
+    if (!t || e.kind.type !== "Photo" || !e.kind.asset) return;
+    const meta = doc.assets[e.kind.asset] ?? editor.assetMeta(e.kind.asset);
+    if (!meta) return;
+    // Le geste à l'écran, ramené dans le cadre tourné, en mm.
+    const a = (t.frame.rotation_deg * Math.PI) / 180;
+    const dx = ev.clientX - t.x;
+    const dy = ev.clientY - t.y;
+    const k = PX_PER_MM * zoom;
+    const lx = (dx * Math.cos(a) + dy * Math.sin(a)) / k;
+    const ly = (-dx * Math.sin(a) + dy * Math.cos(a)) / k;
+    const h = t.handle;
+    const trims = {
+      left: t.trims.left + (h.includes("w") ? lx : 0),
+      right: t.trims.right - (h.includes("e") ? lx : 0),
+      top: t.trims.top + (h.includes("n") ? ly : 0),
+      bottom: t.trims.bottom - (h.includes("s") ? ly : 0),
+    };
+    const r = withTrims(meta, t.frame, t.crop, trims, ...flips(e));
+    liveFrame = r.frame;
+    liveCrop = r.crop;
+  }
+
+  function endTrim(e: Element) {
+    if (!trimFrom) return;
+    trimFrom = null;
+    commitLive(e);
   }
 
   // Enregistrer ou fermer pendant un recadrage : le recadrage en cours est validé d'abord.
@@ -139,12 +218,16 @@
   function cropOf(e: Element): Crop | undefined {
     return e.id === cropping && liveCrop ? liveCrop : undefined;
   }
+
+  /** L'élément tel qu'on le voit, avec le cadre du rognage en cours. */
+  const shown = (e: Element): Element => (e.id === cropping && liveFrame ? { ...e, frame: liveFrame } : e);
 </script>
 
 {#snippet content(e: Element)}
   {#if e.kind.type === "Photo"}
     <PhotoEl
-      element={e}
+      element={shown(e)}
+      ghost={e.id === cropping}
       props={cropOf(e) ? { ...e.kind, crop: cropOf(e)! } : e.kind}
       meta={e.kind.asset ? (doc.assets[e.kind.asset] ?? editor.assetMeta(e.kind.asset)) : undefined}
       {zoom}
@@ -227,7 +310,7 @@
       class:merge-bad={templateMode && editor.mergePreview && !editor.mergePreview.ok && editor.mergePreview.ids.includes(e.id)}
       data-id={e.id}
       role="presentation"
-      style={frameStyle(e)}
+      style={frameStyle(shown(e))}
       onpointerdown={(ev) => {
         if (e.id === cropping) {
           ev.stopPropagation();
@@ -244,12 +327,18 @@
         liveCrop = dragCrop(liveCrop ?? e.kind.crop, ev.clientX - dragFrom.x, ev.clientY - dragFrom.y, meta, e.frame, zoom, !!e.kind.mirrored, !!e.flip_v);
         dragFrom = { x: ev.clientX, y: ev.clientY };
       }}
-      onpointerup={() => (dragFrom = null)}
+      onpointerup={() => {
+        if (!dragFrom) return;
+        dragFrom = null;
+        commitLive(e);
+      }}
       onwheel={(ev) => {
         // Ctrl+molette zoome la page, même pendant le recadrage.
-        if (e.id !== cropping || e.kind.type !== "Photo" || ev.ctrlKey || ev.metaKey) return;
+        if (e.id !== cropping || e.kind.type !== "Photo" || ev.ctrlKey || ev.metaKey || trimFrom) return;
         ev.preventDefault();
         liveCrop = wheelCrop(liveCrop ?? e.kind.crop, ev.deltaY);
+        if (wheelTimer) clearTimeout(wheelTimer);
+        wheelTimer = setTimeout(() => commitLive(e), WHEEL_COMMIT_MS);
       }}
       ondblclick={() => activate(e)}
       ondragover={(ev) => {
@@ -267,6 +356,20 @@
         <div class="flip" style:transform="scale({e.flip_h ? -1 : 1}, {e.flip_v ? -1 : 1})">{@render content(e)}</div>
       {:else}
         {@render content(e)}
+      {/if}
+      {#if e.id === cropping && trimmable(e)}
+        <!-- Poignées de rognage : chacune déplace un bord (ou deux), la photo reste en place. -->
+        {#each HANDLES as h (h)}
+          <span
+            class="trim {h}"
+            class:big={settings.bigHandles}
+            role="presentation"
+            onpointerdown={(ev) => startTrim(ev, e, h)}
+            onpointermove={(ev) => moveTrim(ev, e)}
+            onpointerup={() => endTrim(e)}
+            onpointercancel={() => endTrim(e)}
+          ></span>
+        {/each}
       {/if}
     </div>
   {/each}
@@ -371,5 +474,63 @@
     outline: 3px solid #f39c12;
     cursor: move;
     z-index: 10;
+  }
+  .trim {
+    --size: 12px;
+    position: absolute;
+    width: var(--size);
+    height: var(--size);
+    margin: calc(var(--size) / -2);
+    background: #f39c12;
+    border: 2px solid white;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+    z-index: 1;
+    touch-action: none;
+  }
+  .trim.big {
+    --size: 22px;
+  }
+  .trim.n,
+  .trim.s {
+    left: 50%;
+    width: calc(var(--size) * 2);
+    margin-left: calc(var(--size) * -1);
+    cursor: ns-resize;
+  }
+  .trim.e,
+  .trim.w {
+    top: 50%;
+    height: calc(var(--size) * 2);
+    margin-top: calc(var(--size) * -1);
+    cursor: ew-resize;
+  }
+  .trim.n,
+  .trim.nw,
+  .trim.ne {
+    top: 0;
+  }
+  .trim.s,
+  .trim.sw,
+  .trim.se {
+    top: 100%;
+  }
+  .trim.w,
+  .trim.nw,
+  .trim.sw {
+    left: 0;
+  }
+  .trim.e,
+  .trim.ne,
+  .trim.se {
+    left: 100%;
+  }
+  .trim.nw,
+  .trim.se {
+    cursor: nwse-resize;
+  }
+  .trim.ne,
+  .trim.sw {
+    cursor: nesw-resize;
   }
 </style>

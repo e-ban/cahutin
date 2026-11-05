@@ -6,7 +6,8 @@
   import { mmToPx } from "../../lib/units";
   import type { AssetMeta, Element, PhotoProps } from "../../lib/types";
 
-  let { element, props, meta, zoom }: { element: Element; props: PhotoProps; meta: AssetMeta | undefined; zoom: number } = $props();
+  // `ghost` : pendant le recadrage, la partie coupée de la photo se voit en transparence autour du cadre.
+  let { element, props, meta, zoom, ghost = false }: { element: Element; props: PhotoProps; meta: AssetMeta | undefined; zoom: number; ghost?: boolean } = $props();
 
   const css = $derived(meta ? cropToCss(meta, element.frame, props.crop) : null);
   const borderPx = $derived(props.border ? mmToPx(props.border.width_mm, zoom) : 0);
@@ -14,7 +15,22 @@
   const solidBorder = $derived(!!props.border && isSolid(props.border));
 </script>
 
+{#snippet picture(src: string, c: NonNullable<typeof css>)}
+  <img
+    {src}
+    alt=""
+    draggable="false"
+    style:width="{mmToPx(c.widthMm, zoom)}px"
+    style:height="{mmToPx(c.heightMm, zoom)}px"
+    style:left="{mmToPx(c.leftMm, zoom)}px"
+    style:top="{mmToPx(c.topMm, zoom)}px"
+  />
+{/snippet}
+
 {#if props.asset && meta && css}
+  {#if ghost}
+    <div class="ghost" aria-hidden="true"><div class="flip" class:mirrored={props.mirrored}>{@render picture(assetUrl(props.asset), css)}</div></div>
+  {/if}
   <div
     class="photo"
     style:border-radius="{mmToPx(props.corner_radius_mm, zoom)}px"
@@ -23,17 +39,7 @@
     style:box-shadow={props.shadow ? `${mmToPx(1, zoom)}px ${mmToPx(1, zoom)}px 0 rgba(128,128,128,0.5)` : "none"}
   >
     <!-- Miroir : la partie visible, retournée d'un bloc (comme l'export). -->
-    <div class="flip" class:mirrored={props.mirrored}>
-      <img
-        src={assetUrl(props.asset)}
-        alt=""
-        draggable="false"
-        style:width="{mmToPx(css.widthMm, zoom)}px"
-        style:height="{mmToPx(css.heightMm, zoom)}px"
-        style:left="{mmToPx(css.leftMm, zoom)}px"
-        style:top="{mmToPx(css.topMm, zoom)}px"
-      />
-    </div>
+    <div class="flip" class:mirrored={props.mirrored}>{@render picture(assetUrl(props.asset), css)}</div>
   </div>
   {#if props.border && !solidBorder}
     <!-- Hors du cadre rogné : le trait est centré sur le bord, comme le contour plein et dans LibreOffice. -->
@@ -57,6 +63,12 @@
   }
   .flip.mirrored {
     transform: scaleX(-1);
+  }
+  .ghost {
+    position: absolute;
+    inset: 0;
+    opacity: 0.35;
+    pointer-events: none;
   }
   .photo {
     position: absolute;

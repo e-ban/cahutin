@@ -5,6 +5,8 @@
 - La molette de la souris fait défiler la bande des pages, en bas à gauche.
 - Zoom comme dans les autres logiciels : Ctrl et la molette (le point sous la souris reste en place), Ctrl et + ou -, Ctrl et 0 pour « Ajuster ».
 - Une classe se supprime : bouton « Supprimer la classe… » dans la page Ma classe. Après confirmation, elle part dans la corbeille de l'ordinateur, d'où elle se récupère ; les documents déjà faits pour ses élèves ne changent pas.
+- Rogner une photo : en mode Recadrer (bouton « Recadrer » ou double-clic), des poignées orange sur le cadre rognent ses bords, la photo restant en place ; la partie coupée se voit en transparence autour du cadre. Glisser la photo et la molette marchent comme avant ; chaque geste s'annule séparément.
+- Panneau Réglages d'une photo, section « Recadrage » : rognage de chaque bord en mm, « Agrandir dans le cadre » (100 à 500 %), position de gauche à droite et de haut en bas, et « Photo entière », qui retire le rognage (la photo garde sa taille, le cadre s'élargit, sans dépasser la page).
 - Accueil, clic droit sur un document récent : « Ouvrir », « Retirer de la liste » et « Supprimer le fichier… » ne faisaient rien. Ils marchent.
 - La mise à la corbeille d'un document (ou d'une classe) qui échoue est notée dans le journal de l'application, avec la sorte d'erreur.
 

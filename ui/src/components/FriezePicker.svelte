@@ -4,13 +4,14 @@
   import MyImagesPanel from "./drawers/MyImagesPanel.svelte";
   import PictoPanel from "./drawers/PictoPanel.svelte";
   import { toggleMotif } from "../lib/decor";
-  import { friezeMotifs, motifUrl } from "../lib/friezeMotifs.svelte";
+  import { motifUrl } from "../lib/friezeMotifs.svelte";
   import { fr } from "../lib/i18n/fr";
 
-  let { onclose }: { onclose: () => void } = $props();
+  // `codes` : la suite choisie, modifiée sur place (motifs du tiroir Décors, ou d'une frise posée).
+  let { codes = $bindable(), onclose }: { codes: string[]; onclose: () => void } = $props();
   let query = $state("");
   let tab = $state<"pictos" | "mine">("pictos");
-  const pick = (key: string) => (friezeMotifs.codes = toggleMotif(friezeMotifs.codes, key));
+  const pick = (key: string) => (codes = toggleMotif(codes, key));
 </script>
 
 <div class="backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && onclose()} onkeydown={(e) => e.key === "Escape" && onclose()}>
@@ -18,8 +19,9 @@
     <h2 id="picker-title">{fr.friezePickTitle}</h2>
     <p class="hint">{fr.friezePickHint}</p>
     <div class="chosen">
-      {#each friezeMotifs.codes as code, i (code)}
-        <span class="motif"><img src={motifUrl(code)} alt="" /><b>{i + 1}</b></span>
+      {#each codes as code, i (code)}
+        <!-- Un clic sur un motif choisi le retire (aussi une image déjà dans la frise, absente des listes). -->
+        <button class="motif" title={fr.removeMotif} aria-label={`${fr.removeMotif} ${i + 1}`} onclick={() => (codes = codes.filter((_, j) => j !== i))}><img src={motifUrl(code)} alt="" /><b>{i + 1}</b></button>
       {:else}
         <span class="hint">{fr.friezeNoMotif}</span>
       {/each}
@@ -31,9 +33,9 @@
     <input class="search" type="search" bind:value={query} placeholder={fr.searchPicture} aria-label={fr.searchPicture} />
     <div class="scroll">
       {#if tab === "pictos"}
-        <PictoPanel {query} chosen={friezeMotifs.codes} onpick={pick} />
+        <PictoPanel {query} chosen={codes} onpick={pick} />
       {:else}
-        <MyImagesPanel {query} chosen={friezeMotifs.codes} onpick={pick} />
+        <MyImagesPanel {query} chosen={codes} onpick={pick} />
       {/if}
     </div>
     <div class="buttons">
@@ -81,6 +83,13 @@
   }
   .motif {
     position: relative;
+    padding: 2px;
+    border: 1px solid transparent;
+    background: transparent;
+  }
+  .motif:hover {
+    border-color: #c0392b;
+    background: #fdecea;
   }
   .motif img {
     width: 32px;

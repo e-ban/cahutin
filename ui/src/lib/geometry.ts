@@ -121,3 +121,14 @@ export function shiftHeld(ev: Pick<KeyboardEvent, "type" | "key" | "shiftKey">):
   if (ev.key === "Shift") return ev.type === "keydown";
   return ev.shiftKey;
 }
+
+/** Taille à l'écran sous laquelle les poignées s'écartent de l'élément : sur un point de quelques millimètres,
+ *  elles se touchent et couvrent tout, si bien qu'on le redimensionne en voulant le déplacer. 80 px avec les
+ *  grandes poignées (Préférences). */
+const MIN_FRAME_PX = 48;
+const MIN_FRAME_BIG_PX = 80;
+
+/** Écart des poignées de chaque côté d'un élément de `sizePx` de large (ou de haut) à l'écran. */
+export function handlePadding(sizePx: number, big: boolean): number {
+  return Math.max(0, ((big ? MIN_FRAME_BIG_PX : MIN_FRAME_PX) - sizePx) / 2);
+}

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { blockFrieze, frieze, friezeIn, friezeSettings, isPageFrame, pageFrame, resizeFrieze, toggleMotif } from "./decor";
+import { blockFrieze, frieze, friezeIn, friezeMotifKeys, friezeSettings, isPageFrame, pageFrame, removeFrieze, replaceFriezeMotifs, resizeFrieze, toggleMotif } from "./decor";
 import { ungroup } from "./groups";
 import type { Element, Page } from "./types";
 
@@ -188,4 +188,70 @@ test("the frieze around a block is found inside its group and keeps its levels w
 test("a few loose pictures are not a frieze", () => {
   const page = onPage(frieze(a4(), m("A"), "top").slice(0, 2));
   expect(friezeIn(page, page.elements.map((e) => e.id))).toBeNull();
+});
+
+test("friezeMotifKeys gives the repeated sequence, a collection picture by its image", () => {
+  const page = onPage(frieze(a4(), [{ code: "A" }, { asset: cow }, { code: "B" }], "top"));
+  expect(friezeMotifKeys(page, page.elements.map((e) => e.id))).toEqual(["A", "asset:vache", "B"]);
+});
+
+test("other motifs go in the same slots: same count, place and size", () => {
+  for (const side of ["top", "bottom", "around"] as const) {
+    const page = onPage(frieze(a4(), m("A", "B"), side, 17, 3));
+    const ids = page.elements.map((e) => e.id);
+    const out = replaceFriezeMotifs(page, ids, [{ code: "C" }, { asset: cow }]).page;
+    expect(out.elements).toHaveLength(page.elements.length);
+    out.elements.forEach((e, i) => {
+      const o = page.elements[i].frame;
+      // À l'arrondi près (0,1 mm).
+      expect(Math.abs(e.frame.x_mm + e.frame.w_mm / 2 - (o.x_mm + o.w_mm / 2))).toBeLessThanOrEqual(0.1 + 1e-9);
+      expect(Math.abs(e.frame.y_mm + e.frame.h_mm / 2 - (o.y_mm + o.h_mm / 2))).toBeLessThanOrEqual(0.1 + 1e-9);
+      expect(Math.max(e.frame.w_mm, e.frame.h_mm)).toBe(17);
+    });
+    expect(friezeMotifKeys(out, out.elements.map((e) => e.id))).toEqual(["C", "asset:vache"]);
+    expect(new Set(out.elements.map((e) => e.group)).size).toBe(1);
+  }
+});
+
+test("removeFrieze takes the frieze away and leaves the block it went around", () => {
+  const page = blockFrieze(withBlock(block()), "b", m("A", "B"))!;
+  const ids = friezeIn(page, page.elements.map((e) => e.id))!;
+  const out = removeFrieze(page, ids);
+  expect(out.elements.map((e) => e.id)).toEqual(["b"]);
+  // Le bloc seul n'est plus dans un groupe d'un seul élément.
+  expect(out.elements[0].group ?? null).toBeNull();
+});
+
+test("a page frieze's distance is its margin from the page edge, and moves it toward the centre", () => {
+  for (const side of ["top", "bottom", "around"] as const) {
+    const page = onPage(frieze(a4(), m("A"), side));
+    const ids = page.elements.map((e) => e.id);
+    expect(friezeSettings(page, ids).distance).toBeCloseTo(8, 5);
+    expect(friezeSettings(page, ids).block).toBe(false);
+    const out = resizeFrieze(page, ids, 15, 3, 20).page;
+    const els = out.elements;
+    const top = Math.min(...els.map((e) => e.frame.y_mm));
+    const bottom = Math.max(...els.map((e) => e.frame.y_mm + e.frame.h_mm));
+    const left = Math.min(...els.map((e) => e.frame.x_mm));
+    if (side !== "bottom") expect(top).toBeCloseTo(20, 5);
+    if (side !== "top") expect(297 - bottom).toBeCloseTo(20, 5);
+    expect(left).toBeCloseTo(20, 5);
+    expect(friezeSettings(out, els.map((e) => e.id)).distance).toBeCloseTo(20, 5);
+  }
+});
+
+test("a block frieze's distance runs from the block edge to the line of its pictures", () => {
+  const page = blockFrieze(withBlock(block()), "b", m("A", "B"))!;
+  const ids = friezeIn(page, page.elements.map((e) => e.id))!;
+  // Posée à cheval sur les bords du bloc : 0.
+  expect(friezeSettings(page, ids)).toMatchObject({ distance: 0, block: true });
+  const out = resizeFrieze(page, ids, 10, 2, 6).page;
+  const pics = out.elements.filter((e) => e.id !== "b");
+  const b = out.elements.find((e) => e.id === "b")!.frame;
+  // Le centre de la première image (coin haut gauche) est à 6 mm du bloc, en haut comme à gauche.
+  expect(pics[0].frame.y_mm + 5).toBeCloseTo(b.y_mm - 6, 5);
+  expect(pics[0].frame.x_mm + 5).toBeCloseTo(b.x_mm - 6, 5);
+  expect(friezeSettings(out, pics.map((e) => e.id)).distance).toBeCloseTo(6, 5);
+  // Toujours groupée avec son bloc.
+  expect(new Set(out.elements.map((e) => e.group)).size).toBe(1);
 });

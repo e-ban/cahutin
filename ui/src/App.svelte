@@ -419,6 +419,10 @@
   :global(:root[data-contrast] button, :root[data-contrast] select, :root[data-contrast] input) {
     border-width: 2px;
   }
+  /* Poignée de rotation à 28 px de l'élément (40 chez Moveable) : la barre d'outils au-dessus ne la couvre pas. */
+  :global(.moveable-rotation) {
+    height: calc(28px * var(--zoom, 1)) !important;
+  }
   /* Grandes poignées : deux fois plus grosses, pour le doigt ou une souris difficile. */
   :global(:root[data-big-handles] .moveable-control) {
     width: 26px !important;

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { keepsRatio, nudge, shiftHeld, rectPxToFrame, settle, settleMove, settleResize, settleScale, snapLines } from "./geometry";
+import { handlePadding, keepsRatio, nudge, shiftHeld, rectPxToFrame, settle, settleMove, settleResize, settleScale, snapLines } from "./geometry";
 import { PX_PER_MM } from "./units";
 
 test("rectPxToFrame at zoom 1 rounds to 0.1 mm", () => {
@@ -80,4 +80,10 @@ test("shiftHeld trusts the Shift key itself, not shiftKey (GTK reports it as it 
   expect(shiftHeld({ type: "keyup", key: "Shift", shiftKey: true })).toBe(false);
   expect(shiftHeld({ type: "keydown", key: "a", shiftKey: true })).toBe(true);
   expect(shiftHeld({ type: "keyup", key: "a", shiftKey: false })).toBe(false);
+});
+
+test("handlePadding spreads the handles of an element smaller than 48 px (80 with big handles) on screen", () => {
+  expect(handlePadding(100, false)).toBe(0);
+  expect(handlePadding(20, false)).toBe(14);
+  expect(handlePadding(20, true)).toBe(30);
 });

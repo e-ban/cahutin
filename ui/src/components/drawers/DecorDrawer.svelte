@@ -88,7 +88,7 @@
   </div>
   <p class="hint">{fr.friezeEditHint}</p>
 </Drawer>
-{#if picking}<FriezePicker onclose={() => (picking = false)} />{/if}
+{#if picking}<FriezePicker bind:codes={friezeMotifs.codes} onclose={() => (picking = false)} />{/if}
 
 <style>
   .with-guide {

@@ -20,12 +20,15 @@
   import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
   import { settings } from "../lib/settings.svelte";
+  import { handlePadding } from "../lib/geometry";
+  import { mmToPx } from "../lib/units";
   import { hasTemplateRole, templateRole, withTemplateRole } from "../lib/templateRole";
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
   import { inTableGroup, isTableCell, selectedTable } from "../lib/table";
   import { alignUnits, arrangeUnits, expandSelection, groupOf, isLockedSelection } from "../lib/groups";
-  import { blockFrieze, friezeIn, friezeSettings, resizeFrieze } from "../lib/decor";
+  import { blockFrieze, friezeIn, friezeMotifKeys, friezeSettings, removeFrieze, replaceFriezeMotifs, resizeFrieze } from "../lib/decor";
+  import FriezePicker from "./FriezePicker.svelte";
   import { cutMarks, type CutStyle } from "../lib/cutMarks";
   import { friezeMotifs, resolveMotifs } from "../lib/friezeMotifs.svelte";
   import { setPictosOutline } from "../lib/pictos.svelte";
@@ -91,7 +94,8 @@
       box,
       { width: barEl.offsetWidth, height: barEl.offsetHeight },
       { left: s.left, top: s.top, width: s.width, height: s.height },
-      handles ? ROTATION_HANDLE_GAP : undefined,
+      // Un petit élément a ses poignées écartées : la poignée de rotation monte d'autant.
+      handles ? ROTATION_HANDLE_GAP + (many || !e ? 0 : handlePadding(mmToPx(e.frame.h_mm, editor.effectiveZoom), settings.bigHandles)) : undefined,
     );
   }
 
@@ -214,16 +218,51 @@
   const friezeIds = $derived(editor.selection.length > 1 ? friezeIn(editor.page, editor.selection) : null);
   const friezeNow = $derived(friezeIds ? friezeSettings(editor.page, friezeIds) : null);
 
-  function setFrieze(size: number, gap: number) {
+  function setFrieze(size: number, gap: number, distance?: number) {
     const ids = friezeIds;
     if (!ids) return;
     let fresh: string[] = [];
     editor.updatePage((p) => {
-      const r = resizeFrieze(p, ids, size, gap);
+      const r = resizeFrieze(p, ids, size, gap, distance);
       fresh = r.ids;
       return r.page;
     });
     editor.selection = [...editor.selection.filter((id) => !ids.includes(id)), ...fresh];
+  }
+
+  // Images d'une frise posée, pendant leur choix dans la fenêtre « Images de la frise ».
+  let friezeCodes = $state<string[] | null>(null);
+
+  function editFriezeMotifs() {
+    if (!friezeIds) return;
+    pop = null;
+    friezeCodes = friezeMotifKeys(editor.page, friezeIds);
+  }
+
+  /** Les images choisies, dans les cases de la frise : même place, même taille. */
+  async function applyFriezeMotifs() {
+    const codes = friezeCodes;
+    const ids = friezeIds;
+    friezeCodes = null;
+    if (!codes?.length || !ids || codes.join("|") === friezeMotifKeys(editor.page, ids).join("|")) return;
+    const { motifs, assets } = await resolveMotifs(codes, (id) => editor.doc.assets[id] ?? editor.assetMeta(id));
+    if (!motifs.length) return;
+    let fresh: string[] = [];
+    editor.updatePage((p) => {
+      const r = replaceFriezeMotifs(p, ids, motifs);
+      fresh = r.ids;
+      return r.page;
+    }, assets);
+    editor.selection = [...editor.selection.filter((id) => !ids.includes(id)), ...fresh];
+  }
+
+  /** Retire la frise seule : le bloc qu'elle entoure reste. */
+  function deleteFrieze() {
+    const ids = friezeIds;
+    if (!ids) return;
+    pop = null;
+    editor.updatePage((p) => removeFrieze(p, ids));
+    editor.selection = editor.selection.filter((id) => !ids.includes(id));
   }
 
   function setRole(role: "fill" | "fixed") {
@@ -249,6 +288,21 @@
     editor.openImages("photos");
   }
 </script>
+
+<!-- Frise posée : taille, écart, et ses images à changer. -->
+{#snippet friezePop(now: { size: number; gap: number; distance: number; block: boolean })}
+  <label>{fr.friezeSize} <input type="range" min="6" max="40" step="1" value={now.size} onchange={(e) => setFrieze(Number(e.currentTarget.value), now.gap)} /> {now.size} mm</label>
+  <label>{fr.friezeGap} <input type="range" min="0" max="30" step="1" value={now.gap} onchange={(e) => setFrieze(now.size, Number(e.currentTarget.value))} /> {now.gap} mm</label>
+  <!-- Frise de page : sa marge avec le bord ; frise d'un bloc : son écart avec le bloc (0, à cheval sur le bord). -->
+  <label title={now.block ? fr.friezeDistanceBlockHint : fr.friezeDistancePageHint}>
+    {now.block ? fr.friezeDistanceBlock : fr.friezeDistancePage}
+    <input type="range" min="0" max={now.block ? 30 : 60} step="1" value={Math.round(now.distance)} onchange={(e) => setFrieze(now.size, now.gap, Number(e.currentTarget.value))} />
+    {Math.round(now.distance)} mm
+  </label>
+  <button onclick={editFriezeMotifs}>🖼 {fr.friezeChangeImages}</button>
+{/snippet}
+
+{#if friezeCodes}<FriezePicker bind:codes={friezeCodes} onclose={applyFriezeMotifs} />{/if}
 
 {#if visible}
   <div
@@ -562,7 +616,8 @@
               <button role="menuitem" data-guide="frieze-around" title={fr.blockFriezeHint} onclick={() => ((pop = null), addBlockFrieze())}>❀ {fr.blockFriezeAround}</button>
             {/if}
             {#if friezeIds && friezeNow}
-              <button role="menuitem" data-guide="frieze-size" title={fr.friezeSettingsHint} onclick={() => (pop = "frieze")}>❀ {fr.friezeSettingsMenu} ▸</button>
+              <button role="menuitem" data-guide="frieze-size" title={fr.friezeEditHint2} onclick={() => (pop = "frieze")}>❀ {fr.friezeEdit} ▸</button>
+              <button role="menuitem" class="danger" onclick={deleteFrieze}>🗑 {fr.friezeDelete}</button>
             {/if}
             {#if canCut}
               <button role="menuitem" data-guide="repeat" title={fr.repeatHint} onclick={() => (pop = "repeat")}>▦ {fr.repeat} ▸</button>
@@ -573,10 +628,7 @@
             {/if}
           </div>
         {:else if pop === "frieze" && friezeNow}
-          <div class="pop frieze">
-            <label>{fr.friezeSize} <input type="range" min="6" max="40" step="1" value={friezeNow.size} onchange={(e) => setFrieze(Number(e.currentTarget.value), friezeNow.gap)} /> {friezeNow.size} mm</label>
-            <label>{fr.friezeGap} <input type="range" min="0" max="30" step="1" value={friezeNow.gap} onchange={(e) => setFrieze(friezeNow.size, Number(e.currentTarget.value))} /> {friezeNow.gap} mm</label>
-          </div>
+          <div class="pop frieze">{@render friezePop(friezeNow)}</div>
         {:else if pop === "repeat"}
           <div class="pop repeat">
             <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
@@ -612,14 +664,12 @@
       {/if}
       {#if friezeIds && friezeNow}
         <div class="wrap">
-          <button data-guide="frieze-size" class:on={pop === "frieze"} title={fr.friezeSettingsHint} onclick={() => toggle("frieze")}>❀<span class="lbl"> {fr.friezeSettingsMenu} ▾</span></button>
+          <button data-guide="frieze-size" class:on={pop === "frieze"} title={fr.friezeEditHint2} onclick={() => toggle("frieze")}>❀<span class="lbl"> {fr.friezeEdit} ▾</span></button>
           {#if pop === "frieze"}
-            <div class="pop frieze">
-              <label>{fr.friezeSize} <input type="range" min="6" max="40" step="1" value={friezeNow.size} onchange={(e) => setFrieze(Number(e.currentTarget.value), friezeNow.gap)} /> {friezeNow.size} mm</label>
-              <label>{fr.friezeGap} <input type="range" min="0" max="30" step="1" value={friezeNow.gap} onchange={(e) => setFrieze(friezeNow.size, Number(e.currentTarget.value))} /> {friezeNow.gap} mm</label>
-            </div>
+            <div class="pop frieze">{@render friezePop(friezeNow)}</div>
           {/if}
         </div>
+        <button class="danger" title={fr.friezeDeleteHint} onclick={deleteFrieze}>🗑<span class="lbl"> {fr.friezeDelete}</span></button>
       {/if}
       {#if canCut}
         <div class="wrap">
@@ -740,6 +790,13 @@
   }
   .pop.frieze {
     min-width: 260px;
+  }
+  .pop.frieze > button {
+    justify-self: start;
+  }
+  .danger:not(:disabled):hover {
+    color: #c0392b;
+    background: #fdecea;
   }
   .pop.frieze label {
     display: grid;

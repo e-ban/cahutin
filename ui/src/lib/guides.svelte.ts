@@ -402,7 +402,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Régler après coup",
-        text: "Cliquez sur la frise, puis « Taille de la frise » dans sa barre : la taille des images et l'espace entre elles changent, sans tout refaire.",
+        text: "Cliquez sur la frise, puis « Modifier la frise » dans sa barre : la taille des images, l'espace entre elles, ou les images elles-mêmes changent, sans tout refaire. « Supprimer la frise » la retire, en gardant ce qu'elle entoure.",
         image: img("frise", "taille"),
       },
     ],
@@ -434,7 +434,7 @@ export const GUIDES: Guide[] = [
       {
         target: '[data-guide="frieze-size"]',
         title: "Réglez",
-        text: "« Taille de la frise » change la taille des images et leur espacement.",
+        text: "« Modifier la frise » change la taille des images, leur espacement, ou les images elles-mêmes.",
       },
     ],
   },

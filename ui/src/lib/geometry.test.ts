@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { keepsRatio, nudge, rectPxToFrame, settle, settleMove, settleResize, settleScale, snapLines } from "./geometry";
+import { keepsRatio, nudge, shiftHeld, rectPxToFrame, settle, settleMove, settleResize, settleScale, snapLines } from "./geometry";
 import { PX_PER_MM } from "./units";
 
 test("rectPxToFrame at zoom 1 rounds to 0.1 mm", () => {
@@ -72,4 +72,12 @@ test("keepsRatio: a photo keeps its proportions unless Shift, a picture always, 
   expect(keepsRatio("Shape", false)).toBe(false);
   expect(keepsRatio("Shape", true)).toBe(true);
   expect(keepsRatio("Text", true)).toBe(true);
+});
+
+test("shiftHeld trusts the Shift key itself, not shiftKey (GTK reports it as it was before the event)", () => {
+  expect(shiftHeld({ type: "keydown", key: "Shift", shiftKey: false })).toBe(true);
+  // WebKitGTK : au relâchement de Maj, shiftKey vaut encore true.
+  expect(shiftHeld({ type: "keyup", key: "Shift", shiftKey: true })).toBe(false);
+  expect(shiftHeld({ type: "keydown", key: "a", shiftKey: true })).toBe(true);
+  expect(shiftHeld({ type: "keyup", key: "a", shiftKey: false })).toBe(false);
 });

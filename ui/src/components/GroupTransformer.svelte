@@ -7,7 +7,7 @@
   import { onDestroy, tick } from "svelte";
   import { editor } from "../lib/docStore.svelte";
   import { applyGroupTransform } from "../lib/editActions";
-  import { DRAG_DEAD_ZONE_PX, GUIDE_MARGIN_MM, ROTATE_STEP_DEG, SNAP_MM, settleMove, settleScale, snapLines } from "../lib/geometry";
+  import { DRAG_DEAD_ZONE_PX, GUIDE_MARGIN_MM, ROTATE_STEP_DEG, SNAP_MM, settleMove, settleScale, shiftHeld, snapLines } from "../lib/geometry";
   import { boundsOf, isLockedSelection } from "../lib/groups";
   import { PX_PER_MM, mmToPx } from "../lib/units";
 
@@ -186,14 +186,18 @@
   });
 
   // Maj enfoncée : rotation libre, sans crans.
-  function onKey(ev: KeyboardEvent) {
-    if (moveable) moveable.throttleRotate = ev.shiftKey ? 1 : ROTATE_STEP_DEG;
+  function setShift(shift: boolean) {
+    if (moveable) moveable.throttleRotate = shift ? 1 : ROTATE_STEP_DEG;
   }
+  const onKey = (ev: KeyboardEvent) => setShift(shiftHeld(ev));
+  const onBlur = () => setShift(false);
   window.addEventListener("keydown", onKey);
   window.addEventListener("keyup", onKey);
+  window.addEventListener("blur", onBlur);
   onDestroy(() => {
     window.removeEventListener("keydown", onKey);
     window.removeEventListener("keyup", onKey);
+    window.removeEventListener("blur", onBlur);
     moveable?.destroy();
   });
 </script>

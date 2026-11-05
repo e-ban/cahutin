@@ -6,7 +6,7 @@
   import Moveable from "moveable";
   import { onDestroy, tick } from "svelte";
   import { editor } from "../lib/docStore.svelte";
-  import { DRAG_DEAD_ZONE_PX, GUIDE_MARGIN_MM, keepsRatio, ROTATE_STEP_DEG, SNAP_MM, rectPxToFrame, settleMove, settleResize, snapLines, type RectPx } from "../lib/geometry";
+  import { DRAG_DEAD_ZONE_PX, GUIDE_MARGIN_MM, keepsRatio, shiftHeld, ROTATE_STEP_DEG, SNAP_MM, rectPxToFrame, settleMove, settleResize, snapLines, type RectPx } from "../lib/geometry";
   import { boundsOf } from "../lib/groups";
   import { settings } from "../lib/settings.svelte";
   import { isPlacedCell } from "../lib/table";
@@ -123,11 +123,14 @@
     return m;
   }
 
-  function onKey(ev: KeyboardEvent) {
+  function setShift(shift: boolean) {
     if (!moveable) return;
-    moveable.keepRatio = !!target && keepsRatio(target.kind.type, ev.shiftKey);
-    moveable.throttleRotate = ev.shiftKey ? 1 : ROTATE_STEP_DEG;
+    moveable.keepRatio = !!target && keepsRatio(target.kind.type, shift);
+    moveable.throttleRotate = shift ? 1 : ROTATE_STEP_DEG;
   }
+  const onKey = (ev: KeyboardEvent) => setShift(shiftHeld(ev));
+  // Fenêtre quittée Maj enfoncée : le relâchement n'arrivera pas ici.
+  const onBlur = () => setShift(false);
 
   // Après chaque changement du document, du zoom ou de la sélection : recaler (ou recréer) les poignées.
   $effect(() => {
@@ -169,9 +172,11 @@
   $effect(() => {
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKey);
+    window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKey);
+      window.removeEventListener("blur", onBlur);
     };
   });
 

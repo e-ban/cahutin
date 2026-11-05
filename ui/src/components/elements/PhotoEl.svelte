@@ -20,6 +20,7 @@
     {src}
     alt=""
     draggable="false"
+    ondragstart={(e) => e.preventDefault()}
     style:width="{mmToPx(c.widthMm, zoom)}px"
     style:height="{mmToPx(c.heightMm, zoom)}px"
     style:left="{mmToPx(c.leftMm, zoom)}px"
@@ -85,6 +86,8 @@
     position: absolute;
     max-width: none;
     user-select: none;
+    /* WebKit : sans cela, glisser la photo peut l'emporter comme dans un navigateur (image fantôme). */
+    -webkit-user-drag: none;
   }
   .zone-empty {
     position: absolute;

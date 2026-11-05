@@ -112,3 +112,12 @@ export function keepsRatio(kind: ElementKind["type"], shift: boolean): boolean {
   if (kind === "Photo") return !shift;
   return shift;
 }
+
+/**
+ * Maj enfoncée après cet événement clavier. Pour la touche Maj elle-même, on se fie à l'appui ou au
+ * relâchement : sous GTK (WebKitGTK), `shiftKey` donne l'état d'avant l'événement, encore vrai au relâchement.
+ */
+export function shiftHeld(ev: Pick<KeyboardEvent, "type" | "key" | "shiftKey">): boolean {
+  if (ev.key === "Shift") return ev.type === "keydown";
+  return ev.shiftKey;
+}

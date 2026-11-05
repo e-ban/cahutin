@@ -8,6 +8,8 @@
 - Rogner une photo : en mode Recadrer (bouton « Recadrer » ou double-clic), des poignées orange sur le cadre rognent ses bords, la photo restant en place ; la partie coupée se voit en transparence autour du cadre. Glisser la photo et la molette marchent comme avant ; chaque geste s'annule séparément.
 - Panneau Réglages d'une photo, section « Recadrage » : rognage de chaque bord en mm, « Agrandir dans le cadre » (100 à 500 %), position de gauche à droite et de haut en bas, et « Photo entière », qui retire le rognage (la photo garde sa taille, le cadre s'élargit, sans dépasser la page).
 - Agrandir ou réduire une photo par ses poignées garde ses proportions, donc son rognage, son zoom et son recadrage ; avec Maj enfoncée, elle se redimensionne librement. Pour les formes et les textes, rien ne change (Maj garde les proportions).
+- Version Linux : après avoir relâché Maj, le redimensionnement restait libre et la rotation sans crans. Maj relâchée est maintenant bien prise en compte (et oubliée si l'on quitte la fenêtre en la tenant).
+- Recadrer en glissant la photo ne l'emporte plus parfois comme une image de navigateur (image fantôme semi-transparente).
 - Panneau Réglages rangé en sections qui se replient d'un clic sur leur titre : « Position et taille », « Miroir et ordre », « Recadrage » (photo), « Apparence » (photo, forme), « Mise en forme » (texte). Au départ, Miroir et ordre et Recadrage sont repliés ; chaque section reste ensuite comme on l'a laissée, sur cet ordinateur.
 - Préférences plus larges, à la taille de l'écran : sur un grand écran, les réglages se rangent en deux colonnes et tiennent sans défiler.
 - Menu Fichier : les exemples sont rangés dans un sous-menu « Exemples ▸ », qui s'ouvre au survol ou au clic.

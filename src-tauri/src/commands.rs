@@ -82,7 +82,25 @@ pub fn document_trash(path: String) -> Result<(), String> {
     if !trashable(p) {
         return Err("Seul un document Cahutin (.carnet) peut être supprimé ici.".into());
     }
-    trash::delete(p).map_err(|_| "Le document n'a pas pu être mis à la corbeille.".to_string())
+    trash::delete(p).map_err(|e| {
+        log::error!("document_trash_failed kind={}", trash_error_kind(&e));
+        "Le document n'a pas pu être mis à la corbeille.".to_string()
+    })?;
+    log::info!("document_trash");
+    Ok(())
+}
+
+/// La sorte d'erreur de la corbeille, pour le journal : jamais le chemin ni le nom du fichier.
+pub fn trash_error_kind(e: &trash::Error) -> &'static str {
+    match e {
+        trash::Error::Unknown { .. } => "unknown",
+        trash::Error::Os { .. } => "os",
+        trash::Error::FileSystem { .. } => "file_system",
+        trash::Error::TargetedRoot => "targeted_root",
+        trash::Error::CouldNotAccess { .. } => "could_not_access",
+        trash::Error::CanonicalizePath { .. } => "canonicalize_path",
+        _ => "other",
+    }
 }
 
 /// Garde les chemins qui désignent encore un fichier.

@@ -114,6 +114,11 @@ export const fr = {
   classPrivacy:
     "La liste reste sur cet ordinateur, dans Documents/Cahutin/Classes. Cochez l'autorisation photo seulement pour les enfants dont les parents l'ont donnée, et supprimez la classe en fin d'année.",
   classSwitch: "Changer de classe",
+  classTrash: "Supprimer la classe…",
+  classTrashOk: "Mettre à la corbeille",
+  classTrashConfirm: (name: string) =>
+    `Supprimer la classe « ${name} » ? Elle part dans la corbeille de l'ordinateur, d'où vous pouvez la récupérer. Les documents déjà faits pour ses élèves ne changent pas.`,
+  classTrashed: (name: string) => `La classe « ${name} » est dans la corbeille de l'ordinateur.`,
   classGenerate: "Remplir la page avec ma classe…",
   classPaste: "Ajouter des élèves",
   classPastePlaceholder: "Un prénom par ligne (« Prénom Nom » aussi), ou un tableau collé depuis un tableur : prénom, nom, date de naissance, groupe, niveau",

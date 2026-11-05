@@ -91,6 +91,7 @@ pub fn run() {
             class_commands::class_create,
             class_commands::class_open,
             class_commands::class_save,
+            class_commands::class_trash,
             class_commands::class_import_photo,
             class_commands::class_parse_list,
             class_commands::class_read_list,

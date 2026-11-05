@@ -90,11 +90,27 @@ pub fn open_into(path: &Path, store: &mut AssetStore) -> Result<OpenedClass, Str
 pub fn save_in(dir: &Path, path: &Path, c: &Class, store: &AssetStore) -> Result<(), String> {
     // Le dossier a pu être supprimé pendant que l'application tournait.
     ensure_dir(dir)?;
-    let inside = path.parent().zip(dir.canonicalize().ok()).is_some_and(|(p, d)| p.canonicalize().ok() == Some(d));
-    if !inside || path.extension().and_then(|e| e.to_str()) != Some(CLASS_EXTENSION) {
+    if !class_file_in(dir, path) {
         return Err("Cette classe ne peut pas être enregistrée à cet endroit.".into());
     }
     class::save_to_path(c, store, path).map_err(|e| e.message_fr())
+}
+
+/// Un fichier de classe, directement dans le dossier des classes.
+fn class_file_in(dir: &Path, path: &Path) -> bool {
+    let inside = path.parent().zip(dir.canonicalize().ok()).is_some_and(|(p, d)| p.canonicalize().ok() == Some(d));
+    inside && path.extension().and_then(|e| e.to_str()) == Some(CLASS_EXTENSION)
+}
+
+/// Met une classe à la corbeille de l'ordinateur (d'où on peut la récupérer), jamais un autre fichier.
+pub fn trash_in(dir: &Path, path: &Path) -> Result<(), String> {
+    if !class_file_in(dir, path) || !path.is_file() {
+        return Err("Seule une classe du dossier des classes peut être supprimée ici.".into());
+    }
+    trash::delete(path).map_err(|e| {
+        log::error!("class_trash_failed kind={}", crate::commands::trash_error_kind(&e));
+        "La classe n'a pas pu être mise à la corbeille.".to_string()
+    })
 }
 
 /// Pages pour les élèves, avec les photos qu'elles utilisent.
@@ -149,6 +165,13 @@ pub fn class_open(state: State<'_, AppState>, path: String) -> Result<OpenedClas
     let opened = open_into(Path::new(&path), &mut state.store.lock().unwrap())?;
     log::info!("class_open students={} photos={}", opened.class.students.len(), opened.class.photos.len());
     Ok(opened)
+}
+
+#[tauri::command(async)]
+pub fn class_trash(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    trash_in(&state.classes_dir, Path::new(&path))?;
+    log::info!("class_trash");
+    Ok(())
 }
 
 #[tauri::command(async)]
@@ -250,6 +273,23 @@ mod tests {
         assert_eq!(list_in(&classes)[0].students, 2);
         let outside = dir.path().join("ailleurs.cahutin-classe");
         assert!(save_in(&classes, &outside, &c, &store).is_err());
+    }
+
+    #[test]
+    fn only_a_class_of_the_folder_goes_to_the_trash() {
+        let dir = tempfile::tempdir().unwrap();
+        let classes = dir.path().join("Classes");
+        let store = AssetStore::default();
+        let opened = create_in(&classes, &store, "MS", "2026-2027").unwrap();
+        let outside = dir.path().join("ailleurs.cahutin-classe");
+        std::fs::write(&outside, b"x").unwrap();
+        let other = classes.join("notes.txt");
+        std::fs::write(&other, b"x").unwrap();
+        assert!(trash_in(&classes, &outside).is_err());
+        assert!(trash_in(&classes, &other).is_err());
+        assert!(trash_in(&classes, &classes.join("absente.cahutin-classe")).is_err());
+        assert!(outside.exists() && other.exists());
+        assert!(Path::new(&opened.path).exists());
     }
 
     #[test]

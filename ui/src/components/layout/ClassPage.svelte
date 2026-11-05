@@ -144,6 +144,13 @@
     classes.update((c) => ({ ...c, students: c.students.filter((x) => x.id !== s.id) }));
   }
 
+  async function trashClass() {
+    if (!cls) return;
+    const name = cls.name;
+    if (!(await ask(fr.classTrashConfirm(name), fr.classTrashOk))) return;
+    if (await classes.trash()) editor.notice = fr.classTrashed(name);
+  }
+
   async function switchTo(value: string) {
     if (value === "new") creating = true;
     else if (value) await classes.open(value);
@@ -216,6 +223,7 @@
       <button disabled={!cls.students.length} title={fr.classPhotosHint} onclick={addPhotos}>📷 {fr.classPhotosAdd}</button>
       <button disabled={cls.students.every((s) => s.symbol)} title={fr.classSymbolsAssignHint} onclick={giveSymbols}>🐱 {fr.classSymbolsAssign}</button>
       <button title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}>🖼️ {fr.libraryTitle}</button>
+      <button class="danger" onclick={trashClass}>🗑 {fr.classTrash}</button>
     </div>
     {#if pasting}
       <div class="paste">
@@ -348,6 +356,13 @@
     gap: 12px;
     flex-wrap: wrap;
     margin-bottom: 12px;
+  }
+  .head .danger {
+    color: #c0392b;
+  }
+  .head .danger:hover {
+    background: #fdecea;
+    border-color: #c0392b;
   }
   .head label {
     display: flex;

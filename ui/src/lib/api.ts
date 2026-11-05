@@ -61,6 +61,7 @@ export const classList = () => invoke<ClassFileInfo[]>("class_list");
 export const classCreate = (name: string, year: string) => invoke<OpenedClass>("class_create", { name, year });
 export const classOpen = (path: string) => invoke<OpenedClass>("class_open", { path });
 export const classSave = (path: string, cls: Class) => invoke<void>("class_save", { path, class: cls });
+export const classTrash = (path: string) => invoke<void>("class_trash", { path });
 export const classImportPhoto = (path: string) => invoke<AssetMeta>("class_import_photo", { path });
 export const classPlan = (page: Page) => invoke<GeneratePlan>("class_plan", { page });
 export const classParseList = (text: string) => invoke<Student[]>("class_parse_list", { text });

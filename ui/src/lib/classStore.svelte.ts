@@ -1,6 +1,6 @@
 // Classe ouverte et liste des classes du dossier. Chaque modification s'enregistre seule, un peu après
 // (un enregistrement à la fois). Le chemin de la dernière classe est gardé dans les préférences du poste.
-import { classCreate, classImportPhoto, classList, classOpen, classSave } from "./api";
+import { classCreate, classImportPhoto, classList, classOpen, classSave, classTrash } from "./api";
 import { matchPhotos } from "./classFill";
 import { editor } from "./docStore.svelte";
 import { readPref, writePref } from "./prefs";
@@ -122,6 +122,30 @@ class Classes {
     this.current = null;
     writePref("lastClass", null);
     await this.refresh();
+  }
+
+  /**
+   * Met la classe ouverte à la corbeille. L'enregistrement en attente est abandonné d'abord : sinon il
+   * recréerait le fichier.
+   */
+  async trash(): Promise<boolean> {
+    if (!this.current) return false;
+    if (this.#timer) clearTimeout(this.#timer);
+    this.#timer = null;
+    this.#dirty = false;
+    while (this.#saving) await this.#saving;
+    this.#dirty = false;
+    try {
+      await classTrash(this.current.path);
+    } catch (e) {
+      editor.notice = String(e);
+      return false;
+    }
+    this.current = null;
+    this.unsaved = false;
+    writePref("lastClass", null);
+    await this.refresh();
+    return true;
   }
 
   update(fn: (c: Class) => Class) {

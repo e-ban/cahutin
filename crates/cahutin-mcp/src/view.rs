@@ -116,6 +116,7 @@ fn shape_name(k: ShapeKind) -> &'static str {
         ShapeKind::Heart => "heart",
         ShapeKind::Bubble => "bubble",
         ShapeKind::Cloud => "cloud",
+        ShapeKind::Path => "path",
     }
 }
 
@@ -141,6 +142,9 @@ mod tests {
             locked: false,
             zone: false,
             group: None,
+            subgroups: Vec::new(),
+            flip_h: false,
+            flip_v: false,
             kind: ElementKind::Text(TextProps {
                 content: RichText::plain("Léa est venue avec Mathis"),
                 style: TextStyle::default_zone(),
@@ -154,6 +158,9 @@ mod tests {
             locked: false,
             zone: true,
             group: None,
+            subgroups: Vec::new(),
+            flip_h: false,
+            flip_v: false,
             kind: ElementKind::Photo(PhotoProps { asset: Some("piege-asset-id".into()), crop: Crop::COVER, corner_radius_mm: 3.0, border: None, shadow: false, mirrored: false }),
         });
         doc.pending_photos.push("/home/maitresse/Photos/Léa.jpg".into());

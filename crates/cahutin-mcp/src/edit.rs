@@ -132,6 +132,9 @@ mod tests {
                 locked,
                 zone: false,
                 group: None,
+                subgroups: Vec::new(),
+                flip_h: false,
+                flip_v: false,
                 kind: ElementKind::Text(TextProps { content: RichText::plain("x"), style: TextStyle::default_zone(), prompt: None, frame: None }),
             });
         }

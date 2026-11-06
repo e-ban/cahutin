@@ -64,6 +64,9 @@ mod tests {
             locked: false,
             zone: true,
             group: None,
+            subgroups: Vec::new(),
+            flip_h: false,
+            flip_v: false,
             kind: ElementKind::Photo(PhotoProps { asset: Some(asset.meta.id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false }),
         });
         doc.assets.insert(asset.meta.id.clone(), asset.meta.clone());

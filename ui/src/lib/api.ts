@@ -136,3 +136,4 @@ export function assistantSend(request: AssistantRequest, onEvent: (e: AssistantE
   return invoke<void>("assistant_send", { request, onEvent: channel });
 }
 export const assistantStop = () => invoke<void>("assistant_stop");
+export const assistantReport = (path: string, request: string, reply: string, steps: string[]) => invoke<void>("assistant_report", { path, request, reply, steps });

@@ -156,6 +156,7 @@ pub fn run() {
             assistant::assistant_test,
             assistant::assistant_send,
             assistant::assistant_stop,
+            assistant::assistant_report,
             commands::list_templates,
             commands::instantiate_template,
             commands::save_page_as_template,

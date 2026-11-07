@@ -76,6 +76,17 @@
     }
   }
 
+  /** Efface la clé enregistrée ; sans elle, l'assistant se désactive. */
+  async function forgetKey() {
+    try {
+      assistant.settings = await assistantConfigure(false, url, model, "");
+      assistant.turnedOff();
+      status = { ok: true, text: t.prefsKeyForgotten };
+    } catch (e) {
+      status = { ok: false, text: String(e) };
+    }
+  }
+
   function toggle(on: boolean) {
     wanted = on;
     status = null;
@@ -121,6 +132,7 @@
         <input type="password" bind:value={key} autocomplete="off" />
         {#if keySaved}<small>{t.prefsKeySaved}</small>{/if}
       </label>
+      {#if keySaved}<button class="forget" onclick={forgetKey} disabled={working}>{t.prefsForgetKey}</button>{/if}
     {/if}
     {#if service !== "other"}
       <details class="advanced">
@@ -181,6 +193,9 @@
   .field select {
     width: 100%;
     box-sizing: border-box;
+  }
+  .forget {
+    align-self: flex-start;
   }
   .advanced summary {
     cursor: pointer;

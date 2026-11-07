@@ -8,6 +8,7 @@ const sent: AssistantRequest[] = [];
 let late = false;
 const saved: { name: string; keep?: string[] }[] = [];
 const written: Document[] = [];
+const reports: unknown[][] = [];
 /** Le dernier envoi : pour finir à la main une demande restée en cours. */
 let emit: (e: AssistantEvent) => void = () => {};
 
@@ -20,6 +21,7 @@ vi.mock("./api", () => ({
     else for (const e of events) onEvent(e);
   },
   assistantStop: async () => {},
+  assistantReport: async (...args: unknown[]) => void reports.push(args),
   assistantSettings: async () => ({ enabled: true, url: "http://localhost:11434/v1", model: "qwen3:4b", has_key: false }),
   savePageAsTemplate: async (name: string, _page: unknown, keep?: string[]) => void saved.push({ name, keep }),
   listTemplates: async () => [],
@@ -32,6 +34,7 @@ const { editor } = await import("./docStore.svelte");
 const { modal } = await import("./modal.svelte");
 const { newDocument } = await import("./factory");
 const { fr } = await import("./i18n/fr");
+const dialog = await import("@tauri-apps/plugin-dialog");
 
 const titled = (d: Document, title: string): Document => ({ ...d, title });
 
@@ -46,7 +49,7 @@ const done = (reply = "C'est fait.", error: string | null = null, history: unkno
 });
 
 beforeEach(() => {
-  script.length = sent.length = saved.length = written.length = 0;
+  script.length = sent.length = saved.length = written.length = reports.length = 0;
   late = false;
   editor.reset(newDocument(), null);
   assistant.clear();
@@ -313,4 +316,22 @@ test("saving the page as a template settles the proposal first", async () => {
   modal.answer("cancel");
   await saving;
   expect(saved).toEqual([]);
+});
+
+test("a reply is reported with its request, in a text file", async () => {
+  script.push((r) => [step(titled(r.document, "A")), done("Voilà un titre.")]);
+  await assistant.send("Mets un titre");
+  vi.mocked(dialog.save).mockResolvedValueOnce("/tmp/signalement");
+  const reply = assistant.thread.at(-1)!;
+  await assistant.report(reply);
+  expect(reports).toEqual([["/tmp/signalement.txt", "Mets un titre", "Voilà un titre.", ["Texte : déplacé"]]]);
+  expect(editor.notice).toContain("signalement.txt");
+});
+
+test("a report cancelled in the dialog writes nothing", async () => {
+  script.push(() => [done("Voilà.")]);
+  await assistant.send("x");
+  vi.mocked(dialog.save).mockResolvedValueOnce(null);
+  await assistant.report(assistant.thread.at(-1)!);
+  expect(reports).toEqual([]);
 });

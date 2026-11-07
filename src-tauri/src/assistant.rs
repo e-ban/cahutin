@@ -45,6 +45,9 @@ pub fn view(s: &Settings) -> AssistantSettings {
 
 /// `api_key` : `None` garde la clé enregistrée (pour la même adresse seulement), `Some("")` l'efface.
 pub fn configure(dir: &Path, enabled: bool, url: String, model: String, api_key: Option<String>) -> Result<AssistantSettings, String> {
+    if enabled {
+        check_url(&url)?;
+    }
     let mut s = load(dir);
     // Une autre adresse ne reçoit jamais la clé enregistrée pour la précédente : il faut la taper.
     if api_key.is_none() && s.url.trim_end_matches('/') != url.trim().trim_end_matches('/') {
@@ -60,6 +63,34 @@ pub fn configure(dir: &Path, enabled: bool, url: String, model: String, api_key:
     let text = serde_json::to_string_pretty(&s).map_err(|e| e.to_string())?;
     std::fs::write(dir.join(FILE), text).map_err(|_| "Les réglages ne peuvent pas être enregistrés.".to_string())?;
     Ok(view(&s))
+}
+
+/// L'hôte d'une adresse `http(s)://hôte[:port]/…`, en minuscules ; rien pour une autre adresse.
+fn host_of(url: &str) -> Option<(bool, String)> {
+    let url = url.trim().to_lowercase();
+    let (secure, rest) = if let Some(r) = url.strip_prefix("https://") { (true, r.to_string()) } else { (false, url.strip_prefix("http://")?.to_string()) };
+    let authority = rest.split('/').next().unwrap_or("");
+    let host = if authority.starts_with('[') { authority.split(']').next().map(|h| format!("{h}]")).unwrap_or_default() } else { authority.split(':').next().unwrap_or("").to_string() };
+    (!host.is_empty()).then_some((secure, host))
+}
+
+/// Ce qui sort de l'ordinateur part chiffré : `https://`, ou `http://` vers cet ordinateur seulement.
+pub fn check_url(url: &str) -> Result<(), String> {
+    match host_of(url) {
+        Some((true, _)) => Ok(()),
+        Some((false, h)) if ["localhost", "127.0.0.1", "[::1]"].contains(&h.as_str()) => Ok(()),
+        _ => Err("Cette adresse n'est pas chiffrée : seule une adresse qui commence par https:// est acceptée, sauf pour un service sur cet ordinateur (localhost).".into()),
+    }
+}
+
+/// Le signalement d'une réponse, à envoyer à l'auteur : la demande, la réponse et ses étapes, le service
+/// (son seul nom d'hôte) et le modèle ; jamais la clé.
+pub fn report_text(version: &str, date: &str, url: &str, model: &str, request: &str, reply: &str, steps: &[String]) -> String {
+    let host = host_of(url).map(|(_, h)| h).unwrap_or_default();
+    let steps: String = steps.iter().map(|s| format!("- {s}\n")).collect();
+    format!(
+        "Signalement d'une réponse de l'assistant de Cahutin\n\nCahutin {version}, le {date}\nService : {host}, modèle {model}\n\nDemande :\n{request}\n\nRéponse :\n{reply}\n\nÉtapes :\n{steps}"
+    )
 }
 
 pub fn endpoint(url: &str) -> String {
@@ -161,6 +192,7 @@ pub fn assistant_configure(app: AppHandle, enabled: bool, url: String, model: St
 #[tauri::command(async)]
 pub fn assistant_test(app: AppHandle, url: String, model: String, api_key: Option<String>) -> Result<(), String> {
     let saved = load(&config_dir(&app)?);
+    check_url(&url)?;
     let api_key = key_for(&saved, &url, api_key);
     let s = Settings { enabled: true, url, model, api_key };
     test_connection(&s)
@@ -173,6 +205,7 @@ pub fn assistant_send(app: AppHandle, state: State<'_, AppState>, request: Reque
     if !s.enabled {
         return Err("L'assistant est désactivé.".into());
     }
+    check_url(&s.url)?;
     state.assistant_cancel.store(false, Ordering::SeqCst);
     log::info!("assistant_request");
     let cancel = &state.assistant_cancel;
@@ -188,6 +221,16 @@ pub fn assistant_send(app: AppHandle, state: State<'_, AppState>, request: Reque
         cancel,
     );
     Ok(())
+}
+
+/// Enregistre le signalement d'une réponse dans `path`, pour que l'enseignant l'envoie à l'auteur.
+#[tauri::command]
+pub fn assistant_report(app: AppHandle, path: String, request: String, reply: String, steps: Vec<String>) -> Result<(), String> {
+    let s = load(&config_dir(&app)?);
+    let now = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+    let date = now.format(&time::format_description::parse_borrowed::<2>("[year]-[month]-[day] [hour]:[minute]").unwrap()).unwrap_or_default();
+    let text = report_text(env!("CARGO_PKG_VERSION"), &date, &s.url, &s.model, &request, &reply, &steps);
+    std::fs::write(&path, text).map_err(|_| "Impossible d'écrire le signalement.".to_string())
 }
 
 #[tauri::command]
@@ -217,9 +260,9 @@ mod tests {
         // Sans clé donnée, la clé reste ; une clé vide l'efface.
         configure(dir.path(), false, "http://localhost:11434/v1".into(), "qwen3:4b".into(), None).unwrap();
         assert_eq!(load(dir.path()).api_key, "secret");
-        let v = configure(dir.path(), true, "http://x/v1".into(), "m".into(), Some(String::new())).unwrap();
+        let v = configure(dir.path(), true, "https://x/v1".into(), "m".into(), Some(String::new())).unwrap();
         assert!(!v.has_key);
-        assert_eq!(view(&load(dir.path())).url, "http://x/v1");
+        assert_eq!(view(&load(dir.path())).url, "https://x/v1");
     }
 
     #[test]
@@ -289,5 +332,31 @@ mod tests {
     fn a_local_model_can_call_tools() {
         let s = Settings { enabled: true, url: "http://localhost:11434/v1".into(), model: "qwen3:4b".into(), api_key: String::new() };
         test_connection(&s).unwrap();
+    }
+
+    #[test]
+    fn only_an_encrypted_address_leaves_the_computer() {
+        for ok in ["https://api.openai.com/v1", "http://localhost:11434/v1", "http://127.0.0.1:8080/v1", "http://[::1]:11434/v1", " HTTP://LOCALHOST/v1 "] {
+            assert_eq!(check_url(ok), Ok(()), "{ok}");
+        }
+        for bad in ["http://192.168.1.20:11434/v1", "http://exemple.fr/v1", "http://localhost.exemple.fr/v1", "ftp://exemple.fr", "exemple.fr/v1", ""] {
+            assert!(check_url(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn an_unencrypted_address_is_never_saved_switched_on() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(configure(dir.path(), true, "http://exemple.fr/v1".into(), "m".into(), Some("secret".into())).is_err());
+        assert_eq!(load(dir.path()).api_key, "");
+    }
+
+    #[test]
+    fn a_report_names_the_service_but_never_the_key() {
+        let text = report_text("0.13.0", "2026-11-07 22:00", "https://api.openai.com/v1", "gpt-6-luna", "Mets un titre", "Voilà un titre.", &["Texte ajouté".into()]);
+        for part in ["0.13.0", "2026-11-07 22:00", "api.openai.com", "gpt-6-luna", "Mets un titre", "Voilà un titre.", "Texte ajouté"] {
+            assert!(text.contains(part), "{part}");
+        }
+        assert!(!text.contains("/v1"));
     }
 }

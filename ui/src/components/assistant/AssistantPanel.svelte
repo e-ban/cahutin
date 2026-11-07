@@ -60,6 +60,8 @@
           {/if}
           {#if entry.outcome === "accepted"}<small class="outcome ok">✔ {t.accepted}</small>{/if}
           {#if entry.outcome === "refused"}<small class="outcome">✖ {t.refused}</small>{/if}
+          <!-- Une réponse déplacée se signale à l'auteur (règles du Microsoft Store sur l'IA générative). -->
+          <button class="ghost report" title={t.reportHint} onclick={() => void assistant.report(entry)}>⚑ {t.report}</button>
         </div>
       {/if}
     {/each}
@@ -181,6 +183,12 @@
   }
   .outcome.ok {
     color: #2e7d32;
+  }
+  .report {
+    display: block;
+    margin: 4px 0 0 auto;
+    font-size: 12px;
+    color: var(--muted);
   }
   .error {
     color: #c62828;

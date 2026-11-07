@@ -2,6 +2,7 @@
 // sur la page au fur et à mesure (editor.showProposal) ; rien n'entre dans l'historique avant « Accepter ».
 import * as api from "./api";
 import { editor } from "./docStore.svelte";
+import { fr } from "./i18n/fr";
 import { modal } from "./modal.svelte";
 import { templates } from "./templates.svelte";
 import type { AssistantDone, AssistantSettings, AssistantStep, Document, Element } from "./types";
@@ -171,12 +172,17 @@ class Assistant {
   #edit: Document | null = null;
 
   /** Une modification à la main pendant la proposition : la question d'abord. Gardée, la modification s'applique
-   *  par-dessus, si elle partait bien de la proposition entière (ni pendant le travail, ni sur une étape). */
+   *  par-dessus, si elle partait bien de la proposition entière (pas d'une étape regardée). */
   async editDuring(next: Document) {
+    // Pendant le travail, un clic n'arrête pas une demande qui peut durer des minutes : il attend.
+    if (this.busy) {
+      editor.notice = fr.assistant.waitWorking;
+      return;
+    }
     const asking = this.#edit !== null;
     this.#edit = next;
     if (asking) return;
-    const onTop = !this.busy && !this.viewing;
+    const onTop = !this.viewing;
     const choice = await this.#ask();
     const edit = this.#edit;
     this.#edit = null;

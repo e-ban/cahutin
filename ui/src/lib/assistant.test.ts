@@ -8,9 +8,12 @@ const sent: AssistantRequest[] = [];
 let late = false;
 const saved: { name: string; keep?: string[] }[] = [];
 const written: Document[] = [];
+/** Le dernier envoi : pour finir à la main une demande restée en cours. */
+let emit: (e: AssistantEvent) => void = () => {};
 
 vi.mock("./api", () => ({
   assistantSend: async (request: AssistantRequest, onEvent: (e: AssistantEvent) => void) => {
+    emit = onEvent;
     sent.push(request);
     const events = script.shift()?.(request) ?? [];
     if (late) setTimeout(() => events.forEach(onEvent), 20);
@@ -28,6 +31,7 @@ const { assistant } = await import("./assistant.svelte");
 const { editor } = await import("./docStore.svelte");
 const { modal } = await import("./modal.svelte");
 const { newDocument } = await import("./factory");
+const { fr } = await import("./i18n/fr");
 
 const titled = (d: Document, title: string): Document => ({ ...d, title });
 
@@ -110,6 +114,21 @@ test("a manual edit during a proposal asks first; kept, the edit applies on top,
   expect(editor.doc.title).toBe("A");
   editor.undo();
   expect(editor.doc).toBe(base);
+});
+
+test("a manual edit while the assistant works neither stops it nor asks: a message says to wait", async () => {
+  script.push((r) => [step(titled(r.document, "A"))]);
+  const sending = assistant.send("x");
+  await Promise.resolve();
+  expect([assistant.busy, editor.proposing]).toEqual([true, true]);
+  modal.message = null;
+  editor.commit(titled(editor.doc, "à la main"));
+  await Promise.resolve();
+  expect([assistant.stopping, modal.message]).toEqual([false, null]);
+  expect(editor.notice).toBe(fr.assistant.waitWorking);
+  emit(done());
+  await sending;
+  expect(editor.doc.title).toBe("A");
 });
 
 test("a manual edit during a proposal: not kept, the page goes back and the edit is dropped; cancel keeps it", async () => {

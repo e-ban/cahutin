@@ -45,7 +45,8 @@ export async function completeTypedText(id: string, before: RichText, after: Ric
 
 /** La classe choisie ou complétée : les champs de la classe qui attendent dans le document s'écrivent. */
 export async function fillWaitingClassFields(cls: Class) {
-  if (editor.templateMode) return;
+  // Pendant une proposition de l'assistant, le document affiché est le sien : rien ne s'écrit.
+  if (editor.templateMode || editor.proposing) return;
   const doc = editor.doc;
   const pages = await fillClassFields(doc.pages, cls, fillAutoFields);
   // Le document a changé pendant le calcul : on ne l'écrase pas.

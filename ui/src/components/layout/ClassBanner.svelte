@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Une page qui attend des prénoms (modèles Étiquettes, {prénom}) : on propose de la remplir avec la classe,
+  // Une page qui attend des prénoms (modèles Étiquettes, {prenom}) : on propose de la remplir avec la classe,
   // là où le besoin apparaît. Sans classe (ou classe vide), le bandeau ouvre la page « Ma classe ».
   import { classes } from "../../lib/classStore.svelte";
   import { editor } from "../../lib/docStore.svelte";

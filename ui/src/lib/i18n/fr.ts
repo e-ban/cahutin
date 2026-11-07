@@ -82,7 +82,7 @@ export const fr = {
     "« Ajouter les photos… » prend toutes les photos d'un coup, chacune pour l'enfant dont elle porte le prénom (Léa.jpg). Cochez « autorisée » pour les enfants dont les parents ont donné leur accord ; sans elle, c'est leur symbole qui remplace la photo, et « Flouter » cache leur visage sur les photos de groupe.",
   classIntro3Title: "Remplissez vos pages :",
   classIntro3:
-    "sur une page qui attend des prénoms (modèles Étiquettes, ou le bouton « Prénom » pendant l'écriture), le bandeau bleu propose de la remplir avec votre classe. Le tiroir Classe, à côté du document, le propose aussi.",
+    "sur une page qui attend des prénoms (modèles Étiquettes, ou un champ posé depuis le tiroir Texte, « Champs de la classe »), le bandeau bleu propose de la remplir avec votre classe. Le tiroir Classe, à côté du document, le propose aussi.",
   classIntroOk: "J'ai compris",
   classIntroAgain: "Comment ça marche ?",
   classPageBack: "Retour",

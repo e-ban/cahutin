@@ -6,6 +6,7 @@
     { id: "templates", icon: "▦", label: fr.templates },
     { id: "images", icon: "🖼", label: fr.images },
     { id: "text", icon: "T", label: fr.text },
+    { id: "fields", icon: "{ }", label: fr.fieldsTab },
     { id: "shapes", icon: "◯", label: fr.shapes },
     { id: "fonts", icon: "Aa", label: fr.fonts },
     { id: "decor", icon: "✿", label: fr.decor },
@@ -14,6 +15,7 @@
   const template: { id: DrawerId; icon: string; label: string }[] = [
     { id: "grid", icon: "▦", label: fr.grid },
     { id: "text", icon: "T", label: fr.text },
+    { id: "fields", icon: "{ }", label: fr.fieldsTab },
     { id: "shapes", icon: "◯", label: fr.shapes },
     { id: "images", icon: "🖼", label: fr.images },
     { id: "decor", icon: "✿", label: fr.decor },

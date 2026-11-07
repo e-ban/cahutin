@@ -14,8 +14,8 @@ use ts_rs::TS;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
-/// Version la plus récente du fichier de classe que cette application sait lire.
-pub const CLASS_FORMAT_VERSION: u32 = 1;
+/// Version la plus récente du fichier de classe que cette application sait lire (2 : école et enseignant).
+pub const CLASS_FORMAT_VERSION: u32 = 2;
 pub const CLASS_EXTENSION: &str = "cahutin-classe";
 const CLASS_ENTRY: &str = "classe.json";
 
@@ -134,11 +134,17 @@ pub struct Class {
     pub students: Vec<Student>,
     /// Photos portraits des élèves.
     pub photos: BTreeMap<Id, AssetMeta>,
+    /// Nom de l'école et de l'enseignant(e), pour les champs {ecole} et {enseignant} ; vides par défaut (et dans
+    /// une classe de la version 1).
+    #[serde(default)]
+    pub school: String,
+    #[serde(default)]
+    pub teacher: String,
 }
 
 impl Class {
     pub fn new(name: &str, year: &str) -> Class {
-        Class { format_version: CLASS_FORMAT_VERSION, name: name.into(), year: year.into(), students: Vec::new(), photos: BTreeMap::new() }
+        Class { format_version: CLASS_FORMAT_VERSION, name: name.into(), year: year.into(), students: Vec::new(), photos: BTreeMap::new(), school: String::new(), teacher: String::new() }
     }
 }
 
@@ -468,8 +474,18 @@ mod tests {
 
     #[test]
     fn newer_class_file_is_refused() {
-        let json = serde_json::to_string(&Class { format_version: 2, ..Class::new("MS", "2026-2027") }).unwrap();
-        assert_eq!(load(zip_with(&json)).err(), Some(NativeError::NewerVersion(2)));
+        let json = serde_json::to_string(&Class { format_version: 3, ..Class::new("MS", "2026-2027") }).unwrap();
+        assert_eq!(load(zip_with(&json)).err(), Some(NativeError::NewerVersion(3)));
+    }
+
+    #[test]
+    fn an_old_class_opens_with_empty_school_and_teacher() {
+        let json = r#"{"format_version":1,"name":"MS","year":"2026-2027","students":[],"photos":{}}"#;
+        let c = load(zip_with(json)).unwrap().class;
+        assert_eq!((c.school.as_str(), c.teacher.as_str()), ("", ""));
+        let c = Class { school: "École Jules Ferry".into(), teacher: "Mme Durand".into(), ..c };
+        let info = crate::fields::ClassInfo::of(&c);
+        assert_eq!((info.school.as_str(), info.teacher.as_str()), ("École Jules Ferry", "Mme Durand"));
     }
 
     #[test]

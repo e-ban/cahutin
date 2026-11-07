@@ -5,6 +5,7 @@
 use crate::commands::ImportedPages;
 use crate::state::AppState;
 use carnet_core::class::{self, CLASS_EXTENSION, Class, Student};
+use carnet_core::fields;
 use carnet_core::fill::{self, FillMode};
 use carnet_core::import::ImportReport;
 use carnet_core::photo::{self, AssetStore};
@@ -115,17 +116,21 @@ pub fn trash_in(dir: &Path, path: &Path) -> Result<(), String> {
 
 /// Pages pour les élèves, avec les photos qu'elles utilisent.
 /// `class_photos` : toutes les photos de la classe, pour reconnaître une page déjà remplie.
-pub fn generate_with(page: &Page, students: &[Student], mode: FillMode, class_photos: &[String], store: &AssetStore) -> Result<ImportedPages, String> {
+/// `class` : la classe choisie, pour les champs de la classe ({ecole}…) restés à remplir ; les champs de la
+/// date encore là prennent la date du jour.
+pub fn generate_with(page: &Page, students: &[Student], mode: FillMode, class_photos: &[String], store: &AssetStore, class: Option<&Class>) -> Result<ImportedPages, String> {
     if fill::already_filled(page, class_photos) {
         return Err("Cette page a déjà été remplie pour un élève : partez de la page modèle, avec ses zones vides.".into());
     }
     if !fill::has_fields(page) {
-        return Err("Cette page n'a ni zone Prénom, ni {prénom}, ni zone photo à remplir.".into());
+        return Err("Cette page n'a aucun champ à remplir ({prenom}, case photo vide) : partez de la page modèle.".into());
     }
     if students.is_empty() {
         return Err("Aucun élève ne correspond.".into());
     }
-    let pages = fill::generate(page, students, mode);
+    let mut page = page.clone();
+    fields::fill_auto(&mut page, Some(class::today()), class.map(fields::ClassInfo::of).as_ref());
+    let pages = fill::generate(&page, students, mode);
     let mut assets: Vec<AssetMeta> = Vec::new();
     for e in pages.iter().flat_map(|p| &p.elements) {
         if let ElementKind::Photo(ph) = &e.kind
@@ -214,10 +219,37 @@ pub fn class_read_list(path: String) -> Result<Vec<Student>, String> {
 }
 
 #[tauri::command]
-pub fn class_generate(state: State<'_, AppState>, page: Page, students: Vec<Student>, mode: FillMode, class_photos: Vec<String>) -> Result<ImportedPages, String> {
-    let out = generate_with(&page, &students, mode, &class_photos, &state.store.lock().unwrap())?;
+pub fn class_generate(state: State<'_, AppState>, page: Page, students: Vec<Student>, mode: FillMode, class_photos: Vec<String>, class: Option<Class>) -> Result<ImportedPages, String> {
+    let out = generate_with(&page, &students, mode, &class_photos, &state.store.lock().unwrap(), class.as_ref())?;
     log::info!("class_generate students={} pages={} photos={}", students.len(), out.pages.len(), out.assets.len());
     Ok(out)
+}
+
+/// Écrit les champs de la date et de la classe d'une page (à sa création depuis un modèle, ou à la pose d'un
+/// champ) : `date` en « 2026-11-09 », `class` la classe choisie. Les champs d'élève restent.
+#[tauri::command]
+pub fn fill_auto_fields(mut page: Page, date: Option<String>, class: Option<Class>) -> Result<Page, String> {
+    // Un 31 février ou un 31 avril n'existe pas (`ymd` n'accepte que les jours 1 à 31).
+    let real = |(y, m, d): (i32, u32, u32)| {
+        let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+        let days = [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m as usize - 1];
+        d <= days
+    };
+    let date = match date {
+        Some(d) => Some(class::ymd(&d).filter(|&x| real(x)).ok_or("Cette date n'existe pas.")?),
+        None => None,
+    };
+    fields::fill_auto(&mut page, date, class.as_ref().map(fields::ClassInfo::of).as_ref());
+    Ok(page)
+}
+
+/// Chaque champ de la date puis de la classe, avec ce qu'il donne aujourd'hui (vide sans classe), pour la liste
+/// des champs.
+#[tauri::command]
+pub fn auto_field_examples(class: Option<Class>) -> Vec<(String, String)> {
+    let info = class.as_ref().map(fields::ClassInfo::of);
+    let today = class::today();
+    fields::DATE_KEYS.iter().chain(&fields::CLASS_KEYS).map(|k| (k.to_string(), fields::auto_value(k, today, info.as_ref()).unwrap_or_default())).collect()
 }
 
 #[cfg(test)]
@@ -232,9 +264,9 @@ mod tests {
             id: new_id(),
             frame: f,
             locked: false,
-            zone: true,
+            zone: false,
             group: None,
-            kind: ElementKind::Text(TextProps { content: RichText::default(), style: TextStyle::default_zone(), prompt: Some("Prénom".into()), frame: None }),
+            kind: ElementKind::Text(TextProps { content: RichText::plain("{prenom}"), style: TextStyle::default_zone(), prompt: None, frame: None }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
         });
@@ -301,10 +333,10 @@ mod tests {
         let mut s = Student::new("Léa", "");
         s.photo = Some(asset.meta.id.clone());
         let page = page_with_name_zone();
-        let out = generate_with(&page, std::slice::from_ref(&s), FillMode::PagePerStudent, &[], &store).unwrap();
+        let out = generate_with(&page, std::slice::from_ref(&s), FillMode::PagePerStudent, &[], &store, None).unwrap();
         assert!(out.assets.is_empty());
         s.photo_allowed = true;
-        let out = generate_with(&page, &[s], FillMode::PagePerStudent, &[], &store).unwrap();
+        let out = generate_with(&page, &[s], FillMode::PagePerStudent, &[], &store, None).unwrap();
         assert_eq!(out.assets, vec![asset.meta]);
     }
 
@@ -312,8 +344,8 @@ mod tests {
     fn a_page_already_filled_is_refused() {
         let store = AssetStore::default();
         let lea = Student::new("Léa", "");
-        let out = generate_with(&page_with_name_zone(), std::slice::from_ref(&lea), FillMode::PagePerStudent, &[], &store).unwrap();
-        let err = generate_with(&out.pages[0], &[lea], FillMode::PagePerStudent, &[], &store).err().unwrap();
+        let out = generate_with(&page_with_name_zone(), std::slice::from_ref(&lea), FillMode::PagePerStudent, &[], &store, None).unwrap();
+        let err = generate_with(&out.pages[0], &[lea], FillMode::PagePerStudent, &[], &store, None).err().unwrap();
         assert!(err.contains("page modèle"), "{err}");
     }
 
@@ -335,11 +367,53 @@ mod tests {
         assert_eq!(plan_for(&page_with_name_zone()).mode, FillMode::PagePerStudent);
     }
 
+    fn text_page(content: &str) -> Page {
+        let mut p = Page::new(A4_PORTRAIT);
+        p.elements.push(Element {
+            id: new_id(),
+            frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 80.0, h_mm: 20.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Text(TextProps { content: RichText::plain(content), style: TextStyle::default_zone(), prompt: None, frame: None }),
+            subgroups: Vec::new(),
+            flip_h: false,
+            flip_v: false,
+        });
+        p
+    }
+
+    fn words(p: &Page) -> String {
+        match &p.elements[0].kind {
+            ElementKind::Text(t) => t.content.paragraphs.iter().flat_map(|p| &p.runs).map(|r| r.text.clone()).collect(),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn auto_fields_fill_with_a_date_and_a_class() {
+        let cls = Class { school: "École Jules Ferry".into(), ..Class::new("Les Loups", "2026-2027") };
+        let out = fill_auto_fields(text_page("{annee} {classe} {ecole} {prenom}"), Some("2026-11-09".into()), Some(cls)).unwrap();
+        assert_eq!(words(&out), "2026 Les Loups École Jules Ferry {prenom}");
+        assert!(fill_auto_fields(text_page("{date}"), Some("2026-02-31".into()), None).unwrap_err().contains("date"));
+        let ex = auto_field_examples(None);
+        assert_eq!(ex.len(), 14);
+        assert_eq!(ex.iter().find(|(k, _)| k == "classe").unwrap().1, "");
+    }
+
+    #[test]
+    fn filling_with_the_class_writes_what_is_left() {
+        let (y, m, _) = carnet_core::class::today();
+        let year = if m >= 9 { format!("{y}-{}", y + 1) } else { format!("{}-{y}", y - 1) };
+        let out = generate_with(&text_page("{prenom} {annee_scolaire}"), &[Student::new("Léa", "")], FillMode::PagePerStudent, &[], &AssetStore::default(), None).unwrap();
+        assert_eq!(words(&out.pages[0]), format!("Léa {year}"));
+    }
+
     #[test]
     fn generate_explains_what_is_missing() {
         let store = AssetStore::default();
-        assert_eq!(generate_with(&page_with_name_zone(), &[], FillMode::Sheet, &[], &store).err().unwrap(), "Aucun élève ne correspond.");
+        assert_eq!(generate_with(&page_with_name_zone(), &[], FillMode::Sheet, &[], &store, None).err().unwrap(), "Aucun élève ne correspond.");
         let blank = Page::new(A4_PORTRAIT);
-        assert!(generate_with(&blank, &[Student::new("Léa", "")], FillMode::Sheet, &[], &store).err().unwrap().contains("ni zone Prénom"));
+        assert!(generate_with(&blank, &[Student::new("Léa", "")], FillMode::Sheet, &[], &store, None).err().unwrap().contains("aucun champ à remplir"));
     }
 }

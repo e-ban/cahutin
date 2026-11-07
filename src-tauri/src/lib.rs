@@ -98,6 +98,8 @@ pub fn run() {
             class_commands::class_read_list,
             class_commands::class_plan,
             class_commands::class_generate,
+            class_commands::fill_auto_fields,
+            class_commands::auto_field_examples,
             images_commands::my_images_list,
             images_commands::my_images_add,
             images_commands::my_images_remove,

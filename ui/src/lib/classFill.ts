@@ -1,26 +1,19 @@
 // Ce que l'interface doit savoir de la classe sur la page courante : y a-t-il des prénoms à remplir, et
 // quelle photo va à quel enfant d'après le nom de son fichier.
+import { isMonthField, isStudentField, splitFields } from "./classFields";
 import { normalize } from "./fontSearch";
 import { displayNames } from "./phototheque";
 import type { Element, Page, Student } from "./types";
 
-const NAME_PROMPTS = ["Prénom", "PRÉNOM", "Nom"];
-const NAME_MARKERS = ["{prénom}", "{PRÉNOM}", "{nom}"];
+/** Un texte avec un champ d'élève, ou de toute la classe ({anniversaires_mars}) ; pas la date ni l'école, qui
+ *  s'écrivent à la création de la page. */
+const hasField = (e: Element) =>
+  e.kind.type === "Text" &&
+  e.kind.content.paragraphs.some((p) => p.runs.some((r) => splitFields(r.text).some((x) => "field" in x && (isStudentField(x.field) || isMonthField(x.field)))));
 
-const isNameZone = (e: Element) => e.zone && e.kind.type === "Text" && (NAME_PROMPTS.includes(e.kind.prompt ?? "") || /^lettre \d+$/i.test(e.kind.prompt ?? ""));
-// {anniversaires mars} : la liste des enfants nés en mars, sur une affiche pour toute la classe.
-const hasNameMarker = (e: Element) =>
-  e.kind.type === "Text" && e.kind.content.paragraphs.some((p) => p.runs.some((r) => NAME_MARKERS.some((m) => r.text.includes(m)) || r.text.includes("{anniversaires ")));
-const written = (e: Element) => e.kind.type === "Text" && e.kind.content.paragraphs.some((p) => p.runs.some((r) => r.text.trim() !== ""));
-
-/** La page attend des prénoms : une zone « Prénom » (ou « Nom ») ou le mot {prénom}. */
+/** La page attend la classe : un texte y contient un champ ({prenom}, {age}…). Remplie, elle n'en a plus. */
 export function hasNameFields(page: Page): boolean {
-  return page.elements.some((e) => isNameZone(e) || hasNameMarker(e));
-}
-
-/** Une zone « Prénom » est déjà écrite : la page a été remplie (ou commencée à la main). */
-export function nameFieldsFilled(page: Page): boolean {
-  return page.elements.some((e) => isNameZone(e) && written(e));
+  return page.elements.some(hasField);
 }
 
 /** Nom du fichier sans dossier ni extension, en mots sans accents ni capitales (« lea_durand.JPG » → « lea durand »). */

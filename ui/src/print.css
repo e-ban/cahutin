@@ -56,6 +56,14 @@
   .print-page .page {
     box-shadow: none !important;
   }
+  /* Un champ non rempli s'imprime vide (une feuille où l'enfant écrit son prénom), à la place qu'il prend à l'écran. */
+  .print-root .class-field {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: none;
+    visibility: hidden;
+  }
   .print-root .zone-empty,
   .print-root .badge {
     display: none !important;

@@ -3,8 +3,9 @@
   import "./print.css";
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import Modal from "./components/Modal.svelte";
+  import DateDialog from "./components/DateDialog.svelte";
   import PrintRoot from "./components/PrintRoot.svelte";
   import { cancelFileImport, confirmLeave, exportOdg, exportPdf, importPaths, openPath, save } from "./lib/fileActions";
   import { fr } from "./lib/i18n/fr";
@@ -21,13 +22,14 @@
   import GridDragMerge from "./components/GridDragMerge.svelte";
   import TemplateBanner from "./components/layout/TemplateBanner.svelte";
   import ClassBanner from "./components/layout/ClassBanner.svelte";
-  import { hasNameFields, nameFieldsFilled } from "./lib/classFill";
+  import { hasNameFields } from "./lib/classFill";
   import GridDrawer from "./components/drawers/GridDrawer.svelte";
   import DecorDrawer from "./components/drawers/DecorDrawer.svelte";
   import ClassDrawer from "./components/drawers/ClassDrawer.svelte";
   import GenerateDialog from "./components/GenerateDialog.svelte";
   import FaceBlurDialog from "./components/FaceBlurDialog.svelte";
   import { classes } from "./lib/classStore.svelte";
+  import { completeTypedText, fillWaitingClassFields } from "./lib/fieldPlacing.svelte";
   import About from "./components/layout/About.svelte";
   import Preferences from "./components/layout/Preferences.svelte";
   import BackgroundPanel from "./components/BackgroundPanel.svelte";
@@ -55,6 +57,7 @@
   import ShapesDrawer from "./components/drawers/ShapesDrawer.svelte";
   import TemplatesDrawer from "./components/drawers/TemplatesDrawer.svelte";
   import TextDrawer from "./components/drawers/TextDrawer.svelte";
+  import FieldsDrawer from "./components/drawers/FieldsDrawer.svelte";
   import { editor } from "./lib/docStore.svelte";
   import { fonts } from "./lib/fonts.svelte";
   import { addPhotoAt } from "./lib/editActions";
@@ -236,8 +239,16 @@
     const e = editor.page.elements.find((x) => x.id === id);
     if (!e || e.kind.type !== "Text") return;
     if (JSON.stringify(e.kind.content) === JSON.stringify(content)) return;
+    const before = e.kind.content;
     editor.updateElement(id, (el) => (el.kind.type === "Text" ? { ...el, kind: { ...el.kind, content } } : el));
+    void completeTypedText(id, before, content);
   }
+
+  // Une classe choisie ou complétée (son école…) écrit les champs de la classe qui l'attendaient.
+  $effect(() => {
+    const cls = classes.current?.class;
+    if (cls) untrack(() => void fillWaitingClassFields(cls));
+  });
 
   // Un clic sélectionne tout le groupe de l'élément ; l'élément modifié seul (double-clic) reste seul.
   function select(id: string | null, add: boolean) {
@@ -292,11 +303,12 @@
 <!-- Pendant la visite ou le panneau Astuces, l'application est inerte : ni clic ni clavier ne l'atteignent. -->
 <div class="app" inert={tour.step !== null || editor.showTips}>
   <TopBar />
-  {#if editor.templateMode}<TemplateBanner />{:else if hasNameFields(editor.page) && !nameFieldsFilled(editor.page)}<ClassBanner ongenerate={() => (generateOpen = true)} />{/if}
+  {#if editor.templateMode}<TemplateBanner />{:else if hasNameFields(editor.page)}<ClassBanner ongenerate={() => (generateOpen = true)} />{/if}
   <Rail />
   {#if editor.drawer === "templates"}<TemplatesDrawer />
   {:else if editor.drawer === "images"}<ImagesDrawer />
   {:else if editor.drawer === "text"}<TextDrawer />
+  {:else if editor.drawer === "fields"}<FieldsDrawer />
   {:else if editor.drawer === "shapes"}<ShapesDrawer />
   {:else if editor.drawer === "fonts"}<FontsDrawer />
   {:else if editor.drawer === "grid"}<GridDrawer />
@@ -368,6 +380,7 @@
   <UpdateBanner />
   {#if editor.showBackground}<BackgroundPanel />{/if}
   <Modal />
+<DateDialog />
   {#if editor.blurring}<FaceBlurDialog assetId={editor.blurring} onclose={() => (editor.blurring = null)} />{/if}
   {#if generateOpen && classes.current}<GenerateDialog onclose={() => (generateOpen = false)} />{/if}
   {#if editor.fileImport}

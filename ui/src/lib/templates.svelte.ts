@@ -1,6 +1,10 @@
 // Bibliothèque de modèles : la liste, et une page d'aperçu par modèle pour les miniatures.
-import { deleteTemplate, instantiateTemplate, listTemplates, savePageAsTemplate } from "./api";
+import { deleteTemplate, fillAutoFields, instantiateTemplate, listTemplates, savePageAsTemplate } from "./api";
+import { completePage } from "./autoFields";
+import { classes } from "./classStore.svelte";
+import { dateAsk } from "./dateAsk.svelte";
 import { editor } from "./docStore.svelte";
+import { waitingNotice } from "./fieldPlacing.svelte";
 import type { Page, TemplateInfo } from "./types";
 
 class Templates {
@@ -30,6 +34,10 @@ class Templates {
   /** Nouvelle page à partir du modèle ; `replace` remplace la page courante au lieu d'insérer après. */
   async addPage(id: string, replace = false) {
     const inst = await instantiateTemplate(id);
+    // La date (calendrier) et la classe s'écrivent dans la page à sa création, hors mode modèle.
+    const done = await completePage(inst.page, { templateMode: editor.templateMode, cls: classes.current?.class ?? null, ask: (c) => dateAsk.ask(c), fill: fillAutoFields });
+    if (done.notice) editor.notice = waitingNotice(done.notice);
+    inst.page = done.page;
     const assets = Object.fromEntries(inst.assets.map((a) => [a.id, a]));
     const pages = [...editor.doc.pages];
     const at = replace ? editor.pageIndex : editor.pageIndex + 1;

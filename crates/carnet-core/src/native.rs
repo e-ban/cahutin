@@ -87,7 +87,7 @@ pub fn written_version(doc: &Document) -> u32 {
     // Groupe dans un groupe : une version plus ancienne le fondrait dans le grand groupe.
     // Miroir d'un élément autre qu'une photo de gauche à droite, ou de haut en bas : inconnu avant la version 7.
     // Champ de la classe sans accents (`{prenom}`) : une version plus ancienne l'afficherait sans le remplir.
-    let new_field = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if crate::fields::has_fields_text(t) || crate::fields::has_class_fields_text(t));
+    let new_field = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if crate::fields::has_fields_text(t) || crate::fields::has_class_fields_text(t) || crate::fields::has_auto_fields_text(t));
     if elements().any(new_field) {
         return 8;
     }

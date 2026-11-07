@@ -422,7 +422,7 @@ pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
         .flat_map(|t| t.cells.iter().map(|c| c.element_id.clone()))
         .collect();
     // Un texte qui contient un champ de la classe est gardé tel quel : c'est ce que le modèle remplira.
-    let field = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if crate::fields::has_fields_text(t) || crate::fields::has_class_fields_text(t));
+    let field = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if crate::fields::has_fields_text(t) || crate::fields::has_class_fields_text(t) || crate::fields::has_auto_fields_text(t));
     page.elements.retain(|e| field(e) || e.zone || e.locked || cells.contains(&e.id) || matches!(e.kind, ElementKind::Shape(_) | ElementKind::Image(_) | ElementKind::Table(_)));
     crate::groups::dissolve_small_groups(&mut page);
     for e in page.elements.iter_mut().filter(|e| !field(e) && (e.zone || cells.contains(&e.id))) {
@@ -727,6 +727,26 @@ mod tests {
         assert!(ids(&a).is_disjoint(&ids(&b)));
         let g = a.grid.as_ref().unwrap();
         assert!(g.cells.iter().all(|c| a.elements.iter().any(|e| e.id == c.element_id)));
+    }
+
+    #[test]
+    fn auto_fields_are_kept_in_templates_and_mark_version_8() {
+        let mut page = Page::new(A4_PORTRAIT);
+        page.elements.push(Element {
+            id: new_id(),
+            frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 80.0, h_mm: 20.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Text(TextProps { content: RichText::plain("{date} ({saison})"), style: TextStyle::default_zone(), prompt: None, frame: None }),
+            subgroups: Vec::new(),
+            flip_h: false,
+            flip_v: false,
+        });
+        let mut doc = Document::new("x");
+        doc.pages = vec![page.clone()];
+        assert_eq!(crate::native::written_version(&doc), 8);
+        assert_eq!(from_page("Journal", &page, &AssetStore::default()).page.elements.len(), 1);
     }
 
     #[test]

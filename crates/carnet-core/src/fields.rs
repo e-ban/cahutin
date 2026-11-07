@@ -94,6 +94,20 @@ pub fn label(field: &str) -> Option<String> {
             "groupe" => "Groupe",
             "age" => "Âge",
             "anniversaire" => "Anniversaire",
+            "date" => "Date",
+            "date_courte" => "Date courte",
+            "date_longue" => "Date longue",
+            "jour_mois" => "Jour et mois",
+            "jour_semaine" => "Jour de la semaine",
+            "mois" => "Mois",
+            "annee" => "Année",
+            "annee_scolaire" => "Année scolaire",
+            "saison" => "Saison",
+            "classe" => "Classe",
+            "niveau" => "Niveau",
+            "nombre_eleves" => "Nombre d'élèves",
+            "ecole" => "École",
+            "enseignant" => "Enseignant(e)",
             _ => return None,
         }
         .into(),
@@ -123,7 +137,7 @@ pub fn split(text: &str) -> Vec<Piece<'_>> {
     while let Some(open) = text[at..].find('{').map(|i| at + i) {
         let Some(close) = text[open + 1..].find('}').map(|i| open + 1 + i) else { break };
         let inner = &text[open + 1..close];
-        if is_student_field(inner) || month_of(inner).is_some() {
+        if is_student_field(inner) || month_of(inner).is_some() || is_auto(inner) {
             if open > start {
                 out.push(Piece::Text(&text[start..open]));
             }
@@ -211,6 +225,130 @@ pub fn upgrade(page: &mut crate::model::Page) -> bool {
         }
         for r in t.content.paragraphs.iter_mut().flat_map(|p| &mut p.runs) {
             let new = renamed(&r.text);
+            if new != r.text {
+                r.text = new;
+                changed = true;
+            }
+        }
+    }
+    changed
+}
+
+/// Champs de la date, remplis une fois (à la pose ou à la création d'une page depuis un modèle).
+pub const DATE_KEYS: [&str; 9] = ["date", "date_courte", "date_longue", "jour_mois", "jour_semaine", "mois", "annee", "annee_scolaire", "saison"];
+/// Champs de la classe (pas d'un élève), remplis au même moment avec la classe choisie.
+pub const CLASS_KEYS: [&str; 5] = ["classe", "niveau", "nombre_eleves", "ecole", "enseignant"];
+
+const DAYS: [&str; 7] = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+
+pub fn is_date(field: &str) -> bool {
+    DATE_KEYS.contains(&field)
+}
+
+/// Un champ de la date ou de la classe, rempli une fois, pas pour chaque élève.
+pub fn is_auto(field: &str) -> bool {
+    is_date(field) || CLASS_KEYS.contains(&field)
+}
+
+/// Ce qu'il faut savoir de la classe pour ses champs.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ClassInfo {
+    pub name: String,
+    /// Les niveaux des élèves, dans l'ordre PS, MS, GS : « MS-GS » ; vide si aucun.
+    pub levels: String,
+    pub count: usize,
+    pub school: String,
+    pub teacher: String,
+}
+
+impl ClassInfo {
+    pub fn of(c: &class::Class) -> ClassInfo {
+        let levels = [class::Level::PS, class::Level::MS, class::Level::GS]
+            .into_iter()
+            .filter(|l| c.students.iter().any(|s| s.level.as_ref() == Some(l)))
+            .map(|l| format!("{l:?}"))
+            .collect::<Vec<_>>()
+            .join("-");
+        ClassInfo { name: c.name.clone(), levels, count: c.students.len(), school: String::new(), teacher: String::new() }
+    }
+}
+
+/// Jour de la semaine (0 : dimanche), algorithme de Sakamoto.
+fn weekday(y: i32, m: u32, d: u32) -> usize {
+    const T: [i32; 12] = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+    let y = if m < 3 { y - 1 } else { y };
+    ((y + y / 4 - y / 100 + y / 400 + T[m as usize - 1] + d as i32).rem_euclid(7)) as usize
+}
+
+fn season(m: u32, d: u32) -> &'static str {
+    match (m, d) {
+        (3, 21..) | (4 | 5, _) | (6, ..=20) => "printemps",
+        (6, 21..) | (7 | 8, _) | (9, ..=22) => "été",
+        (9, 23..) | (10 | 11, _) | (12, ..=20) => "automne",
+        _ => "hiver",
+    }
+}
+
+/// Ce que devient un champ de la date ou de la classe ; `None` pour un autre champ, ou un champ de la classe
+/// sans classe.
+pub fn auto_value(field: &str, (y, m, d): (i32, u32, u32), class: Option<&ClassInfo>) -> Option<String> {
+    let day = if d == 1 { "1er".to_string() } else { d.to_string() };
+    let month = class::MONTHS[m as usize - 1];
+    let wd = DAYS[weekday(y, m, d)];
+    let school_year = if m >= 9 { format!("{y}-{}", y + 1) } else { format!("{}-{y}", y - 1) };
+    Some(match field {
+        "date" => format!("{day} {month} {y}"),
+        "date_courte" => format!("{d}/{m}/{y}"),
+        "date_longue" => format!("{wd} {day} {month} {y}"),
+        "jour_mois" => format!("{day} {month}"),
+        "jour_semaine" => wd.to_string(),
+        "mois" => month.to_string(),
+        "annee" => y.to_string(),
+        "annee_scolaire" => school_year,
+        "saison" => season(m, d).to_string(),
+        f => return class_value(f, class?),
+    })
+}
+
+/// Ce que devient un champ de la classe ; `None` pour un autre champ.
+fn class_value(field: &str, class: &ClassInfo) -> Option<String> {
+    Some(match field {
+        "classe" => class.name.clone(),
+        "niveau" => class.levels.clone(),
+        "nombre_eleves" => class.count.to_string(),
+        "ecole" => class.school.clone(),
+        "enseignant" => class.teacher.clone(),
+        _ => return None,
+    })
+}
+
+/// Le texte a un champ de la date ou de la classe.
+pub fn has_auto_fields_text(t: &TextProps) -> bool {
+    fields_in(t).any(is_auto)
+}
+
+/// La page a un champ de la date à remplir : il faut demander la date.
+pub fn page_needs_date(page: &crate::model::Page) -> bool {
+    page.elements.iter().any(|e| matches!(&e.kind, crate::model::ElementKind::Text(t) if fields_in(t).any(is_date)))
+}
+
+/// Écrit chaque champ de la date ou de la classe qui a une valeur (sans `date`, ceux de la date restent) ; les
+/// champs d'élève restent pour « Remplir avec ma classe ». Vrai si quelque chose a changé.
+pub fn fill_auto(page: &mut crate::model::Page, date: Option<(i32, u32, u32)>, class: Option<&ClassInfo>) -> bool {
+    let mut changed = false;
+    for e in &mut page.elements {
+        let crate::model::ElementKind::Text(t) = &mut e.kind else { continue };
+        for r in t.content.paragraphs.iter_mut().flat_map(|p| &mut p.runs) {
+            let new: String = split(&r.text)
+                .into_iter()
+                .map(|p| match p {
+                    Piece::Text(x) => x.to_string(),
+                    Piece::Field(f) => {
+                        let v = if is_date(f) { date.and_then(|d| auto_value(f, d, class)) } else { class.and_then(|c| class_value(f, c)) };
+                        v.unwrap_or_else(|| format!("{{{f}}}"))
+                    }
+                })
+                .collect();
             if new != r.text {
                 r.text = new;
                 changed = true;
@@ -362,5 +500,58 @@ mod tests {
         }
         let months = class::MONTHS.iter().map(|m| format!("\"{m}\"")).collect::<Vec<_>>().join(", ");
         assert!(ui.contains(&format!("[{months}]")), "les mois de classFields.ts diffèrent");
+    }
+
+    #[test]
+    fn date_formats() {
+        let d = (2026, 11, 9);
+        let v = |k: &str| auto_value(k, d, None).unwrap();
+        assert_eq!(
+            [v("date"), v("date_courte"), v("date_longue"), v("jour_mois"), v("jour_semaine"), v("mois"), v("annee"), v("annee_scolaire"), v("saison")],
+            ["9 novembre 2026", "9/11/2026", "lundi 9 novembre 2026", "9 novembre", "lundi", "novembre", "2026", "2026-2027", "automne"]
+        );
+        assert_eq!(auto_value("date_longue", (2026, 11, 1), None).as_deref(), Some("dimanche 1er novembre 2026"));
+        assert_eq!(auto_value("date_courte", (2026, 11, 1), None).as_deref(), Some("1/11/2026"));
+        assert_eq!(auto_value("annee_scolaire", (2026, 8, 31), None).as_deref(), Some("2025-2026"));
+        assert_eq!(auto_value("annee_scolaire", (2026, 9, 1), None).as_deref(), Some("2026-2027"));
+        for (d, s) in [((2026, 3, 20), "hiver"), ((2026, 3, 21), "printemps"), ((2026, 6, 21), "été"), ((2026, 9, 22), "été"), ((2026, 9, 23), "automne"), ((2026, 12, 21), "hiver"), ((2027, 1, 5), "hiver")] {
+            assert_eq!(auto_value("saison", d, None).as_deref(), Some(s), "{d:?}");
+        }
+        assert_eq!(auto_value("prenom", d, None), None);
+    }
+
+    #[test]
+    fn class_fields_need_a_class() {
+        let d = (2026, 11, 9);
+        assert_eq!(auto_value("classe", d, None), None);
+        let info = ClassInfo { name: "Les Loups".into(), levels: "MS-GS".into(), count: 24, school: String::new(), teacher: String::new() };
+        let v = |k: &str| auto_value(k, d, Some(&info)).unwrap();
+        assert_eq!([v("classe"), v("niveau"), v("nombre_eleves"), v("ecole"), v("enseignant")], ["Les Loups", "MS-GS", "24", "", ""]);
+        let mut c = crate::class::Class::new("Les Loups", "2026-2027");
+        for l in [Some(crate::class::Level::GS), Some(crate::class::Level::MS), Some(crate::class::Level::MS), None] {
+            c.students.push(Student { level: l, ..Student::new("x", "") });
+        }
+        let i = ClassInfo::of(&c);
+        assert_eq!((i.name.as_str(), i.levels.as_str(), i.count), ("Les Loups", "MS-GS", 4));
+    }
+
+    #[test]
+    fn fill_auto_writes_auto_fields_only() {
+        let mut p = page_of(text(None, "{prenom}, né en {annee} : {ecole} {date}", false));
+        assert!(page_needs_date(&p));
+        assert!(!fill_auto(&mut p, None, None), "sans date ni classe : rien");
+        assert!(fill_auto(&mut p, Some((2026, 11, 9)), None));
+        assert_eq!(words(&p), "{prenom}, né en 2026 : {ecole} 9 novembre 2026");
+        assert!(!page_needs_date(&p));
+    }
+
+    #[test]
+    fn labels_of_auto_fields() {
+        assert_eq!(label("annee_scolaire").as_deref(), Some("Année scolaire"));
+        assert_eq!(label("enseignant").as_deref(), Some("Enseignant(e)"));
+        assert_eq!(label("nombre_eleves").as_deref(), Some("Nombre d'élèves"));
+        assert_eq!(split("{date} {toto}"), [Piece::Field("date"), Piece::Text(" {toto}")]);
+        assert!(is_auto("saison") && is_date("saison") && is_auto("ecole") && !is_date("ecole") && !is_auto("prenom"));
+        assert_eq!(value("date", &Student::new("Léa", "")), None);
     }
 }

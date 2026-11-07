@@ -335,4 +335,16 @@ mod tests {
         assert!(!upgrade(&mut p));
         assert_eq!(p, before);
     }
+
+    /// L'interface a sa copie de la liste (`ui/src/lib/classFields.ts`) : mêmes champs, mêmes libellés, mêmes mois.
+    #[test]
+    fn the_ui_lists_the_same_fields() {
+        let ui = include_str!("../../../ui/src/lib/classFields.ts");
+        for k in KEYS {
+            let entry = format!("{{ key: \"{k}\", label: \"{}\"", label(k).unwrap());
+            assert!(ui.contains(&entry), "{entry} absent de classFields.ts");
+        }
+        let months = class::MONTHS.iter().map(|m| format!("\"{m}\"")).collect::<Vec<_>>().join(", ");
+        assert!(ui.contains(&format!("[{months}]")), "les mois de classFields.ts diffèrent");
+    }
 }

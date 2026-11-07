@@ -133,7 +133,12 @@ fn fill_element(e: &mut Element, s: Option<&Student>) {
             }
         },
         ElementKind::Photo(p) if field => {
-            let Some(s) = s else { return };
+            // Bloc sans élève : la case reste vide et n'est plus à remplir, comme ses textes (vidés de leurs
+            // champs) ; sinon un nouveau remplissage de la planche serait accepté.
+            let Some(s) = s else {
+                e.zone = false;
+                return;
+            };
             if s.photo_allowed && let Some(photo) = &s.photo {
                 p.asset = Some(photo.clone());
                 p.crop = Crop::COVER;
@@ -531,6 +536,22 @@ mod tests {
         assert_eq!(plain(&pages[0].elements[1]), "Léa");
         assert!(matches!(&pages[0].elements[0].kind, ElementKind::Photo(p) if p.asset.as_deref() == Some("p1")));
         assert_eq!(plain(&pages[1].elements[1]), "Noé");
+    }
+
+    #[test]
+    fn a_filled_sheet_has_nothing_left_to_fill() {
+        // Deux étiquettes (photo et prénom), un seul élève sans photo ni symbole : la seconde reste vide.
+        let mut p = Page::new(A4_PORTRAIT);
+        for (x, g) in [(10.0, "a"), (110.0, "b")] {
+            let mut ph = photo_zone(frame(x, 10.0, 40.0, 30.0));
+            let mut t = text(None, "{prenom}", false, frame(x, 42.0, 40.0, 10.0));
+            ph.group = Some(g.into());
+            t.group = Some(g.into());
+            p.elements.extend([ph, t]);
+        }
+        let pages = fill_sheet(&p, &[student("Léa", None, false, None)]);
+        assert_eq!(pages.len(), 1);
+        assert!(!has_fields(&pages[0]), "la planche remplie ne se remplit pas une seconde fois");
     }
 
     #[test]

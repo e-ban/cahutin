@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { autoText, completePage } from "./autoFields";
+import { autoText, completePage, placing } from "./autoFields";
 import type { Class, Page } from "./types";
 
 const run = (text: string) => ({ text, bold: false, italic: false, underline: false, color: null, font: null, size_pt: null });
@@ -55,4 +55,16 @@ test("a field placed in a document: its text, nothing if the date is cancelled, 
   expect(await autoText("date", { cls, ask: async () => "9 nov", fill })).toBe("9 nov");
   expect(await autoText("date", { cls, ask: async () => null, fill })).toBeNull();
   expect(await autoText("classe", { cls: null, ask: async () => null, fill })).toBe("{classe}");
+});
+
+test("placing: a pastille in template mode or for pupils, the text, nothing on cancel, a message when empty or without a class", async () => {
+  const deps = { cls, ask: async () => "9 nov", fill };
+  expect(await placing("prenom", { ...deps, templateMode: false })).toEqual({ kind: "pastille" });
+  expect(await placing("date", { ...deps, templateMode: true })).toEqual({ kind: "pastille" });
+  expect(await placing("date", { ...deps, templateMode: false })).toEqual({ kind: "text", text: "9 nov" });
+  expect(await placing("date", { ...deps, ask: async () => null, templateMode: false })).toEqual({ kind: "cancel" });
+  expect(await placing("classe", { ...deps, cls: null, templateMode: false })).toEqual({ kind: "pastille", notice: "noClass" });
+  // Une école pas encore renseignée : rien n'est posé, un message dit où la régler.
+  const blank = { ...deps, fill: async (p: Page) => ({ ...p, elements: p.elements.map((e) => (e.kind.type === "Text" ? { ...e, kind: { ...e.kind, content: { paragraphs: [{ align: null, runs: [run("")] }] } } } : e)) }) };
+  expect(await placing("ecole", { ...blank, templateMode: false })).toEqual({ kind: "cancel", notice: "empty" });
 });

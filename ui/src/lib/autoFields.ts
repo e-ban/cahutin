@@ -49,3 +49,16 @@ export async function autoText(key: string, deps: AutoDeps): Promise<string | nu
   const e = filled.elements[0];
   return e.kind.type === "Text" ? e.kind.content.paragraphs.map((p) => p.runs.map((r) => r.text).join("")).join("\n") : null;
 }
+
+/** Ce que fait la pose d'un champ : une pastille (champ d'élève, mode modèle, ou pas de classe : `noClass`), son
+ *  texte, ou rien (date annulée, ou valeur vide : `empty`, une école pas encore renseignée par exemple). */
+export type Placing = { kind: "pastille"; notice?: "noClass" } | { kind: "text"; text: string } | { kind: "cancel"; notice?: "empty" };
+
+export async function placing(key: string, deps: AutoDeps & { templateMode: boolean }): Promise<Placing> {
+  if (!isAutoField(key) || deps.templateMode) return { kind: "pastille" };
+  const t = await autoText(key, deps);
+  if (t === null) return { kind: "cancel" };
+  if (t === `{${key}}`) return { kind: "pastille", notice: "noClass" };
+  if (!t.trim()) return { kind: "cancel", notice: "empty" };
+  return { kind: "text", text: t };
+}

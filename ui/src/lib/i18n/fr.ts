@@ -94,6 +94,7 @@ export const fr = {
   pageDateHint: "Elle s'écrit dans la page et ne changera plus.",
   pageDateOk: "Valider",
   autoFieldsNeedClass: "Choisissez une classe (tiroir Classe) pour écrire le nom de la classe, l'école ou l'enseignant : en attendant, ces champs restent à compléter.",
+  autoFieldEmpty: "Ce champ est vide pour cette classe : renseignez l'école, l'enseignant(e) ou les niveaux des élèves sur la page « Ma classe ».",
   fieldsDate: "Date",
   fieldsClassInfo: "La classe",
   classTeacher: "Enseignant(e)",

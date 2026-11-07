@@ -23,7 +23,7 @@
   import { handlePadding } from "../lib/geometry";
   import { mmToPx } from "../lib/units";
   import { hasClassField, hasTemplateRole, templateRole, withTemplateRole } from "../lib/templateRole";
-  import { fieldsOf } from "../lib/fieldEdit";
+  import { fieldsOf, removeField } from "../lib/fieldEdit";
   import { placeField } from "../lib/fieldPlacing.svelte";
   import FieldMenu from "./FieldMenu.svelte";
   import { myImages } from "../lib/myImages.svelte";
@@ -266,11 +266,14 @@
     editor.selection = editor.selection.filter((id) => !ids.includes(id));
   }
 
-  /** Un champ de la classe : au curseur pendant l'écriture (il remplace la pastille choisie), sinon ajouté au
-   *  texte choisi, ou à la place de son seul champ. */
+  /** Un champ : au curseur pendant l'écriture ; sinon un interrupteur, comme les cases cochées du menu : un champ
+   *  que le texte contient s'enlève, un autre s'ajoute à la fin. */
   function pickField(key: string) {
-    const id = selected?.id;
-    if (id) void placeField(key, id);
+    const e = selected;
+    if (!e || e.kind.type !== "Text") return;
+    if (editor.editingText !== e.id && fieldsOf(e.kind.content).includes(key)) {
+      editor.updateElement(e.id, (x) => (x.kind.type === "Text" ? { ...x, kind: { ...x.kind, content: removeField(x.kind.content, key) } } : x));
+    } else void placeField(key, e.id);
   }
 
   function setRole(role: "fill" | "fixed") {
@@ -475,7 +478,7 @@
         <button class="field-btn" title={fr.fieldButtonHint} onclick={() => toggle("fields")}>&#123; &#125;<span class="lbl"> {fr.fieldButton}</span> ▾</button>
         {#if pop === "fields"}
           <div class="pop fields">
-            <FieldMenu current={fieldsOf(t.content)} onpick={(key) => (pickField(key), (pop = null))} />
+            <FieldMenu current={editor.editingText === selected?.id ? [] : fieldsOf(t.content)} onpick={(key) => (pickField(key), (pop = null))} />
           </div>
         {/if}
       </div>

@@ -90,9 +90,9 @@
 
 <Drawer title={fr.text}>
   <button class="primary" onclick={() => add()}>✏️ {fr.addText}</button>
-  <!-- Sections repliées au départ : on voit d'un coup tout ce que le tiroir propose, et chacune reste comme on la
-       laisse. -->
-  <InspectorSection id="text-presets" title={fr.textPresets} hint={fr.sectionHints.textPresets} open={false}>
+  <!-- Les styles prêts ouverts au départ (poser un titre) et les autres sections repliées : on voit d'un coup tout
+       ce que le tiroir propose, et chacune reste comme on la laisse. -->
+  <InspectorSection id="text-presets" title={fr.textPresets} hint={fr.sectionHints.textPresets}>
     <div class="stack">
     {#each presets as p (p.label)}
       <button
@@ -111,7 +111,15 @@
   </InspectorSection>
   <InspectorSection id="text-fields" title={fr.fieldsTitle} hint={fr.sectionHints.textFields} open={false}>
     <p class="hint">{fr.fieldsHint}</p>
-    <FieldMenu onpick={addField} />
+    <FieldMenu only="student" onpick={addField} />
+  </InspectorSection>
+  <InspectorSection id="text-date" title={fr.fieldsDate} hint={fr.sectionHints.textDate} open={false}>
+    <p class="hint">{fr.fieldsDateHint}</p>
+    <FieldMenu only="date" onpick={addField} />
+  </InspectorSection>
+  <InspectorSection id="text-class" title={fr.fieldsClassInfo} hint={fr.sectionHints.textClass} open={false}>
+    <p class="hint">{fr.fieldsClassHint}</p>
+    <FieldMenu only="class" onpick={addField} />
   </InspectorSection>
   <InspectorSection id="text-lines" title={fr.writingLines} hint={fr.sectionHints.textLines} open={false}>
     <div class="lines">

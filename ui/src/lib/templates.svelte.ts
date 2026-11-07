@@ -3,8 +3,8 @@ import { deleteTemplate, fillAutoFields, instantiateTemplate, listTemplates, sav
 import { completePage } from "./autoFields";
 import { classes } from "./classStore.svelte";
 import { dateAsk } from "./dateAsk.svelte";
-import { fr } from "./i18n/fr";
 import { editor } from "./docStore.svelte";
+import { waitingNotice } from "./fieldPlacing.svelte";
 import type { Page, TemplateInfo } from "./types";
 
 class Templates {
@@ -36,7 +36,7 @@ class Templates {
     const inst = await instantiateTemplate(id);
     // La date (calendrier) et la classe s'écrivent dans la page à sa création, hors mode modèle.
     const done = await completePage(inst.page, { templateMode: editor.templateMode, cls: classes.current?.class ?? null, ask: (c) => dateAsk.ask(c), fill: fillAutoFields });
-    if (done.missingClass) editor.notice = fr.autoFieldsNeedClass;
+    if (done.notice) editor.notice = waitingNotice(done.notice);
     inst.page = done.page;
     const assets = Object.fromEntries(inst.assets.map((a) => [a.id, a]));
     const pages = [...editor.doc.pages];

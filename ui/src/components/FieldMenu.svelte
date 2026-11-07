@@ -1,13 +1,18 @@
 <script lang="ts">
-  // La liste des champs de la classe, avec ce que chacun devient : dans le tiroir Texte (poser) et sous le bouton
-  // « Champ » de la barre d'un texte (ajouter ou changer). `current` : les champs du texte choisi, cochés.
+  // La liste des champs, avec ce que chacun devient : dans le tiroir Texte (poser ; `only` : une seule famille par
+  // section) et sous le bouton « Champ » de la barre d'un texte (ajouter, ou enlever un champ coché). `current` :
+  // les champs du texte choisi, cochés.
   import { onMount } from "svelte";
   import { autoFieldExamples } from "../lib/api";
   import { CLASS_INFO_FIELDS, DATE_FIELDS, FIELDS, fieldLabel, letterKey, monthKey } from "../lib/classFields";
   import { classes } from "../lib/classStore.svelte";
   import { fr } from "../lib/i18n/fr";
 
-  let { onpick, current = [] }: { onpick: (key: string) => void; current?: string[] } = $props();
+  let { onpick, current = [], only }: { onpick: (key: string) => void; current?: string[]; only?: "student" | "date" | "class" } = $props();
+  const groups = $derived([
+    { title: fr.fieldsDate, list: DATE_FIELDS, show: !only || only === "date" },
+    { title: fr.fieldsClassInfo, list: CLASS_INFO_FIELDS, show: !only || only === "class" },
+  ]);
 
   let letter = $state(1);
   let month = $state(new Date().getMonth() + 1);
@@ -23,8 +28,9 @@
 </script>
 
 <div class="fields">
+  {#if !only || only === "student"}
   {#each FIELDS as f (f.key)}
-    <button class="field" class:on={current.includes(f.key)} aria-pressed={current.includes(f.key)} onclick={() => onpick(f.key)}>
+    <button class="field" class:on={current.includes(f.key)} aria-pressed={current.includes(f.key)} title={current.includes(f.key) ? fr.fieldRemove : undefined} onclick={() => onpick(f.key)}>
       <span class="name">{current.includes(f.key) ? "✓ " : ""}{f.label}</span>
       <small>{f.hint}</small>
     </button>
@@ -48,10 +54,11 @@
       <button onclick={() => onpick(monthKey(month))}>{fr.fieldPlace}</button>
     </div>
   </div>
-  {#each [{ title: fr.fieldsDate, list: DATE_FIELDS }, { title: fr.fieldsClassInfo, list: CLASS_INFO_FIELDS }] as g (g.title)}
-    <h4>{g.title}</h4>
+  {/if}
+  {#each groups.filter((g) => g.show) as g (g.title)}
+    {#if !only}<h4>{g.title}</h4>{/if}
     {#each g.list as f (f.key)}
-      <button class="field" class:on={current.includes(f.key)} aria-pressed={current.includes(f.key)} onclick={() => onpick(f.key)}>
+      <button class="field" class:on={current.includes(f.key)} aria-pressed={current.includes(f.key)} title={current.includes(f.key) ? fr.fieldRemove : undefined} onclick={() => onpick(f.key)}>
         <span class="name">{current.includes(f.key) ? "✓ " : ""}{f.label}</span>
         <small>{examples[f.key] ? `« ${examples[f.key]} »` : f.hint}</small>
       </button>

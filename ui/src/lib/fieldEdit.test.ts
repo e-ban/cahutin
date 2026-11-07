@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { appendText, fieldsOf, fieldText, setField, textWith } from "./fieldEdit";
+import { addField, appendText, fieldsOf, fieldText, removeField, textWith } from "./fieldEdit";
 import { hasTemplateRole } from "./templateRole";
 import type { Page, RichText } from "./types";
 
@@ -15,12 +15,18 @@ test("fieldText is a plain text holding the field, never a zone", () => {
   expect(hasTemplateRole(e)).toBe(false);
 });
 
-test("setField adds, replaces a single field, or appends when there are several", () => {
-  expect(words(setField(rich("Bonjour"), "prenom"))).toBe("Bonjour {prenom}");
-  expect(words(setField(rich("Bonjour {prenom}"), "PRENOM"))).toBe("Bonjour {PRENOM}");
-  expect(words(setField(rich("{prenom} {age}"), "nom"))).toBe("{prenom} {age} {nom}");
-  expect(words(setField(rich(), "prenom"))).toBe("{prenom}");
-  expect(words(setField(rich("Ligne 1", "Ligne 2"), "age"))).toBe("Ligne 1\nLigne 2 {age}");
+test("addField always adds, at the end, after a space", () => {
+  expect(words(addField(rich("Bonjour"), "prenom"))).toBe("Bonjour {prenom}");
+  expect(words(addField(rich("{prenom}"), "nom"))).toBe("{prenom} {nom}");
+  expect(words(addField(rich(), "prenom"))).toBe("{prenom}");
+  expect(words(addField(rich("Ligne 1", "Ligne 2"), "age"))).toBe("Ligne 1\nLigne 2 {age}");
+});
+
+test("removeField takes every copy of the field out, with one space next to it", () => {
+  expect(words(removeField(rich("{prenom} {nom}"), "prenom"))).toBe("{nom}");
+  expect(words(removeField(rich("Bonjour {prenom} !", "{prenom}"), "prenom"))).toBe("Bonjour !\n");
+  expect(words(removeField(rich("{prenom} {age} ans"), "age"))).toBe("{prenom} ans");
+  expect(words(removeField(rich("{PRENOM}"), "prenom"))).toBe("{PRENOM}");
 });
 
 test("fieldsOf lists the known fields only", () => {

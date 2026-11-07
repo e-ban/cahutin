@@ -3,7 +3,7 @@
   import "./print.css";
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import Modal from "./components/Modal.svelte";
   import DateDialog from "./components/DateDialog.svelte";
   import PrintRoot from "./components/PrintRoot.svelte";
@@ -29,6 +29,7 @@
   import GenerateDialog from "./components/GenerateDialog.svelte";
   import FaceBlurDialog from "./components/FaceBlurDialog.svelte";
   import { classes } from "./lib/classStore.svelte";
+  import { completeTypedText, fillWaitingClassFields } from "./lib/fieldPlacing.svelte";
   import About from "./components/layout/About.svelte";
   import Preferences from "./components/layout/Preferences.svelte";
   import BackgroundPanel from "./components/BackgroundPanel.svelte";
@@ -237,8 +238,16 @@
     const e = editor.page.elements.find((x) => x.id === id);
     if (!e || e.kind.type !== "Text") return;
     if (JSON.stringify(e.kind.content) === JSON.stringify(content)) return;
+    const before = e.kind.content;
     editor.updateElement(id, (el) => (el.kind.type === "Text" ? { ...el, kind: { ...el.kind, content } } : el));
+    void completeTypedText(id, before, content);
   }
+
+  // Une classe choisie ou complétée (son école…) écrit les champs de la classe qui l'attendaient.
+  $effect(() => {
+    const cls = classes.current?.class;
+    if (cls) untrack(() => void fillWaitingClassFields(cls));
+  });
 
   // Un clic sélectionne tout le groupe de l'élément ; l'élément modifié seul (double-clic) reste seul.
   function select(id: string | null, add: boolean) {

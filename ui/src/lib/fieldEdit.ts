@@ -35,13 +35,13 @@ export function appendText(content: RichText, words: string): RichText {
   return { paragraphs: [...paragraphs.slice(0, -1), { ...last, runs }] };
 }
 
-/** Le texte avec ce champ : un seul champ est remplacé ; sinon (aucun, ou plusieurs), le champ s'ajoute à la
- *  fin du dernier paragraphe. */
-export function setField(content: RichText, key: string): RichText {
-  const fields = fieldsOf(content);
-  if (fields.length === 1) {
-    const old = `{${fields[0]}}`;
-    return { paragraphs: content.paragraphs.map((p) => ({ ...p, runs: p.runs.map((r) => (r.text.includes(old) ? { ...r, text: r.text.replace(old, `{${key}}`) } : r)) })) };
-  }
+/** Le texte avec ce champ en plus, à la fin du dernier paragraphe. */
+export function addField(content: RichText, key: string): RichText {
   return appendText(content, `{${key}}`);
+}
+
+/** Le texte sans ce champ (toutes ses copies), ni l'espace qui le séparait d'un voisin. */
+export function removeField(content: RichText, key: string): RichText {
+  const found = new RegExp(` \\{${key}\\}|\\{${key}\\} ?`, "g");
+  return { paragraphs: content.paragraphs.map((p) => ({ ...p, runs: p.runs.map((r) => ({ ...r, text: r.text.replace(found, "") })) })) };
 }

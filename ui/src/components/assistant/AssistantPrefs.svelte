@@ -1,6 +1,7 @@
 <script lang="ts">
   // Section des Préférences : activer l'assistant (désactivé par défaut), dire ce qui part vers lui, choisir le
-  // service (Claude, Ollama sur cet ordinateur, ou un autre : adresse et modèle à la main), essayer la connexion.
+  // service (Claude, OpenAI, Gemini, Ollama sur cet ordinateur, ou un autre : adresse et modèle à la main), essayer
+  // la connexion. Le nom du modèle d'un service connu se change dans « Réglages avancés » : ces noms changent vite.
   // L'activation essaie d'abord la connexion : l'assistant n'apparaît que s'il répond.
   import { assistantConfigure, assistantTest } from "../../lib/api";
   import { assistant } from "../../lib/assistant.svelte";
@@ -9,6 +10,8 @@
   const t = fr.assistant;
   const SERVICES = [
     { id: "claude", label: t.serviceClaude, url: "https://api.anthropic.com/v1", model: "claude-haiku-5-5" },
+    { id: "openai", label: t.serviceOpenai, url: "https://api.openai.com/v1", model: "gpt-6-luna" },
+    { id: "gemini", label: t.serviceGemini, url: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-3.8-flash" },
     { id: "ollama", label: t.serviceOllama, url: "http://localhost:11434/v1", model: "qwen3:4b" },
     { id: "other", label: t.serviceOther, url: "", model: "" },
   ] as const;
@@ -32,7 +35,10 @@
 
   /** Une clé déjà enregistrée pour cette adresse (une autre adresse ne la reçoit jamais). */
   const keySaved = $derived(!!assistant.settings?.has_key && assistant.settings.url === url);
-  const ready = $derived(!!url && !!model && (service !== "claude" || !!key || keySaved));
+  /** Les services en ligne connus demandent une clé. */
+  const needsKey = $derived(service === "claude" || service === "openai" || service === "gemini");
+  const keyHints: Partial<Record<Service, string>> = { claude: t.serviceClaudeHint, openai: t.serviceOpenaiHint, gemini: t.serviceGeminiHint };
+  const ready = $derived(!!url && !!model && (!needsKey || !!key || keySaved));
 
   /** Une adresse hors de cet ordinateur : les données partent vers un service extérieur. */
   const remote = $derived.by(() => {
@@ -95,7 +101,7 @@
       <select value={service} onchange={(e) => choose(e.currentTarget.value as Service)}>
         {#each SERVICES as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
       </select>
-      {#if service === "claude"}<small>{t.serviceClaudeHint}</small>{/if}
+      {#if keyHints[service]}<small>{keyHints[service]}</small>{/if}
       {#if service === "ollama"}<small>{t.prefsUrlHint}</small>{/if}
     </label>
     {#if service === "other"}
@@ -111,10 +117,20 @@
     {#if remote}<p class="warn">{t.prefsRemote}</p>{/if}
     {#if service !== "ollama"}
       <label class="field">
-        <b>{service === "claude" ? t.prefsKeyNeeded : t.prefsKey}</b>
+        <b>{needsKey ? t.prefsKeyNeeded : t.prefsKey}</b>
         <input type="password" bind:value={key} autocomplete="off" />
         {#if keySaved}<small>{t.prefsKeySaved}</small>{/if}
       </label>
+    {/if}
+    {#if service !== "other"}
+      <details class="advanced">
+        <summary>{t.prefsAdvanced}</summary>
+        <label class="field">
+          <b>{t.prefsModel}</b>
+          <input bind:value={model} spellcheck="false" />
+          <small>{t.prefsModelHint}</small>
+        </label>
+      </details>
     {/if}
     <div class="actions">
       <button class="primary" onclick={activate} disabled={working || !ready}>{assistant.enabled ? t.prefsSave : t.prefsActivate}</button>
@@ -165,6 +181,10 @@
   .field select {
     width: 100%;
     box-sizing: border-box;
+  }
+  .advanced summary {
+    cursor: pointer;
+    color: var(--muted);
   }
   .actions {
     display: flex;

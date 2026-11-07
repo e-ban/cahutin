@@ -4,7 +4,7 @@
 
 use carnet_core::{
     Align, Background, Crop, Document, Element, ElementKind, Frame, ImageProps, Page, Pattern, PhotoProps, RichText, ShapeKind, ShapeProps, Stroke,
-    TextProps, TextStyle, new_id,
+    StrokeStyle, TextFrame, TextProps, TextStyle, VAlign, new_id,
 };
 use serde_json::{Value, json};
 
@@ -74,6 +74,33 @@ pub fn set_frame(doc: &mut Document, args: &Value) -> Result<Value, String> {
     Ok(json!({ "ok": true }))
 }
 
+/// Booléen facultatif.
+fn flag(args: &Value, key: &str) -> Result<Option<bool>, String> {
+    match args.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(v) => v.as_bool().map(Some).ok_or(format!("« {key} » doit être true ou false")),
+    }
+}
+
+fn pattern_arg(args: &Value, key: &str) -> Result<Option<Option<Pattern>>, String> {
+    Ok(match text(args, key)? {
+        None => None,
+        Some("none") => Some(None),
+        Some("seyes") => Some(Some(Pattern::Seyes)),
+        Some("small_squares") => Some(Some(Pattern::SmallSquares)),
+        Some("lines") => Some(Some(Pattern::Lines)),
+        Some("dots") => Some(Some(Pattern::Dots)),
+        Some(p) => return Err(format!("motif inconnu : {p} (seyes, small_squares, lines, dots, none)")),
+    })
+}
+
+/// Cadre d'un texte, retiré s'il ne porte plus rien.
+fn tidy_frame(t: &mut TextProps) {
+    if t.frame.as_ref().is_some_and(|f| f.is_empty() && f.corner_radius_mm == 0.0) {
+        t.frame = None;
+    }
+}
+
 pub fn set_text_style(doc: &mut Document, args: &Value) -> Result<Value, String> {
     let font = text(args, "font")?.map(str::to_string);
     let size = number(args, "size_pt")?;
@@ -91,7 +118,34 @@ pub fn set_text_style(doc: &mut Document, args: &Value) -> Result<Value, String>
         Some("justify") => Some(Align::Justify),
         Some(a) => return Err(format!("alignement inconnu : {a} (left, center, right, justify)")),
     };
+    let valign = match text(args, "valign")? {
+        None => None,
+        Some("top") => Some(VAlign::Top),
+        Some("middle") => Some(VAlign::Middle),
+        Some("bottom") => Some(VAlign::Bottom),
+        Some(a) => return Err(format!("alignement vertical inconnu : {a} (top, middle, bottom)")),
+    };
+    let outline = flag(args, "outline")?;
+    let lines = pattern_arg(args, "writing_lines")?;
+    let named = match text(args, "style")? {
+        None => None,
+        Some(id) => {
+            let styles = crate::styles::of(doc);
+            let ids = styles.iter().map(|(s, _)| s.id.as_str()).collect::<Vec<_>>().join(", ");
+            Some(styles.into_iter().find(|(s, _)| s.id == id).ok_or(format!("style inconnu : {id} ({ids})"))?.0)
+        }
+    };
     let ElementKind::Text(t) = &mut element(doc, args)?.kind else { return Err("cet élément n'est pas un texte".into()) };
+    // Comme `applyStyle` dans l'interface : l'allure du style, et plus de taille, police ni couleur sur les mots.
+    if let Some(s) = named {
+        t.style = TextStyle { font: s.font, size_pt: s.size_pt, color: s.color, align: s.align, outline: s.outline, named: Some(s.id), ..t.style.clone() };
+        for p in &mut t.content.paragraphs {
+            p.align = None;
+            for r in &mut p.runs {
+                (r.font, r.size_pt, r.color) = (None, None, None);
+            }
+        }
+    }
     if let Some(f) = font {
         t.style.font = f;
     }
@@ -100,6 +154,91 @@ pub fn set_text_style(doc: &mut Document, args: &Value) -> Result<Value, String>
         t.style.color = c;
     }
     t.style.align = align.unwrap_or(t.style.align);
+    if valign.is_some() {
+        t.style.valign = valign;
+    }
+    if let Some(o) = outline {
+        t.style.outline = o.then_some(true);
+    }
+    if let Some(p) = lines {
+        t.frame.get_or_insert_with(TextFrame::default).pattern = p;
+        tidy_frame(t);
+    }
+    Ok(json!({ "ok": true }))
+}
+
+/// Bord après `set_look` : `border_style` « none » l'enlève ; une couleur, une épaisseur ou un style le
+/// créent (trait de 0,5 mm gris foncé) ou le changent.
+fn look_stroke(current: &Option<Stroke>, args: &Value) -> Result<Option<Stroke>, String> {
+    let style = match text(args, "border_style")? {
+        None => None,
+        Some("none") => return Ok(None),
+        Some("solid") => Some(StrokeStyle::Solid),
+        Some("dashed") => Some(StrokeStyle::Dashed),
+        Some("dotted") => Some(StrokeStyle::Dotted),
+        Some(s) => return Err(format!("bord inconnu : {s} (solid, dashed, dotted, none)")),
+    };
+    let (col, width) = (color(args, "border_color")?, number(args, "border_width_mm")?);
+    if style.is_none() && col.is_none() && width.is_none() {
+        return Ok(current.clone());
+    }
+    let mut s = current.clone().unwrap_or(Stroke { width_mm: 0.5, color: "#222222".into(), style: None });
+    if let Some(w) = width {
+        s.width_mm = w.clamp(0.1, 20.0);
+    }
+    if let Some(c) = col {
+        s.color = c;
+    }
+    if style.is_some() {
+        s.style = style;
+    }
+    Ok(Some(s))
+}
+
+/// Remplissage après `set_look` : une couleur, « none » pour aucun, absent pour garder.
+fn look_fill(current: &Option<String>, args: &Value) -> Result<Option<String>, String> {
+    if text(args, "fill")? == Some("none") {
+        return Ok(None);
+    }
+    Ok(color(args, "fill")?.or(current.clone()))
+}
+
+/// Allure d'une forme, d'une case photo ou du cadre d'un texte : remplissage, bord, coins arrondis, ombre
+/// (photo seulement).
+pub fn set_look(doc: &mut Document, args: &Value) -> Result<Value, String> {
+    let corner = number(args, "corner_radius_mm")?.map(|r| r.clamp(0.0, 100.0));
+    let shadow = flag(args, "shadow")?;
+    let has_fill = text(args, "fill")?.is_some();
+    match &mut element(doc, args)?.kind {
+        ElementKind::Shape(s) => {
+            if shadow.is_some() {
+                return Err("seule une case photo a une ombre".into());
+            }
+            s.fill = look_fill(&s.fill, args)?;
+            s.stroke = look_stroke(&s.stroke, args)?;
+            s.corner_radius_mm = corner.unwrap_or(s.corner_radius_mm);
+        }
+        ElementKind::Photo(p) => {
+            if has_fill {
+                return Err("une case photo n'a pas de remplissage".into());
+            }
+            p.border = look_stroke(&p.border, args)?;
+            p.corner_radius_mm = corner.unwrap_or(p.corner_radius_mm);
+            p.shadow = shadow.unwrap_or(p.shadow);
+        }
+        ElementKind::Text(t) => {
+            if shadow.is_some() {
+                return Err("seule une case photo a une ombre".into());
+            }
+            let f = t.frame.get_or_insert_with(TextFrame::default);
+            f.fill = look_fill(&f.fill, args)?;
+            f.stroke = look_stroke(&f.stroke, args)?;
+            f.corner_radius_mm = corner.unwrap_or(f.corner_radius_mm);
+            tidy_frame(t);
+        }
+        ElementKind::Image(_) => return Err("une image de la banque n'a ni remplissage ni bord".into()),
+        ElementKind::Table(_) => return Err("le bord d'un tableau ne se change pas ici".into()),
+    }
     Ok(json!({ "ok": true }))
 }
 
@@ -191,7 +330,8 @@ pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
 pub fn add_image(doc: &mut Document, args: &Value) -> Result<Value, String> {
     let query = text(args, "query")?.ok_or("« query » manque")?;
     let (code, name) = crate::pictos::search(query).ok_or(format!("aucune image pour « {query} »"))?;
-    let mut out = push(doc, args, false, ElementKind::Image(ImageProps { code: code.to_string(), outline: None }))?;
+    let outline = flag(args, "to_color")?.and_then(|c| c.then_some(true));
+    let mut out = push(doc, args, false, ElementKind::Image(ImageProps { code: code.to_string(), outline }))?;
     out["name"] = json!(name);
     Ok(out)
 }
@@ -415,5 +555,81 @@ mod tests {
         assert_eq!(out["page"], 1);
         assert_eq!(d.pages[1].size.width_mm, 297.0);
         assert!(d.pages[1].elements.is_empty());
+    }
+
+    fn text_props<'a>(d: &'a Document, id: &str) -> &'a TextProps {
+        match &el(d, id).kind {
+            ElementKind::Text(t) => t,
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn a_named_style_gives_its_look_and_clears_the_words_own_sizes() {
+        let mut d = doc();
+        if let ElementKind::Text(t) = &mut d.pages[0].elements[0].kind {
+            t.content.paragraphs[0].runs[0].size_pt = Some(40.0);
+            t.content.paragraphs[0].align = Some(Align::Right);
+        }
+        set_text_style(&mut d, &json!({ "element_id": "t1", "style": "titre" })).unwrap();
+        let t = text_props(&d, "t1");
+        assert_eq!((t.style.font.as_str(), t.style.size_pt, t.style.align, t.style.named.as_deref()), ("Playwrite FR Moderne", 28.0, Align::Center, Some("titre")));
+        assert_eq!((t.content.paragraphs[0].runs[0].size_pt, t.content.paragraphs[0].align), (None, None));
+        assert_eq!(t.content.paragraphs[0].runs[0].text, "x");
+        // Une valeur donnée en plus du style l'emporte.
+        set_text_style(&mut d, &json!({ "element_id": "t1", "style": "consigne", "size_pt": 20 })).unwrap();
+        assert_eq!((text_props(&d, "t1").style.size_pt, text_props(&d, "t1").style.font.as_str()), (20.0, "Andika"));
+        assert!(set_text_style(&mut d, &json!({ "element_id": "t1", "style": "inconnu" })).unwrap_err().contains("titre"));
+    }
+
+    #[test]
+    fn vertical_alignment_outline_and_writing_lines() {
+        let mut d = doc();
+        set_text_style(&mut d, &json!({ "element_id": "t1", "valign": "middle", "outline": true, "writing_lines": "seyes" })).unwrap();
+        let t = text_props(&d, "t1");
+        assert_eq!((t.style.valign, t.style.outline), (Some(VAlign::Middle), Some(true)));
+        assert_eq!(t.frame.as_ref().unwrap().pattern, Some(Pattern::Seyes));
+        set_text_style(&mut d, &json!({ "element_id": "t1", "outline": false, "writing_lines": "none" })).unwrap();
+        let t = text_props(&d, "t1");
+        assert_eq!((t.style.outline, t.frame.clone()), (None, None));
+        assert!(set_text_style(&mut d, &json!({ "element_id": "t1", "valign": "haut" })).is_err());
+    }
+
+    #[test]
+    fn the_look_of_a_shape() {
+        let mut d = doc();
+        let id = add_shape(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 9, "h_mm": 9, "shape": "rect" })).unwrap()["element_id"].as_str().unwrap().to_string();
+        set_look(&mut d, &json!({ "element_id": id, "fill": "#FF0000", "border_style": "dashed", "border_width_mm": 1, "corner_radius_mm": 3 })).unwrap();
+        let ElementKind::Shape(s) = &el(&d, &id).kind else { unreachable!() };
+        assert_eq!((s.fill.as_deref(), s.corner_radius_mm), (Some("#ff0000"), 3.0));
+        assert_eq!(s.stroke, Some(Stroke { width_mm: 1.0, color: "#222222".into(), style: Some(StrokeStyle::Dashed) }));
+        set_look(&mut d, &json!({ "element_id": id, "fill": "none", "border_style": "none" })).unwrap();
+        let ElementKind::Shape(s) = &el(&d, &id).kind else { unreachable!() };
+        assert_eq!((s.fill.clone(), s.stroke.clone()), (None, None));
+    }
+
+    #[test]
+    fn the_look_of_a_photo_and_of_a_text_frame() {
+        let mut d = doc();
+        let id = add_photo_zone(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 9, "h_mm": 9 })).unwrap()["element_id"].as_str().unwrap().to_string();
+        set_look(&mut d, &json!({ "element_id": id, "shadow": true, "border_color": "#0000ff" })).unwrap();
+        let ElementKind::Photo(p) = &el(&d, &id).kind else { unreachable!() };
+        assert!(p.shadow);
+        assert_eq!(p.border.as_ref().map(|b| b.color.as_str()), Some("#0000ff"));
+        assert!(set_look(&mut d, &json!({ "element_id": id, "fill": "#ffffff" })).is_err());
+        set_look(&mut d, &json!({ "element_id": "t1", "fill": "#ffeeaa", "corner_radius_mm": 4 })).unwrap();
+        let f = text_props(&d, "t1").frame.clone().unwrap();
+        assert_eq!((f.fill.as_deref(), f.corner_radius_mm), (Some("#ffeeaa"), 4.0));
+        assert!(set_look(&mut d, &json!({ "element_id": "t1", "shadow": true })).is_err());
+        assert!(set_look(&mut d, &json!({ "element_id": "verrou", "fill": "#ffffff" })).is_err());
+    }
+
+    #[test]
+    fn an_image_to_color() {
+        let mut d = doc();
+        let id = add_image(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 9, "h_mm": 9, "query": "soleil", "to_color": true })).unwrap()["element_id"].as_str().unwrap().to_string();
+        let ElementKind::Image(i) = &el(&d, &id).kind else { unreachable!() };
+        assert_eq!(i.outline, Some(true));
+        assert!(set_look(&mut d, &json!({ "element_id": id, "fill": "#ffffff" })).is_err());
     }
 }

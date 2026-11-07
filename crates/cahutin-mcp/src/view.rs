@@ -15,7 +15,9 @@ pub fn layout(doc: &Document, page: Option<usize>, selection: &[Id]) -> Value {
         .filter(|(i, _)| page.is_none_or(|p| p == *i))
         .map(|(i, p)| page_view(doc, i, p, selection))
         .collect();
-    json!({ "page_count": doc.pages.len(), "pages": pages })
+    // Les noms des styles de Cahutin sont les siens ; ceux qu'a créés l'enseignant restent chez lui.
+    let styles: Vec<Value> = crate::styles::of(doc).into_iter().map(|(s, builtin)| if builtin { json!({ "id": s.id, "name": s.name }) } else { json!({ "id": s.id }) }).collect();
+    json!({ "page_count": doc.pages.len(), "pages": pages, "text_styles": styles })
 }
 
 fn page_view(doc: &Document, index: usize, page: &Page, selection: &[Id]) -> Value {
@@ -26,12 +28,14 @@ fn page_view(doc: &Document, index: usize, page: &Page, selection: &[Id]) -> Val
         "index": index,
         "width_mm": page.size.width_mm,
         "height_mm": page.size.height_mm,
+        "format": crate::styles::format_of(page.size),
+        "landscape": page.size.width_mm > page.size.height_mm,
         "background": background,
-        "elements": page.elements.iter().map(|e| element_view(doc, e, selection.contains(&e.id))).collect::<Vec<_>>(),
+        "elements": page.elements.iter().map(|e| element_view(doc, page, e, selection.contains(&e.id))).collect::<Vec<_>>(),
     })
 }
 
-fn element_view(doc: &Document, e: &Element, selected: bool) -> Value {
+fn element_view(doc: &Document, page: &Page, e: &Element, selected: bool) -> Value {
     let f = &e.frame;
     let mut v = json!({
         "id": e.id,
@@ -43,6 +47,11 @@ fn element_view(doc: &Document, e: &Element, selected: bool) -> Value {
         "locked": e.locked,
         "zone": e.zone,
         "group": e.group,
+        "subgroups": e.subgroups,
+        "flip_h": e.flip_h,
+        "flip_v": e.flip_v,
+        // Une case de grille suit la grille de la page : elle ne se déplace pas seule.
+        "in_grid": page.grid.as_ref().is_some_and(|g| g.cells.iter().any(|c| c.element_id == e.id)),
         "selected": selected,
     });
     let extra = match &e.kind {
@@ -54,6 +63,9 @@ fn element_view(doc: &Document, e: &Element, selected: bool) -> Value {
             "color": t.style.color,
             "align": format!("{:?}", t.style.align).to_lowercase(),
             "valign": t.style.valign.map(|a| format!("{a:?}").to_lowercase()),
+            "outline": t.style.outline.unwrap_or(false),
+            "padding_mm": t.style.padding(),
+            "style": t.style.named,
             "fill": t.frame.as_ref().and_then(|fr| fr.fill.clone()),
             "border": t.frame.as_ref().and_then(|fr| fr.stroke.as_ref()).map(stroke_view),
             "has_background_image": t.frame.as_ref().is_some_and(|fr| fr.image.is_some()),
@@ -79,7 +91,7 @@ fn element_view(doc: &Document, e: &Element, selected: bool) -> Value {
             "corner_radius_mm": s.corner_radius_mm,
         }),
         // Code OpenMoji d'une image décorative de la banque : public, pas une donnée de l'utilisateur.
-        ElementKind::Image(i) => json!({ "type": "image", "openmoji": i.code, "name": crate::pictos::name(&i.code) }),
+        ElementKind::Image(i) => json!({ "type": "image", "openmoji": i.code, "name": crate::pictos::name(&i.code), "to_color": i.outline.unwrap_or(false) }),
         // Un tableau : sa structure ; ses cases sont des éléments de la page, vus comme les autres.
         ElementKind::Table(t) => json!({
             "type": "table",
@@ -126,6 +138,7 @@ fn shape_name(k: ShapeKind) -> &'static str {
 mod tests {
     use super::*;
     use carnet_core::*;
+    use serde_json::json;
 
     const SECRETS: [&str; 4] = ["Léa", "Mathis", "piege-asset-id", "Prénom secret"];
 
@@ -204,7 +217,9 @@ mod tests {
             let doc = examples::document(&info.id).unwrap();
             // Les noms des images viennent de la banque OpenMoji, publique : ils peuvent coïncider avec un
             // texte de l'exemple (« en colère ») sans rien en révéler.
+            // De même pour les styles de Cahutin (« Prénom ») ; ceux de l'enseignant n'ont pas de nom dans la vue.
             let mut view = layout(&doc, None, &[]);
+            view.as_object_mut().unwrap().remove("text_styles");
             for p in view["pages"].as_array_mut().unwrap() {
                 for e in p["elements"].as_array_mut().unwrap() {
                     e.as_object_mut().unwrap().remove("name");
@@ -269,6 +284,47 @@ mod tests {
         });
         let v = layout(&doc, None, &[]);
         assert_eq!(v["pages"][0]["elements"][0]["name"], "gâteau d’anniversaire");
+    }
+
+    #[test]
+    fn the_layout_shows_flips_grid_cells_text_looks_and_page_format() {
+        let mut doc = sensitive_doc();
+        doc.text_styles.push(NamedTextStyle { id: "s-perso".into(), name: "Style de Léa".into(), font: "Andika".into(), size_pt: 12.0, color: "#000000".into(), align: Align::Left, outline: None });
+        let page = &mut doc.pages[0];
+        page.elements[1].flip_v = true;
+        if let ElementKind::Text(t) = &mut page.elements[0].kind {
+            t.style.outline = Some(true);
+            t.style.padding_mm = Some(3.0);
+            t.style.named = Some("titre".into());
+        }
+        page.elements.push(Element {
+            id: "i1".into(),
+            frame: frame(),
+            locked: false,
+            zone: false,
+            group: Some("g1".into()),
+            subgroups: vec!["g2".into()],
+            flip_h: true,
+            flip_v: false,
+            kind: ElementKind::Image(ImageProps { code: "1F382".into(), outline: Some(true) }),
+        });
+        let mut grid = Page::new(PageSize { width_mm: 210.0, height_mm: 148.0 });
+        grid::set_grid(&mut grid, 2, 1);
+        doc.pages.push(grid);
+        let v = layout(&doc, None, &[]);
+        let els = &v["pages"][0]["elements"];
+        assert_eq!((els[0]["outline"].clone(), els[0]["padding_mm"].clone(), els[0]["style"].clone()), (json!(true), json!(3.0), json!("titre")));
+        assert_eq!((els[1]["flip_h"].clone(), els[1]["flip_v"].clone()), (json!(false), json!(true)));
+        assert_eq!((els[2]["flip_h"].clone(), els[2]["to_color"].clone(), els[2]["subgroups"].clone()), (json!(true), json!(true), json!(["g2"])));
+        assert_eq!(els[0]["in_grid"], false);
+        assert_eq!(v["pages"][1]["elements"][0]["in_grid"], true);
+        assert_eq!((v["pages"][0]["format"].clone(), v["pages"][0]["landscape"].clone()), (json!("A4"), json!(false)));
+        assert_eq!((v["pages"][1]["format"].clone(), v["pages"][1]["landscape"].clone()), (json!("A5"), json!(true)));
+        // Les styles de Cahutin avec leur nom ; ceux de l'enseignant par leur seul identifiant.
+        let styles = v["text_styles"].as_array().unwrap();
+        assert!(styles.contains(&json!({ "id": "titre", "name": "Titre" })), "{styles:?}");
+        assert!(styles.contains(&json!({ "id": "s-perso" })), "{styles:?}");
+        assert!(!v.to_string().contains("Style de"));
     }
 
     #[test]

@@ -2,10 +2,12 @@
 //! sans jamais recevoir ni texte, ni photo, ni nom de fichier.
 
 pub mod agent;
+pub mod arrange;
 pub mod describe;
 pub mod edit;
 pub mod file;
 pub mod pictos;
 pub mod server;
+pub mod styles;
 pub mod tools;
 pub mod view;

@@ -100,13 +100,30 @@ mod tests {
     }
 
     #[test]
-    fn the_four_tools_are_listed_with_their_schema() {
+    fn the_tools_are_listed_with_their_schema() {
         let (_d, s) = server();
         let r = call(&s, 2, "tools/list", json!({}));
         let names: Vec<_> = r["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
         assert_eq!(
             names,
-            ["get_layout", "set_frame", "set_text_style", "set_background", "add_text", "set_text", "add_shape", "add_image", "add_photo_zone", "delete_element", "add_page"]
+            [
+                "get_layout",
+                "set_frame",
+                "set_text_style",
+                "set_look",
+                "set_background",
+                "add_text",
+                "set_text",
+                "add_shape",
+                "add_image",
+                "add_photo_zone",
+                "delete_element",
+                "add_page",
+                "arrange",
+                "group",
+                "ungroup",
+                "set_page_format"
+            ]
         );
         assert!(r["result"]["tools"].as_array().unwrap().iter().all(|t| t["inputSchema"]["type"] == "object"));
     }

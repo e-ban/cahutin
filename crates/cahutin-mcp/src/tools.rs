@@ -1,12 +1,28 @@
 //! Les outils de l'assistant : leur description pour le modèle, et leur application à un document en
 //! mémoire. Partagés par le serveur MCP et par l'application.
 
-use crate::{edit, view};
+use crate::{arrange, edit, view};
 use carnet_core::{Document, Id};
 use serde_json::{Value, json};
 
 /// Outils qui modifient le document (chacun fait une étape de la proposition).
-pub const MUTATING: &[&str] = &["set_frame", "set_text_style", "set_background", "add_text", "set_text", "add_shape", "add_image", "add_photo_zone", "delete_element", "add_page"];
+pub const MUTATING: &[&str] = &[
+    "set_frame",
+    "set_text_style",
+    "set_look",
+    "set_background",
+    "add_text",
+    "set_text",
+    "add_shape",
+    "add_image",
+    "add_photo_zone",
+    "delete_element",
+    "add_page",
+    "arrange",
+    "group",
+    "ungroup",
+    "set_page_format",
+];
 
 /// Outil traité par la boucle de dialogue, pas par `apply` : il n'agit qu'à l'acceptation.
 pub const SAVE_AS_TEMPLATE: &str = "save_as_template";
@@ -16,6 +32,7 @@ pub fn apply(doc: &mut Document, name: &str, args: &Value, selection: &[Id]) -> 
         "get_layout" => Ok(view::layout(doc, args.get("page").and_then(Value::as_u64).map(|p| p as usize), selection)),
         "set_frame" => edit::set_frame(doc, args),
         "set_text_style" => edit::set_text_style(doc, args),
+        "set_look" => edit::set_look(doc, args),
         "set_background" => edit::set_background(doc, args),
         "add_text" => edit::add_text(doc, args),
         "set_text" => edit::set_text(doc, args),
@@ -24,6 +41,10 @@ pub fn apply(doc: &mut Document, name: &str, args: &Value, selection: &[Id]) -> 
         "add_photo_zone" => edit::add_photo_zone(doc, args),
         "delete_element" => edit::delete_element(doc, args),
         "add_page" => edit::add_page(doc, args),
+        "arrange" => arrange::arrange(doc, args),
+        "group" => arrange::group(doc, args),
+        "ungroup" => arrange::ungroup(doc, args),
+        "set_page_format" => arrange::set_page_format(doc, args),
         other => Err(format!("outil inconnu : {other}")),
     }
 }
@@ -44,6 +65,9 @@ pub fn definitions() -> Value {
     let font = json!({ "type": "string" });
     let size = json!({ "type": "number", "description": "Taille en points" });
     let align = json!({ "type": "string", "enum": ["left", "center", "right", "justify"] });
+    let valign = json!({ "type": "string", "enum": ["top", "middle", "bottom"] });
+    let style = json!({ "type": "string", "description": "Identifiant d'un style nommé (titre, consigne, texte, prenom…)" });
+    let lines = json!({ "type": "string", "enum": ["seyes", "small_squares", "lines", "dots", "none"], "description": "Lignes d'écriture sous le texte" });
     json!([
         {
             "name": "get_layout",
@@ -59,9 +83,22 @@ pub fn definitions() -> Value {
         },
         {
             "name": "set_text_style",
-            "description": "Change la police, la taille, la couleur ou l'alignement d'un texte (jamais son contenu).",
+            "description": "Change l'allure d'un texte (jamais son contenu) : police, taille, couleur, alignement, style nommé (text_styles de get_layout), lettres creuses, lignes d'écriture.",
             "inputSchema": { "type": "object", "required": ["element_id"], "properties": {
                 "element_id": id, "font": font, "size_pt": size, "color": color, "align": align,
+                "valign": valign, "style": style, "outline": { "type": "boolean", "description": "Lettres creuses, à repasser" }, "writing_lines": lines,
+            } },
+        },
+        {
+            "name": "set_look",
+            "description": "Change le remplissage, le bord et les coins d'une forme, d'une case photo ou du cadre d'un texte ; l'ombre d'une case photo.",
+            "inputSchema": { "type": "object", "required": ["element_id"], "properties": {
+                "element_id": id,
+                "fill": { "type": "string", "description": "#rrggbb, ou none pour aucun" },
+                "border_color": color, "border_width_mm": mm("Épaisseur du bord"),
+                "border_style": { "type": "string", "enum": ["solid", "dashed", "dotted", "none"] },
+                "corner_radius_mm": mm("Rayon des coins arrondis"),
+                "shadow": { "type": "boolean" },
             } },
         },
         {
@@ -76,7 +113,7 @@ pub fn definitions() -> Value {
         {
             "name": "add_text",
             "description": "Ajoute un texte sur une page.",
-            "inputSchema": frame(json!({ "content": { "type": "string" }, "font": font, "size_pt": size, "color": color, "align": align }), &["content"]),
+            "inputSchema": frame(json!({ "content": { "type": "string" }, "style": style, "font": font, "size_pt": size, "color": color, "align": align, "valign": valign }), &["content"]),
         },
         {
             "name": "set_text",
@@ -94,7 +131,7 @@ pub fn definitions() -> Value {
         {
             "name": "add_image",
             "description": "Ajoute une image de la banque, trouvée par un mot-clé en français (« tulipe », « soleil »).",
-            "inputSchema": frame(json!({ "query": { "type": "string", "description": "Mot-clé en français" } }), &["query"]),
+            "inputSchema": frame(json!({ "query": { "type": "string", "description": "Mot-clé en français" }, "to_color": { "type": "boolean", "description": "Contour noir seul, à colorier" } }), &["query"]),
         },
         {
             "name": "add_photo_zone",
@@ -112,9 +149,52 @@ pub fn definitions() -> Value {
             "inputSchema": { "type": "object", "properties": {} },
         },
         {
+            "name": "arrange",
+            "description": "Met un élément (avec tout son groupe) devant ou derrière les autres, le duplique (rend les nouveaux identifiants) ou le retourne en miroir.",
+            "inputSchema": { "type": "object", "required": ["element_id", "action"], "properties": {
+                "element_id": id, "action": { "type": "string", "enum": ["front", "back", "duplicate", "mirror_h", "mirror_v"] },
+            } },
+        },
+        {
+            "name": "group",
+            "description": "Groupe des éléments d'une même page, pour qu'ils se déplacent ensemble.",
+            "inputSchema": { "type": "object", "required": ["element_ids"], "properties": { "element_ids": { "type": "array", "items": { "type": "string" } } } },
+        },
+        {
+            "name": "ungroup",
+            "description": "Dissocie le groupe d'un élément (un seul niveau).",
+            "inputSchema": { "type": "object", "required": ["element_id"], "properties": { "element_id": id } },
+        },
+        {
+            "name": "set_page_format",
+            "description": "Change le format d'une page (le contenu est agrandi ou réduit d'autant) ou son orientation.",
+            "inputSchema": { "type": "object", "required": ["page"], "properties": {
+                "page": page, "format": { "type": "string", "enum": ["A5", "A4", "A3"] }, "orientation": { "type": "string", "enum": ["portrait", "landscape"] },
+            } },
+        },
+        {
             "name": SAVE_AS_TEMPLATE,
             "description": "Enregistre une page comme modèle dans le tiroir Modèles. Seulement si l'utilisateur demande un modèle.",
             "inputSchema": { "type": "object", "required": ["page", "name"], "properties": { "page": page, "name": { "type": "string", "description": "Nom du modèle" } } },
         },
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Un outil décrit mais oublié dans `MUTATING` ne ferait aucune étape, et le serveur n'écrirait pas le fichier.
+    #[test]
+    fn every_described_tool_is_wired() {
+        let names: Vec<String> = definitions().as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
+        for n in ["set_look", "arrange", "group", "ungroup", "set_page_format"] {
+            assert!(names.iter().any(|x| x == n), "{n} n'est pas décrit");
+        }
+        for n in names.iter().filter(|n| *n != "get_layout" && *n != SAVE_AS_TEMPLATE) {
+            assert!(MUTATING.contains(&n.as_str()), "{n} manque dans MUTATING");
+            let err = apply(&mut Document::new("x"), n, &json!({}), &[]).err().unwrap_or_default();
+            assert!(!err.starts_with("outil inconnu"), "{n} : {err}");
+        }
+    }
 }

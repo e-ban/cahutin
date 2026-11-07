@@ -1,7 +1,7 @@
 //! Les outils de l'assistant : leur description pour le modèle, et leur application à un document en
 //! mémoire. Partagés par le serveur MCP et par l'application.
 
-use crate::{arrange, edit, tables, template, view};
+use crate::{arrange, decor, edit, exercises, tables, template, view};
 use carnet_core::{Document, Id};
 use serde_json::{Value, json};
 
@@ -27,6 +27,10 @@ pub const MUTATING: &[&str] = &[
     "repeat",
     "set_template_role",
     "page_grid",
+    "cut_marks",
+    "add_caption",
+    "decor",
+    "exercise",
 ];
 
 /// Outil traité par la boucle de dialogue, pas par `apply` : il n'agit qu'à l'acceptation.
@@ -55,6 +59,10 @@ pub fn apply(doc: &mut Document, name: &str, args: &Value, selection: &[Id]) -> 
         "repeat" => tables::repeat(doc, args),
         "set_template_role" => template::set_template_role(doc, args),
         "page_grid" => template::page_grid(doc, args),
+        "cut_marks" => decor::cut_marks(doc, args),
+        "add_caption" => decor::add_caption(doc, args),
+        "decor" => decor::decor(doc, args),
+        "exercise" => exercises::exercise(doc, args),
         other => Err(format!("outil inconnu : {other}")),
     }
 }
@@ -228,6 +236,43 @@ pub fn definitions() -> Value {
             } },
         },
         {
+            "name": "cut_marks",
+            "description": "Repères de découpe autour de chaque bloc donné (étiquettes, cartes) : corners (traits aux coins), dashed (pointillés et ciseaux), none (les retirer).",
+            "inputSchema": { "type": "object", "required": ["element_ids", "style"], "properties": {
+                "element_ids": { "type": "array", "items": { "type": "string" } }, "style": { "type": "string", "enum": ["corners", "dashed", "none"] },
+            } },
+        },
+        {
+            "name": "add_caption",
+            "description": "Ajoute une légende sous une photo, groupée avec elle ; « content » l'écrit.",
+            "inputSchema": { "type": "object", "required": ["photo_id"], "properties": { "photo_id": id, "content": { "type": "string" } } },
+        },
+        {
+            "name": "decor",
+            "description": "Décors : page_frame (cadre de page, style), frieze (frise le long des marges : side, motifs), block_frieze (frise autour d'un élément : element_id, motifs), remove_frieze (element_id d'une image de la frise).",
+            "inputSchema": { "type": "object", "required": ["kind"], "properties": {
+                "kind": { "type": "string", "enum": ["page_frame", "frieze", "block_frieze", "remove_frieze"] },
+                "page": page, "element_id": id,
+                "style": { "type": "string", "enum": ["thin", "thick", "rounded", "double"] },
+                "side": { "type": "string", "enum": ["top", "bottom", "around"] },
+                "motifs": { "type": "array", "items": { "type": "string" }, "description": "Mots-clés français des images, répétées dans l'ordre" },
+                "size_mm": mm("Taille des images (15 par défaut)"), "gap_mm": mm("Écart minimal (3 par défaut)"),
+            } },
+        },
+        {
+            "name": "exercise",
+            "description": "Fiches, posées sous ce que la page contient : graphisme (lignes à repasser : motif, rows), maze (labyrinthe), symmetry (dessin à compléter : figure) ; et, à x_mm/y_mm : dotted_path (chemin à suivre entre deux images : path), start_point (point vert de départ), direction_arrow (flèche de sens). level : PS, MS ou GS.",
+            "inputSchema": { "type": "object", "required": ["kind", "page"], "properties": {
+                "kind": { "type": "string", "enum": ["graphisme", "maze", "symmetry", "dotted_path", "start_point", "direction_arrow"] },
+                "page": page, "level": { "type": "string", "enum": ["PS", "MS", "GS"] },
+                "motif": { "type": "string", "enum": ["ponts", "coupes", "vagues", "boucles", "creneaux", "dents", "traits", "ronds"] },
+                "rows": { "type": "integer" },
+                "figure": { "type": "string", "enum": ["sapin", "maison", "fusee", "bateau", "coeur"] },
+                "path": { "type": "string", "enum": ["descend", "monte", "vague", "arc"] },
+                "x_mm": mm("Bord gauche"), "y_mm": mm("Bord haut"),
+            } },
+        },
+        {
             "name": SAVE_AS_TEMPLATE,
             "description": "Enregistre une page comme modèle dans le tiroir Modèles. Seulement si l'utilisateur demande un modèle. \
 Le modèle garde les formes, les images, les zones à remplir, les éléments fixes et les textes que vous avez écrits. \
@@ -248,7 +293,7 @@ mod tests {
     #[test]
     fn every_described_tool_is_wired() {
         let names: Vec<String> = definitions().as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
-        for n in ["set_look", "arrange", "group", "ungroup", "set_page_format", "add_table", "table_edit", "repeat", "set_template_role", "page_grid"] {
+        for n in ["set_look", "arrange", "group", "ungroup", "set_page_format", "add_table", "table_edit", "repeat", "set_template_role", "page_grid", "cut_marks", "add_caption", "decor", "exercise"] {
             assert!(names.iter().any(|x| x == n), "{n} n'est pas décrit");
         }
         for n in names.iter().filter(|n| *n != "get_layout" && *n != SAVE_AS_TEMPLATE) {

@@ -127,7 +127,11 @@ mod tests {
                 "table_edit",
                 "repeat",
                 "set_template_role",
-                "page_grid"
+                "page_grid",
+                "cut_marks",
+                "add_caption",
+                "decor",
+                "exercise"
             ]
         );
         assert!(r["result"]["tools"].as_array().unwrap().iter().all(|t| t["inputSchema"]["type"] == "object"));

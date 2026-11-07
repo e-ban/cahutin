@@ -3,8 +3,10 @@
 
 pub mod agent;
 pub mod arrange;
+pub mod decor;
 pub mod describe;
 pub mod edit;
+pub mod exercises;
 pub mod file;
 pub mod pictos;
 pub mod server;

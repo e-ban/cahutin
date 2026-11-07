@@ -206,7 +206,68 @@ fn format_fr(size: carnet_core::PageSize) -> String {
     }
 }
 
-fn new_line(e: &Element) -> String {
+/// Rectangle vide qui entoure presque toute la page (`isPageFrame`).
+fn is_page_frame(e: &Element, size: carnet_core::PageSize) -> bool {
+    matches!(&e.kind, ElementKind::Shape(s) if s.shape == carnet_core::ShapeKind::Rect && s.fill.is_none()) && e.frame.w_mm >= 0.8 * size.width_mm && e.frame.h_mm >= 0.8 * size.height_mm
+}
+
+/// Un ensemble posé d'un coup par un outil (frise, cadre, fiche), reconnu à sa forme.
+fn generated(set: &[&Element], size: carnet_core::PageSize) -> Option<String> {
+    let image = |e: &Element, code: &str| matches!(&e.kind, ElementKind::Image(i) if i.code == code);
+    let path_colored = |e: &Element, color: &str| matches!(&e.kind, ElementKind::Shape(s) if s.path.is_some() && s.stroke.as_ref().is_some_and(|st| st.color == color));
+    if set.iter().all(|e| is_page_frame(e, size)) {
+        return Some("Nouveau cadre de page".into());
+    }
+    if set.len() >= 3 && set.iter().all(|e| matches!(e.kind, ElementKind::Image(_) | ElementKind::Photo(_))) {
+        return Some(format!("Nouvelle frise ({} images)", set.len()));
+    }
+    if set.iter().any(|e| path_colored(e, "#d32f2f")) {
+        return Some("Nouvelle fiche de symétrie".into());
+    }
+    if set.iter().any(|e| image(e, "1F424")) && set.iter().any(|e| image(e, "1F414")) {
+        return Some("Nouveau labyrinthe".into());
+    }
+    if set.len() == 4 && set.iter().any(|e| path_colored(e, "#9e9e9e")) {
+        return Some("Nouvelle ligne de graphisme".into());
+    }
+    None
+}
+
+/// Les éléments nouveaux d'une page : un ensemble généré en une ligne, des repères de découpe en une ligne,
+/// le reste un par un.
+fn new_lines(before: &Document, page: &carnet_core::Page, fresh: &[&Element]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut done: Vec<&Id> = Vec::new();
+    for e in fresh.iter().filter(|e| !crate::decor::is_cut_mark(e)) {
+        if done.contains(&&e.id) {
+            continue;
+        }
+        let path = carnet_core::groups::path(e);
+        if !path.is_empty() && !elements(before).any(|b| carnet_core::groups::path(b) == path) {
+            let set: Vec<&Element> = fresh.iter().copied().filter(|o| carnet_core::groups::path(o) == path && !crate::decor::is_cut_mark(o)).collect();
+            let all_new = page.elements.iter().filter(|o| carnet_core::groups::path(o) == path).all(|o| fresh.iter().any(|f| f.id == o.id));
+            if let Some(line) = generated(&set, page.size).filter(|_| all_new) {
+                out.push(line);
+                done.extend(set.iter().map(|o| &o.id));
+                continue;
+            }
+        }
+        out.push(new_line(e, page.size));
+        done.push(&e.id);
+    }
+    if fresh.iter().any(|e| crate::decor::is_cut_mark(e)) {
+        out.push("Repères de découpe ajoutés".into());
+    }
+    out
+}
+
+fn new_line(e: &Element, page: carnet_core::PageSize) -> String {
+    if is_page_frame(e, page) {
+        return "Nouveau cadre de page".into();
+    }
+    if matches!(&e.kind, ElementKind::Text(t) if t.prompt.as_deref() == Some("Légende…")) {
+        return "Nouvelle légende".into();
+    }
     let (name, fem) = label(e);
     let lower = name[..1].to_lowercase() + &name[1..];
     let size = match &e.kind {
@@ -297,12 +358,14 @@ pub fn describe(before: &Document, after: &Document) -> Vec<String> {
             out.push(format!("Page {} : {}", i + 1, format_fr(pa.size)));
             continue;
         }
+        let mut fresh = Vec::new();
         for a in pa.elements.iter().filter(|a| !quiet.contains(&a.id)) {
             match elements(before).find(|b| b.id == a.id) {
                 Some(b) => out.extend(changes(after, b, a)),
-                None => out.push(new_line(a)),
+                None => fresh.push(a),
             }
         }
+        out.extend(new_lines(before, pa, &fresh));
     }
     let depth = |d: &Document, id: &Id| elements(d).find(|e| &e.id == id).map(|e| carnet_core::groups::path(e).len());
     let (mut grouped, mut ungrouped) = (0, 0);
@@ -313,10 +376,11 @@ pub fn describe(before: &Document, after: &Document) -> Vec<String> {
             _ => {}
         }
     }
-    if grouped > 0 {
+    // Un seul élément « groupé » l'est avec ce qui vient d'être posé (légende, repères, frise) : rien à dire.
+    if grouped > 1 {
         out.push(format!("{grouped} éléments groupés"));
     }
-    if ungrouped > 0 {
+    if ungrouped > 1 {
         out.push(format!("{ungrouped} éléments dissociés"));
     }
     for (pb, pa) in before.pages.iter().zip(&after.pages) {
@@ -331,7 +395,11 @@ pub fn describe(before: &Document, after: &Document) -> Vec<String> {
             });
         }
     }
-    for b in elements(before).filter(|b| !quiet.contains(&b.id) && !elements(after).any(|a| a.id == b.id)) {
+    let gone_marks = elements(before).filter(|b| crate::decor::is_cut_mark(b) && !elements(after).any(|a| a.id == b.id)).count();
+    if gone_marks > 0 {
+        out.push("Repères de découpe retirés".into());
+    }
+    for b in elements(before).filter(|b| !quiet.contains(&b.id) && !crate::decor::is_cut_mark(b) && !elements(after).any(|a| a.id == b.id)) {
         let (name, fem) = label(b);
         out.push(format!("{name} {}", agree("supprimé", fem)));
     }
@@ -625,5 +693,46 @@ mod tests {
         let mut r = a.clone();
         crate::template::page_grid(&mut r, &json!({ "page": 0, "action": "remove" })).unwrap();
         assert_eq!(describe(&a, &r), ["Page 1 : grille retirée, ses cases restent"]);
+    }
+
+    #[test]
+    fn generated_sheets_and_decors_are_one_line_each() {
+        let one = |f: &dyn Fn(&mut Document)| {
+            let mut d = Document::new("x");
+            let b = d.clone();
+            f(&mut d);
+            describe(&b, &d)
+        };
+        assert_eq!(one(&|d| { crate::decor::decor(d, &json!({ "kind": "frieze", "page": 0, "side": "top", "motifs": ["soleil"] })).unwrap(); }), ["Nouvelle frise (10 images)"]);
+        assert_eq!(one(&|d| { crate::decor::decor(d, &json!({ "kind": "page_frame", "page": 0, "style": "double" })).unwrap(); }), ["Nouveau cadre de page"]);
+        assert_eq!(one(&|d| { crate::decor::decor(d, &json!({ "kind": "page_frame", "page": 0, "style": "thin" })).unwrap(); }), ["Nouveau cadre de page"]);
+        assert_eq!(one(&|d| { crate::exercises::exercise(d, &json!({ "kind": "graphisme", "page": 0, "motif": "ponts", "rows": 3 })).unwrap(); }), ["Nouvelle ligne de graphisme (× 3)"]);
+        assert_eq!(one(&|d| { crate::exercises::exercise(d, &json!({ "kind": "maze", "page": 0, "seed": 3 })).unwrap(); }), ["Nouveau labyrinthe"]);
+        assert_eq!(one(&|d| { crate::exercises::exercise(d, &json!({ "kind": "symmetry", "page": 0, "figure": "coeur" })).unwrap(); }), ["Nouvelle fiche de symétrie"]);
+    }
+
+    #[test]
+    fn cut_marks_captions_and_block_friezes() {
+        let (b, a) = after(|d| {
+            let id = id(d, 2);
+            crate::decor::cut_marks(d, &json!({ "element_ids": [id], "style": "corners" })).unwrap();
+        });
+        assert_eq!(describe(&b, &a), ["Repères de découpe ajoutés"]);
+        let mut gone = a.clone();
+        let rid = id(&a, 2);
+        crate::decor::cut_marks(&mut gone, &json!({ "element_ids": [rid], "style": "none" })).unwrap();
+        assert_eq!(describe(&a, &gone), ["Repères de découpe retirés"]);
+        let (b, a) = after(|d| {
+            let id = id(d, 2);
+            crate::decor::decor(d, &json!({ "kind": "block_frieze", "element_id": id, "motifs": ["fleur"] })).unwrap();
+        });
+        let lines = describe(&b, &a);
+        assert_eq!(lines.len(), 1, "{lines:?}");
+        assert!(lines[0].starts_with("Nouvelle frise ("), "{lines:?}");
+        let (b, a) = after(|d| {
+            let p = edit::add_photo_zone(d, &json!({ "page": 0, "x_mm": 100, "y_mm": 100, "w_mm": 50, "h_mm": 40 })).unwrap()["element_id"].as_str().unwrap().to_string();
+            crate::decor::add_caption(d, &json!({ "photo_id": p })).unwrap();
+        });
+        assert_eq!(describe(&b, &a), ["Nouvelle case photo", "Nouvelle légende"]);
     }
 }

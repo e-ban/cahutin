@@ -217,6 +217,9 @@
     <div class="head">
       <label>{fr.className} <input class="name" value={cls.name} onchange={(e) => e.currentTarget.value.trim() && classes.update((c) => ({ ...c, name: e.currentTarget.value.trim() }))} /></label>
       <label>{fr.classYearLabel} <input class="year" value={cls.year} onchange={(e) => e.currentTarget.value.trim() && classes.update((c) => ({ ...c, year: e.currentTarget.value.trim() }))} /></label>
+      <!-- Pour les champs {ecole} et {enseignant} ; vides si l'on n'en veut pas. -->
+      <label>{fr.classSchool} <input class="school" value={cls.school} onchange={(e) => classes.update((c) => ({ ...c, school: e.currentTarget.value.trim() }))} /></label>
+      <label>{fr.classTeacher} <input class="teacher" value={cls.teacher} onchange={(e) => classes.update((c) => ({ ...c, teacher: e.currentTarget.value.trim() }))} /></label>
       <span class="count">{fr.classCount(cls.students.length)}</span>
       <span class="spacer"></span>
       <button onclick={() => (pasting = !pasting)}>📋 {fr.classPaste}</button>
@@ -377,6 +380,10 @@
   }
   .year {
     width: 7em;
+  }
+  .school,
+  .teacher {
+    width: 12em;
   }
   .count {
     color: var(--muted);

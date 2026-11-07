@@ -10,4 +10,9 @@ year: string, students: Array<Student>,
 /**
  * Photos portraits des élèves.
  */
-photos: { [key in string]?: AssetMeta }, };
+photos: { [key in string]?: AssetMeta }, 
+/**
+ * Nom de l'école et de l'enseignant(e), pour les champs {ecole} et {enseignant} ; vides par défaut (et dans
+ * une classe de la version 1).
+ */
+school: string, teacher: string, };

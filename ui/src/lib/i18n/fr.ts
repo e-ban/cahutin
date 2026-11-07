@@ -89,6 +89,8 @@ export const fr = {
   classEdit: "Modifier la classe…",
   classNone: "Aucune classe pour l'instant : créez-la en collant la liste des prénoms.",
   classYearLabel: "Année scolaire",
+  classSchool: "École",
+  classTeacher: "Enseignant(e)",
   classPhoto: "Photo",
   classAddOne: "Prénom d'un nouvel élève",
   classAddOneButton: "Ajouter",

@@ -269,7 +269,7 @@ impl ClassInfo {
             .map(|l| format!("{l:?}"))
             .collect::<Vec<_>>()
             .join("-");
-        ClassInfo { name: c.name.clone(), levels, count: c.students.len(), school: String::new(), teacher: String::new() }
+        ClassInfo { name: c.name.clone(), levels, count: c.students.len(), school: c.school.clone(), teacher: c.teacher.clone() }
     }
 }
 

@@ -62,8 +62,14 @@ pub enum Event {
 #[derive(Debug, PartialEq)]
 pub enum ChatError {
     Unreachable,
+    /// Pas de réponse dans le délai.
+    TimedOut,
     KeyRefused,
     ModelUnknown,
+    /// Trop de demandes, ou crédit épuisé (code 429).
+    Busy,
+    /// Le service est en panne (codes 500 et plus).
+    ServiceDown,
     /// L'utilisatrice a cliqué « Arrêter » pendant que le modèle répondait.
     Cancelled,
     Other(String),
@@ -72,11 +78,14 @@ pub enum ChatError {
 impl ChatError {
     pub fn message_fr(&self) -> String {
         match self {
-            ChatError::Unreachable => "Je n'arrive pas à joindre l'assistant. Vérifiez l'adresse dans les Préférences.".into(),
+            ChatError::Unreachable => "Je n'arrive pas à joindre l'assistant. Vérifiez la connexion à Internet et les réglages de l'assistant (Préférences).".into(),
+            ChatError::TimedOut => "L'assistant met trop de temps à répondre. Réessayez, ou demandez une modification plus simple.".into(),
             ChatError::KeyRefused => "Le service refuse la clé. Vérifiez-la dans les Préférences.".into(),
-            ChatError::ModelUnknown => "Ce modèle est introuvable sur le service.".into(),
+            ChatError::ModelUnknown => "Ce modèle d'IA est introuvable : vérifiez les réglages de l'assistant (Préférences).".into(),
+            ChatError::Busy => "Le service de l'assistant est trop sollicité, ou votre crédit est épuisé. Réessayez dans quelques minutes.".into(),
+            ChatError::ServiceDown => "Le service de l'assistant a un problème en ce moment. Réessayez plus tard.".into(),
             ChatError::Cancelled => "Arrêté.".into(),
-            ChatError::Other(d) => format!("L'assistant a rencontré un problème : {d}"),
+            ChatError::Other(d) => format!("L'assistant a rencontré un problème ({d})."),
         }
     }
 }
@@ -381,7 +390,7 @@ mod tests {
         let id = d.pages[0].elements[0].id.clone();
         let (events, _) = run_script(request(&d), vec![Ok(call("set_frame", json!({ "element_id": id, "y_mm": 40 }))), Err(ChatError::Unreachable)]);
         assert_eq!(steps(&events).len(), 1);
-        assert_eq!(done(&events).error.as_deref(), Some("Je n'arrive pas à joindre l'assistant. Vérifiez l'adresse dans les Préférences."));
+        assert_eq!(done(&events).error, Some(ChatError::Unreachable.message_fr()));
     }
 
     #[test]

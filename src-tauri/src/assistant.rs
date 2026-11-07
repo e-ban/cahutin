@@ -43,9 +43,13 @@ pub fn view(s: &Settings) -> AssistantSettings {
     AssistantSettings { enabled: s.enabled, url: s.url.clone(), model: s.model.clone(), has_key: !s.api_key.is_empty() }
 }
 
-/// `api_key` : `None` garde la clé enregistrée, `Some("")` l'efface.
+/// `api_key` : `None` garde la clé enregistrée (pour la même adresse seulement), `Some("")` l'efface.
 pub fn configure(dir: &Path, enabled: bool, url: String, model: String, api_key: Option<String>) -> Result<AssistantSettings, String> {
     let mut s = load(dir);
+    // Une autre adresse ne reçoit jamais la clé enregistrée pour la précédente : il faut la taper.
+    if api_key.is_none() && s.url.trim_end_matches('/') != url.trim().trim_end_matches('/') {
+        s.api_key.clear();
+    }
     s.enabled = enabled;
     s.url = url.trim().to_string();
     s.model = model.trim().to_string();
@@ -62,11 +66,18 @@ pub fn endpoint(url: &str) -> String {
     format!("{}/chat/completions", url.trim_end_matches('/'))
 }
 
-pub fn chat_error(status: u16, body: &str) -> ChatError {
+pub fn chat_error(status: u16, _body: &str) -> ChatError {
     match status {
         401 | 403 => ChatError::KeyRefused,
         404 => ChatError::ModelUnknown,
-        _ => ChatError::Other(body.chars().take(200).collect()),
+        429 => ChatError::Busy,
+        500.. => ChatError::ServiceDown,
+        // Le corps de la réponse (en anglais, souvent du JSON) ne s'affiche ni ne s'écrit au journal : il peut
+        // reprendre la demande.
+        _ => {
+            log::warn!("assistant_http_error status={status}");
+            ChatError::Other(format!("code {status}"))
+        }
     }
 }
 
@@ -86,9 +97,9 @@ fn chat(s: &Settings, body: &Value) -> Result<Value, ChatError> {
     if !s.api_key.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", s.api_key));
     }
-    let mut response = req.send(body.to_string()).map_err(|_| ChatError::Unreachable)?;
+    let mut response = req.send(body.to_string()).map_err(|e| if matches!(e, ureq::Error::Timeout(_)) { ChatError::TimedOut } else { ChatError::Unreachable })?;
     let status = response.status().as_u16();
-    let text = response.body_mut().with_config().limit(20_000_000).read_to_string().map_err(|_| ChatError::Unreachable)?;
+    let text = response.body_mut().with_config().limit(20_000_000).read_to_string().map_err(|e| if matches!(e, ureq::Error::Timeout(_)) { ChatError::TimedOut } else { ChatError::Unreachable })?;
     if status != 200 {
         return Err(chat_error(status, &text));
     }
@@ -216,8 +227,25 @@ mod tests {
         assert_eq!(chat_error(401, ""), ChatError::KeyRefused);
         assert_eq!(chat_error(403, ""), ChatError::KeyRefused);
         assert_eq!(chat_error(404, "model not found"), ChatError::ModelUnknown);
-        assert_eq!(chat_error(500, "boom"), ChatError::Other("boom".into()));
-        assert_eq!(chat_error(500, &"x".repeat(1000)), ChatError::Other("x".repeat(200)));
+        // Ni anglais ni JSON du service à l'écran : un message clair, le code seulement s'il n'y en a pas.
+        assert_eq!(chat_error(429, "{\"error\":\"rate limit\"}"), ChatError::Busy);
+        assert_eq!(chat_error(500, "boom"), ChatError::ServiceDown);
+        assert_eq!(chat_error(503, "boom"), ChatError::ServiceDown);
+        assert_eq!(chat_error(418, "teapot"), ChatError::Other("code 418".into()));
+        for e in [ChatError::Busy, ChatError::ServiceDown, ChatError::TimedOut, chat_error(418, "teapot")] {
+            assert!(!e.message_fr().contains("teapot"), "{e:?}");
+        }
+        assert!(ChatError::TimedOut.message_fr().contains("trop de temps"));
+    }
+
+    #[test]
+    fn a_new_address_never_receives_the_saved_key() {
+        let dir = tempfile::tempdir().unwrap();
+        configure(dir.path(), true, "https://payant/v1".into(), "m".into(), Some("secret".into())).unwrap();
+        configure(dir.path(), true, "https://payant/v1/".into(), "m2".into(), None).unwrap();
+        assert_eq!(load(dir.path()).api_key, "secret", "même adresse : la clé reste");
+        let v = configure(dir.path(), true, "https://autre/v1".into(), "m".into(), None).unwrap();
+        assert!(!v.has_key, "autre adresse sans clé tapée : la clé est effacée");
     }
 
     #[test]

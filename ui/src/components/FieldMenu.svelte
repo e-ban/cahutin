@@ -44,7 +44,6 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    min-width: 240px;
   }
   .field,
   .more {

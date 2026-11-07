@@ -1,5 +1,6 @@
 <script lang="ts">
-  // Section repliable du panneau Réglages : un clic sur son titre l'ouvre ou la ferme, et elle reste ainsi.
+  // Section repliable du panneau Réglages (et des tiroirs) : un clic sur son titre l'ouvre ou la ferme, et elle
+  // reste ainsi.
   import type { Snippet } from "svelte";
   import { inspectorSections } from "../../lib/inspectorSections.svelte";
 

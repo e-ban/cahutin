@@ -8,6 +8,7 @@
   import { fieldText } from "../../lib/fieldEdit";
   import { insertField } from "../../lib/textFormat.svelte";
   import FieldMenu from "../FieldMenu.svelte";
+  import InspectorSection from "../layout/InspectorSection.svelte";
   import type { Align, Element, Pattern, RichText } from "../../lib/types";
 
   interface Preset {
@@ -96,38 +97,51 @@
 
 <Drawer title={fr.text}>
   <button class="primary" onclick={() => add()}>✏️ {fr.addText}</button>
-  <h3>{fr.textPresets}</h3>
-  {#each presets as p (p.label)}
-    <button
-      class="preset"
-      class:hollow={p.outline}
-      onclick={() => add(p)}
-      style:font-family={`"${p.font}"`}
-      style:font-size={`${Math.min(p.size_pt, 20)}px`}
-      style:font-style={p.italic ? "italic" : "normal"}
-      style:color={p.color}
-    >
-      {p.label}
-    </button>
-  {/each}
-  <h3>{fr.fieldsTitle}</h3>
-  <p class="hint">{fr.fieldsHint}</p>
-  <FieldMenu onpick={addField} />
-  <h3>{fr.writingLines}</h3>
-  <div class="lines">
-    <button onclick={() => addLines("Seyes")}>{fr.patternSeyes}</button>
-    <button onclick={() => addLines("Lines")}>{fr.patternLines}</button>
-    <button onclick={() => addLines("SmallSquares")}>{fr.patternSquares}</button>
-  </div>
-  <h3>{fr.table}</h3>
-  <div class="table-size">
-    <label>{fr.tableCols} <input type="number" min="1" max="8" bind:value={cols} /></label>
-    <label>{fr.tableRows} <input type="number" min="1" max="8" bind:value={rows} /></label>
-  </div>
-  <button onclick={addTable}>▦ {fr.addTable}</button>
+  <!-- Sections repliées au départ : on voit d'un coup tout ce que le tiroir propose, et chacune reste comme on la
+       laisse. -->
+  <InspectorSection id="text-presets" title={fr.textPresets} open={false}>
+    <div class="stack">
+    {#each presets as p (p.label)}
+      <button
+        class="preset"
+        class:hollow={p.outline}
+        onclick={() => add(p)}
+        style:font-family={`"${p.font}"`}
+        style:font-size={`${Math.min(p.size_pt, 20)}px`}
+        style:font-style={p.italic ? "italic" : "normal"}
+        style:color={p.color}
+      >
+        {p.label}
+      </button>
+    {/each}
+    </div>
+  </InspectorSection>
+  <InspectorSection id="text-fields" title={fr.fieldsTitle} open={false}>
+    <p class="hint">{fr.fieldsHint}</p>
+    <FieldMenu onpick={addField} />
+  </InspectorSection>
+  <InspectorSection id="text-lines" title={fr.writingLines} open={false}>
+    <div class="lines">
+      <button onclick={() => addLines("Seyes")}>{fr.patternSeyes}</button>
+      <button onclick={() => addLines("Lines")}>{fr.patternLines}</button>
+      <button onclick={() => addLines("SmallSquares")}>{fr.patternSquares}</button>
+    </div>
+  </InspectorSection>
+  <InspectorSection id="text-table" title={fr.table} open={false}>
+    <div class="table-size">
+      <label>{fr.tableCols} <input type="number" min="1" max="8" bind:value={cols} /></label>
+      <label>{fr.tableRows} <input type="number" min="1" max="8" bind:value={rows} /></label>
+    </div>
+    <button onclick={addTable}>▦ {fr.addTable}</button>
+  </InspectorSection>
 </Drawer>
 
 <style>
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
   .lines {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

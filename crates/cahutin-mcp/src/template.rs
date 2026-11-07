@@ -8,7 +8,14 @@ use serde_json::{Value, json};
 /// Les champs possibles, pour les messages et la description de l'outil.
 pub fn fields_hint() -> String {
     let simple: Vec<String> = fields::KEYS.iter().map(|k| format!("{{{k}}}")).collect();
-    format!("{}, {{PRENOM_1}}, {{PRENOM_2}}… (une lettre en capitale), {{prenom_1}}… (telle qu'elle s'écrit), {{anniversaires_mars}}… (affiche de toute la classe)", simple.join(", "))
+    let auto = |keys: &[&str]| keys.iter().map(|k| format!("{{{k}}}")).collect::<Vec<_>>().join(", ");
+    format!(
+        "{}, {{PRENOM_1}}, {{PRENOM_2}}… (une lettre en capitale), {{prenom_1}}… (telle qu'elle s'écrit), {{anniversaires_mars}}… (affiche de toute la classe) ; \
+la date de la page : {} ; la classe : {}",
+        simple.join(", "),
+        auto(&fields::DATE_KEYS),
+        auto(&fields::CLASS_KEYS)
+    )
 }
 
 /// Le nom d'un champ de la classe, sans accolades ni accents ; sinon une erreur qui les liste.
@@ -49,7 +56,7 @@ pub fn set_template_role(doc: &mut Document, args: &Value) -> Result<Value, Stri
         e.zone = false;
         return Ok(json!({ "ok": true }));
     }
-    if matches!(&e.kind, ElementKind::Text(t) if fields::has_fields_text(t) || fields::has_class_fields_text(t)) {
+    if matches!(&e.kind, ElementKind::Text(t) if fields::has_fields_text(t) || fields::has_class_fields_text(t) || fields::has_auto_fields_text(t)) {
         return Err("ce texte contient un champ de la classe : il est gardé tel quel dans le modèle, sans rôle à choisir".into());
     }
     match role {
@@ -159,6 +166,17 @@ mod tests {
         assert!(set_template_role(&mut d, &json!({ "element_id": u, "role": "fill", "field": "taille" })).unwrap_err().contains("{prenom}"));
         assert!(set_template_role(&mut d, &json!({ "element_id": u, "role": "fill", "field": "âge" })).unwrap_err().contains("sans accents"));
         assert!(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 5, "h_mm": 5 })).unwrap_err().contains("content"));
+    }
+
+    #[test]
+    fn date_and_class_fields_are_fields_too() {
+        let mut d = Document::new("x");
+        for f in ["date", "annee_scolaire", "ecole", "nombre_eleves"] {
+            assert_eq!(check_field(f).unwrap(), f);
+            assert!(fields_hint().contains(&format!("{{{f}}}")), "{f} manque dans la liste");
+        }
+        let t = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 50, "h_mm": 10, "content": "Le {date}" })).unwrap());
+        assert!(set_template_role(&mut d, &json!({ "element_id": t, "role": "fill" })).unwrap_err().contains("champ"));
     }
 
     #[test]

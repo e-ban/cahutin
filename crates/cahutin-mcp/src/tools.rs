@@ -278,6 +278,7 @@ pub fn definitions() -> Value {
 Le modèle garde les formes, les images, les zones à remplir, les éléments fixes et les textes que vous avez écrits. \
 Cahutin le remplit avec la classe : les champs entre accolades, sans accents, dans n'importe quel texte (add_text avec field, ou {prenom}, {PRENOM}, {nom}, {groupe}, {age}, {anniversaire} écrits dans un texte, \
 {anniversaires_janvier}… pour une affiche de toute la classe), et chaque case photo vide reçoit la photo de l'élève ou son symbole. \
+La date ({date}, {date_courte}, {jour_semaine}, {annee_scolaire}…) et la classe ({classe}, {niveau}, {ecole}, {enseignant}, {nombre_eleves}) s'écrivent une fois, quand une page est créée depuis le modèle. \
 Pour des étiquettes : un cadre et ses champs, groupés, puis cut_marks et repeat : un élève par bloc (class_fill de get_layout dit « sheet »). \
 Lettres mobiles : un champ {PRENOM_1}, {PRENOM_2}… par case.",
             "inputSchema": { "type": "object", "required": ["page", "name"], "properties": { "page": page, "name": { "type": "string", "description": "Nom du modèle" } } },

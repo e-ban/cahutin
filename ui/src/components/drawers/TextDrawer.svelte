@@ -5,8 +5,6 @@
   import { centeredFrame, textElement } from "../../lib/factory";
   import { fr } from "../../lib/i18n/fr";
   import { withTemplateRole } from "../../lib/templateRole";
-  import { placeField } from "../../lib/fieldPlacing.svelte";
-  import FieldMenu from "../FieldMenu.svelte";
   import InspectorSection from "../layout/InspectorSection.svelte";
   import type { Align, Element, Pattern, RichText } from "../../lib/types";
 
@@ -66,11 +64,6 @@
     editor.selection = [el.id];
   }
 
-  /** Un champ : au curseur si l'on écrit, sinon un nouveau texte qui le contient, choisi. */
-  function addField(key: string) {
-    void placeField(key, null);
-  }
-
   let cols = $state(3);
   let rows = $state(3);
 
@@ -108,18 +101,6 @@
       </button>
     {/each}
     </div>
-  </InspectorSection>
-  <InspectorSection id="text-fields" title={fr.fieldsTitle} hint={fr.sectionHints.textFields} open={false}>
-    <p class="hint">{fr.fieldsHint}</p>
-    <FieldMenu only="student" onpick={addField} />
-  </InspectorSection>
-  <InspectorSection id="text-date" title={fr.fieldsDate} hint={fr.sectionHints.textDate} open={false}>
-    <p class="hint">{fr.fieldsDateHint}</p>
-    <FieldMenu only="date" onpick={addField} />
-  </InspectorSection>
-  <InspectorSection id="text-class" title={fr.fieldsClassInfo} hint={fr.sectionHints.textClass} open={false}>
-    <p class="hint">{fr.fieldsClassHint}</p>
-    <FieldMenu only="class" onpick={addField} />
   </InspectorSection>
   <InspectorSection id="text-lines" title={fr.writingLines} hint={fr.sectionHints.textLines} open={false}>
     <div class="lines">
@@ -165,11 +146,6 @@
   .preset.hollow {
     -webkit-text-fill-color: transparent;
     -webkit-text-stroke: 0.6px currentColor;
-  }
-  .hint {
-    margin: 0;
-    color: var(--muted);
-    font-size: 0.9em;
   }
   .preset {
     text-align: left;

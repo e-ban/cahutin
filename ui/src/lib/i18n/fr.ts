@@ -82,7 +82,7 @@ export const fr = {
     "« Ajouter les photos… » prend toutes les photos d'un coup, chacune pour l'enfant dont elle porte le prénom (Léa.jpg). Cochez « autorisée » pour les enfants dont les parents ont donné leur accord ; sans elle, c'est leur symbole qui remplace la photo, et « Flouter » cache leur visage sur les photos de groupe.",
   classIntro3Title: "Remplissez vos pages :",
   classIntro3:
-    "sur une page qui attend des prénoms (modèles Étiquettes, ou un champ posé depuis le tiroir Texte, « Champs de l'élève »), le bandeau bleu propose de la remplir avec votre classe. Le tiroir Classe, à côté du document, le propose aussi.",
+    "sur une page qui attend des prénoms (modèles Étiquettes, ou un champ posé depuis le tiroir Champs), le bandeau bleu propose de la remplir avec votre classe. Le tiroir Classe, à côté du document, le propose aussi.",
   classIntroOk: "J'ai compris",
   classIntroAgain: "Comment ça marche ?",
   classPageBack: "Retour",
@@ -156,6 +156,9 @@ export const fr = {
   classRemoveStudent: (name: string) => `Retirer ${name} de la classe ?`,
   classUnsavedClose: "Les dernières modifications de la classe n'ont pas pu être enregistrées. Fermer quand même ?",
   classCloseAnyway: "Fermer",
+  fieldsTab: "Champs",
+  fieldsDrawer: "Champs automatiques",
+  fieldsDrawerHint: "Des mots qui se remplissent tout seuls : le prénom de chaque enfant, la date, le nom de l'école…",
   fieldsTitle: "Champs de l'élève",
   fieldsHint: "Ils se remplissent avec votre classe : une page par enfant.",
   fieldsDateHint: "Un clic demande la date et l'écrit. Dans un modèle, elle sera demandée à chaque nouvelle page.",

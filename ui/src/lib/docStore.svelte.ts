@@ -9,7 +9,7 @@ import type { AssetMeta, Document, Element, Page } from "./types";
 
 export type Zoom = number | "fit";
 export type ImagesTab = "photos" | "mine" | "pictos";
-export type DrawerId = "templates" | "images" | "text" | "shapes" | "fonts" | "grid" | "decor" | "class";
+export type DrawerId = "templates" | "images" | "text" | "fields" | "shapes" | "fonts" | "grid" | "decor" | "class";
 
 class Editor {
   doc = $state.raw<Document>(newDocument());

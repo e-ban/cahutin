@@ -1,4 +1,4 @@
-// Poser et changer un champ de la classe, hors de l'éditeur de texte : depuis le tiroir Texte, ou depuis le
+// Poser et changer un champ de la classe, hors de l'éditeur de texte : depuis le tiroir Champs, ou depuis le
 // bouton « Champ » de la barre d'un texte choisi.
 import { splitFields } from "./classFields";
 import { centeredFrame, textElement } from "./factory";

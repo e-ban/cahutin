@@ -1,4 +1,4 @@
-// Poser un champ depuis le tiroir Texte ou le bouton « Champ » : un champ d'élève devient une pastille ; un champ
+// Poser un champ depuis le tiroir Champs ou le bouton « Champ » : un champ d'élève devient une pastille ; un champ
 // de la date ou de la classe s'écrit aussitôt (calendrier pour une date), sauf en mode modèle.
 import { fillAutoFields } from "./api";
 import { addsAutoFields, completeText, fillClassFields, placing } from "./autoFields";

@@ -57,6 +57,7 @@
   import ShapesDrawer from "./components/drawers/ShapesDrawer.svelte";
   import TemplatesDrawer from "./components/drawers/TemplatesDrawer.svelte";
   import TextDrawer from "./components/drawers/TextDrawer.svelte";
+  import FieldsDrawer from "./components/drawers/FieldsDrawer.svelte";
   import { editor } from "./lib/docStore.svelte";
   import { fonts } from "./lib/fonts.svelte";
   import { addPhotoAt } from "./lib/editActions";
@@ -307,6 +308,7 @@
   {#if editor.drawer === "templates"}<TemplatesDrawer />
   {:else if editor.drawer === "images"}<ImagesDrawer />
   {:else if editor.drawer === "text"}<TextDrawer />
+  {:else if editor.drawer === "fields"}<FieldsDrawer />
   {:else if editor.drawer === "shapes"}<ShapesDrawer />
   {:else if editor.drawer === "fonts"}<FontsDrawer />
   {:else if editor.drawer === "grid"}<GridDrawer />

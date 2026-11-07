@@ -1,5 +1,5 @@
 <script lang="ts">
-  // La liste des champs, avec ce que chacun devient : dans le tiroir Texte (poser ; `only` : une seule famille par
+  // La liste des champs, avec ce que chacun devient : dans le tiroir Champs (poser ; `only` : une seule famille par
   // section) et sous le bouton « Champ » de la barre d'un texte (ajouter, ou enlever un champ coché). `current` :
   // les champs du texte choisi, cochés.
   import { onMount } from "svelte";

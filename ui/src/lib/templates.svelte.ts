@@ -1,5 +1,6 @@
 // Bibliothèque de modèles : la liste, et une page d'aperçu par modèle pour les miniatures.
 import { deleteTemplate, fillAutoFields, instantiateTemplate, listTemplates, savePageAsTemplate } from "./api";
+import { assistant } from "./assistant.svelte";
 import { completePage } from "./autoFields";
 import { classes } from "./classStore.svelte";
 import { dateAsk } from "./dateAsk.svelte";
@@ -48,6 +49,8 @@ class Templates {
   }
 
   async saveCurrentPage(name: string) {
+    // La page affichée peut être une proposition de l'assistant : elle est d'abord gardée ou non.
+    if (!(await assistant.settle())) return;
     await savePageAsTemplate(name, editor.page);
     await this.refresh();
   }

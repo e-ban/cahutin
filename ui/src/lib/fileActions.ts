@@ -2,6 +2,7 @@
 import { open, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { tick } from "svelte";
 import * as api from "./api";
+import { assistant } from "./assistant.svelte";
 import { ask } from "./ask";
 import { clearBackup } from "./backupCopy";
 import { imagesDecoded } from "./printImages";
@@ -59,6 +60,7 @@ async function write(path: string): Promise<boolean> {
 }
 
 export async function saveAs(): Promise<boolean> {
+  if (!(await assistant.settle())) return false;
   editor.flushPending();
   const picked = await saveDialog({ defaultPath: `${baseName()}.carnet`, filters: [{ name: "Carnet (Cahutin)", extensions: ["carnet"] }] });
   if (!picked) return false;
@@ -66,6 +68,7 @@ export async function saveAs(): Promise<boolean> {
 }
 
 export async function save(): Promise<boolean> {
+  if (!(await assistant.settle())) return false;
   editor.flushPending();
   if (!editor.path) return saveAs();
   return write(editor.path);
@@ -79,9 +82,10 @@ function askToSave(): Promise<DiscardChoice> {
   ]);
 }
 
-/** Quitter le document en connaissance de cause : sa copie de secours est effacée. */
+/** Quitter le document en connaissance de cause : une proposition de l'assistant est réglée d'abord, et la copie
+ *  de secours est effacée. */
 export async function confirmLeave(): Promise<boolean> {
-  const leave = await confirmDiscardIfDirty(askToSave, save);
+  const leave = (await assistant.settle()) && (await confirmDiscardIfDirty(askToSave, save));
   if (leave) await clearBackup();
   return leave;
 }
@@ -89,6 +93,7 @@ export async function confirmLeave(): Promise<boolean> {
 export async function newDoc() {
   if (!(await confirmLeave())) return;
   editor.reset(newDocument(), null);
+  assistant.clear();
   editor.carriedPending = [];
   editor.templateMode = false;
   if (editor.drawer === "grid") editor.drawer = null;
@@ -111,6 +116,7 @@ export async function freshFromHome(): Promise<boolean> {
   if (!editor.welcomeOverDoc) return true;
   if (!(await confirmLeave())) return false;
   editor.reset(newDocument(), null);
+  assistant.clear();
   editor.carriedPending = [];
   editor.templateMode = false;
   editor.welcomeOverDoc = false;
@@ -123,6 +129,7 @@ export async function openExampleDoc(id: string) {
   const doc = await guard(() => api.openExample(id));
   if (!doc) return;
   editor.reset(doc, null);
+  assistant.clear();
   editor.carriedPending = [];
   editor.templateMode = false;
   if (editor.drawer === "grid") editor.drawer = null;
@@ -172,6 +179,7 @@ export async function openPath(path: string, confirm = true) {
   const opened = await guard(() => api.openDocument(path));
   if (!opened) return;
   editor.reset(opened.doc, path);
+  assistant.clear();
   remember(path, opened.doc.title);
   await showOpened(opened);
 }
@@ -234,6 +242,7 @@ export async function importFiles(paths?: string[], opts: { fresh?: boolean } = 
     const placed = placeImported(editor.doc, editor.pageIndex, parts, startedFrom);
     if (placed.replaced) {
       editor.reset(placed.doc, null);
+      assistant.clear();
       editor.carriedPending = [];
       editor.showWelcome = false;
       editor.templateMode = false;
@@ -261,6 +270,7 @@ function remember(path: string, title: string) {
 
 /** `target` : chemin déjà choisi, sans fenêtre (essais en développement). */
 export async function exportOdg(target?: string) {
+  if (!(await assistant.settle())) return;
   editor.flushPending();
   const picked = target ?? (await saveDialog({ defaultPath: `${baseName()}.odg`, filters: [{ name: "LibreOffice Draw", extensions: ["odg"] }] }));
   if (!picked) return;
@@ -293,6 +303,7 @@ async function withPrintPages<T>(action: () => T | Promise<T>): Promise<T> {
 
 /** Les affiches A3 en deux feuilles A4 qui se recouvrent. */
 export async function printTiled() {
+  if (!(await assistant.settle())) return;
   editor.printTiles = true;
   try {
     await print();
@@ -303,6 +314,7 @@ export async function printTiled() {
 
 /** Cartes en recto-verso : chaque page paire est le verso de la précédente. */
 export async function printDuplex() {
+  if (!(await assistant.settle())) return;
   editor.printDuplex = true;
   try {
     await print();
@@ -312,6 +324,7 @@ export async function printDuplex() {
 }
 
 export async function print() {
+  if (!(await assistant.settle())) return;
   // Selon le moteur, window.print() bloque ou rend la main tout de suite : on garde les pages
   // jusqu'à la fin de l'impression.
   await withPrintPages(
@@ -325,6 +338,7 @@ export async function print() {
 
 /** `target` : chemin déjà choisi, sans fenêtre (essais en développement). */
 export async function exportPdf(target?: string) {
+  if (!(await assistant.settle())) return;
   const picked = target ?? (await saveDialog({ defaultPath: `${baseName()}.pdf`, filters: [{ name: "PDF", extensions: ["pdf"] }] }));
   if (!picked) return;
   const path = withExt(picked, "pdf");

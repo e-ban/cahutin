@@ -3,6 +3,7 @@
   import HelpMenu from "./HelpMenu.svelte";
   import OutputMenu from "./OutputMenu.svelte";
   import { goHome, save } from "../../lib/fileActions";
+  import { assistant } from "../../lib/assistant.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
 
@@ -45,6 +46,9 @@
   <button class="ghost" onclick={() => editor.redo()} disabled={!editor.canRedo} title="{fr.redo} (Ctrl+Y)" aria-label={fr.redo}>↷</button>
   <span class="spacer"></span>
   <button class="ghost" class:tpl-on={editor.templateMode} data-guide="template-mode" onclick={toggleTemplateMode}>▦ {fr.template}</button>
+  {#if assistant.enabled}
+    <button class="ghost" class:tpl-on={assistant.open} title={fr.assistant.buttonHint} onclick={() => (assistant.open = !assistant.open)}>✦ {fr.assistant.button}</button>
+  {/if}
   <OutputMenu />
 </header>
 

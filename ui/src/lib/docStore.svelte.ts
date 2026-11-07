@@ -168,12 +168,33 @@ class Editor {
     if (this.selection.some((id) => !ids.has(id))) this.selection = this.selection.filter((id) => ids.has(id));
   }
 
+  /** Proposition de l'assistant affichée : le document ne se modifie pas à la main tant qu'elle est là. */
+  proposing = $state(false);
+  #proposal: Document | null = null;
+
+  /** Affiche `doc` sans toucher à l'historique ; `null` : retour au document. */
+  showProposal(doc: Document | null) {
+    this.#proposal = doc;
+    this.proposing = doc !== null;
+    if (doc === null) return this.#sync();
+    this.doc = doc;
+    if (this.pageIndex >= doc.pages.length) this.pageIndex = doc.pages.length - 1;
+    const ids = new Set(this.page.elements.map((e) => e.id));
+    if (this.selection.some((id) => !ids.has(id))) this.selection = this.selection.filter((id) => ids.has(id));
+  }
+
   commit(next: Document) {
+    // Pendant une proposition, une modification à la main est ignorée (un aperçu en cours est effacé).
+    if (this.#proposal) {
+      this.doc = this.#proposal;
+      return;
+    }
     this.#history.commit(next);
     this.#sync();
   }
 
   undo() {
+    if (this.#proposal) return;
     this.#history.undo();
     this.#sync();
     // Une photo retirée revient sur la page : elle revient aussi dans le tiroir.
@@ -182,6 +203,7 @@ class Editor {
   }
 
   redo() {
+    if (this.#proposal) return;
     this.#history.redo();
     this.#sync();
   }
@@ -208,6 +230,8 @@ class Editor {
   /** Nouveau document ou document ouvert : l'historique repart de zéro. */
   /** `unsaved` : document repris d'une copie de secours, à enregistrer (donc « modifié »). */
   reset(doc: Document, path: string | null, opts: { unsaved?: boolean } = {}) {
+    this.#proposal = null;
+    this.proposing = false;
     this.#history = createHistory(doc);
     if (opts.unsaved) this.#history.markUnsaved();
     this.path = path;

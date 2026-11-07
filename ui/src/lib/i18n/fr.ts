@@ -82,7 +82,7 @@ export const fr = {
     "« Ajouter les photos… » prend toutes les photos d'un coup, chacune pour l'enfant dont elle porte le prénom (Léa.jpg). Cochez « autorisée » pour les enfants dont les parents ont donné leur accord ; sans elle, c'est leur symbole qui remplace la photo, et « Flouter » cache leur visage sur les photos de groupe.",
   classIntro3Title: "Remplissez vos pages :",
   classIntro3:
-    "sur une page qui attend des prénoms (modèles Étiquettes, ou un champ posé depuis le tiroir Texte, « Champs de la classe »), le bandeau bleu propose de la remplir avec votre classe. Le tiroir Classe, à côté du document, le propose aussi.",
+    "sur une page qui attend des prénoms (modèles Étiquettes, ou un champ posé depuis le tiroir Texte, « Champs automatiques »), le bandeau bleu propose de la remplir avec votre classe. Le tiroir Classe, à côté du document, le propose aussi.",
   classIntroOk: "J'ai compris",
   classIntroAgain: "Comment ça marche ?",
   classPageBack: "Retour",
@@ -93,6 +93,9 @@ export const fr = {
   pageDateTitle: "Date de la page",
   pageDateHint: "Elle s'écrit dans la page et ne changera plus.",
   pageDateOk: "Valider",
+  autoFieldsNeedClass: "Choisissez une classe (tiroir Classe) pour écrire le nom de la classe, l'école ou l'enseignant : en attendant, ces champs restent à compléter.",
+  fieldsDate: "Date",
+  fieldsClassInfo: "La classe",
   classTeacher: "Enseignant(e)",
   classPhoto: "Photo",
   classAddOne: "Prénom d'un nouvel élève",
@@ -152,8 +155,8 @@ export const fr = {
   classRemoveStudent: (name: string) => `Retirer ${name} de la classe ?`,
   classUnsavedClose: "Les dernières modifications de la classe n'ont pas pu être enregistrées. Fermer quand même ?",
   classCloseAnyway: "Fermer",
-  fieldsTitle: "Champs de la classe",
-  fieldsHint: "Remplacés pour chaque enfant quand on remplit la page avec la classe.",
+  fieldsTitle: "Champs automatiques",
+  fieldsHint: "Ceux de l'élève se remplissent avec la classe ; la date et la classe s'écrivent dès qu'on les pose (en mode modèle, à la création de la page).",
   fieldButton: "Champ",
   fieldButtonHint: "Ajouter ou changer un champ de la classe (prénom, âge…)",
   fieldLetter: "Lettre du prénom",
@@ -198,7 +201,7 @@ export const fr = {
   // Ce que contient une section repliée d'un tiroir, en quelques mots.
   sectionHints: {
     textPresets: "Titre, paragraphe, parole d'enfant, à repasser…",
-    textFields: "Prénom, âge, lettres… remplis avec la classe",
+    textFields: "Prénom, âge, date, école… remplis tout seuls",
     textLines: "Seyès, lignes, petits carreaux",
     textTable: "Emploi du temps, présences, loto…",
     graphisme: "Ponts, vagues, boucles… à repasser",

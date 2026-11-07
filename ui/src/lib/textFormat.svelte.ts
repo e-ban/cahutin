@@ -26,6 +26,11 @@ function setStyle(patch: Partial<TextStyle>) {
   updateText((t) => ({ ...t, style: { ...t.style, ...patch } }));
 }
 
+/** Insère du texte au curseur pendant l'écriture (une date déjà écrite, par exemple). */
+export function insertText(text: string) {
+  activeTip()?.chain().focus().insertContent(text).run();
+}
+
 /** Insère la pastille d'un champ de la classe au curseur pendant l'écriture. */
 export function insertField(key: string) {
   activeTip()?.chain().focus().insertContent({ type: "classField", attrs: { key } }).run();

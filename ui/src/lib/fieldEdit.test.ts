@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { fieldsOf, fieldText, setField } from "./fieldEdit";
+import { appendText, fieldsOf, fieldText, setField, textWith } from "./fieldEdit";
 import { hasTemplateRole } from "./templateRole";
 import type { Page, RichText } from "./types";
 
@@ -25,4 +25,11 @@ test("setField adds, replaces a single field, or appends when there are several"
 
 test("fieldsOf lists the known fields only", () => {
   expect(fieldsOf(rich("{prenom} et {toto}", "{PRENOM_2}"))).toEqual(["prenom", "PRENOM_2"]);
+});
+
+test("a date written into a text goes at its end, after a space; a new text can hold it", () => {
+  expect(words(appendText(rich("Le"), "9 novembre 2026"))).toBe("Le 9 novembre 2026");
+  expect(words(appendText(rich(), "2026-2027"))).toBe("2026-2027");
+  const e = textWith(page, "automne");
+  expect(e.kind.type === "Text" && words(e.kind.content)).toBe("automne");
 });

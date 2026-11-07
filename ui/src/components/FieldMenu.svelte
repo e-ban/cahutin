@@ -1,7 +1,10 @@
 <script lang="ts">
   // La liste des champs de la classe, avec ce que chacun devient : dans le tiroir Texte (poser) et sous le bouton
   // « Champ » de la barre d'un texte (ajouter ou changer). `current` : les champs du texte choisi, cochés.
-  import { FIELDS, fieldLabel, letterKey, monthKey } from "../lib/classFields";
+  import { onMount } from "svelte";
+  import { autoFieldExamples } from "../lib/api";
+  import { CLASS_INFO_FIELDS, DATE_FIELDS, FIELDS, fieldLabel, letterKey, monthKey } from "../lib/classFields";
+  import { classes } from "../lib/classStore.svelte";
   import { fr } from "../lib/i18n/fr";
 
   let { onpick, current = [] }: { onpick: (key: string) => void; current?: string[] } = $props();
@@ -9,6 +12,14 @@
   let letter = $state(1);
   let month = $state(new Date().getMonth() + 1);
   const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
+
+  // Ce que donne chaque champ de la date et de la classe aujourd'hui, avec la classe choisie.
+  let examples = $state<Record<string, string>>({});
+  onMount(() => {
+    autoFieldExamples(classes.current?.class ?? null)
+      .then((list) => (examples = Object.fromEntries(list)))
+      .catch(() => {});
+  });
 </script>
 
 <div class="fields">
@@ -37,6 +48,15 @@
       <button onclick={() => onpick(monthKey(month))}>{fr.fieldPlace}</button>
     </div>
   </div>
+  {#each [{ title: fr.fieldsDate, list: DATE_FIELDS }, { title: fr.fieldsClassInfo, list: CLASS_INFO_FIELDS }] as g (g.title)}
+    <h4>{g.title}</h4>
+    {#each g.list as f (f.key)}
+      <button class="field" class:on={current.includes(f.key)} aria-pressed={current.includes(f.key)} onclick={() => onpick(f.key)}>
+        <span class="name">{current.includes(f.key) ? "✓ " : ""}{f.label}</span>
+        <small>{examples[f.key] ? `« ${examples[f.key]} »` : f.hint}</small>
+      </button>
+    {/each}
+  {/each}
 </div>
 
 <style>
@@ -63,6 +83,15 @@
   }
   .name {
     font-weight: 600;
+  }
+  h4 {
+    margin: 8px 0 0;
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
   }
   small {
     color: var(--muted);

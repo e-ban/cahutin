@@ -23,7 +23,8 @@
   import { handlePadding } from "../lib/geometry";
   import { mmToPx } from "../lib/units";
   import { hasClassField, hasTemplateRole, templateRole, withTemplateRole } from "../lib/templateRole";
-  import { fieldsOf, setField } from "../lib/fieldEdit";
+  import { fieldsOf } from "../lib/fieldEdit";
+  import { placeField } from "../lib/fieldPlacing.svelte";
   import FieldMenu from "./FieldMenu.svelte";
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
@@ -34,7 +35,7 @@
   import { cutMarks, type CutStyle } from "../lib/cutMarks";
   import { friezeMotifs, resolveMotifs } from "../lib/friezeMotifs.svelte";
   import { setPictosOutline } from "../lib/pictos.svelte";
-  import { ALIGNS, VALIGNS, currentFont, currentSize, insertField, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
+  import { ALIGNS, VALIGNS, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
   import type { NamedTextStyle, Frame } from "../lib/types";
 
   let { pageEl, stageEl }: { pageEl: HTMLElement | undefined; stageEl: HTMLElement | undefined } = $props();
@@ -269,9 +270,7 @@
    *  texte choisi, ou à la place de son seul champ. */
   function pickField(key: string) {
     const id = selected?.id;
-    if (!id) return;
-    if (editor.editingText === id) insertField(key);
-    else editor.updateElement(id, (e) => (e.kind.type === "Text" ? { ...e, kind: { ...e.kind, content: setField(e.kind.content, key) } } : e));
+    if (id) void placeField(key, id);
   }
 
   function setRole(role: "fill" | "fixed") {

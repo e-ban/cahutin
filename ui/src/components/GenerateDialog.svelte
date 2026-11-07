@@ -41,7 +41,7 @@
     try {
       editor.flushPending();
       const photos = Object.keys(classes.current?.class.photos ?? {});
-      const result = await classGenerate(editor.page, chosen, plan.mode, photos);
+      const result = await classGenerate(editor.page, chosen, plan.mode, photos, classes.current?.class ?? null);
       const placed = replacePage(editor.doc, editor.pageIndex, result);
       editor.commit(placed.doc);
       editor.pageIndex = placed.pageIndex;

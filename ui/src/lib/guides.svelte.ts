@@ -140,7 +140,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Une page qui attend des prénoms",
-        text: "Un modèle « Pour la classe » (étiquettes, memory, J'écris mon prénom…), ou un champ de la classe posé depuis le tiroir Texte (« Champs de la classe ») : un bandeau bleu propose alors de remplir la page.",
+        text: "Un modèle « Pour la classe » (étiquettes, memory, J'écris mon prénom…), ou un champ de la classe posé depuis le tiroir Texte (« Champs automatiques ») : un bandeau bleu propose alors de remplir la page.",
         image: img("classe", "bandeau"),
       },
       {

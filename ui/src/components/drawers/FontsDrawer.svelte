@@ -7,6 +7,7 @@
   import { fonts } from "../../lib/fonts.svelte";
   import { groupFamilies, searchFamilies } from "../../lib/fontSearch";
   import { fr } from "../../lib/i18n/fr";
+  import InspectorSection from "../layout/InspectorSection.svelte";
   import { setFont } from "../../lib/textFormat.svelte";
   import type { FontFamilyInfo } from "../../lib/types";
 
@@ -66,9 +67,14 @@
     <h3>{fr.userFonts}</h3>
     {#each groups.user as f (f.name)}{@render row(f)}{:else}<p class="hint">{fr.noUserFonts}</p>{/each}
   {/if}
-  {#if groups.system.length}
+  {#if groups.system.length && query}
     <h3>{fr.systemFonts} ({groups.system.length})</h3>
     {#each groups.system as f (f.name)}{@render row(f)}{/each}
+  {:else if groups.system.length}
+    <!-- Une longue liste : repliée tant qu'on ne cherche pas, une recherche montre tout ce qu'elle trouve. -->
+    <InspectorSection id="fonts-system" title="{fr.systemFonts} ({groups.system.length})" hint={fr.sectionHints.systemFonts} open={false}>
+      {#each groups.system as f (f.name)}{@render row(f)}{/each}
+    </InspectorSection>
   {/if}
   {#if query && !groups.builtin.length && !groups.user.length && !groups.system.length}
     <p class="hint">{fr.noFontFound}</p>

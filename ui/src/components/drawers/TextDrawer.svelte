@@ -99,7 +99,7 @@
   <button class="primary" onclick={() => add()}>✏️ {fr.addText}</button>
   <!-- Sections repliées au départ : on voit d'un coup tout ce que le tiroir propose, et chacune reste comme on la
        laisse. -->
-  <InspectorSection id="text-presets" title={fr.textPresets} open={false}>
+  <InspectorSection id="text-presets" title={fr.textPresets} hint={fr.sectionHints.textPresets} open={false}>
     <div class="stack">
     {#each presets as p (p.label)}
       <button
@@ -116,18 +116,18 @@
     {/each}
     </div>
   </InspectorSection>
-  <InspectorSection id="text-fields" title={fr.fieldsTitle} open={false}>
+  <InspectorSection id="text-fields" title={fr.fieldsTitle} hint={fr.sectionHints.textFields} open={false}>
     <p class="hint">{fr.fieldsHint}</p>
     <FieldMenu onpick={addField} />
   </InspectorSection>
-  <InspectorSection id="text-lines" title={fr.writingLines} open={false}>
+  <InspectorSection id="text-lines" title={fr.writingLines} hint={fr.sectionHints.textLines} open={false}>
     <div class="lines">
       <button onclick={() => addLines("Seyes")}>{fr.patternSeyes}</button>
       <button onclick={() => addLines("Lines")}>{fr.patternLines}</button>
       <button onclick={() => addLines("SmallSquares")}>{fr.patternSquares}</button>
     </div>
   </InspectorSection>
-  <InspectorSection id="text-table" title={fr.table} open={false}>
+  <InspectorSection id="text-table" title={fr.table} hint={fr.sectionHints.textTable} open={false}>
     <div class="table-size">
       <label>{fr.tableCols} <input type="number" min="1" max="8" bind:value={cols} /></label>
       <label>{fr.tableRows} <input type="number" min="1" max="8" bind:value={rows} /></label>

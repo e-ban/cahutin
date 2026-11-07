@@ -18,6 +18,8 @@
     const s = step;
     if (!s) return;
     const el = s.target ? document.querySelector<HTMLElement>(s.target) : null;
+    // Un bouton dans une section repliée d'un tiroir : la section s'ouvre pour qu'on le voie.
+    el?.closest("details:not([open])")?.setAttribute("open", "");
     const r = el?.getBoundingClientRect();
     target = r && r.width > 0 && r.height > 0 ? { left: r.left - PAD, top: r.top - PAD, width: r.width + 2 * PAD, height: r.height + 2 * PAD } : null;
     await tick();

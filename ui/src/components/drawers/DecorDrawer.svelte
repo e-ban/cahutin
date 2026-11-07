@@ -6,6 +6,7 @@
   import FriezePicker from "../FriezePicker.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
+  import InspectorSection from "../layout/InspectorSection.svelte";
   import { frieze, pageFrame, type FrameStyle, type FriezeSide } from "../../lib/decor";
   import { friezeMotifs, motifUrl, resolveMotifs } from "../../lib/friezeMotifs.svelte";
   import { readPref, writePref } from "../../lib/prefs";
@@ -51,54 +52,48 @@
       <button class="close" title={fr.close} aria-label={fr.close} onclick={closeMoved}>×</button>
     </div>
   {/if}
-  <h3>{fr.frames}</h3>
-  <div class="frames">
-    {#each frames as f (f.style)}
-      <button onclick={() => addDecor(pageFrame(editor.page, f.style), true)}><i class="mini {f.style}"></i>{f.label}</button>
-    {/each}
-  </div>
-
-  <h3 class="with-guide">{fr.friezes}<GuideLink id="frise" /></h3>
-  <span class="label">{fr.friezeMotifs}</span>
-  <div class="motifs">
-    {#each friezeMotifs.codes as code, i (code)}
-      <span class="motif">
-        <img src={motifUrl(code)} alt="" />
-        <button class="remove" title={fr.removeMotif} aria-label={fr.removeMotif} onclick={() => (friezeMotifs.codes = friezeMotifs.codes.filter((_, j) => j !== i))}>×</button>
-      </span>
-    {:else}
-      <span class="hint">{fr.friezeNoMotif}</span>
-    {/each}
-  </div>
-  <button data-guide="frieze-pick" onclick={() => (picking = true)}>＋ {fr.friezePick}</button>
-  <label class="slider">
-    <span>{fr.friezeSize}</span>
-    <input type="range" min="6" max="40" step="1" bind:value={friezeMotifs.size} />
-    <span class="value">{friezeMotifs.size} mm</span>
-  </label>
-  <label class="slider">
-    <span>{fr.friezeGap}</span>
-    <input type="range" min="0" max="30" step="1" bind:value={friezeMotifs.gap} />
-    <span class="value">{friezeMotifs.gap} mm</span>
-  </label>
-  <div class="sides">
-    {#each sides as s (s.side)}
-      <button disabled={friezeMotifs.codes.length === 0} onclick={() => addFrieze(s.side)}>{s.label}</button>
-    {/each}
-  </div>
-  <p class="hint">{fr.friezeEditHint}</p>
+  <InspectorSection id="decor-frames" title={fr.frames} hint={fr.sectionHints.frames} open={false}>
+    <div class="frames">
+      {#each frames as f (f.style)}
+        <button onclick={() => addDecor(pageFrame(editor.page, f.style), true)}><i class="mini {f.style}"></i>{f.label}</button>
+      {/each}
+    </div>
+  </InspectorSection>
+  <InspectorSection id="decor-friezes" title={fr.friezes} hint={fr.sectionHints.friezes} open={false}>
+    <div><GuideLink id="frise" /></div>
+    <span class="label">{fr.friezeMotifs}</span>
+    <div class="motifs">
+      {#each friezeMotifs.codes as code, i (code)}
+        <span class="motif">
+          <img src={motifUrl(code)} alt="" />
+          <button class="remove" title={fr.removeMotif} aria-label={fr.removeMotif} onclick={() => (friezeMotifs.codes = friezeMotifs.codes.filter((_, j) => j !== i))}>×</button>
+        </span>
+      {:else}
+        <span class="hint">{fr.friezeNoMotif}</span>
+      {/each}
+    </div>
+    <button data-guide="frieze-pick" onclick={() => (picking = true)}>＋ {fr.friezePick}</button>
+    <label class="slider">
+      <span>{fr.friezeSize}</span>
+      <input type="range" min="6" max="40" step="1" bind:value={friezeMotifs.size} />
+      <span class="value">{friezeMotifs.size} mm</span>
+    </label>
+    <label class="slider">
+      <span>{fr.friezeGap}</span>
+      <input type="range" min="0" max="30" step="1" bind:value={friezeMotifs.gap} />
+      <span class="value">{friezeMotifs.gap} mm</span>
+    </label>
+    <div class="sides">
+      {#each sides as s (s.side)}
+        <button disabled={friezeMotifs.codes.length === 0} onclick={() => addFrieze(s.side)}>{s.label}</button>
+      {/each}
+    </div>
+    <p class="hint">{fr.friezeEditHint}</p>
+  </InspectorSection>
 </Drawer>
 {#if picking}<FriezePicker bind:codes={friezeMotifs.codes} onclose={() => (picking = false)} />{/if}
 
 <style>
-  .with-guide {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  h3 {
-    margin: 2px 0 0;
-  }
   .moved {
     display: flex;
     flex-wrap: wrap;

@@ -8,6 +8,7 @@
   import { readPref, writePref } from "../../lib/prefs";
   import { SYMMETRY_FIGURES, maze, symmetry } from "../../lib/fiches";
   import { fr } from "../../lib/i18n/fr";
+  import InspectorSection from "../layout/InspectorSection.svelte";
   import type { Element, ShapeKind } from "../../lib/types";
 
   const shapes: { shape: ShapeKind; radius: number; label: string }[] = [
@@ -91,7 +92,7 @@
     {/each}
   </div>
 
-  <h3>{fr.graphisme}</h3>
+  <!-- La section (PS, MS, GS) règle toutes les fiches ci-dessous : elle reste visible. -->
   <div class="options">
     <label>{fr.graphismeLevel}
       <select value={level} onchange={(e) => settings.set("graphismeLevel", e.currentTarget.value as Level)}>
@@ -100,53 +101,62 @@
         <option value="GS">GS</option>
       </select>
     </label>
-    <label>{fr.graphismeRows} <input type="number" min="1" max="12" bind:value={rows} /></label>
   </div>
-  <div class="grid motifs">
-    {#each MOTIFS as m (m)}
-      {@const pv = motifPreview(m)}
-      {@const px = Math.min(2, 56 / pv.frame.w_mm)}
-      <button title={fr.graphismeAdd(fr.motifs[m])} onclick={() => addRows(m)}>
-        <span class="preview" style:width="{pv.frame.w_mm * px}px" style:height="{pv.frame.h_mm * px}px">
-          <ShapeEl props={pathProps(pv.path)} frame={pv.frame} zoom={px / 3.7795} />
-        </span>
-        {fr.motifs[m]}
-      </button>
-    {/each}
-  </div>
-  <p class="hint">{fr.graphismeHint}</p>
 
-  <h3>{fr.mazeTitle}</h3>
-  <button class="wide" onclick={() => addSheet(maze(editor.page, level))}>🐤 {fr.mazeAdd(level)}</button>
-  <p class="hint">{fr.mazeHint}</p>
+  <InspectorSection id="shapes-graphisme" title={fr.graphisme} hint={fr.sectionHints.graphisme} open={false}>
+    <div class="options">
+      <label>{fr.graphismeRows} <input type="number" min="1" max="12" bind:value={rows} /></label>
+    </div>
+    <div class="grid motifs">
+      {#each MOTIFS as m (m)}
+        {@const pv = motifPreview(m)}
+        {@const px = Math.min(2, 56 / pv.frame.w_mm)}
+        <button title={fr.graphismeAdd(fr.motifs[m])} onclick={() => addRows(m)}>
+          <span class="preview" style:width="{pv.frame.w_mm * px}px" style:height="{pv.frame.h_mm * px}px">
+            <ShapeEl props={pathProps(pv.path)} frame={pv.frame} zoom={px / 3.7795} />
+          </span>
+          {fr.motifs[m]}
+        </button>
+      {/each}
+    </div>
+    <p class="hint">{fr.graphismeHint}</p>
+  </InspectorSection>
 
-  <h3>{fr.symmetryTitle}</h3>
-  <div class="grid">
-    {#each Object.keys(SYMMETRY_FIGURES) as f (f)}
-      <button onclick={() => addSheet(symmetry(editor.page, f, level))}>{fr.symmetryFigures[f]}</button>
-    {/each}
-  </div>
-  <p class="hint">{fr.symmetryHint}</p>
+  <InspectorSection id="shapes-maze" title={fr.mazeTitle} hint={fr.sectionHints.maze} open={false}>
+    <button class="wide" onclick={() => addSheet(maze(editor.page, level))}>🐤 {fr.mazeAdd(level)}</button>
+    <p class="hint">{fr.mazeHint}</p>
+  </InspectorSection>
 
-  <h3>{fr.markersTitle}</h3>
-  <div class="grid paths">
-    <button onclick={() => addMarker("point")}><span class="dot"></span>{fr.markerStart}</button>
-    <button onclick={() => addMarker("fleche")}><span class="arrow">➜</span>{fr.markerArrow}</button>
-  </div>
-  <p class="hint">{fr.markersHint}</p>
+  <InspectorSection id="shapes-symmetry" title={fr.symmetryTitle} hint={fr.sectionHints.symmetry} open={false}>
+    <div class="grid">
+      {#each Object.keys(SYMMETRY_FIGURES) as f (f)}
+        <button onclick={() => addSheet(symmetry(editor.page, f, level))}>{fr.symmetryFigures[f]}</button>
+      {/each}
+    </div>
+    <p class="hint">{fr.symmetryHint}</p>
+  </InspectorSection>
 
-  <h3>{fr.paths}</h3>
-  <div class="grid paths">
-    {#each PATHS as p (p.id)}
-      <button onclick={() => addPath(p.path, p.w_mm, p.h_mm)}>
-        <span class="preview" style:width="{p.w_mm * 0.5}px" style:height="{p.h_mm * 0.5}px">
-          <ShapeEl props={{ ...pathProps(p.path), stroke: { width_mm: 1.2, color: "#555555", style: "Dotted" } }} frame={{ x_mm: 0, y_mm: 0, w_mm: p.w_mm, h_mm: p.h_mm, rotation_deg: 0 }} zoom={0.5 / 3.7795} />
-        </span>
-        {fr.pathNames[p.id]}
-      </button>
-    {/each}
-  </div>
-  <p class="hint">{fr.pathsHint}</p>
+  <InspectorSection id="shapes-markers" title={fr.markersTitle} hint={fr.sectionHints.markers} open={false}>
+    <div class="grid paths">
+      <button onclick={() => addMarker("point")}><span class="dot"></span>{fr.markerStart}</button>
+      <button onclick={() => addMarker("fleche")}><span class="arrow">➜</span>{fr.markerArrow}</button>
+    </div>
+    <p class="hint">{fr.markersHint}</p>
+  </InspectorSection>
+
+  <InspectorSection id="shapes-paths" title={fr.paths} hint={fr.sectionHints.paths} open={false}>
+    <div class="grid paths">
+      {#each PATHS as p (p.id)}
+        <button onclick={() => addPath(p.path, p.w_mm, p.h_mm)}>
+          <span class="preview" style:width="{p.w_mm * 0.5}px" style:height="{p.h_mm * 0.5}px">
+            <ShapeEl props={{ ...pathProps(p.path), stroke: { width_mm: 1.2, color: "#555555", style: "Dotted" } }} frame={{ x_mm: 0, y_mm: 0, w_mm: p.w_mm, h_mm: p.h_mm, rotation_deg: 0 }} zoom={0.5 / 3.7795} />
+          </span>
+          {fr.pathNames[p.id]}
+        </button>
+      {/each}
+    </div>
+    <p class="hint">{fr.pathsHint}</p>
+  </InspectorSection>
 </Drawer>
 
 <style>
@@ -165,9 +175,6 @@
     flex-direction: column;
     align-items: center;
     gap: 6px;
-  }
-  h3 {
-    margin: 14px 0 6px;
   }
   .options {
     display: flex;

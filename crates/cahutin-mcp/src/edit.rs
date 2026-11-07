@@ -289,9 +289,18 @@ fn push(doc: &mut Document, args: &Value, zone: bool, kind: ElementKind) -> Resu
 }
 
 pub fn add_text(doc: &mut Document, args: &Value) -> Result<Value, String> {
-    let content = text(args, "content")?.ok_or("« content » manque")?;
-    let props = TextProps { content: RichText::plain(content), style: TextStyle::default_zone(), prompt: None, frame: None };
-    let out = push(doc, args, false, ElementKind::Text(props))?;
+    // Un champ (« Prénom »…) est une zone vide que la classe remplira, l'invite disant laquelle.
+    let field = text(args, "field")?;
+    if let Some(f) = field {
+        crate::template::check_field(f)?;
+    }
+    let content = match (text(args, "content")?, field) {
+        (Some(c), _) => c,
+        (None, Some(_)) => "",
+        (None, None) => return Err("« content » manque".into()),
+    };
+    let props = TextProps { content: RichText::plain(content), style: TextStyle::default_zone(), prompt: field.map(str::to_string), frame: None };
+    let out = push(doc, args, field.is_some(), ElementKind::Text(props))?;
     let mut style = args.clone();
     style["element_id"] = out["element_id"].clone();
     set_text_style(doc, &style)?;

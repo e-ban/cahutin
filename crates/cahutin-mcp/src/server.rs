@@ -125,7 +125,9 @@ mod tests {
                 "set_page_format",
                 "add_table",
                 "table_edit",
-                "repeat"
+                "repeat",
+                "set_template_role",
+                "page_grid"
             ]
         );
         assert!(r["result"]["tools"].as_array().unwrap().iter().all(|t| t["inputSchema"]["type"] == "object"));

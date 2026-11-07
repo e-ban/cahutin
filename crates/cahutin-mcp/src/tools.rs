@@ -1,7 +1,7 @@
 //! Les outils de l'assistant : leur description pour le modèle, et leur application à un document en
 //! mémoire. Partagés par le serveur MCP et par l'application.
 
-use crate::{arrange, edit, tables, view};
+use crate::{arrange, edit, tables, template, view};
 use carnet_core::{Document, Id};
 use serde_json::{Value, json};
 
@@ -25,6 +25,8 @@ pub const MUTATING: &[&str] = &[
     "add_table",
     "table_edit",
     "repeat",
+    "set_template_role",
+    "page_grid",
 ];
 
 /// Outil traité par la boucle de dialogue, pas par `apply` : il n'agit qu'à l'acceptation.
@@ -51,6 +53,8 @@ pub fn apply(doc: &mut Document, name: &str, args: &Value, selection: &[Id]) -> 
         "add_table" => tables::add_table(doc, args),
         "table_edit" => tables::table_edit(doc, args),
         "repeat" => tables::repeat(doc, args),
+        "set_template_role" => template::set_template_role(doc, args),
+        "page_grid" => template::page_grid(doc, args),
         other => Err(format!("outil inconnu : {other}")),
     }
 }
@@ -73,6 +77,7 @@ pub fn definitions() -> Value {
     let align = json!({ "type": "string", "enum": ["left", "center", "right", "justify"] });
     let valign = json!({ "type": "string", "enum": ["top", "middle", "bottom"] });
     let style = json!({ "type": "string", "description": "Identifiant d'un style nommé (titre, consigne, texte, prenom…)" });
+    let field = json!({ "type": "string", "description": format!("Champ rempli avec la classe : {}", template::fields_hint()) });
     let lines = json!({ "type": "string", "enum": ["seyes", "small_squares", "lines", "dots", "none"], "description": "Lignes d'écriture sous le texte" });
     json!([
         {
@@ -118,8 +123,8 @@ pub fn definitions() -> Value {
         },
         {
             "name": "add_text",
-            "description": "Ajoute un texte sur une page.",
-            "inputSchema": frame(json!({ "content": { "type": "string" }, "style": style, "font": font, "size_pt": size, "color": color, "align": align, "valign": valign }), &["content"]),
+            "description": "Ajoute un texte sur une page ; avec « field » (au lieu de « content »), une zone vide que Cahutin remplira avec la classe.",
+            "inputSchema": frame(json!({ "content": { "type": "string" }, "field": field, "style": style, "font": font, "size_pt": size, "color": color, "align": align, "valign": valign }), &["content"]),
         },
         {
             "name": "set_text",
@@ -205,8 +210,31 @@ pub fn definitions() -> Value {
             } },
         },
         {
+            "name": "set_template_role",
+            "description": "Rôle d'un texte ou d'une photo dans un modèle : fill (zone vidée à chaque usage ; avec « field », remplie avec la classe), fixed (gardé tel quel et verrouillé : à faire en dernier), none (pas gardé dans le modèle).",
+            "inputSchema": { "type": "object", "required": ["element_id", "role"], "properties": {
+                "element_id": id, "role": { "type": "string", "enum": ["fill", "fixed", "none"] }, "field": field,
+            } },
+        },
+        {
+            "name": "page_grid",
+            "description": "Grille de cases d'une page (pour un modèle) : set la pose (cases photo vides), merge et split fusionnent ou séparent des cases, set_kind change une case en photo ou texte, remove la retire en gardant les cases.",
+            "inputSchema": { "type": "object", "required": ["page", "action"], "properties": {
+                "page": page,
+                "action": { "type": "string", "enum": ["set", "merge", "split", "set_kind", "remove"] },
+                "cols": { "type": "integer", "description": "1 à 10" }, "rows": { "type": "integer", "description": "1 à 10" },
+                "cell_id": id, "other_cell_id": id,
+                "kind": { "type": "string", "enum": ["photo", "text"] },
+            } },
+        },
+        {
             "name": SAVE_AS_TEMPLATE,
-            "description": "Enregistre une page comme modèle dans le tiroir Modèles. Seulement si l'utilisateur demande un modèle.",
+            "description": "Enregistre une page comme modèle dans le tiroir Modèles. Seulement si l'utilisateur demande un modèle. \
+Le modèle garde les formes, les images, les zones à remplir, les éléments fixes et les textes que vous avez écrits. \
+Cahutin le remplit avec la classe : les champs (add_text avec field, ou les mots {prénom}, {PRÉNOM}, {nom}, {groupe}, {âge}, {anniversaire} dans un texte, \
+{anniversaires janvier}… pour une affiche de toute la classe), et chaque case photo vide reçoit la photo de l'élève ou son symbole. \
+Pour des étiquettes, faites un bloc (cadre et champs) puis repeat : un élève par bloc (class_fill de get_layout dit « sheet »). \
+Lettres mobiles : un champ Lettre 1, Lettre 2… par case.",
             "inputSchema": { "type": "object", "required": ["page", "name"], "properties": { "page": page, "name": { "type": "string", "description": "Nom du modèle" } } },
         },
     ])
@@ -220,7 +248,7 @@ mod tests {
     #[test]
     fn every_described_tool_is_wired() {
         let names: Vec<String> = definitions().as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
-        for n in ["set_look", "arrange", "group", "ungroup", "set_page_format", "add_table", "table_edit", "repeat"] {
+        for n in ["set_look", "arrange", "group", "ungroup", "set_page_format", "add_table", "table_edit", "repeat", "set_template_role", "page_grid"] {
             assert!(names.iter().any(|x| x == n), "{n} n'est pas décrit");
         }
         for n in names.iter().filter(|n| *n != "get_layout" && *n != SAVE_AS_TEMPLATE) {
@@ -228,5 +256,16 @@ mod tests {
             let err = apply(&mut Document::new("x"), n, &json!({}), &[]).err().unwrap_or_default();
             assert!(!err.starts_with("outil inconnu"), "{n} : {err}");
         }
+    }
+}
+
+#[cfg(test)]
+mod size {
+    /// Les descriptions des outils partent à chaque demande : un petit modèle local (Ollama, 16 000 jetons)
+    /// doit garder la place de la page et de la conversation.
+    #[test]
+    fn the_tool_descriptions_stay_small() {
+        let n = serde_json::to_string(&super::definitions()).unwrap().len();
+        assert!(n < 18_000, "{n} octets");
     }
 }

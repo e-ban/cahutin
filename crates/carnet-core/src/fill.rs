@@ -335,6 +335,7 @@ pub fn generate(page: &Page, students: &[Student], mode: FillMode) -> Vec<Page> 
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     fn frame(x: f64, y: f64, w: f64, h: f64) -> Frame {

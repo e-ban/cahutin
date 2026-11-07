@@ -10,5 +10,6 @@ pub mod pictos;
 pub mod server;
 pub mod styles;
 pub mod tables;
+pub mod template;
 pub mod tools;
 pub mod view;

@@ -29,6 +29,16 @@ fn page_view(doc: &Document, index: usize, page: &Page, selection: &[Id]) -> Val
         "width_mm": page.size.width_mm,
         "height_mm": page.size.height_mm,
         "format": crate::styles::format_of(page.size),
+        // Comment Cahutin remplira la page avec la classe : une page par élève, une planche d'étiquettes
+        // (un élève par bloc), ou une seule page pour toute la classe ; rien si elle n'a aucun champ.
+        "class_fill": carnet_core::fill::has_fields(page).then(|| json!({
+            "mode": match carnet_core::fill::suggested_mode(page) {
+                carnet_core::fill::FillMode::PagePerStudent => "page_per_student",
+                carnet_core::fill::FillMode::Sheet => "sheet",
+                carnet_core::fill::FillMode::WholeClass => "whole_class",
+            },
+            "blocks": carnet_core::fill::block_count(page),
+        })),
         "landscape": page.size.width_mm > page.size.height_mm,
         "background": background,
         "elements": page.elements.iter().map(|e| element_view(doc, page, e, selection.contains(&e.id))).collect::<Vec<_>>(),
@@ -66,6 +76,10 @@ fn element_view(doc: &Document, page: &Page, e: &Element, selected: bool) -> Val
             "outline": t.style.outline.unwrap_or(false),
             "padding_mm": t.style.padding(),
             "style": t.style.named,
+            // L'invite n'est montrée que si c'est un champ de la classe (« Prénom ») : sinon, elle peut
+            // contenir n'importe quoi.
+            "field": t.prompt.as_deref().filter(|p| e.zone && carnet_core::fill::is_field_prompt(p)),
+            "class_markers": carnet_core::fill::uses_markers(e),
             "fill": t.frame.as_ref().and_then(|fr| fr.fill.clone()),
             "border": t.frame.as_ref().and_then(|fr| fr.stroke.as_ref()).map(stroke_view),
             "has_background_image": t.frame.as_ref().is_some_and(|fr| fr.image.is_some()),
@@ -223,6 +237,8 @@ mod tests {
             for p in view["pages"].as_array_mut().unwrap() {
                 for e in p["elements"].as_array_mut().unwrap() {
                     e.as_object_mut().unwrap().remove("name");
+                    // Le nom d'un champ (« Prénom ») est celui de Cahutin, jamais une donnée de l'enfant.
+                    e.as_object_mut().unwrap().remove("field");
                 }
             }
             let out = view.to_string();

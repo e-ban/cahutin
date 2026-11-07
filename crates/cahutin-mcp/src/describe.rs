@@ -69,9 +69,9 @@ fn changes(doc: &Document, b: &Element, a: &Element) -> Vec<String> {
         out.push(agree("retourné", fem));
     }
     if std::mem::discriminant(&b.kind) != std::mem::discriminant(&a.kind) {
-        let (before, _) = label(b);
+        let (before, fem) = label(b);
         let after = name[..1].to_lowercase() + &name[1..];
-        return vec![format!("{before} remplacé par : {after}")];
+        return vec![format!("{before} {} par : {after}", agree("remplacé", fem))];
     }
     match (&b.kind, &a.kind) {
         (ElementKind::Table(kb), ElementKind::Table(ka)) => {
@@ -153,6 +153,21 @@ fn changes(doc: &Document, b: &Element, a: &Element) -> Vec<String> {
         }
         _ => {}
     }
+    let prompt = |e: &Element| match &e.kind {
+        ElementKind::Text(t) => t.prompt.clone(),
+        _ => None,
+    };
+    if a.zone && (!b.zone || prompt(a) != prompt(b)) {
+        out.push(match prompt(a).filter(|p| carnet_core::fill::is_field_prompt(p)) {
+            Some(f) => format!("à remplir ({f})"),
+            None => "à remplir".into(),
+        });
+    } else if b.zone && !a.zone && !a.locked {
+        out.push("plus à remplir".into());
+    }
+    if a.locked && !b.locked {
+        out.push("fixe dans le modèle".into());
+    }
     if out.is_empty() && ungrouped(b) != ungrouped(a) {
         out.push(agree("modifié", fem));
     }
@@ -196,6 +211,9 @@ fn new_line(e: &Element) -> String {
     let lower = name[..1].to_lowercase() + &name[1..];
     let size = match &e.kind {
         ElementKind::Table(t) => format!(" ({} × {})", t.cols.len(), t.rows.len()),
+        ElementKind::Text(t) if e.zone && t.prompt.as_deref().is_some_and(carnet_core::fill::is_field_prompt) => {
+            return format!("Nouveau champ « {} »", t.prompt.as_deref().unwrap());
+        }
         _ => String::new(),
     };
     format!("{} {lower}{size}", if fem { "Nouvelle" } else { "Nouveau" })
@@ -221,7 +239,25 @@ fn quiet_cells(before: &Document, after: &Document) -> Vec<Id> {
     for b in elements(before).filter(|b| matches!(b.kind, ElementKind::Table(_)) && !elements(after).any(|a| a.id == b.id)) {
         out.extend(cells(b));
     }
+    // De même pour une grille de page posée, changée ou retirée.
+    for (pb, pa) in before.pages.iter().zip(&after.pages) {
+        if pb.grid != pa.grid {
+            for g in [&pb.grid, &pa.grid].into_iter().flatten() {
+                out.extend(g.cells.iter().map(|c| c.element_id.clone()));
+            }
+        }
+    }
     out
+}
+
+fn grid_line(b: &Option<carnet_core::GridLayout>, a: &Option<carnet_core::GridLayout>) -> Option<String> {
+    match (b, a) {
+        (_, Some(ga)) if b.as_ref().is_none_or(|gb| (gb.cols, gb.rows) != (ga.cols, ga.rows)) => Some(format!("grille de {} × {} cases", ga.cols, ga.rows)),
+        (Some(gb), Some(ga)) if ga.cells.len() < gb.cells.len() => Some("cases de la grille fusionnées".into()),
+        (Some(gb), Some(ga)) if ga.cells.len() > gb.cells.len() => Some("case de la grille séparée".into()),
+        (Some(_), None) => Some("grille retirée, ses cases restent".into()),
+        _ => None,
+    }
 }
 
 /// Lignes identiques (les exemplaires d'un « Répéter ») comptées une fois : « Nouvelle forme (× 3) ».
@@ -301,6 +337,11 @@ pub fn describe(before: &Document, after: &Document) -> Vec<String> {
     }
     for i in before.pages.len()..after.pages.len() {
         out.push(format!("Page {} ajoutée", i + 1));
+    }
+    for (i, (pb, pa)) in before.pages.iter().zip(&after.pages).enumerate() {
+        if let Some(l) = grid_line(&pb.grid, &pa.grid) {
+            out.push(format!("Page {} : {l}", i + 1));
+        }
     }
     let white = Background { color: "#ffffff".into(), pattern: None };
     for (i, (pb, pa)) in before.pages.iter().zip(&after.pages).enumerate() {
@@ -551,5 +592,38 @@ mod tests {
             crate::tables::repeat(d, &json!({ "element_ids": [id], "cols": 2, "rows": 2 })).unwrap();
         });
         assert_eq!(describe(&b, &a), ["Nouvelle forme (× 3)"]);
+    }
+
+    #[test]
+    fn template_roles_and_fields() {
+        let (b, a) = after(|d| {
+            let id = id(d, 0);
+            crate::template::set_template_role(d, &json!({ "element_id": id, "role": "fill", "field": "Prénom" })).unwrap();
+        });
+        assert_eq!(describe(&b, &a), ["Texte : à remplir (Prénom)"]);
+        let (b, a) = after(|d| {
+            let id = id(d, 0);
+            crate::template::set_template_role(d, &json!({ "element_id": id, "role": "fixed" })).unwrap();
+        });
+        assert_eq!(describe(&b, &a), ["Texte : fixe dans le modèle"]);
+        let (b, a) = after(|d| {
+            edit::add_text(d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 9, "h_mm": 9, "field": "Âge" })).unwrap();
+        });
+        assert_eq!(describe(&b, &a), ["Nouveau champ « Âge »"]);
+    }
+
+    #[test]
+    fn a_page_grid_is_one_line() {
+        let (b, a) = after(|d| {
+            crate::template::page_grid(d, &json!({ "page": 0, "action": "set", "cols": 2, "rows": 3 })).unwrap();
+        });
+        assert_eq!(describe(&b, &a), ["Page 1 : grille de 2 × 3 cases"]);
+        let cells: Vec<String> = a.pages[0].grid.as_ref().unwrap().cells.iter().map(|c| c.element_id.clone()).collect();
+        let mut m = a.clone();
+        crate::template::page_grid(&mut m, &json!({ "page": 0, "action": "merge", "cell_id": cells[0], "other_cell_id": cells[1] })).unwrap();
+        assert_eq!(describe(&a, &m), ["Page 1 : cases de la grille fusionnées"]);
+        let mut r = a.clone();
+        crate::template::page_grid(&mut r, &json!({ "page": 0, "action": "remove" })).unwrap();
+        assert_eq!(describe(&a, &r), ["Page 1 : grille retirée, ses cases restent"]);
     }
 }

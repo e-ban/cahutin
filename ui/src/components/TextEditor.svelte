@@ -13,7 +13,7 @@
   import { Slice } from "@tiptap/pm/model";
   import { onDestroy, onMount } from "svelte";
   import { editor as doc } from "../lib/docStore.svelte";
-  import { ClassField } from "../lib/fieldNode";
+  import { ClassField, plainText } from "../lib/fieldNode";
   import { cssFontFamily, fontFamilyName, richToTiptap, sanitizePlainText, tiptapToRich } from "../lib/richtext";
   import { keepsEditing, textEditing } from "../lib/textEditing.svelte";
   import { copiedSlice, rememberCopy, withZoneStyle, type CopiedSlice } from "../lib/textClipboard";
@@ -76,7 +76,7 @@
         // Copie : le texte va au presse-papiers, le passage et sa mise en forme (avec le style de la zone) sont
         // retenus pour un collage dans une autre zone.
         clipboardTextSerializer(slice) {
-          const text = slice.content.textBetween(0, slice.content.size, "\n", "\n");
+          const text = plainText(slice.content);
           rememberCopy(text, withZoneStyle(slice.toJSON() as CopiedSlice, props.style));
           return text;
         },

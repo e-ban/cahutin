@@ -1,6 +1,7 @@
 // La pastille d'un champ de la classe dans l'éditeur : un seul caractère (un retour arrière l'efface d'un
 // coup, le curseur n'entre pas dedans), qui montre le nom du champ et s'enregistre en accolades.
 import { Node } from "@tiptap/core";
+import type { Fragment } from "@tiptap/pm/model";
 import { fieldLabel, fieldShown } from "./classFields";
 
 export const ClassField = Node.create({
@@ -30,3 +31,8 @@ export const ClassField = Node.create({
     return `{${node.attrs.key}}`;
   },
 });
+
+/** Le texte brut d'un passage : chaque pastille en accolades, chaque fin de paragraphe en retour à la ligne. */
+export function plainText(fragment: Fragment): string {
+  return fragment.textBetween(0, fragment.size, "\n", (n) => (n.type.name === "classField" ? `{${n.attrs.key}}` : "\n"));
+}

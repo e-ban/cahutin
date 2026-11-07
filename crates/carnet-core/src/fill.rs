@@ -144,6 +144,10 @@ fn fill_element(e: &mut Element, s: Option<&Student>) {
                 e.frame = Frame { x_mm: f.x_mm + (f.w_mm - side) / 2.0, y_mm: f.y_mm + (f.h_mm - side) / 2.0, w_mm: side, h_mm: side, ..f };
                 e.kind = ElementKind::Image(ImageProps { code: code.clone(), outline: None });
                 e.zone = false;
+            } else {
+                // Ni photo permise ni symbole : la case reste vide, mais la page est faite pour cet élève.
+                // Elle n'est plus à remplir, sinon un nouveau remplissage y mettrait la photo d'un autre.
+                e.zone = false;
             }
         }
         _ => {}
@@ -441,6 +445,8 @@ mod tests {
     fn photo_without_consent_or_symbol_stays_empty() {
         let out = fill_for(&card(), &student("Léa", Some("p1"), false, None));
         assert!(matches!(&out.elements[2].kind, ElementKind::Photo(p) if p.asset.is_none()));
+        // La page est faite pour Léa : elle n'a plus rien à remplir, pas même sa case photo restée vide.
+        assert!(!has_fields(&out));
     }
 
     #[test]
@@ -500,16 +506,16 @@ mod tests {
         let pages = fill_sheet(&labels, &students);
         assert_eq!(pages.len(), 3);
         let at = |p: &Page, x: f64, y_rank: usize| {
-            let mut zones: Vec<&Element> = p.elements.iter().filter(|e| e.zone && e.frame.x_mm == x).collect();
+            let mut zones: Vec<&Element> = p.elements.iter().filter(|e| matches!(e.kind, ElementKind::Text(_)) && e.frame.x_mm == x).collect();
             zones.sort_by(|a, b| a.frame.y_mm.total_cmp(&b.frame.y_mm));
             plain(zones[y_rank])
         };
         assert_eq!(at(&pages[0], 10.0, 0), "Élève1");
         assert_eq!(at(&pages[0], 110.0, 0), "Élève2");
         assert_eq!(at(&pages[0], 10.0, 1), "Élève3");
-        let filled = pages[2].elements.iter().filter(|e| e.zone && !plain(e).is_empty()).count();
-        assert_eq!(filled, 1);
-        assert_eq!(pages[2].elements.iter().filter(|e| e.zone).count(), 12);
+        let texts = || pages[2].elements.iter().filter(|e| matches!(e.kind, ElementKind::Text(_)));
+        assert_eq!(texts().filter(|e| !plain(e).is_empty()).count(), 1);
+        assert_eq!(texts().count(), 12);
     }
 
     #[test]
@@ -635,7 +641,7 @@ mod tests {
     fn three_scripts_template_fills_one_child_per_label() {
         let page = crate::templates::builtin().into_iter().find(|t| t.info.name == "Étiquettes 3 écritures").unwrap().page;
         let pages = fill_sheet(&page, &[student("Léa", None, false, None)]);
-        let filled: Vec<String> = pages[0].elements.iter().filter(|e| e.zone && matches!(e.kind, ElementKind::Text(_))).map(plain).filter(|t| !t.is_empty()).collect();
+        let filled: Vec<String> = pages[0].elements.iter().filter(|e| matches!(e.kind, ElementKind::Text(_))).map(plain).filter(|t| !t.is_empty()).collect();
         assert_eq!(filled, ["LÉA", "Léa", "Léa"]);
     }
 

@@ -347,8 +347,13 @@ pub fn delete_element(doc: &mut Document, args: &Value) -> Result<Value, String>
     if in_table {
         return Err(format!("« {id} » est une case de tableau : supprimez le tableau"));
     }
+    // Un tableau s'en va avec ses cases.
+    let cells: Vec<String> = doc.pages.iter().flat_map(|p| &p.elements).filter(|e| e.id == id).flat_map(|e| match &e.kind {
+        ElementKind::Table(t) => t.cells.iter().map(|c| c.element_id.clone()).collect(),
+        _ => Vec::new(),
+    }).collect();
     for p in &mut doc.pages {
-        p.elements.retain(|e| e.id != id);
+        p.elements.retain(|e| e.id != id && !cells.contains(&e.id));
     }
     Ok(json!({ "ok": true }))
 }

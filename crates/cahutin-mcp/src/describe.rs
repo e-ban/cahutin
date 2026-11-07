@@ -68,7 +68,26 @@ fn changes(doc: &Document, b: &Element, a: &Element) -> Vec<String> {
     if (b.flip_h, b.flip_v, mirrored(b)) != (a.flip_h, a.flip_v, mirrored(a)) {
         out.push(agree("retourné", fem));
     }
+    if std::mem::discriminant(&b.kind) != std::mem::discriminant(&a.kind) {
+        let (before, _) = label(b);
+        let after = name[..1].to_lowercase() + &name[1..];
+        return vec![format!("{before} remplacé par : {after}")];
+    }
     match (&b.kind, &a.kind) {
+        (ElementKind::Table(kb), ElementKind::Table(ka)) => {
+            if kb.rows.len() != ka.rows.len() {
+                out.push(format!("{} → {} lignes", kb.rows.len(), ka.rows.len()));
+            }
+            if kb.cols.len() != ka.cols.len() {
+                out.push(format!("{} → {} colonnes", kb.cols.len(), ka.cols.len()));
+            }
+            if (kb.rows.len(), kb.cols.len()) == (ka.rows.len(), ka.cols.len()) && kb.cells.len() != ka.cells.len() {
+                out.push(if ka.cells.len() < kb.cells.len() { "cases fusionnées" } else { "case séparée" }.into());
+            }
+            if kb.border != ka.border {
+                out.push("traits changés".into());
+            }
+        }
         (ElementKind::Text(tb), ElementKind::Text(ta)) => {
             let (sb, sa) = (&tb.style, &ta.style);
             if sb.named != sa.named && let Some(id) = &sa.named {
@@ -175,7 +194,46 @@ fn format_fr(size: carnet_core::PageSize) -> String {
 fn new_line(e: &Element) -> String {
     let (name, fem) = label(e);
     let lower = name[..1].to_lowercase() + &name[1..];
-    format!("{} {lower}", if fem { "Nouvelle" } else { "Nouveau" })
+    let size = match &e.kind {
+        ElementKind::Table(t) => format!(" ({} × {})", t.cols.len(), t.rows.len()),
+        _ => String::new(),
+    };
+    format!("{} {lower}{size}", if fem { "Nouvelle" } else { "Nouveau" })
+}
+
+fn cells(e: &Element) -> Vec<Id> {
+    match &e.kind {
+        ElementKind::Table(t) => t.cells.iter().map(|c| c.element_id.clone()).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Cases des tableaux ajoutés, changés ou supprimés : le tableau dit seul ce qui a changé.
+fn quiet_cells(before: &Document, after: &Document) -> Vec<Id> {
+    let mut out = Vec::new();
+    for a in elements(after).filter(|e| matches!(e.kind, ElementKind::Table(_))) {
+        let b = elements(before).find(|b| b.id == a.id);
+        if b != Some(a) {
+            out.extend(cells(a));
+            out.extend(b.map(cells).unwrap_or_default());
+        }
+    }
+    for b in elements(before).filter(|b| matches!(b.kind, ElementKind::Table(_)) && !elements(after).any(|a| a.id == b.id)) {
+        out.extend(cells(b));
+    }
+    out
+}
+
+/// Lignes identiques (les exemplaires d'un « Répéter ») comptées une fois : « Nouvelle forme (× 3) ».
+fn counted(lines: Vec<String>) -> Vec<String> {
+    let mut out: Vec<(String, usize)> = Vec::new();
+    for l in lines {
+        match out.iter_mut().find(|(x, _)| *x == l) {
+            Some((_, n)) => *n += 1,
+            None => out.push((l, 1)),
+        }
+    }
+    out.into_iter().map(|(l, n)| if n > 1 { format!("{l} (× {n})") } else { l }).collect()
 }
 
 fn pattern_fr(p: Option<Pattern>) -> &'static str {
@@ -196,13 +254,14 @@ fn elements(d: &Document) -> impl Iterator<Item = &Element> {
 pub fn describe(before: &Document, after: &Document) -> Vec<String> {
     let mut out = Vec::new();
     // Une page au nouveau format : tout son contenu change de taille, une seule ligne le dit.
+    let quiet = quiet_cells(before, after);
     let resized: Vec<usize> = before.pages.iter().zip(&after.pages).enumerate().filter(|(_, (b, a))| b.size != a.size).map(|(i, _)| i).collect();
     for (i, pa) in after.pages.iter().enumerate() {
         if resized.contains(&i) {
             out.push(format!("Page {} : {}", i + 1, format_fr(pa.size)));
             continue;
         }
-        for a in &pa.elements {
+        for a in pa.elements.iter().filter(|a| !quiet.contains(&a.id)) {
             match elements(before).find(|b| b.id == a.id) {
                 Some(b) => out.extend(changes(after, b, a)),
                 None => out.push(new_line(a)),
@@ -236,7 +295,7 @@ pub fn describe(before: &Document, after: &Document) -> Vec<String> {
             });
         }
     }
-    for b in elements(before).filter(|b| !elements(after).any(|a| a.id == b.id)) {
+    for b in elements(before).filter(|b| !quiet.contains(&b.id) && !elements(after).any(|a| a.id == b.id)) {
         let (name, fem) = label(b);
         out.push(format!("{name} {}", agree("supprimé", fem)));
     }
@@ -253,7 +312,7 @@ pub fn describe(before: &Document, after: &Document) -> Vec<String> {
             out.push(format!("Fond de la page {} : couleur changée", i + 1));
         }
     }
-    out
+    counted(out)
 }
 
 /// Éléments créés ou modifiés (pas les supprimés), à surligner.
@@ -454,5 +513,43 @@ mod tests {
             crate::arrange::set_page_format(d, &json!({ "page": 0, "orientation": "landscape" })).unwrap();
         });
         assert_eq!(describe(&b, &a), ["Page 1 : format A4 paysage"]);
+    }
+
+    #[test]
+    fn a_table_is_one_line_however_many_cells() {
+        let (b, a) = after(|d| {
+            crate::tables::add_table(d, &json!({ "page": 0, "x_mm": 10, "y_mm": 150, "w_mm": 150, "h_mm": 40, "cols": 3, "rows": 2 })).unwrap();
+        });
+        assert_eq!(describe(&b, &a), ["Nouveau tableau (3 × 2)"]);
+        let cell = |d: &Document| match &d.pages[0].elements.iter().find(|e| matches!(e.kind, ElementKind::Table(_))).unwrap().kind {
+            ElementKind::Table(t) => t.cells[0].element_id.clone(),
+            _ => unreachable!(),
+        };
+        let mut c = a.clone();
+        crate::tables::table_edit(&mut c, &json!({ "cell_id": cell(&a), "action": "insert_row_below" })).unwrap();
+        assert_eq!(describe(&a, &c), ["Tableau : agrandi", "Tableau : 2 → 3 lignes"]);
+        let mut m = a.clone();
+        let other = match &a.pages[0].elements.iter().find(|e| matches!(e.kind, ElementKind::Table(_))).unwrap().kind {
+            ElementKind::Table(t) => t.cells[1].element_id.clone(),
+            _ => unreachable!(),
+        };
+        crate::tables::table_edit(&mut m, &json!({ "cell_id": cell(&a), "action": "merge", "other_cell_id": other })).unwrap();
+        assert_eq!(describe(&a, &m), ["Tableau : cases fusionnées"]);
+        let mut s = a.clone();
+        crate::tables::table_edit(&mut s, &json!({ "cell_id": cell(&a), "action": "set_content", "content": "photo" })).unwrap();
+        assert_eq!(describe(&a, &s), ["Texte remplacé par : case photo"]);
+        let mut del = a.clone();
+        let t = del.pages[0].elements.iter().find(|e| matches!(e.kind, ElementKind::Table(_))).unwrap().id.clone();
+        edit::delete_element(&mut del, &json!({ "element_id": t })).unwrap();
+        assert_eq!(describe(&a, &del), ["Tableau supprimé"]);
+    }
+
+    #[test]
+    fn repeated_copies_are_counted_not_listed() {
+        let (b, a) = after(|d| {
+            let id = id(d, 2);
+            crate::tables::repeat(d, &json!({ "element_ids": [id], "cols": 2, "rows": 2 })).unwrap();
+        });
+        assert_eq!(describe(&b, &a), ["Nouvelle forme (× 3)"]);
     }
 }

@@ -1,7 +1,7 @@
 //! Les outils de l'assistant : leur description pour le modèle, et leur application à un document en
 //! mémoire. Partagés par le serveur MCP et par l'application.
 
-use crate::{arrange, edit, view};
+use crate::{arrange, edit, tables, view};
 use carnet_core::{Document, Id};
 use serde_json::{Value, json};
 
@@ -22,6 +22,9 @@ pub const MUTATING: &[&str] = &[
     "group",
     "ungroup",
     "set_page_format",
+    "add_table",
+    "table_edit",
+    "repeat",
 ];
 
 /// Outil traité par la boucle de dialogue, pas par `apply` : il n'agit qu'à l'acceptation.
@@ -45,6 +48,9 @@ pub fn apply(doc: &mut Document, name: &str, args: &Value, selection: &[Id]) -> 
         "group" => arrange::group(doc, args),
         "ungroup" => arrange::ungroup(doc, args),
         "set_page_format" => arrange::set_page_format(doc, args),
+        "add_table" => tables::add_table(doc, args),
+        "table_edit" => tables::table_edit(doc, args),
+        "repeat" => tables::repeat(doc, args),
         other => Err(format!("outil inconnu : {other}")),
     }
 }
@@ -173,6 +179,32 @@ pub fn definitions() -> Value {
             } },
         },
         {
+            "name": "add_table",
+            "description": "Ajoute un tableau de cases texte vides ; rend son id et ses cases (element_id, col, row). Écrivez dans une case avec set_text.",
+            "inputSchema": frame(json!({ "cols": { "type": "integer", "description": "Colonnes (1 à 50)" }, "rows": { "type": "integer", "description": "Lignes (1 à 50)" } }), &["cols", "rows"]),
+        },
+        {
+            "name": "table_edit",
+            "description": "Modifie un tableau à partir d'une de ses cases : ajoute ou retire une ligne ou une colonne, fusionne avec une autre case, sépare une case fusionnée, ou change son contenu (texte, image de la banque, photo).",
+            "inputSchema": { "type": "object", "required": ["cell_id", "action"], "properties": {
+                "cell_id": { "type": "string", "description": "Identifiant d'une case (cells de get_layout)" },
+                "action": { "type": "string", "enum": ["insert_row_above", "insert_row_below", "insert_col_left", "insert_col_right", "remove_row", "remove_col", "merge", "split", "set_content"] },
+                "other_cell_id": { "type": "string", "description": "Pour merge : l'autre case" },
+                "content": { "type": "string", "enum": ["text", "image", "photo"], "description": "Pour set_content" },
+                "query": { "type": "string", "description": "Pour une image : mot-clé en français" },
+            } },
+        },
+        {
+            "name": "repeat",
+            "description": "Répète un bloc (les éléments donnés, avec leurs groupes) en grille sur sa page, pour une planche d'étiquettes ou de cartes : cols × rows exemplaires, lui compris, ou fill_page pour en mettre autant que la page en tient. Chaque exemplaire forme un groupe.",
+            "inputSchema": { "type": "object", "required": ["element_ids"], "properties": {
+                "element_ids": { "type": "array", "items": { "type": "string" } },
+                "cols": { "type": "integer", "description": "1 à 20" }, "rows": { "type": "integer", "description": "1 à 20" },
+                "fill_page": { "type": "boolean" },
+                "gap_mm": mm("Espace entre les exemplaires (5 par défaut)"),
+            } },
+        },
+        {
             "name": SAVE_AS_TEMPLATE,
             "description": "Enregistre une page comme modèle dans le tiroir Modèles. Seulement si l'utilisateur demande un modèle.",
             "inputSchema": { "type": "object", "required": ["page", "name"], "properties": { "page": page, "name": { "type": "string", "description": "Nom du modèle" } } },
@@ -188,7 +220,7 @@ mod tests {
     #[test]
     fn every_described_tool_is_wired() {
         let names: Vec<String> = definitions().as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
-        for n in ["set_look", "arrange", "group", "ungroup", "set_page_format"] {
+        for n in ["set_look", "arrange", "group", "ungroup", "set_page_format", "add_table", "table_edit", "repeat"] {
             assert!(names.iter().any(|x| x == n), "{n} n'est pas décrit");
         }
         for n in names.iter().filter(|n| *n != "get_layout" && *n != SAVE_AS_TEMPLATE) {

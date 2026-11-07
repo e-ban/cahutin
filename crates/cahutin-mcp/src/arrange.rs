@@ -13,7 +13,7 @@ fn text<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
 }
 
 /// Page et rang de l'élément.
-fn locate(doc: &Document, id: &str) -> Result<(usize, usize), String> {
+pub(crate) fn locate(doc: &Document, id: &str) -> Result<(usize, usize), String> {
     doc.pages
         .iter()
         .enumerate()
@@ -22,13 +22,13 @@ fn locate(doc: &Document, id: &str) -> Result<(usize, usize), String> {
 }
 
 /// L'élément et tout son groupe le plus large, dans l'ordre de la page.
-fn block(page: &Page, id: &str) -> Vec<Id> {
+pub(crate) fn block(page: &Page, id: &str) -> Vec<Id> {
     let group = page.elements.iter().find(|e| e.id == id).and_then(|e| e.group.clone());
     page.elements.iter().filter(|e| e.id == id || (group.is_some() && e.group == group)).map(|e| e.id.clone()).collect()
 }
 
 /// Refuse un élément verrouillé, une case de grille et, sauf `tables`, un tableau ou ses cases.
-fn check(page: &Page, ids: &[Id], tables: bool) -> Result<(), String> {
+pub(crate) fn check(page: &Page, ids: &[Id], tables: bool) -> Result<(), String> {
     let table_groups: Vec<&Id> = page.elements.iter().filter(|e| matches!(e.kind, ElementKind::Table(_))).filter_map(|e| e.group.as_ref()).collect();
     for e in page.elements.iter().filter(|e| ids.contains(&e.id)) {
         if e.locked {
@@ -45,7 +45,7 @@ fn check(page: &Page, ids: &[Id], tables: bool) -> Result<(), String> {
     Ok(())
 }
 
-fn round(v: f64) -> f64 {
+pub(crate) fn round(v: f64) -> f64 {
     (v * 10.0).round() / 10.0
 }
 
@@ -61,7 +61,7 @@ fn flip(e: &mut Element, horizontal: bool) {
 }
 
 /// Rectangle qui contient les cadres, coins tournés compris.
-fn bounds(els: &[&Element]) -> (f64, f64, f64, f64) {
+pub(crate) fn bounds(els: &[&Element]) -> (f64, f64, f64, f64) {
     let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
     for e in els {
         let f = &e.frame;
@@ -91,7 +91,7 @@ pub fn arrange(doc: &mut Document, args: &Value) -> Result<Value, String> {
             Ok(json!({ "ok": true }))
         }
         "duplicate" => {
-            check(page, &ids, false)?;
+            check(page, &ids, true)?;
             // Chaque copie a ses propres groupes, comme un collage.
             let mut regroup: HashMap<Id, Id> = HashMap::new();
             let copies: Vec<Element> = page
@@ -109,6 +109,8 @@ pub fn arrange(doc: &mut Document, args: &Value) -> Result<Value, String> {
                     c
                 })
                 .collect();
+            let map: HashMap<Id, Id> = page.elements.iter().filter(|e| ids.contains(&e.id)).map(|e| e.id.clone()).zip(copies.iter().map(|c| c.id.clone())).collect();
+            let copies = remap_tables(copies, &map);
             let new_ids: Vec<Id> = copies.iter().map(|c| c.id.clone()).collect();
             page.elements.extend(copies);
             Ok(json!({ "element_ids": new_ids }))
@@ -142,6 +144,19 @@ pub fn arrange(doc: &mut Document, args: &Value) -> Result<Value, String> {
         }
         a => Err(format!("action inconnue : {a} (front, back, duplicate, mirror_h, mirror_v)")),
     }
+}
+
+/// Un tableau copié désigne ses cases copiées (`remapTables` dans l'interface).
+pub(crate) fn remap_tables(mut copies: Vec<Element>, map: &HashMap<Id, Id>) -> Vec<Element> {
+    for c in &mut copies {
+        if let ElementKind::Table(t) = &mut c.kind {
+            t.cells.retain(|cell| map.contains_key(&cell.element_id));
+            for cell in &mut t.cells {
+                cell.element_id = map[&cell.element_id].clone();
+            }
+        }
+    }
+    copies
 }
 
 /// Groupe les éléments donnés (chacun avec son groupe entier, qui reste un groupe dans le nouveau).

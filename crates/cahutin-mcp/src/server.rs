@@ -122,7 +122,10 @@ mod tests {
                 "arrange",
                 "group",
                 "ungroup",
-                "set_page_format"
+                "set_page_format",
+                "add_table",
+                "table_edit",
+                "repeat"
             ]
         );
         assert!(r["result"]["tools"].as_array().unwrap().iter().all(|t| t["inputSchema"]["type"] == "object"));

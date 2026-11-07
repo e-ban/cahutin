@@ -1,6 +1,5 @@
 // Assistant de mise en page : le fil de la conversation et la proposition en cours. Les étapes s'affichent
 // sur la page au fur et à mesure (editor.showProposal) ; rien n'entre dans l'historique avant « Accepter ».
-import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import * as api from "./api";
 import { editor } from "./docStore.svelte";
 import { fr } from "./i18n/fr";
@@ -209,17 +208,14 @@ class Assistant {
     return choice;
   }
 
-  /** Enregistre le signalement d'une réponse (avec la demande qui l'a amenée), à envoyer à l'auteur. */
+  /** Ouvre un e-mail à l'auteur avec la réponse et la demande qui l'a amenée, à relire puis envoyer. */
   async report(entry: Entry) {
     if (entry.kind !== "assistant") return;
     const i = this.thread.indexOf(entry);
     const asked = this.thread.slice(0, i).reverse().find((e) => e.kind === "user");
-    const picked = await saveDialog({ defaultPath: "signalement-assistant.txt", filters: [{ name: "Texte", extensions: ["txt"] }] });
-    if (!picked) return;
-    const path = picked.toLowerCase().endsWith(".txt") ? picked : `${picked}.txt`;
     try {
-      await api.assistantReport(path, asked?.text ?? "", entry.text, entry.steps.flatMap((s) => s.summary));
-      editor.notice = fr.assistant.reported(path.split(/[\\/]/).pop() ?? path);
+      const to = await api.assistantReport(asked?.text ?? "", entry.text, entry.steps.flatMap((s) => s.summary));
+      editor.notice = fr.assistant.reported(to);
     } catch (e) {
       editor.notice = String(e);
     }

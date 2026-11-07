@@ -21,7 +21,7 @@ vi.mock("./api", () => ({
     else for (const e of events) onEvent(e);
   },
   assistantStop: async () => {},
-  assistantReport: async (...args: unknown[]) => void reports.push(args),
+  assistantReport: async (...args: unknown[]) => (reports.push(args), "auteur@exemple.fr"),
   assistantSettings: async () => ({ enabled: true, url: "http://localhost:11434/v1", model: "qwen3:4b", has_key: false }),
   savePageAsTemplate: async (name: string, _page: unknown, keep?: string[]) => void saved.push({ name, keep }),
   listTemplates: async () => [],
@@ -34,7 +34,6 @@ const { editor } = await import("./docStore.svelte");
 const { modal } = await import("./modal.svelte");
 const { newDocument } = await import("./factory");
 const { fr } = await import("./i18n/fr");
-const dialog = await import("@tauri-apps/plugin-dialog");
 
 const titled = (d: Document, title: string): Document => ({ ...d, title });
 
@@ -318,20 +317,10 @@ test("saving the page as a template settles the proposal first", async () => {
   expect(saved).toEqual([]);
 });
 
-test("a reply is reported with its request, in a text file", async () => {
+test("a reply is reported by email with its request", async () => {
   script.push((r) => [step(titled(r.document, "A")), done("Voilà un titre.")]);
   await assistant.send("Mets un titre");
-  vi.mocked(dialog.save).mockResolvedValueOnce("/tmp/signalement");
-  const reply = assistant.thread.at(-1)!;
-  await assistant.report(reply);
-  expect(reports).toEqual([["/tmp/signalement.txt", "Mets un titre", "Voilà un titre.", ["Texte : déplacé"]]]);
-  expect(editor.notice).toContain("signalement.txt");
-});
-
-test("a report cancelled in the dialog writes nothing", async () => {
-  script.push(() => [done("Voilà.")]);
-  await assistant.send("x");
-  vi.mocked(dialog.save).mockResolvedValueOnce(null);
   await assistant.report(assistant.thread.at(-1)!);
-  expect(reports).toEqual([]);
+  expect(reports).toEqual([["Mets un titre", "Voilà un titre.", ["Texte : déplacé"]]]);
+  expect(editor.notice).toContain("auteur@exemple.fr");
 });

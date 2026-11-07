@@ -97,6 +97,39 @@ pub fn report_text(version: &str, date: &str, url: &str, model: &str, request: &
     )
 }
 
+/// Où arrivent les signalements : l'adresse dédiée, la même que pour « Signaler un problème ».
+pub const REPORT_EMAIL: &str = carnet_core::report::REPORT_EMAIL;
+/// Longueur d'un lien `mailto:` que toutes les messageries acceptent.
+const MAILTO_MAX: usize = 1800;
+
+/// Encodage d'un lien : seuls les caractères sans réserve restent tels quels ; un retour à la ligne devient CRLF.
+fn encode(text: &str, room: usize) -> (String, bool) {
+    let mut out = String::new();
+    for c in text.replace("\r\n", "\n").chars() {
+        let piece: String = if c.is_ascii_alphanumeric() || "-_.~".contains(c) {
+            c.to_string()
+        } else if c == '\n' {
+            "%0D%0A".into()
+        } else {
+            let mut buf = [0u8; 4];
+            c.encode_utf8(&mut buf).bytes().map(|b| format!("%{b:02X}")).collect()
+        };
+        if out.len() + piece.len() > room {
+            return (out, true);
+        }
+        out.push_str(&piece);
+    }
+    (out, false)
+}
+
+/// Un e-mail prêt à envoyer à l'auteur, avec le signalement dedans (coupé s'il est trop long).
+pub fn report_mailto(text: &str) -> String {
+    let head = format!("mailto:{REPORT_EMAIL}?subject={}&body=", encode("Signalement d'une réponse de l'assistant", usize::MAX).0);
+    let ellipsis = "%E2%80%A6";
+    let (body, cut) = encode(text, MAILTO_MAX - head.len() - ellipsis.len());
+    format!("{head}{body}{}", if cut { ellipsis } else { "" })
+}
+
 pub fn endpoint(url: &str) -> String {
     format!("{}/chat/completions", url.trim_end_matches('/'))
 }
@@ -227,14 +260,15 @@ pub fn assistant_send(app: AppHandle, state: State<'_, AppState>, request: Reque
     Ok(())
 }
 
-/// Enregistre le signalement d'une réponse dans `path`, pour que l'enseignant l'envoie à l'auteur.
+/// Ouvre la messagerie sur un e-mail à l'auteur avec le signalement d'une réponse, à relire puis envoyer.
 #[tauri::command]
-pub fn assistant_report(app: AppHandle, path: String, request: String, reply: String, steps: Vec<String>) -> Result<(), String> {
+pub fn assistant_report(app: AppHandle, request: String, reply: String, steps: Vec<String>) -> Result<String, String> {
     let s = load(&config_dir(&app)?);
     let now = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
     let date = now.format(&time::format_description::parse_borrowed::<2>("[year]-[month]-[day] [hour]:[minute]").unwrap()).unwrap_or_default();
     let text = report_text(env!("CARGO_PKG_VERSION"), &date, &s.url, &s.model, &request, &reply, &steps);
-    std::fs::write(&path, text).map_err(|_| "Impossible d'écrire le signalement.".to_string())
+    open::that_detached(report_mailto(&text)).map_err(|_| format!("Aucune messagerie ne s'est ouverte : écrivez à {REPORT_EMAIL}."))?;
+    Ok(REPORT_EMAIL.to_string())
 }
 
 #[tauri::command]
@@ -362,5 +396,20 @@ mod tests {
             assert!(text.contains(part), "{part}");
         }
         assert!(!text.contains("/v1"));
+    }
+
+    #[test]
+    fn a_report_opens_as_a_ready_email() {
+        let url = report_mailto("Demande :\nMets un titre à Léa & co");
+        assert!(url.starts_with(&format!("mailto:{REPORT_EMAIL}?subject=")), "{url}");
+        assert!(url.contains("&body=Demande%20%3A%0D%0AMets%20un%20titre%20%C3%A0%20L%C3%A9a%20%26%20co"), "{url}");
+        assert!(!url.contains(' ') && !url.contains('\n'));
+    }
+
+    #[test]
+    fn a_long_report_is_cut_to_fit_a_mail_link() {
+        let url = report_mailto(&"é".repeat(5000));
+        assert!(url.len() <= MAILTO_MAX, "{}", url.len());
+        assert!(url.ends_with("%E2%80%A6"), "ends with an ellipsis");
     }
 }

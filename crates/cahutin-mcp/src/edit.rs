@@ -1,8 +1,12 @@
-//! Ce que l'assistant peut changer : position et taille, style d'un texte, fond d'une page. Jamais le
-//! contenu d'un texte ni une photo.
+//! Ce que l'assistant peut changer : position et taille, style d'un texte, fond d'une page ; il peut aussi
+//! ajouter des éléments, écrire un texte sans le lire, supprimer un élément et ajouter une page. Il ne lit
+//! jamais le contenu d'un texte ni une photo.
 
-use carnet_core::{Align, Background, Document, Element, ElementKind, Pattern};
-use serde_json::Value;
+use carnet_core::{
+    Align, Background, Crop, Document, Element, ElementKind, Frame, ImageProps, Page, Pattern, PhotoProps, RichText, ShapeKind, ShapeProps, Stroke,
+    TextProps, TextStyle, new_id,
+};
+use serde_json::{Value, json};
 
 /// Plus grande position ou taille acceptée : bien au-delà d'une affiche A3.
 const MAX_MM: f64 = 1000.0;
@@ -38,7 +42,7 @@ fn element<'a>(doc: &'a mut Document, args: &Value) -> Result<&'a mut Element, S
     Ok(e)
 }
 
-pub fn set_frame(doc: &mut Document, args: &Value) -> Result<(), String> {
+pub fn set_frame(doc: &mut Document, args: &Value) -> Result<Value, String> {
     let (x, y, w, h, r) = (number(args, "x_mm")?, number(args, "y_mm")?, number(args, "w_mm")?, number(args, "h_mm")?, number(args, "rotation_deg")?);
     for v in [x, y].into_iter().flatten() {
         if !(-MAX_MM..=MAX_MM).contains(&v) {
@@ -67,10 +71,10 @@ pub fn set_frame(doc: &mut Document, args: &Value) -> Result<(), String> {
     if is_table && let Some(page) = doc.pages.iter_mut().find(|p| p.elements.iter().any(|e| e.id == id)) {
         carnet_core::table::layout(page, &id);
     }
-    Ok(())
+    Ok(json!({ "ok": true }))
 }
 
-pub fn set_text_style(doc: &mut Document, args: &Value) -> Result<(), String> {
+pub fn set_text_style(doc: &mut Document, args: &Value) -> Result<Value, String> {
     let font = text(args, "font")?.map(str::to_string);
     let size = number(args, "size_pt")?;
     if let Some(s) = size
@@ -96,10 +100,10 @@ pub fn set_text_style(doc: &mut Document, args: &Value) -> Result<(), String> {
         t.style.color = c;
     }
     t.style.align = align.unwrap_or(t.style.align);
-    Ok(())
+    Ok(json!({ "ok": true }))
 }
 
-pub fn set_background(doc: &mut Document, args: &Value) -> Result<(), String> {
+pub fn set_background(doc: &mut Document, args: &Value) -> Result<Value, String> {
     let index = number(args, "page")?.ok_or("« page » manque")? as usize;
     let col = color(args, "color")?;
     let pattern = match text(args, "pattern")? {
@@ -114,7 +118,106 @@ pub fn set_background(doc: &mut Document, args: &Value) -> Result<(), String> {
     let current = page.background.clone().unwrap_or(Background { color: "#ffffff".into(), pattern: None });
     let pattern = if args.get("pattern").is_some() { pattern } else { current.pattern };
     page.background = Some(Background { color: col.unwrap_or(current.color), pattern });
-    Ok(())
+    Ok(json!({ "ok": true }))
+}
+
+
+/// Cadre d'un nouvel élément : `x_mm`, `y_mm`, `w_mm`, `h_mm` obligatoires, mêmes limites que `set_frame`.
+fn new_frame(args: &Value) -> Result<Frame, String> {
+    let get = |k: &str| number(args, k)?.ok_or(format!("« {k} » manque"));
+    let (x, y, w, h) = (get("x_mm")?, get("y_mm")?, get("w_mm")?, get("h_mm")?);
+    for v in [x, y] {
+        if !(-MAX_MM..=MAX_MM).contains(&v) {
+            return Err(format!("position hors limites : {v} mm"));
+        }
+    }
+    for v in [w, h] {
+        if !(v > 0.0 && v <= MAX_MM) {
+            return Err(format!("taille hors limites : {v} mm"));
+        }
+    }
+    Ok(Frame { x_mm: x, y_mm: y, w_mm: w, h_mm: h, rotation_deg: 0.0 })
+}
+
+/// Ajoute l'élément à la page `page` et rend son identifiant.
+fn push(doc: &mut Document, args: &Value, zone: bool, kind: ElementKind) -> Result<Value, String> {
+    let index = number(args, "page")?.ok_or("« page » manque")? as usize;
+    let frame = new_frame(args)?;
+    let page = doc.pages.get_mut(index).ok_or(format!("aucune page {index}"))?;
+    let id = new_id();
+    page.elements.push(Element { id: id.clone(), frame, locked: false, zone, group: None, subgroups: Vec::new(), flip_h: false, flip_v: false, kind });
+    Ok(json!({ "element_id": id }))
+}
+
+pub fn add_text(doc: &mut Document, args: &Value) -> Result<Value, String> {
+    let content = text(args, "content")?.ok_or("« content » manque")?;
+    let props = TextProps { content: RichText::plain(content), style: TextStyle::default_zone(), prompt: None, frame: None };
+    let out = push(doc, args, false, ElementKind::Text(props))?;
+    let mut style = args.clone();
+    style["element_id"] = out["element_id"].clone();
+    set_text_style(doc, &style)?;
+    Ok(out)
+}
+
+/// Remplace le texte d'un élément. Rien du texte d'avant n'est rendu.
+pub fn set_text(doc: &mut Document, args: &Value) -> Result<Value, String> {
+    let content = text(args, "content")?.ok_or("« content » manque")?;
+    let ElementKind::Text(t) = &mut element(doc, args)?.kind else { return Err("cet élément n'est pas un texte".into()) };
+    t.content = RichText::plain(content);
+    Ok(json!({ "ok": true }))
+}
+
+pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
+    let shape = match text(args, "shape")?.ok_or("« shape » manque")? {
+        "rect" => ShapeKind::Rect,
+        "ellipse" => ShapeKind::Ellipse,
+        "line" => ShapeKind::Line,
+        "arrow" => ShapeKind::Arrow,
+        "star" => ShapeKind::Star,
+        "heart" => ShapeKind::Heart,
+        "bubble" => ShapeKind::Bubble,
+        "cloud" => ShapeKind::Cloud,
+        s => return Err(format!("forme inconnue : {s} (rect, ellipse, line, arrow, star, heart, bubble, cloud)")),
+    };
+    let fill = color(args, "fill")?;
+    let stroke = match (color(args, "border_color")?, number(args, "border_width_mm")?) {
+        (None, None) => None,
+        (c, w) => Some(Stroke { width_mm: w.unwrap_or(0.5).clamp(0.1, 20.0), color: c.unwrap_or("#222222".into()), style: None }),
+    };
+    push(doc, args, false, ElementKind::Shape(ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None }))
+}
+
+/// Image de la banque trouvée par un mot-clé français ; rend aussi son nom.
+pub fn add_image(doc: &mut Document, args: &Value) -> Result<Value, String> {
+    let query = text(args, "query")?.ok_or("« query » manque")?;
+    let (code, name) = crate::pictos::search(query).ok_or(format!("aucune image pour « {query} »"))?;
+    let mut out = push(doc, args, false, ElementKind::Image(ImageProps { code: code.to_string(), outline: None }))?;
+    out["name"] = json!(name);
+    Ok(out)
+}
+
+pub fn add_photo_zone(doc: &mut Document, args: &Value) -> Result<Value, String> {
+    let props = PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false };
+    push(doc, args, true, ElementKind::Photo(props))
+}
+
+pub fn delete_element(doc: &mut Document, args: &Value) -> Result<Value, String> {
+    let id = element(doc, args)?.id.clone();
+    let in_table = doc.pages.iter().flat_map(|p| &p.elements).any(|e| matches!(&e.kind, ElementKind::Table(t) if t.cells.iter().any(|c| c.element_id == id)));
+    if in_table {
+        return Err(format!("« {id} » est une case de tableau : supprimez le tableau"));
+    }
+    for p in &mut doc.pages {
+        p.elements.retain(|e| e.id != id);
+    }
+    Ok(json!({ "ok": true }))
+}
+
+/// Page vide à la fin, de la taille de la dernière page.
+pub fn add_page(doc: &mut Document, _args: &Value) -> Result<Value, String> {
+    let size = doc.pages.last().map(|p| p.size).ok_or("le document n'a pas de page")?;
+    doc.pages.push(Page::new(size));
+    Ok(json!({ "page": doc.pages.len() - 1 }))
 }
 
 #[cfg(test)]
@@ -201,5 +304,116 @@ mod tests {
         set_background(&mut d, &json!({ "page": 0, "color": "#ffffff", "pattern": null })).unwrap();
         assert_eq!(d.pages[0].background.as_ref().unwrap().pattern, None);
         assert!(set_background(&mut d, &json!({ "page": 3, "color": "#ffffff" })).is_err());
+    }
+
+    fn created<'a>(d: &'a Document, out: &Value) -> &'a Element {
+        el(d, out["element_id"].as_str().unwrap())
+    }
+
+    fn at() -> Value {
+        json!({ "page": 0, "x_mm": 20, "y_mm": 30, "w_mm": 60, "h_mm": 25 })
+    }
+
+    fn with(extra: Value) -> Value {
+        let mut a = at();
+        a.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        a
+    }
+
+    #[test]
+    fn add_text_creates_a_styled_text() {
+        let mut d = doc();
+        let out = add_text(&mut d, &with(json!({ "content": "Printemps", "size_pt": 30, "align": "center" }))).unwrap();
+        let e = created(&d, &out);
+        assert_eq!((e.frame.x_mm, e.frame.w_mm, e.locked, e.zone), (20.0, 60.0, false, false));
+        let ElementKind::Text(t) = &e.kind else { panic!() };
+        assert_eq!(t.content, RichText::plain("Printemps"));
+        assert_eq!((t.style.size_pt, t.style.align), (30.0, Align::Center));
+    }
+
+    #[test]
+    fn add_text_checks_the_page_and_the_frame() {
+        let mut d = doc();
+        assert!(add_text(&mut d, &json!({ "page": 3, "x_mm": 0, "y_mm": 0, "w_mm": 10, "h_mm": 10, "content": "x" })).is_err());
+        assert!(add_text(&mut d, &json!({ "page": 0, "x_mm": 0, "y_mm": 0, "w_mm": 0, "h_mm": 10, "content": "x" })).is_err());
+    }
+
+    #[test]
+    fn set_text_replaces_the_content_without_giving_it_back() {
+        let mut d = doc();
+        let out = set_text(&mut d, &json!({ "element_id": "t1", "content": "Léa" })).unwrap();
+        assert!(!out.to_string().contains('x'), "{out}");
+        let ElementKind::Text(t) = &el(&d, "t1").kind else { panic!() };
+        assert_eq!(t.content, RichText::plain("Léa"));
+        assert!(set_text(&mut d, &json!({ "element_id": "verrou", "content": "y" })).is_err());
+    }
+
+    #[test]
+    fn written_text_is_never_read_back() {
+        let mut d = doc();
+        set_text(&mut d, &json!({ "element_id": "t1", "content": "Léa" })).unwrap();
+        let view = crate::view::layout(&d, None, &[]);
+        assert!(!view.to_string().contains("Léa"));
+        let t1 = view["pages"][0]["elements"].as_array().unwrap().iter().find(|e| e["id"] == "t1").unwrap().clone();
+        assert_eq!(t1["empty"], false);
+    }
+
+    #[test]
+    fn add_shape_creates_a_shape() {
+        let mut d = doc();
+        let out = add_shape(&mut d, &with(json!({ "shape": "star", "fill": "#ffcc00", "border_color": "#000000", "border_width_mm": 1 }))).unwrap();
+        let ElementKind::Shape(s) = &created(&d, &out).kind else { panic!() };
+        assert_eq!((s.shape, s.fill.as_deref()), (ShapeKind::Star, Some("#ffcc00")));
+        assert_eq!(s.stroke.as_ref().map(|st| st.width_mm), Some(1.0));
+        assert!(add_shape(&mut d, &with(json!({ "shape": "path" }))).is_err());
+    }
+
+    #[test]
+    fn add_image_finds_a_picture_by_its_french_name() {
+        let mut d = doc();
+        let out = add_image(&mut d, &with(json!({ "query": "tulipe" }))).unwrap();
+        assert_eq!(out["name"], "tulipe");
+        let ElementKind::Image(i) = &created(&d, &out).kind else { panic!() };
+        assert_eq!(i.code, "1F337");
+        assert!(add_image(&mut d, &with(json!({ "query": "xqzwv" }))).is_err());
+    }
+
+    #[test]
+    fn add_photo_zone_creates_an_empty_photo_zone() {
+        let mut d = doc();
+        let out = add_photo_zone(&mut d, &at()).unwrap();
+        let e = created(&d, &out);
+        assert!(e.zone);
+        let ElementKind::Photo(p) = &e.kind else { panic!() };
+        assert!(p.asset.is_none());
+    }
+
+    #[test]
+    fn delete_element_spares_locked_elements() {
+        let mut d = doc();
+        delete_element(&mut d, &json!({ "element_id": "t1" })).unwrap();
+        assert!(d.pages[0].elements.iter().all(|e| e.id != "t1"));
+        assert!(delete_element(&mut d, &json!({ "element_id": "verrou" })).is_err());
+        assert!(delete_element(&mut d, &json!({ "element_id": "inconnu" })).is_err());
+    }
+
+    #[test]
+    fn delete_element_refuses_a_table_cell() {
+        let mut d = doc();
+        let fr = Frame { x_mm: 10.0, y_mm: 50.0, w_mm: 100.0, h_mm: 60.0, rotation_deg: 0.0 };
+        let table = table::add_table(&mut d.pages[0], fr, 3, 2);
+        let ElementKind::Table(t) = &el(&d, &table).kind else { panic!() };
+        let cell = t.cells[0].element_id.clone();
+        assert!(delete_element(&mut d, &json!({ "element_id": cell })).is_err());
+    }
+
+    #[test]
+    fn add_page_adds_a_page_of_the_same_size() {
+        let mut d = doc();
+        d.pages[0].size = PageSize { width_mm: 297.0, height_mm: 420.0 };
+        let out = add_page(&mut d, &json!({})).unwrap();
+        assert_eq!(out["page"], 1);
+        assert_eq!(d.pages[1].size.width_mm, 297.0);
+        assert!(d.pages[1].elements.is_empty());
     }
 }

@@ -464,10 +464,10 @@ pub fn instantiate_template(state: State<'_, AppState>, id: String) -> Result<In
 
 /// Exécutée hors du fil principal : la fenêtre reste réactive.
 #[tauri::command(async)]
-pub fn save_page_as_template(state: State<'_, AppState>, name: String, page: Page) -> Result<TemplateInfo, String> {
+pub fn save_page_as_template(state: State<'_, AppState>, name: String, page: Page, keep: Option<Vec<String>>) -> Result<TemplateInfo, String> {
     let t = {
         let store = state.store.lock().unwrap();
-        templates::from_page(&name, &page, &store)
+        templates::from_page_keeping(&name, &page, &store, &keep.unwrap_or_default())
     };
     let info = state.library.save(&t).map_err(|e| e.message_fr())?;
     log::info!("save_template elements={}", page.elements.len());

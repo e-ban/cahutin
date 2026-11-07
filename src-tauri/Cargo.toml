@@ -16,6 +16,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 carnet-core = { path = "../crates/carnet-core" }
+cahutin-mcp = { path = "../crates/cahutin-mcp" }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-log = "2"

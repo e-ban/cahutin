@@ -413,6 +413,12 @@ pub fn builtin() -> Vec<Template> {
 /// éléments verrouillés (bandeau, logo) sont gardés. Une photo ou un texte libre peut montrer un enfant
 /// ou le nommer : il ne part pas dans un modèle destiné à être partagé.
 pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
+    from_page_keeping(name, page, store, &[])
+}
+
+/// Comme `from_page`, mais les éléments de `keep` restent tels quels, texte compris (les textes que
+/// l'assistant a écrits à la demande : ils ne viennent pas de l'enseignante).
+pub fn from_page_keeping(name: &str, page: &Page, store: &AssetStore, keep: &[Id]) -> Template {
     let mut page = page.clone();
     // Les cases des tableaux restent, vidées comme des zones.
     let cells: Vec<Id> = page
@@ -423,9 +429,9 @@ pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
         .collect();
     // Un texte qui contient un champ de la classe est gardé tel quel : c'est ce que le modèle remplira.
     let field = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if crate::fields::has_fields_text(t) || crate::fields::has_class_fields_text(t) || crate::fields::has_auto_fields_text(t));
-    page.elements.retain(|e| field(e) || e.zone || e.locked || cells.contains(&e.id) || matches!(e.kind, ElementKind::Shape(_) | ElementKind::Image(_) | ElementKind::Table(_)));
+    page.elements.retain(|e| keep.contains(&e.id) || field(e) || e.zone || e.locked || cells.contains(&e.id) || matches!(e.kind, ElementKind::Shape(_) | ElementKind::Image(_) | ElementKind::Table(_)));
     crate::groups::dissolve_small_groups(&mut page);
-    for e in page.elements.iter_mut().filter(|e| !field(e) && (e.zone || cells.contains(&e.id))) {
+    for e in page.elements.iter_mut().filter(|e| !keep.contains(&e.id) && !field(e) && (e.zone || cells.contains(&e.id))) {
         match &mut e.kind {
             ElementKind::Photo(p) => {
                 p.asset = None;
@@ -839,6 +845,29 @@ mod tests {
         assert_eq!(t.page.elements.len(), 1);
         assert!(matches!(t.page.elements[0].kind, ElementKind::Shape(_)));
         assert!(t.assets.is_empty());
+    }
+
+    #[test]
+    fn from_page_keeping_keeps_chosen_texts_only() {
+        let mut page = Page::new(A4_PORTRAIT);
+        let text = |id: &str, s: &str| Element {
+            id: id.into(),
+            frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 50.0, h_mm: 20.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Text(TextProps { content: RichText::plain(s), style: TextStyle::default_zone(), prompt: None, frame: None }),
+            subgroups: Vec::new(),
+            flip_h: false,
+            flip_v: false,
+        };
+        page.elements.push(text("a", "Printemps"));
+        page.elements.push(text("b", "Léa a ri"));
+        let t = from_page_keeping("Saisons", &page, &AssetStore::default(), &["a".to_string()]);
+        assert_eq!(t.page.elements.len(), 1);
+        assert_eq!(t.page.elements[0].id, "a");
+        let ElementKind::Text(tp) = &t.page.elements[0].kind else { panic!() };
+        assert_eq!(tp.content, RichText::plain("Printemps"));
     }
 
     #[test]

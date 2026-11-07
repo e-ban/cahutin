@@ -2,22 +2,23 @@
 //! Les structures du modèle ne sont jamais sérialisées telles quelles : un champ ajouté plus tard au
 //! modèle n'est pas envoyé tant qu'il n'est pas écrit ici.
 
-use carnet_core::{Document, Element, ElementKind, Page, Pattern, ShapeKind, Stroke};
+use carnet_core::{Document, Element, ElementKind, Id, Page, Pattern, ShapeKind, Stroke};
 use serde_json::{Value, json};
 
 /// Mise en page de tout le document, ou d'une seule page (indice à partir de 0).
-pub fn layout(doc: &Document, page: Option<usize>) -> Value {
+/// Les éléments de `selection` portent `"selected": true`.
+pub fn layout(doc: &Document, page: Option<usize>, selection: &[Id]) -> Value {
     let pages: Vec<Value> = doc
         .pages
         .iter()
         .enumerate()
         .filter(|(i, _)| page.is_none_or(|p| p == *i))
-        .map(|(i, p)| page_view(doc, i, p))
+        .map(|(i, p)| page_view(doc, i, p, selection))
         .collect();
     json!({ "page_count": doc.pages.len(), "pages": pages })
 }
 
-fn page_view(doc: &Document, index: usize, page: &Page) -> Value {
+fn page_view(doc: &Document, index: usize, page: &Page, selection: &[Id]) -> Value {
     let background = page.background.as_ref().map(|b| {
         json!({ "color": b.color, "pattern": b.pattern.map(pattern_name) })
     });
@@ -26,11 +27,11 @@ fn page_view(doc: &Document, index: usize, page: &Page) -> Value {
         "width_mm": page.size.width_mm,
         "height_mm": page.size.height_mm,
         "background": background,
-        "elements": page.elements.iter().map(|e| element_view(doc, e)).collect::<Vec<_>>(),
+        "elements": page.elements.iter().map(|e| element_view(doc, e, selection.contains(&e.id))).collect::<Vec<_>>(),
     })
 }
 
-fn element_view(doc: &Document, e: &Element) -> Value {
+fn element_view(doc: &Document, e: &Element, selected: bool) -> Value {
     let f = &e.frame;
     let mut v = json!({
         "id": e.id,
@@ -42,6 +43,7 @@ fn element_view(doc: &Document, e: &Element) -> Value {
         "locked": e.locked,
         "zone": e.zone,
         "group": e.group,
+        "selected": selected,
     });
     let extra = match &e.kind {
         ElementKind::Text(t) => json!({
@@ -77,7 +79,7 @@ fn element_view(doc: &Document, e: &Element) -> Value {
             "corner_radius_mm": s.corner_radius_mm,
         }),
         // Code OpenMoji d'une image décorative de la banque : public, pas une donnée de l'utilisateur.
-        ElementKind::Image(i) => json!({ "type": "image", "openmoji": i.code }),
+        ElementKind::Image(i) => json!({ "type": "image", "openmoji": i.code, "name": crate::pictos::name(&i.code) }),
         // Un tableau : sa structure ; ses cases sont des éléments de la page, vus comme les autres.
         ElementKind::Table(t) => json!({
             "type": "table",
@@ -169,7 +171,7 @@ mod tests {
 
     #[test]
     fn no_text_photo_or_file_name_reaches_the_assistant() {
-        let out = layout(&sensitive_doc(), None).to_string();
+        let out = layout(&sensitive_doc(), None, &["t1".to_string(), "p1".to_string()]).to_string();
         for secret in SECRETS {
             assert!(!out.contains(secret), "{secret:?} dans {out}");
         }
@@ -178,7 +180,7 @@ mod tests {
 
     #[test]
     fn the_layout_keeps_what_is_needed_to_arrange_the_page() {
-        let v = layout(&sensitive_doc(), None);
+        let v = layout(&sensitive_doc(), None, &[]);
         let page = &v["pages"][0];
         assert_eq!(page["width_mm"], 210.0);
         let text = &page["elements"][0];
@@ -200,7 +202,15 @@ mod tests {
     fn no_example_text_reaches_the_assistant() {
         for info in examples::list() {
             let doc = examples::document(&info.id).unwrap();
-            let out = layout(&doc, None).to_string();
+            // Les noms des images viennent de la banque OpenMoji, publique : ils peuvent coïncider avec un
+            // texte de l'exemple (« en colère ») sans rien en révéler.
+            let mut view = layout(&doc, None, &[]);
+            for p in view["pages"].as_array_mut().unwrap() {
+                for e in p["elements"].as_array_mut().unwrap() {
+                    e.as_object_mut().unwrap().remove("name");
+                }
+            }
+            let out = view.to_string();
             let mut words = vec![doc.title.clone()];
             for e in doc.pages.iter().flat_map(|p| &p.elements) {
                 if let ElementKind::Text(t) = &e.kind {
@@ -228,17 +238,44 @@ mod tests {
         if let ElementKind::Text(t) = &mut page.elements.iter_mut().find(|e| e.id == cell).unwrap().kind {
             t.content = RichText::plain("Mathis");
         }
-        let v = layout(&doc, None);
+        let v = layout(&doc, None, &[]);
         let t = v["pages"][0]["elements"].as_array().unwrap().iter().find(|e| e["type"] == "table").unwrap().clone();
         assert_eq!((t["cols"].as_u64(), t["rows"].as_u64(), t["cells"].as_array().unwrap().len()), (Some(3), Some(2), 6));
         assert!(!v.to_string().contains("Mathis"));
     }
 
     #[test]
+    fn the_selection_is_marked() {
+        let doc = sensitive_doc();
+        let v = layout(&doc, None, &["p1".to_string()]);
+        let els = v["pages"][0]["elements"].as_array().unwrap();
+        assert_eq!(els.iter().filter(|e| e["selected"] == true).count(), 1);
+        assert_eq!(els.iter().find(|e| e["id"] == "p1").unwrap()["selected"], true);
+    }
+
+    #[test]
+    fn an_image_carries_its_name() {
+        let mut doc = Document::new("x");
+        doc.pages[0].elements.push(Element {
+            id: "i1".into(),
+            frame: frame(),
+            locked: false,
+            zone: false,
+            group: None,
+            subgroups: Vec::new(),
+            flip_h: false,
+            flip_v: false,
+            kind: ElementKind::Image(ImageProps { code: "1F382".into(), outline: None }),
+        });
+        let v = layout(&doc, None, &[]);
+        assert_eq!(v["pages"][0]["elements"][0]["name"], "gâteau d’anniversaire");
+    }
+
+    #[test]
     fn one_page_can_be_asked_for() {
         let mut doc = sensitive_doc();
         doc.pages.push(Page::new(PageSize { width_mm: 297.0, height_mm: 210.0 }));
-        let v = layout(&doc, Some(1));
+        let v = layout(&doc, Some(1), &[]);
         assert_eq!(v["pages"].as_array().unwrap().len(), 1);
         assert_eq!(v["pages"][0]["index"], 1);
         assert_eq!(v["page_count"], 2);

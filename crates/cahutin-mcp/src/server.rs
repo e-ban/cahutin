@@ -1,7 +1,7 @@
 //! Protocole MCP sur stdio (JSON-RPC 2.0, un message par ligne) : `initialize`, `tools/list`,
 //! `tools/call`, `ping`. Chaque appel relit le fichier, pour suivre ce que l'utilisateur a enregistré.
 
-use crate::{edit, file, view};
+use crate::{file, tools};
 use serde_json::{Value, json};
 use std::path::PathBuf;
 
@@ -9,7 +9,7 @@ pub struct Server {
     pub path: PathBuf,
 }
 
-const INSTRUCTIONS: &str = "Mise en page d'un document Cahutin (pages de classe pour l'école primaire). \
+pub const INSTRUCTIONS: &str = "Mise en page d'un document Cahutin (pages de classe pour l'école primaire). \
 Unités en millimètres, origine en haut à gauche de la page (A4 portrait : 210 × 297). \
 Vous ne voyez ni les textes ni les photos, seulement leurs cadres et leurs styles : « empty » dit si un texte \
 est vide, « has_photo » si une case photo est remplie. Un élément verrouillé (« locked ») ne se modifie pas. \
@@ -40,10 +40,13 @@ impl Server {
 
     fn call(&self, params: &Value) -> Value {
         let args = params.get("arguments").cloned().unwrap_or(json!({}));
-        let outcome = match params.get("name").and_then(Value::as_str).unwrap_or("") {
-            "get_layout" => file::read(&self.path).map(|doc| view::layout(&doc, args.get("page").and_then(Value::as_u64).map(|p| p as usize))),
-            name @ ("set_frame" | "set_text_style" | "set_background") => self.edit(name, &args),
-            other => Err(format!("outil inconnu : {other}")),
+        let name = params.get("name").and_then(Value::as_str).unwrap_or("");
+        let outcome = if name == "get_layout" {
+            file::read(&self.path).and_then(|mut doc| tools::apply(&mut doc, name, &args, &[]))
+        } else if tools::MUTATING.contains(&name) {
+            self.edit(name, &args)
+        } else {
+            Err(format!("outil inconnu : {name}"))
         };
         let (text, is_error) = match outcome {
             Ok(v) => (v.to_string(), false),
@@ -55,53 +58,17 @@ impl Server {
     /// Relit le fichier, applique la modification et l'écrit.
     fn edit(&self, name: &str, args: &Value) -> Result<Value, String> {
         let mut doc = file::read(&self.path)?;
-        match name {
-            "set_frame" => edit::set_frame(&mut doc, args)?,
-            "set_text_style" => edit::set_text_style(&mut doc, args)?,
-            _ => edit::set_background(&mut doc, args)?,
-        }
+        let mut out = tools::apply(&mut doc, name, args, &[])?;
         file::write(&self.path, &doc)?;
-        Ok(json!({ "ok": true, "note": "Enregistré. Rouvrir le document dans Cahutin pour voir le changement." }))
+        out["note"] = json!("Enregistré. Rouvrir le document dans Cahutin pour voir le changement.");
+        Ok(out)
     }
 }
 
+/// Les outils du serveur : tous, sauf l'enregistrement d'un modèle (pas de bibliothèque de modèles ici).
 fn tools() -> Value {
-    let id = json!({ "type": "string", "description": "Identifiant de l'élément (champ id de get_layout)" });
-    let mm = |d: &str| json!({ "type": "number", "description": d });
-    json!([
-        {
-            "name": "get_layout",
-            "description": "Mise en page du document : pages, puis chaque élément (texte, photo, forme, image) avec son cadre en mm et son style. Ni texte ni photo.",
-            "inputSchema": { "type": "object", "properties": { "page": { "type": "integer", "description": "Indice de page (0 pour la première) ; absent : toutes" } } },
-        },
-        {
-            "name": "set_frame",
-            "description": "Déplace, redimensionne ou tourne un élément. Seules les valeurs données changent.",
-            "inputSchema": { "type": "object", "required": ["element_id"], "properties": {
-                "element_id": id, "x_mm": mm("Bord gauche"), "y_mm": mm("Bord haut"), "w_mm": mm("Largeur"), "h_mm": mm("Hauteur"), "rotation_deg": mm("Rotation en degrés"),
-            } },
-        },
-        {
-            "name": "set_text_style",
-            "description": "Change la police, la taille, la couleur ou l'alignement d'un texte (jamais son contenu).",
-            "inputSchema": { "type": "object", "required": ["element_id"], "properties": {
-                "element_id": id,
-                "font": { "type": "string" },
-                "size_pt": { "type": "number" },
-                "color": { "type": "string", "description": "#rrggbb" },
-                "align": { "type": "string", "enum": ["left", "center", "right", "justify"] },
-            } },
-        },
-        {
-            "name": "set_background",
-            "description": "Change le fond d'une page : couleur et motif d'école.",
-            "inputSchema": { "type": "object", "required": ["page"], "properties": {
-                "page": { "type": "integer" },
-                "color": { "type": "string", "description": "#rrggbb" },
-                "pattern": { "type": ["string", "null"], "enum": ["seyes", "small_squares", "lines", "dots", null] },
-            } },
-        },
-    ])
+    let all = tools::definitions();
+    Value::Array(all.as_array().unwrap().iter().filter(|t| t["name"] != tools::SAVE_AS_TEMPLATE).cloned().collect())
 }
 
 #[cfg(test)]
@@ -137,7 +104,10 @@ mod tests {
         let (_d, s) = server();
         let r = call(&s, 2, "tools/list", json!({}));
         let names: Vec<_> = r["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
-        assert_eq!(names, ["get_layout", "set_frame", "set_text_style", "set_background"]);
+        assert_eq!(
+            names,
+            ["get_layout", "set_frame", "set_text_style", "set_background", "add_text", "set_text", "add_shape", "add_image", "add_photo_zone", "delete_element", "add_page"]
+        );
         assert!(r["result"]["tools"].as_array().unwrap().iter().all(|t| t["inputSchema"]["type"] == "object"));
     }
 

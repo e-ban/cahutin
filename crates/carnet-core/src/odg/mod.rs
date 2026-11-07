@@ -229,7 +229,12 @@ mod tests {
             buf.set_position(0);
             let back = crate::import::odg::read_drawing(buf, &known).unwrap();
             assert_eq!(back.report.skipped, 0, "{} : {:?}", info.id, back.report);
-            let (before, after) = (texts(&doc.pages), texts(&back.pages));
+            // Un champ non rempli s'exporte en clair (« Âge ») : c'est ce qu'on relit.
+            let shown = |t: &String| crate::fields::split(t).into_iter().map(|p| match p {
+                crate::fields::Piece::Text(x) => x.to_string(),
+                crate::fields::Piece::Field(f) => crate::fields::label(f).unwrap(),
+            }).collect::<String>();
+            let (before, after) = (texts(&doc.pages).iter().map(shown).collect::<Vec<_>>(), texts(&back.pages));
             for t in &before {
                 assert!(after.contains(t), "{} : {t:?} perdu, relu {after:?}", info.id);
             }
@@ -247,7 +252,7 @@ mod tests {
                     .filter_map(|e| match &e.kind {
                         ElementKind::Text(t) if !t.content.is_blank() => Some(format!(
                             "{:?} {:?} {:?} {:?} {} {} {:?}",
-                            t.content.paragraphs.iter().map(|p| p.runs.iter().map(|r| r.text.as_str()).collect::<String>()).collect::<Vec<_>>(),
+                            t.content.paragraphs.iter().map(|p| shown(&p.runs.iter().map(|r| r.text.as_str()).collect::<String>())).collect::<Vec<_>>(),
                             t.style.align,
                             t.style.valign.unwrap_or_default(),
                             t.style.outline.unwrap_or(false),
@@ -266,7 +271,6 @@ mod tests {
         }
     }
 
-    /// Une image à colorier part en contour noir et revient à colorier.
     /// Une page à remplir exportée telle quelle : on lit le nom du champ, pas `{prenom}`.
     #[test]
     fn an_unfilled_field_exports_as_its_label() {
@@ -276,6 +280,7 @@ mod tests {
         assert!(!content.contains("{prenom}"));
     }
 
+    /// Une image à colorier part en contour noir et revient à colorier.
     /// Une étoile, un pictogramme et une flèche en miroir : LibreOffice reçoit le miroir (géométrie, style de
     /// l'image, bouts de la flèche échangés), et la relecture d'un export retrouve celui des deux premiers.
     #[test]

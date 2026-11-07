@@ -1,17 +1,38 @@
 <script lang="ts">
-  // Section des Préférences : activer l'assistant (désactivé par défaut), dire ce qui part vers lui, régler
-  // l'adresse, la clé et le modèle, essayer la connexion.
+  // Section des Préférences : activer l'assistant (désactivé par défaut), dire ce qui part vers lui, choisir le
+  // service (Claude, Ollama sur cet ordinateur, ou un autre : adresse et modèle à la main), essayer la connexion.
+  // L'activation essaie d'abord la connexion : l'assistant n'apparaît que s'il répond.
   import { assistantConfigure, assistantTest } from "../../lib/api";
   import { assistant } from "../../lib/assistant.svelte";
   import { fr } from "../../lib/i18n/fr";
 
   const t = fr.assistant;
+  const SERVICES = [
+    { id: "claude", label: t.serviceClaude, url: "https://api.anthropic.com/v1", model: "claude-haiku-5-5" },
+    { id: "ollama", label: t.serviceOllama, url: "http://localhost:11434/v1", model: "qwen3:4b" },
+    { id: "other", label: t.serviceOther, url: "", model: "" },
+  ] as const;
+  type Service = (typeof SERVICES)[number]["id"];
+
+  const savedUrl = assistant.settings?.url ?? "";
+  let service = $state<Service>(SERVICES.find((x) => x.url && x.url === savedUrl)?.id ?? (savedUrl ? "other" : "claude"));
   let wanted = $state(assistant.enabled);
-  let url = $state(assistant.settings?.url || "http://localhost:11434/v1");
-  let model = $state(assistant.settings?.model || "qwen3:4b");
+  let url = $state(savedUrl || SERVICES[0].url);
+  let model = $state(assistant.settings?.model || SERVICES[0].model);
   let key = $state("");
   let status = $state<{ ok: boolean; text: string } | null>(null);
-  let testing = $state(false);
+  let working = $state(false);
+
+  function choose(id: Service) {
+    service = id;
+    status = null;
+    const s = SERVICES.find((x) => x.id === id)!;
+    if (id !== "other") ((url = s.url), (model = s.model));
+  }
+
+  /** Une clé déjà enregistrée pour cette adresse (une autre adresse ne la reçoit jamais). */
+  const keySaved = $derived(!!assistant.settings?.has_key && assistant.settings.url === url);
+  const ready = $derived(!!url && !!model && (service !== "claude" || !!key || keySaved));
 
   /** Une adresse hors de cet ordinateur : les données partent vers un service extérieur. */
   const remote = $derived.by(() => {
@@ -23,33 +44,36 @@
     }
   });
 
-  async function apply(enabled: boolean) {
-    try {
-      assistant.settings = await assistantConfigure(enabled, url, model, key || undefined);
-      key = "";
-      if (!enabled) assistant.turnedOff();
-    } catch (e) {
-      status = { ok: false, text: String(e) };
-    }
-  }
-
-  async function test() {
-    testing = true;
-    status = null;
+  /** Essaie la connexion, puis enregistre et active : l'assistant n'apparaît que s'il répond. */
+  async function activate() {
+    working = true;
+    status = { ok: true, text: t.prefsTesting };
     try {
       await assistantTest(url, model, key || undefined);
-      status = { ok: true, text: t.prefsTestOk };
+      const wasOn = assistant.enabled;
+      assistant.settings = await assistantConfigure(true, url, model, key || undefined);
+      key = "";
+      status = { ok: true, text: wasOn ? t.prefsSaved : t.prefsActivated };
     } catch (e) {
       status = { ok: false, text: String(e) };
     } finally {
-      testing = false;
+      working = false;
+    }
+  }
+
+  async function turnOff() {
+    try {
+      assistant.settings = await assistantConfigure(false, url, model, undefined);
+      assistant.turnedOff();
+    } catch (e) {
+      status = { ok: false, text: String(e) };
     }
   }
 
   function toggle(on: boolean) {
     wanted = on;
     status = null;
-    if (!on && assistant.enabled) void apply(false);
+    if (!on && assistant.enabled) void turnOff();
   }
 </script>
 
@@ -57,7 +81,7 @@
   <h3>{t.prefsTitle}</h3>
   <label class="choice">
     <input type="checkbox" checked={wanted} onchange={(e) => toggle(e.currentTarget.checked)} />
-    <span><b>{t.prefsEnable}</b><small>{t.prefsEnableHint}</small></span>
+    <span><b>{t.prefsEnable}</b><small>{assistant.enabled ? t.prefsEnabledHint : wanted ? t.prefsSetupHint : t.prefsEnableHint}</small></span>
   </label>
   {#if wanted}
     <div class="explain">
@@ -67,28 +91,34 @@
       <p class="warn">{t.prefsNoNames}</p>
     </div>
     <label class="field">
-      <b>{t.prefsUrl}</b>
-      <input type="url" bind:value={url} placeholder="http://localhost:11434/v1" spellcheck="false" />
-      <small>{t.prefsUrlHint}</small>
+      <b>{t.prefsService}</b>
+      <select value={service} onchange={(e) => choose(e.currentTarget.value as Service)}>
+        {#each SERVICES as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
+      </select>
+      {#if service === "claude"}<small>{t.serviceClaudeHint}</small>{/if}
+      {#if service === "ollama"}<small>{t.prefsUrlHint}</small>{/if}
     </label>
+    {#if service === "other"}
+      <label class="field">
+        <b>{t.prefsUrl}</b>
+        <input type="url" bind:value={url} placeholder="https://…/v1" spellcheck="false" />
+      </label>
+      <label class="field">
+        <b>{t.prefsModel}</b>
+        <input bind:value={model} spellcheck="false" />
+      </label>
+    {/if}
     {#if remote}<p class="warn">{t.prefsRemote}</p>{/if}
-    <label class="field">
-      <b>{t.prefsKey}</b>
-      <input type="password" bind:value={key} autocomplete="off" />
-      {#if assistant.settings?.has_key}<small>{t.prefsKeySaved}</small>{/if}
-    </label>
-    <label class="field">
-      <b>{t.prefsModel}</b>
-      <input bind:value={model} placeholder="qwen3:4b" spellcheck="false" />
-    </label>
+    {#if service !== "ollama"}
+      <label class="field">
+        <b>{service === "claude" ? t.prefsKeyNeeded : t.prefsKey}</b>
+        <input type="password" bind:value={key} autocomplete="off" />
+        {#if keySaved}<small>{t.prefsKeySaved}</small>{/if}
+      </label>
+    {/if}
     <div class="actions">
-      <button onclick={test} disabled={testing || !url || !model}>{testing ? t.prefsTesting : t.prefsTest}</button>
-      {#if assistant.enabled}
-        <button onclick={() => apply(true)} disabled={!url || !model}>{t.prefsSave}</button>
-        <button onclick={() => toggle(false)}>{t.prefsDisable}</button>
-      {:else}
-        <button class="primary" onclick={() => apply(true)} disabled={!url || !model}>{t.prefsActivate}</button>
-      {/if}
+      <button class="primary" onclick={activate} disabled={working || !ready}>{assistant.enabled ? t.prefsSave : t.prefsActivate}</button>
+      {#if assistant.enabled}<button onclick={() => toggle(false)} disabled={working}>{t.prefsDisable}</button>{/if}
     </div>
     {#if status}<p class:ok={status.ok} class:err={!status.ok}>{status.text}</p>{/if}
   {/if}
@@ -131,7 +161,8 @@
   .field {
     padding: 6px 0;
   }
-  .field input {
+  .field input,
+  .field select {
     width: 100%;
     box-sizing: border-box;
   }

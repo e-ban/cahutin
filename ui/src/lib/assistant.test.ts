@@ -81,13 +81,52 @@ test("refuse_restores_the_base", async () => {
   expect(last?.kind === "assistant" && last.outcome).toBe("refused");
 });
 
-test("manual_edit_is_ignored_during_a_proposal", async () => {
+const settled = () => new Promise((r) => setTimeout(r, 0));
+
+test("undo during a proposal refuses it", async () => {
+  const base = editor.doc;
+  script.push((r) => [step(titled(r.document, "A")), done()]);
+  await assistant.send("x");
+  editor.undo();
+  expect(editor.doc).toBe(base);
+  expect(editor.proposing).toBe(false);
+  const last = assistant.thread.at(-1);
+  expect(last?.kind === "assistant" && last.outcome).toBe("refused");
+});
+
+test("a manual edit during a proposal asks first; kept, the edit applies on top, one undo each", async () => {
+  const base = editor.doc;
   script.push((r) => [step(titled(r.document, "A")), done()]);
   await assistant.send("x");
   editor.commit(titled(editor.doc, "à la main"));
+  editor.commit(titled(editor.doc, "à la main 2"));
+  await Promise.resolve();
+  expect(modal.message).toBe("L'assistant a proposé des modifications. Les garder ?");
   expect(editor.doc.title).toBe("A");
+  modal.answer("accept");
+  await settled();
+  expect(editor.doc.title).toBe("à la main 2");
   editor.undo();
   expect(editor.doc.title).toBe("A");
+  editor.undo();
+  expect(editor.doc).toBe(base);
+});
+
+test("a manual edit during a proposal: not kept, the page goes back and the edit is dropped; cancel keeps it", async () => {
+  const base = editor.doc;
+  script.push((r) => [step(titled(r.document, "A")), done()]);
+  await assistant.send("x");
+  editor.commit(titled(editor.doc, "à la main"));
+  await Promise.resolve();
+  modal.answer("cancel");
+  await settled();
+  expect([editor.doc.title, assistant.proposal !== null]).toEqual(["A", true]);
+  editor.commit(titled(editor.doc, "à la main"));
+  await Promise.resolve();
+  modal.answer("refuse");
+  await settled();
+  expect(editor.doc).toBe(base);
+  expect(editor.proposing).toBe(false);
 });
 
 test("follow_up_continues_the_proposal", async () => {
@@ -117,6 +156,12 @@ test("error_keeps_the_proposal", async () => {
   expect(assistant.proposal?.steps.length).toBe(1);
   expect(editor.doc.title).toBe("A");
   expect(assistant.thread.at(-1)).toEqual({ kind: "error", text: "Je n'arrive pas à joindre l'assistant." });
+});
+
+test("an error with nothing done shows the error only, not « no change »", async () => {
+  script.push(() => [done("", "Je n'arrive pas à joindre l'assistant.")]);
+  await assistant.send("x");
+  expect(assistant.thread.map((e) => e.kind)).toEqual(["user", "error"]);
 });
 
 test("viewing a step shows its document, then back to the end", async () => {

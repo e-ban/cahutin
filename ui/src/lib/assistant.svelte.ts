@@ -105,7 +105,8 @@ class Assistant {
     if (!end) return;
     this.#history = end.history;
     const outcome: Outcome = steps.length ? "pending" : "none";
-    const entries: Entry[] = [{ kind: "assistant", text: end.reply, steps, outcome }];
+    // Une erreur sans rien de fait : l'erreur seule, pas « Aucune modification » avant elle.
+    const entries: Entry[] = end.error && !end.reply && !steps.length ? [] : [{ kind: "assistant", text: end.reply, steps, outcome }];
     if (end.error) entries.push({ kind: "error", text: end.error });
     this.thread = [...this.thread, ...entries];
   }
@@ -163,23 +164,42 @@ class Assistant {
 
   /** Avant d'enregistrer, d'imprimer ou de quitter : la proposition est gardée ou non. false : Annuler. */
   async settle(): Promise<boolean> {
+    return (await this.#ask()) !== "cancel";
+  }
+
+  /** La modification à la main attendue pendant la question ; la dernière l'emporte (un glisser en fait plusieurs). */
+  #edit: Document | null = null;
+
+  /** Une modification à la main pendant la proposition : la question d'abord. Gardée, la modification s'applique
+   *  par-dessus, si elle partait bien de la proposition entière (ni pendant le travail, ni sur une étape). */
+  async editDuring(next: Document) {
+    const asking = this.#edit !== null;
+    this.#edit = next;
+    if (asking) return;
+    const onTop = !this.busy && !this.viewing;
+    const choice = await this.#ask();
+    const edit = this.#edit;
+    this.#edit = null;
+    if (choice === "accept" && onTop && edit) editor.commit(edit);
+  }
+
+  async #ask(): Promise<"cancel" | "accept" | "refuse" | "none"> {
     if (this.busy) {
       this.stop();
       await this.#running;
     }
     if (!this.proposal) {
       if (this.viewing) this.view(null);
-      return true;
+      return "none";
     }
     const choice = await modal.choose<"cancel" | "refuse" | "accept">("L'assistant a proposé des modifications. Les garder ?", [
       { value: "cancel", label: "Annuler" },
       { value: "refuse", label: "Ne pas garder" },
       { value: "accept", label: "Garder", primary: true },
     ]);
-    if (choice === "cancel") return false;
     if (choice === "accept") await this.accept();
-    else this.refuse();
-    return true;
+    else if (choice === "refuse") this.refuse();
+    return choice;
   }
 
   /** Autre document : le fil et la proposition sont oubliés. */
@@ -193,3 +213,4 @@ class Assistant {
 }
 
 export const assistant = new Assistant();
+editor.proposalGate = { edit: (next) => void assistant.editDuring(next), undo: () => assistant.refuse() };

@@ -30,6 +30,8 @@
 <aside class="right" aria-label={t.title}>
   <header>
     <h2>✦ {t.title}</h2>
+    <!-- Le panneau prend la place des réglages : un élément choisi, on peut y revenir d'un clic. -->
+    {#if editor.selection.length && !editor.proposing}<button class="ghost settings" onclick={() => (assistant.open = false)}>⚙ {t.showSettings}</button>{/if}
     <button class="ghost" title={t.close} aria-label={t.close} onclick={() => (assistant.open = false)}>✕</button>
   </header>
 
@@ -108,6 +110,9 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+  .settings {
+    margin-left: auto;
   }
   h2 {
     font: 700 16px var(--title-font);

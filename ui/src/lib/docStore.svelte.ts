@@ -183,10 +183,15 @@ class Editor {
     if (this.selection.some((id) => !ids.has(id))) this.selection = this.selection.filter((id) => ids.has(id));
   }
 
+  /** L'assistant décide d'une modification à la main ou d'une annulation pendant sa proposition. */
+  proposalGate: { edit: (next: Document) => void; undo: () => void } | null = null;
+
   commit(next: Document) {
-    // Pendant une proposition, une modification à la main est ignorée (un aperçu en cours est effacé).
+    // Pendant une proposition, une modification à la main attend que l'on garde ou non la proposition (un aperçu
+    // en cours est effacé).
     if (this.#proposal) {
       this.doc = this.#proposal;
+      this.proposalGate?.edit(next);
       return;
     }
     this.#history.commit(next);
@@ -194,7 +199,8 @@ class Editor {
   }
 
   undo() {
-    if (this.#proposal) return;
+    // Annuler pendant une proposition : la refuser.
+    if (this.#proposal) return this.proposalGate?.undo();
     this.#history.undo();
     this.#sync();
     // Une photo retirée revient sur la page : elle revient aussi dans le tiroir.

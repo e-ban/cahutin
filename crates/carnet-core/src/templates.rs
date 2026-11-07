@@ -420,9 +420,11 @@ pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
         .filter_map(|e| if let ElementKind::Table(t) = &e.kind { Some(t) } else { None })
         .flat_map(|t| t.cells.iter().map(|c| c.element_id.clone()))
         .collect();
-    page.elements.retain(|e| e.zone || e.locked || cells.contains(&e.id) || matches!(e.kind, ElementKind::Shape(_) | ElementKind::Image(_) | ElementKind::Table(_)));
+    // Un texte qui contient un champ de la classe est gardé tel quel : c'est ce que le modèle remplira.
+    let field = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if crate::fields::has_fields_text(t) || crate::fields::has_class_fields_text(t));
+    page.elements.retain(|e| field(e) || e.zone || e.locked || cells.contains(&e.id) || matches!(e.kind, ElementKind::Shape(_) | ElementKind::Image(_) | ElementKind::Table(_)));
     crate::groups::dissolve_small_groups(&mut page);
-    for e in page.elements.iter_mut().filter(|e| e.zone || cells.contains(&e.id)) {
+    for e in page.elements.iter_mut().filter(|e| !field(e) && (e.zone || cells.contains(&e.id))) {
         match &mut e.kind {
             ElementKind::Photo(p) => {
                 p.asset = None;
@@ -724,6 +726,31 @@ mod tests {
         assert!(ids(&a).is_disjoint(&ids(&b)));
         let g = a.grid.as_ref().unwrap();
         assert!(g.cells.iter().all(|c| a.elements.iter().any(|e| e.id == c.element_id)));
+    }
+
+    #[test]
+    fn a_field_text_stays_in_a_saved_template() {
+        let mut page = Page::new(A4_PORTRAIT);
+        for content in ["Bon anniversaire {prenom} !", "{anniversaires_mars}", "Sortie au zoo"] {
+            page.elements.push(Element {
+                id: new_id(),
+                frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 80.0, h_mm: 20.0, rotation_deg: 0.0 },
+                locked: false,
+                zone: false,
+                group: None,
+                kind: ElementKind::Text(TextProps { content: RichText::plain(content), style: TextStyle::default_zone(), prompt: None, frame: None }),
+                subgroups: Vec::new(),
+                flip_h: false,
+                flip_v: false,
+            });
+        }
+        let t = from_page("Anniversaires", &page, &AssetStore::default());
+        let kept: Vec<&str> = t.page.elements.iter().map(|e| match &e.kind {
+            ElementKind::Text(t) => t.content.paragraphs[0].runs[0].text.as_str(),
+            _ => "",
+        }).collect();
+        // Un texte libre peut nommer un enfant : il n'est toujours pas gardé.
+        assert_eq!(kept, ["Bon anniversaire {prenom} !", "{anniversaires_mars}"]);
     }
 
     #[test]

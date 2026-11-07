@@ -148,6 +148,69 @@ pub fn has_class_fields_text(t: &TextProps) -> bool {
     fields_in(t).any(|f| month_of(f).is_some())
 }
 
+/// Le champ que désignait l'invite d'une ancienne zone (« Prénom », « Lettre 2 »…).
+fn old_prompt_field(prompt: &str) -> Option<String> {
+    let simple = match prompt {
+        "Prénom" => "prenom",
+        "PRÉNOM" => "PRENOM",
+        "Nom" => "nom",
+        "Groupe" => "groupe",
+        "Âge" => "age",
+        "Anniversaire" => "anniversaire",
+        _ => {
+            let (n, capital) = match prompt.strip_prefix("Lettre ") {
+                Some(n) => (n, true),
+                None => (prompt.strip_prefix("lettre ")?, false),
+            };
+            let n: usize = n.parse().ok().filter(|&n| n >= 1)?;
+            return Some(format!("{}_{n}", if capital { "PRENOM" } else { "prenom" }));
+        }
+    };
+    Some(simple.into())
+}
+
+/// Le texte avec ses champs sous la forme sans accents.
+fn renamed(text: &str) -> String {
+    split(text)
+        .into_iter()
+        .map(|p| match p {
+            Piece::Text(t) => t.to_string(),
+            Piece::Field(f) => match month_of(f) {
+                Some(m) => format!("{{{}}}", month_key(m)),
+                None => format!("{{{}}}", canonical(f)),
+            },
+        })
+        .collect()
+}
+
+/// Met la page à la forme d'aujourd'hui : les champs sans accents, et chaque ancienne zone de champ
+/// (« Prénom », « Lettre 2 »…) devient un texte qui contient ce champ ; une zone déjà écrite garde son
+/// texte et n'est plus un champ. Vrai si quelque chose a changé.
+pub fn upgrade(page: &mut crate::model::Page) -> bool {
+    use crate::model::{ElementKind, RichText};
+    let mut changed = false;
+    for e in &mut page.elements {
+        let zone = e.zone;
+        let ElementKind::Text(t) = &mut e.kind else { continue };
+        if zone && let Some(field) = t.prompt.as_deref().and_then(old_prompt_field) {
+            if t.content.is_blank() {
+                t.content = RichText::plain(&format!("{{{field}}}"));
+                t.prompt = None;
+            }
+            e.zone = false;
+            changed = true;
+        }
+        for r in t.content.paragraphs.iter_mut().flat_map(|p| &mut p.runs) {
+            let new = renamed(&r.text);
+            if new != r.text {
+                r.text = new;
+                changed = true;
+            }
+        }
+    }
+    changed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,5 +271,68 @@ mod tests {
         assert_eq!(letter_index("prenom_12"), Some((12, false)));
         assert_eq!(letter_index("prenom_0"), None);
         assert_eq!(letter_index("prenom"), None);
+    }
+
+    fn text(prompt: Option<&str>, content: &str, zone: bool) -> crate::model::Element {
+        use crate::model::*;
+        Element {
+            id: "t".into(),
+            frame: Frame { x_mm: 10.0, y_mm: 20.0, w_mm: 30.0, h_mm: 40.0, rotation_deg: 0.0 },
+            locked: false,
+            zone,
+            group: None,
+            subgroups: Vec::new(),
+            flip_h: false,
+            flip_v: false,
+            kind: ElementKind::Text(TextProps { content: RichText::plain(content), style: TextStyle { font: "Andika".into(), size_pt: 30.0, ..TextStyle::default_zone() }, prompt: prompt.map(String::from), frame: None }),
+        }
+    }
+
+    fn page_of(e: crate::model::Element) -> crate::model::Page {
+        let mut p = crate::model::Page::new(crate::model::A4_PORTRAIT);
+        p.elements.push(e);
+        p
+    }
+
+    fn words(p: &crate::model::Page) -> String {
+        match &p.elements[0].kind {
+            crate::model::ElementKind::Text(t) => t.content.paragraphs.iter().map(|p| p.runs.iter().map(|r| r.text.as_str()).collect::<String>()).collect::<Vec<_>>().join("\n"),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn old_markers_become_unaccented() {
+        let mut p = page_of(text(None, "{prénom} a {âge}, {PRÉNOM} {anniversaires février} {toto}", false));
+        assert!(upgrade(&mut p));
+        assert_eq!(words(&p), "{prenom} a {age}, {PRENOM} {anniversaires_fevrier} {toto}");
+        assert!(!upgrade(&mut p), "déjà à jour");
+    }
+
+    #[test]
+    fn an_empty_prompt_zone_becomes_a_field_text() {
+        for (prompt, field) in [("Prénom", "{prenom}"), ("PRÉNOM", "{PRENOM}"), ("Âge", "{age}"), ("Lettre 2", "{PRENOM_2}"), ("lettre 2", "{prenom_2}"), ("Anniversaire", "{anniversaire}")] {
+            let mut p = page_of(text(Some(prompt), "", true));
+            assert!(upgrade(&mut p), "{prompt}");
+            let e = &p.elements[0];
+            assert_eq!((e.zone, words(&p).as_str(), e.frame.w_mm), (false, field, 30.0), "{prompt}");
+            let crate::model::ElementKind::Text(t) = &e.kind else { unreachable!() };
+            assert_eq!((t.prompt.clone(), t.style.size_pt), (None, 30.0));
+        }
+    }
+
+    #[test]
+    fn a_filled_zone_keeps_its_text() {
+        let mut p = page_of(text(Some("Prénom"), "Léa", true));
+        assert!(upgrade(&mut p));
+        assert_eq!((p.elements[0].zone, words(&p).as_str()), (false, "Léa"));
+    }
+
+    #[test]
+    fn a_free_prompt_zone_is_untouched() {
+        let mut p = page_of(text(Some("Titre"), "", true));
+        let before = p.clone();
+        assert!(!upgrade(&mut p));
+        assert_eq!(p, before);
     }
 }

@@ -47,8 +47,9 @@ pub fn renew_ids(page: &mut Page) {
 /// Version la plus récente que cette application sait lire (2 : élément image ; 3 : cadre de texte,
 /// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau, lettres creuses ; 5 : photo en
 /// miroir, lignes d'écriture, styles nommés ; 6 : image à colorier ou en couleur de peau, tracé libre, groupe dans
-/// un groupe ; 7 : miroir d'un élément autre qu'une photo, ou de haut en bas).
-pub const FORMAT_VERSION: u32 = 7;
+/// un groupe ; 7 : miroir d'un élément autre qu'une photo, ou de haut en bas ; 8 : champs de la classe sans
+/// accents, `{prenom}`).
+pub const FORMAT_VERSION: u32 = 8;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]

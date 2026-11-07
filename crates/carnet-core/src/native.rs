@@ -86,6 +86,11 @@ pub fn written_version(doc: &Document) -> u32 {
     // Image à colorier (contour), ou en couleur de peau : la banque d'une version plus ancienne ne l'a pas.
     // Groupe dans un groupe : une version plus ancienne le fondrait dans le grand groupe.
     // Miroir d'un élément autre qu'une photo de gauche à droite, ou de haut en bas : inconnu avant la version 7.
+    // Champ de la classe sans accents (`{prenom}`) : une version plus ancienne l'afficherait sans le remplir.
+    let new_field = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if crate::fields::has_fields_text(t) || crate::fields::has_class_fields_text(t));
+    if elements().any(new_field) {
+        return 8;
+    }
     if elements().any(|e| e.flip_h || e.flip_v) {
         return 7;
     }
@@ -198,9 +203,11 @@ pub fn load(input: impl Read + Seek) -> Result<LoadedDocument, NativeError> {
         return Err(NativeError::NewerVersion(found));
     }
     let mut doc: Document = serde_json::from_slice(&json).map_err(|_| NativeError::Corrupt)?;
-    // Des niveaux de groupes incohérents (fichier modifié à la main) sont remis d'aplomb.
+    // Des niveaux de groupes incohérents (fichier modifié à la main) sont remis d'aplomb ; les anciens champs de
+    // la classe (zones « Prénom », `{prénom}`) passent à la forme sans accents.
     for page in &mut doc.pages {
         crate::groups::dissolve_small_groups(page);
+        crate::fields::upgrade(page);
     }
     if !doc.assets.values().all(|m| crate::model::is_safe_id(&m.id)) {
         return Err(NativeError::Corrupt);
@@ -568,9 +575,9 @@ mod tests {
     }
 
     #[test]
-    fn newer_than_7_is_refused() {
+    fn newer_than_8_is_refused() {
         let mut doc = Document::new("futur");
-        doc.format_version = 8;
+        doc.format_version = 9;
         let json = serde_json::to_vec(&doc).unwrap();
         let mut buf = Cursor::new(Vec::new());
         {
@@ -581,8 +588,35 @@ mod tests {
         }
         buf.set_position(0);
         let err = load(buf).err().unwrap();
-        assert_eq!(err, NativeError::NewerVersion(8));
+        assert_eq!(err, NativeError::NewerVersion(9));
         assert!(err.message_fr().contains("plus récente"));
+    }
+
+    #[test]
+    fn loading_converts_old_fields_and_saves_version_8() {
+        let mut doc = Document::new("ancien");
+        let mut zone = text_el(TextStyle::default_zone(), None);
+        zone.zone = true;
+        if let ElementKind::Text(t) = &mut zone.kind {
+            t.prompt = Some("Prénom".into());
+            t.content = RichText::default();
+        }
+        doc.pages[0].elements.push(zone);
+        doc.format_version = 3;
+        let json = serde_json::to_vec(&doc).unwrap();
+        let mut buf = Cursor::new(Vec::new());
+        {
+            let mut zip = ZipWriter::new(&mut buf);
+            zip.start_file(DOCUMENT_ENTRY, SimpleFileOptions::default()).unwrap();
+            zip.write_all(&json).unwrap();
+            zip.finish().unwrap();
+        }
+        buf.set_position(0);
+        let loaded = load(buf).unwrap().doc;
+        let ElementKind::Text(t) = &loaded.pages[0].elements[0].kind else { panic!() };
+        assert_eq!(t.content.paragraphs[0].runs[0].text, "{prenom}");
+        assert_eq!(written_version(&loaded), 8);
+        assert_eq!(written_version(&Document::new("vide")), 1, "sans champ : pas de nouvelle version");
     }
 
     fn text_el(style: TextStyle, frame: Option<TextFrame>) -> Element {

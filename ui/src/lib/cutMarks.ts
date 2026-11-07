@@ -1,6 +1,7 @@
 // Repères de découpe autour des blocs (étiquettes, cartes) : traits aux coins, ou pointillés avec des
 // ciseaux. Ce sont des formes ordinaires groupées avec le bloc : elles le suivent, s'exportent et
 // s'impriment comme le reste. On les reconnaît à leur trait gris fin, pour les remplacer ou les retirer.
+// Copié pour l'assistant dans crates/cahutin-mcp/src/decor.rs : changer les deux ensemble.
 import { newId } from "./factory";
 import { boundsOf, dissolveSmallGroups, expandSelection } from "./groups";
 import type { Element, Page } from "./types";

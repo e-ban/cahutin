@@ -215,6 +215,7 @@ pub fn run(req: Request, chat: &mut dyn FnMut(&Value) -> Result<Value, ChatError
                 if tools::MUTATING.contains(&name) {
                     let written = match name {
                         "add_text" => out["element_id"].as_str().map(String::from).into_iter().collect(),
+                        "add_caption" if args["content"].as_str().is_some_and(|c| !c.trim().is_empty()) => out["element_id"].as_str().map(String::from).into_iter().collect(),
                         "set_text" => args["element_id"].as_str().map(String::from).into_iter().collect(),
                         _ => vec![],
                     };
@@ -414,6 +415,16 @@ mod tests {
         let s = steps(&events);
         assert_eq!(s[0].written.len(), 1);
         assert_eq!(s[0].written, s[0].touched);
+    }
+
+    #[test]
+    fn a_written_caption_counts_as_written() {
+        let mut d = doc();
+        let photo = crate::edit::add_photo_zone(&mut d, &json!({ "page": 0, "x_mm": 20, "y_mm": 20, "w_mm": 50, "h_mm": 40 })).unwrap()["element_id"].as_str().unwrap().to_string();
+        let calls = vec![Ok(call("add_caption", json!({ "photo_id": photo, "content": "La ferme" }))), Ok(call("add_caption", json!({ "photo_id": photo }))), Ok(reply("ok"))];
+        let (events, _) = run_script(request(&d), calls);
+        let s = steps(&events);
+        assert_eq!((s.len(), s[0].written.len()), (1, 1));
     }
 
     #[test]

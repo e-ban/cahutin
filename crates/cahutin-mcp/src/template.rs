@@ -194,4 +194,26 @@ mod tests {
         let text = serde_json::to_string(&out).unwrap();
         assert!(text.contains("Léa") && text.contains("Noé"), "{text}");
     }
+
+    /// Le même chemin que l'application : la planche enregistrée comme modèle (en gardant les textes de
+    /// l'assistant et leurs copies, comme `writtenWithCopies` dans l'interface), puis remplie avec la classe.
+    #[test]
+    fn a_saved_sheet_template_keeps_its_texts_and_cut_marks_and_fills() {
+        let mut d = Document::new("x");
+        let frame = new_id_of(edit::add_shape(&mut d, &json!({ "page": 0, "x_mm": 10, "y_mm": 10, "w_mm": 90, "h_mm": 40, "shape": "rect" })).unwrap());
+        let name = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 15, "y_mm": 15, "w_mm": 80, "h_mm": 15, "field": "Prénom" })).unwrap());
+        let wish = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 15, "y_mm": 32, "w_mm": 80, "h_mm": 12, "content": "Bon anniversaire {prénom} !" })).unwrap());
+        crate::arrange::group(&mut d, &json!({ "element_ids": [frame, name, wish] })).unwrap();
+        crate::decor::cut_marks(&mut d, &json!({ "element_ids": [frame], "style": "corners" })).unwrap();
+        tables::repeat(&mut d, &json!({ "element_ids": [frame], "cols": 2, "rows": 2 })).unwrap();
+        let page = &d.pages[0];
+        let keep: Vec<String> = page.elements.iter().filter(|e| matches!(&e.kind, ElementKind::Text(t) if !t.content.is_blank())).map(|e| e.id.clone()).collect();
+        assert_eq!(keep.len(), 4);
+        let saved = templates::from_page_keeping("Anniversaires", page, &photo::AssetStore::default(), &keep);
+        assert_eq!(saved.page.elements.iter().filter(|e| crate::decor::is_cut_mark(e)).count(), 32);
+        assert_eq!(fill::suggested_mode(&saved.page), fill::FillMode::Sheet);
+        let class = [Student::new("Léa", "Martin"), Student::new("Noé", "Petit")];
+        let text = serde_json::to_string(&fill::generate(&saved.page, &class, fill::FillMode::Sheet)).unwrap();
+        assert!(text.contains("Bon anniversaire Léa !") && text.contains("Bon anniversaire Noé !"), "{text}");
+    }
 }

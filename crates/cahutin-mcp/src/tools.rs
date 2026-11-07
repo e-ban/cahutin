@@ -237,7 +237,7 @@ pub fn definitions() -> Value {
         },
         {
             "name": "cut_marks",
-            "description": "Repères de découpe autour de chaque bloc donné (étiquettes, cartes) : corners (traits aux coins), dashed (pointillés et ciseaux), none (les retirer).",
+            "description": "Repères de découpe autour de chaque bloc donné (un groupe, ou un élément seul : groupez d'abord une étiquette) : corners (traits aux coins), dashed (pointillés et ciseaux), none (les retirer).",
             "inputSchema": { "type": "object", "required": ["element_ids", "style"], "properties": {
                 "element_ids": { "type": "array", "items": { "type": "string" } }, "style": { "type": "string", "enum": ["corners", "dashed", "none"] },
             } },
@@ -278,7 +278,7 @@ pub fn definitions() -> Value {
 Le modèle garde les formes, les images, les zones à remplir, les éléments fixes et les textes que vous avez écrits. \
 Cahutin le remplit avec la classe : les champs (add_text avec field, ou les mots {prénom}, {PRÉNOM}, {nom}, {groupe}, {âge}, {anniversaire} dans un texte, \
 {anniversaires janvier}… pour une affiche de toute la classe), et chaque case photo vide reçoit la photo de l'élève ou son symbole. \
-Pour des étiquettes, faites un bloc (cadre et champs) puis repeat : un élève par bloc (class_fill de get_layout dit « sheet »). \
+Pour des étiquettes : un cadre et ses champs, groupés, puis cut_marks et repeat : un élève par bloc (class_fill de get_layout dit « sheet »). \
 Lettres mobiles : un champ Lettre 1, Lettre 2… par case.",
             "inputSchema": { "type": "object", "required": ["page", "name"], "properties": { "page": page, "name": { "type": "string", "description": "Nom du modèle" } } },
         },

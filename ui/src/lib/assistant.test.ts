@@ -142,6 +142,29 @@ test("accept_saves_requested_templates_with_written_ids", async () => {
   expect(saved).toEqual([{ name: "Saisons", keep: ["t1", "t2"] }]);
 });
 
+test("copies_of_written_texts_are_kept_in_the_template_but_not_copies_of_the_teachers", async () => {
+  const text = (id: string, words: string) => ({
+    id,
+    frame: { x_mm: 10, y_mm: 10, w_mm: 50, h_mm: 10, rotation_deg: 0 },
+    locked: false,
+    zone: false,
+    kind: { type: "Text" as const, content: { paragraphs: [{ align: null, runs: [{ text: words, bold: false, italic: false, underline: false, color: null, font: null, size_pt: null }] }] }, style: { font: "Andika", size_pt: 14, color: "#222222", align: "Left" as const }, prompt: null },
+  });
+  const base = editor.doc;
+  const withTexts = (d: Document, els: ReturnType<typeof text>[]): Document => ({ ...d, pages: [{ ...d.pages[0], elements: [...d.pages[0].elements, ...els] }, ...d.pages.slice(1)] });
+  const teacher = withTexts(base, [text("u1", "Mme Durand")]);
+  editor.reset(teacher, null);
+  script.push((r) => {
+    const one = withTexts(r.document, [text("t1", "Bon anniversaire {prénom}")]);
+    // « Répéter » : des copies du texte de l'assistant et du texte de l'enseignante.
+    const many = withTexts(one, [text("t1b", "Bon anniversaire {prénom}"), text("u1b", "Mme Durand")]);
+    return [step(one, { written: ["t1"] }), step(many), step(many, { template: { name: "Anniversaires", page: 0 } }), done()];
+  });
+  await assistant.send("x");
+  await assistant.accept();
+  expect(saved).toEqual([{ name: "Anniversaires", keep: ["t1", "t1b"] }]);
+});
+
 test("save_settles_the_proposal_first", async () => {
   const { save } = await import("./fileActions");
   editor.markSaved("/tmp/essai.carnet");

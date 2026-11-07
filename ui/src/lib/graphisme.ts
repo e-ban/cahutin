@@ -1,6 +1,7 @@
 // Lignes de graphisme à repasser : un point vert de départ, le premier motif en trait plein (le modèle), la
 // suite en pointillés gris, sur une ligne de base légère. Chaque ligne est un groupe de formes ; les motifs
 // sont des tracés libres (forme « Path »), calculés en mm puis ramenés au carré 0..1000 de leur cadre.
+// Copié pour l'assistant dans crates/cahutin-mcp/src/exercises.rs : changer les deux ensemble.
 import { newId } from "./factory";
 import type { Element, Frame, Page, ShapeKind, Stroke } from "./types";
 

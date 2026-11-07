@@ -4,7 +4,7 @@ import * as api from "./api";
 import { editor } from "./docStore.svelte";
 import { modal } from "./modal.svelte";
 import { templates } from "./templates.svelte";
-import type { AssistantDone, AssistantSettings, AssistantStep, Document } from "./types";
+import type { AssistantDone, AssistantSettings, AssistantStep, Document, Element } from "./types";
 
 export type Outcome = "pending" | "accepted" | "refused" | "none";
 export type Entry =
@@ -18,6 +18,19 @@ export interface Proposal {
 }
 
 const lastDoc = (p: Proposal) => p.steps[p.steps.length - 1].document;
+
+const words = (e: Element) => (e.kind.type === "Text" ? e.kind.content.paragraphs.map((p) => p.runs.map((r) => r.text).join("")).join("\n") : null);
+
+/** Les textes que l'assistant a écrits, et leurs copies nouvelles (« Répéter », dupliquer) : le modèle les garde.
+ *  La copie d'un texte de l'enseignant n'en fait pas partie, comme son original. */
+function writtenWithCopies(p: Proposal, final: Document): string[] {
+  const written = p.steps.flatMap((s) => s.written);
+  const all = final.pages.flatMap((pg) => pg.elements);
+  const before = new Set(p.base.pages.flatMap((pg) => pg.elements).map((e) => e.id));
+  const theirs = new Set(all.filter((e) => written.includes(e.id)).map(words).filter((w) => !!w?.trim()));
+  const copies = all.filter((e) => !before.has(e.id) && !written.includes(e.id) && theirs.has(words(e)));
+  return [...written, ...copies.map((e) => e.id)];
+}
 
 /** La page affichée suit la modification : celle de l'élément touché, ou la page ajoutée. */
 function followPage(step: AssistantStep, pagesBefore: number) {
@@ -121,7 +134,7 @@ class Assistant {
     const p = this.proposal;
     if (!p || this.busy) return;
     const final = lastDoc(p);
-    const written = p.steps.flatMap((s) => s.written);
+    const written = writtenWithCopies(p, final);
     for (const s of p.steps) {
       if (!s.template) continue;
       try {

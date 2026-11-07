@@ -1,5 +1,6 @@
 // Répéter un bloc en grille sur la page : planches d'étiquettes ou de cartes sans modèle dédié.
 // Les copies gardent leurs zones à remplir, pour que la classe les remplisse ensuite.
+// Copié pour l'assistant dans crates/cahutin-mcp/src/tables.rs : changer les deux ensemble.
 import { newId } from "./factory";
 import { boundsOf, expandSelection, pathOf, withPath } from "./groups";
 import { remapTables } from "./table";

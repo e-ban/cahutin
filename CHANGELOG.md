@@ -1,5 +1,12 @@
 # Journal des versions
 
+## Non publié
+
+- Champs de la classe faciles à trouver : tiroir Texte, section « Champs de la classe » (prénom, nom, groupe, âge, anniversaire, une lettre du prénom, les anniversaires d'un mois), et bouton « { } Champ » sur tout texte choisi pour en ajouter un ou le changer. Sur la page, un champ s'affiche en pastille (« Prénom ») ; à l'impression et à l'export, son nom s'écrit en clair.
+- Les champs s'écrivent sans accents ({prenom}, {age}, {PRENOM_1}, {anniversaires_mars}) et ce sont eux seuls qui se remplissent : une zone dont l'invite est « Prénom » ne l'est plus. Les documents et les modèles déjà faits se convertissent seuls à l'ouverture, un texte déjà rempli n'est jamais réécrit ; les modèles fournis utilisent les nouveaux champs. Un document qui en contient ne s'ouvre plus dans une version plus ancienne de Cahutin.
+- Une planche remplie avec moins d'élèves que d'étiquettes, ou pour un enfant sans photo ni symbole, n'est plus acceptée pour un nouveau remplissage.
+- Tiroirs Texte, Formes, Décors et Polices rangés en sections qui se replient, repliées au départ, chacune avec une ligne qui dit ce qu'elle contient ; la section (PS, MS, GS) des fiches reste visible.
+
 ## 0.12.0
 
 - Rogner une photo : en mode Recadrer (bouton « Recadrer » ou double-clic), des poignées orange sur le cadre rognent ses bords, la photo restant en place ; la partie coupée se voit en transparence autour du cadre. Glisser la photo et la molette marchent comme avant ; chaque geste s'annule séparément.

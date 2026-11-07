@@ -13,6 +13,7 @@
   import { Slice } from "@tiptap/pm/model";
   import { onDestroy, onMount } from "svelte";
   import { editor as doc } from "../lib/docStore.svelte";
+  import { ClassField } from "../lib/fieldNode";
   import { cssFontFamily, fontFamilyName, richToTiptap, sanitizePlainText, tiptapToRich } from "../lib/richtext";
   import { textEditing } from "../lib/textEditing.svelte";
   import { copiedSlice, rememberCopy, withZoneStyle, type CopiedSlice } from "../lib/textClipboard";
@@ -66,6 +67,7 @@
         FontSize,
         TextAlign.configure({ types: ["paragraph"], alignments: ["left", "center", "right", "justify"] }),
         UndoRedo,
+        ClassField,
         Placeholder.configure({ placeholder: props.prompt ?? "" }),
       ],
       content: richToTiptap(props.content),

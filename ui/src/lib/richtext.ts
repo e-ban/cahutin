@@ -1,6 +1,7 @@
 // Conversion entre le contenu TipTap et le texte riche du document. Seule la mise en forme que l'export
 // ODG sait représenter survit : tout le reste (titres, listes, liens, surlignage...) devient du texte simple.
 import type { JSONContent } from "@tiptap/core";
+import { splitFields } from "./classFields";
 import { isKnownFamily } from "./fontNames";
 import type { Align, Paragraph, RichText, Run, TextStyle } from "./types";
 
@@ -65,6 +66,8 @@ function paragraphFrom(node: JSONContent, style: TextStyle): Paragraph {
   const runs: Run[] = [];
   for (const child of node.content ?? []) {
     if (child.type === "text") pushRun(runs, runFrom(child, style));
+    // Un champ de la classe (pastille) redevient ses accolades, avec la mise en forme de la pastille.
+    else if (child.type === "classField") pushRun(runs, { ...runFrom({ text: "", marks: child.marks }, style), text: `{${child.attrs?.key}}` });
     else if (child.type === "hardBreak") pushRun(runs, { ...(runs.at(-1) ?? runFrom({ text: "" }, style)), text: "\n" });
   }
   const css = node.attrs?.textAlign;
@@ -103,7 +106,11 @@ export function richToTiptap(rt: RichText): JSONContent {
           if (r.color || r.font || r.size_pt) {
             marks.push({ type: "textStyle", attrs: { color: r.color, fontFamily: r.font, fontSize: r.size_pt ? `${r.size_pt}pt` : null } });
           }
-          content.push(marks.length ? { type: "text", text: piece, marks } : { type: "text", text: piece });
+          // Chaque champ de la classe devient une pastille, un seul caractère pour l'éditeur.
+          for (const part of splitFields(piece)) {
+            if ("field" in part) content.push(marks.length ? { type: "classField", attrs: { key: part.field }, marks } : { type: "classField", attrs: { key: part.field } });
+            else content.push(marks.length ? { type: "text", text: part.text, marks } : { type: "text", text: part.text });
+          }
         });
       }
       if (content.length) node.content = content;

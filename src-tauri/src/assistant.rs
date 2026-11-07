@@ -69,7 +69,11 @@ pub fn configure(dir: &Path, enabled: bool, url: String, model: String, api_key:
 fn host_of(url: &str) -> Option<(bool, String)> {
     let url = url.trim().to_lowercase();
     let (secure, rest) = if let Some(r) = url.strip_prefix("https://") { (true, r.to_string()) } else { (false, url.strip_prefix("http://")?.to_string()) };
-    let authority = rest.split('/').next().unwrap_or("");
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    // Un nom d'utilisateur (`hôte@…`) cacherait le vrai hôte : une telle adresse n'est jamais acceptée.
+    if authority.contains('@') {
+        return None;
+    }
     let host = if authority.starts_with('[') { authority.split(']').next().map(|h| format!("{h}]")).unwrap_or_default() } else { authority.split(':').next().unwrap_or("").to_string() };
     (!host.is_empty()).then_some((secure, host))
 }
@@ -339,7 +343,7 @@ mod tests {
         for ok in ["https://api.openai.com/v1", "http://localhost:11434/v1", "http://127.0.0.1:8080/v1", "http://[::1]:11434/v1", " HTTP://LOCALHOST/v1 "] {
             assert_eq!(check_url(ok), Ok(()), "{ok}");
         }
-        for bad in ["http://192.168.1.20:11434/v1", "http://exemple.fr/v1", "http://localhost.exemple.fr/v1", "ftp://exemple.fr", "exemple.fr/v1", ""] {
+        for bad in ["http://192.168.1.20:11434/v1", "http://exemple.fr/v1", "http://localhost.exemple.fr/v1", "ftp://exemple.fr", "exemple.fr/v1", "", "http://localhost:11434@exemple.fr/v1", "http://[::1]@exemple.fr/v1"] {
             assert!(check_url(bad).is_err(), "{bad}");
         }
     }

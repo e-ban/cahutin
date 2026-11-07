@@ -344,7 +344,8 @@ pub fn fill_auto(page: &mut crate::model::Page, date: Option<(i32, u32, u32)>, c
                 .map(|p| match p {
                     Piece::Text(x) => x.to_string(),
                     Piece::Field(f) => {
-                        let v = if is_date(f) { date.and_then(|d| auto_value(f, d, class)) } else { class.and_then(|c| class_value(f, c)) };
+                        // Une information de la classe vide (une école pas encore renseignée) garde son champ : il s'écrira plus tard.
+                        let v = if is_date(f) { date.and_then(|d| auto_value(f, d, class)) } else { class.and_then(|c| class_value(f, c)).filter(|v| !v.is_empty()) };
                         v.unwrap_or_else(|| format!("{{{f}}}"))
                     }
                 })
@@ -543,6 +544,14 @@ mod tests {
         assert!(fill_auto(&mut p, Some((2026, 11, 9)), None));
         assert_eq!(words(&p), "{prenom}, né en 2026 : {ecole} 9 novembre 2026");
         assert!(!page_needs_date(&p));
+    }
+
+    #[test]
+    fn an_empty_class_value_keeps_its_field() {
+        let info = ClassInfo { name: "Les Loups".into(), levels: String::new(), count: 24, school: String::new(), teacher: "Mme Durand".into() };
+        let mut p = page_of(text(None, "{classe} : {ecole}, {enseignant} {niveau}", false));
+        assert!(fill_auto(&mut p, None, Some(&info)));
+        assert_eq!(words(&p), "Les Loups : {ecole}, Mme Durand {niveau}");
     }
 
     #[test]

@@ -37,7 +37,7 @@ pub enum NativeError {
 impl NativeError {
     pub fn message_fr(&self) -> String {
         match self {
-            NativeError::NewerVersion(_) => "Ce fichier a été créé par une version plus récente de l'application.",
+            NativeError::NewerVersion(_) => "Ce fichier a été créé par une version plus récente de Cahutin : mettez Cahutin à jour pour l'ouvrir.",
             NativeError::Corrupt => "Ce fichier est abîmé ou n'est pas un document de l'application.",
             NativeError::MissingAsset => "Une photo du document est introuvable : le document n'a pas été enregistré.",
             NativeError::Io => "Impossible de lire ou d'écrire le fichier.",
@@ -590,6 +590,7 @@ mod tests {
         let err = load(buf).err().unwrap();
         assert_eq!(err, NativeError::NewerVersion(9));
         assert!(err.message_fr().contains("plus récente"));
+        assert!(err.message_fr().contains("mettez Cahutin à jour"), "dire quoi faire");
     }
 
     #[test]

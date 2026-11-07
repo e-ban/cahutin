@@ -5,6 +5,10 @@
   import { centeredFrame, textElement } from "../../lib/factory";
   import { fr } from "../../lib/i18n/fr";
   import { withTemplateRole } from "../../lib/templateRole";
+  import { fieldText } from "../../lib/fieldEdit";
+  import { insertField } from "../../lib/textFormat.svelte";
+  import FieldMenu from "../FieldMenu.svelte";
+  import InspectorSection from "../layout/InspectorSection.svelte";
   import type { Align, Element, Pattern, RichText } from "../../lib/types";
 
   interface Preset {
@@ -63,6 +67,17 @@
     editor.selection = [el.id];
   }
 
+  /** Un champ : au curseur si l'on écrit, sinon un nouveau texte qui le contient, choisi. */
+  function addField(key: string) {
+    if (editor.editingText) {
+      insertField(key);
+      return;
+    }
+    const el = fieldText(editor.page, key);
+    editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+    editor.selection = [el.id];
+  }
+
   let cols = $state(3);
   let rows = $state(3);
 
@@ -82,35 +97,51 @@
 
 <Drawer title={fr.text}>
   <button class="primary" onclick={() => add()}>✏️ {fr.addText}</button>
-  <h3>{fr.textPresets}</h3>
-  {#each presets as p (p.label)}
-    <button
-      class="preset"
-      class:hollow={p.outline}
-      onclick={() => add(p)}
-      style:font-family={`"${p.font}"`}
-      style:font-size={`${Math.min(p.size_pt, 20)}px`}
-      style:font-style={p.italic ? "italic" : "normal"}
-      style:color={p.color}
-    >
-      {p.label}
-    </button>
-  {/each}
-  <h3>{fr.writingLines}</h3>
-  <div class="lines">
-    <button onclick={() => addLines("Seyes")}>{fr.patternSeyes}</button>
-    <button onclick={() => addLines("Lines")}>{fr.patternLines}</button>
-    <button onclick={() => addLines("SmallSquares")}>{fr.patternSquares}</button>
-  </div>
-  <h3>{fr.table}</h3>
-  <div class="table-size">
-    <label>{fr.tableCols} <input type="number" min="1" max="8" bind:value={cols} /></label>
-    <label>{fr.tableRows} <input type="number" min="1" max="8" bind:value={rows} /></label>
-  </div>
-  <button onclick={addTable}>▦ {fr.addTable}</button>
+  <!-- Sections repliées au départ : on voit d'un coup tout ce que le tiroir propose, et chacune reste comme on la
+       laisse. -->
+  <InspectorSection id="text-presets" title={fr.textPresets} hint={fr.sectionHints.textPresets} open={false}>
+    <div class="stack">
+    {#each presets as p (p.label)}
+      <button
+        class="preset"
+        class:hollow={p.outline}
+        onclick={() => add(p)}
+        style:font-family={`"${p.font}"`}
+        style:font-size={`${Math.min(p.size_pt, 20)}px`}
+        style:font-style={p.italic ? "italic" : "normal"}
+        style:color={p.color}
+      >
+        {p.label}
+      </button>
+    {/each}
+    </div>
+  </InspectorSection>
+  <InspectorSection id="text-fields" title={fr.fieldsTitle} hint={fr.sectionHints.textFields} open={false}>
+    <p class="hint">{fr.fieldsHint}</p>
+    <FieldMenu onpick={addField} />
+  </InspectorSection>
+  <InspectorSection id="text-lines" title={fr.writingLines} hint={fr.sectionHints.textLines} open={false}>
+    <div class="lines">
+      <button onclick={() => addLines("Seyes")}>{fr.patternSeyes}</button>
+      <button onclick={() => addLines("Lines")}>{fr.patternLines}</button>
+      <button onclick={() => addLines("SmallSquares")}>{fr.patternSquares}</button>
+    </div>
+  </InspectorSection>
+  <InspectorSection id="text-table" title={fr.table} hint={fr.sectionHints.textTable} open={false}>
+    <div class="table-size">
+      <label>{fr.tableCols} <input type="number" min="1" max="8" bind:value={cols} /></label>
+      <label>{fr.tableRows} <input type="number" min="1" max="8" bind:value={rows} /></label>
+    </div>
+    <button onclick={addTable}>▦ {fr.addTable}</button>
+  </InspectorSection>
 </Drawer>
 
 <style>
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
   .lines {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -133,6 +164,11 @@
   .preset.hollow {
     -webkit-text-fill-color: transparent;
     -webkit-text-stroke: 0.6px currentColor;
+  }
+  .hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9em;
   }
   .preset {
     text-align: left;

@@ -75,6 +75,12 @@ pub(crate) fn text_zone(f: Frame, prompt: &str, font: &str, size_pt: f64) -> Ele
     Element { zone: true, ..el(f, ElementKind::Text(TextProps { content: RichText::default(), style, prompt: Some(prompt.into()), frame: None })) }
 }
 
+/// Un texte qui ne contient qu'un champ de la classe (`field` sans accolades : `prenom`, `PRENOM_2`…).
+pub(crate) fn field_text(f: Frame, field: &str, font: &str, size_pt: f64) -> Element {
+    let style = TextStyle { font: font.into(), size_pt, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None, outline: None, named: None };
+    el(f, ElementKind::Text(TextProps { content: RichText::plain(&format!("{{{field}}}")), style, prompt: None, frame: None }))
+}
+
 fn title(content: &str, y: f64, size_pt: f64, color: &str) -> Element {
     text(frame(15.0, y, 180.0, cursive_height(size_pt)), content, TITLE_FONT, size_pt, color, Align::Center)
 }
@@ -168,15 +174,15 @@ fn birthday() -> Page {
         picto("2B50", 52.0, 118.0, 14.0),
         picto("2B50", 144.0, 118.0, 14.0),
         {
-            let mut name = text_zone(frame(35.0, 142.0, 140.0, 20.0), "Prénom", "Atkinson Hyperlegible", 28.0);
+            let mut name = field_text(frame(35.0, 142.0, 140.0, 20.0), "prenom", "Atkinson Hyperlegible", 28.0);
             if let ElementKind::Text(t) = &mut name.kind {
                 t.style.align = Align::Center;
             }
             name
         },
     ]));
-    // {âge} : rempli avec la classe (« a fêté ses 4 ans »), comme le prénom.
-    els.push(text(frame(35.0, 166.0, 140.0, 14.0), "a fêté ses {âge} en classe !", "Atkinson Hyperlegible", 16.0, "#444444", Align::Center));
+    // {age} : rempli avec la classe (« a fêté ses 4 ans »), comme le prénom.
+    els.push(text(frame(35.0, 166.0, 140.0, 14.0), "a fêté ses {age} en classe !", "Atkinson Hyperlegible", 16.0, "#444444", Align::Center));
     els.push(shape(ShapeKind::Heart, frame(92.0, 190.0, 26.0, 26.0), Some("#e74c3c"), None, 0.0));
     els.push(text_zone(frame(25.0, 222.0, 160.0, 40.0), "Ce que nous avons partagé…", "Atkinson Hyperlegible", 14.0));
     page("#fff6d6", None, els)
@@ -515,8 +521,8 @@ fn coat_pegs() -> Page {
     for row in 0..4 {
         for (k, x) in [12.0, 108.0].into_iter().enumerate() {
             let y = y0 + row as f64 * (h + gap);
-            let zone = |f: Frame, prompt: &str, font: &str, size: f64| {
-                let mut z = text_zone(f, prompt, font, size);
+            let zone = |f: Frame, field: &str, font: &str, size: f64| {
+                let mut z = field_text(f, field, font, size);
                 if let ElementKind::Text(t) = &mut z.kind {
                     t.style.align = Align::Center;
                     t.style.valign = Some(VAlign::Middle);
@@ -528,8 +534,8 @@ fn coat_pegs() -> Page {
                 shape(ShapeKind::Rect, frame(x, y, w, h), Some(colors[(row + k) % 4]), Some((0.8, "#7f8c8d")), 8.0),
                 photo_zone(frame(x + 5.0, y + 5.0, 34.0, h - 20.0)),
                 picto("1F9E5", x + 16.0, y + h - 14.0, 12.0),
-                zone(frame(x + 42.0, y + 8.0, w - 46.0, 20.0), "PRÉNOM", "Andika", 22.0),
-                zone(frame(x + 42.0, y + 30.0, w - 46.0, 26.0), "Prénom", TITLE_FONT, 24.0),
+                zone(frame(x + 42.0, y + 8.0, w - 46.0, 20.0), "PRENOM", "Andika", 22.0),
+                zone(frame(x + 42.0, y + 30.0, w - 46.0, 26.0), "prenom", TITLE_FONT, 24.0),
             ]));
         }
     }

@@ -120,7 +120,7 @@ pub fn generate_with(page: &Page, students: &[Student], mode: FillMode, class_ph
         return Err("Cette page a déjà été remplie pour un élève : partez de la page modèle, avec ses zones vides.".into());
     }
     if !fill::has_fields(page) {
-        return Err("Cette page n'a ni zone Prénom, ni {prénom}, ni zone photo à remplir.".into());
+        return Err("Cette page n'a aucun champ à remplir ({prenom}, case photo vide) : partez de la page modèle.".into());
     }
     if students.is_empty() {
         return Err("Aucun élève ne correspond.".into());
@@ -232,9 +232,9 @@ mod tests {
             id: new_id(),
             frame: f,
             locked: false,
-            zone: true,
+            zone: false,
             group: None,
-            kind: ElementKind::Text(TextProps { content: RichText::default(), style: TextStyle::default_zone(), prompt: Some("Prénom".into()), frame: None }),
+            kind: ElementKind::Text(TextProps { content: RichText::plain("{prenom}"), style: TextStyle::default_zone(), prompt: None, frame: None }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
         });
@@ -340,6 +340,6 @@ mod tests {
         let store = AssetStore::default();
         assert_eq!(generate_with(&page_with_name_zone(), &[], FillMode::Sheet, &[], &store).err().unwrap(), "Aucun élève ne correspond.");
         let blank = Page::new(A4_PORTRAIT);
-        assert!(generate_with(&blank, &[Student::new("Léa", "")], FillMode::Sheet, &[], &store).err().unwrap().contains("ni zone Prénom"));
+        assert!(generate_with(&blank, &[Student::new("Léa", "")], FillMode::Sheet, &[], &store).err().unwrap().contains("aucun champ à remplir"));
     }
 }

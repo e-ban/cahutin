@@ -13,8 +13,9 @@
   import { Slice } from "@tiptap/pm/model";
   import { onDestroy, onMount } from "svelte";
   import { editor as doc } from "../lib/docStore.svelte";
+  import { ClassField } from "../lib/fieldNode";
   import { cssFontFamily, fontFamilyName, richToTiptap, sanitizePlainText, tiptapToRich } from "../lib/richtext";
-  import { textEditing } from "../lib/textEditing.svelte";
+  import { keepsEditing, textEditing } from "../lib/textEditing.svelte";
   import { copiedSlice, rememberCopy, withZoneStyle, type CopiedSlice } from "../lib/textClipboard";
   import type { RichText, TextProps } from "../lib/types";
 
@@ -66,6 +67,7 @@
         FontSize,
         TextAlign.configure({ types: ["paragraph"], alignments: ["left", "center", "right", "justify"] }),
         UndoRedo,
+        ClassField,
         Placeholder.configure({ placeholder: props.prompt ?? "" }),
       ],
       content: richToTiptap(props.content),
@@ -112,10 +114,7 @@
         },
       },
       onBlur: ({ event }) => {
-        // Un clic dans le panneau de droite ou la barre flottante (police, couleur...) ne termine pas l'édition :
-        // la mise en forme s'applique au passage sélectionné.
-        const next = event.relatedTarget as HTMLElement | null;
-        if (next?.closest(".right, .ctx")) return;
+        if (keepsEditing(event.relatedTarget as HTMLElement | null)) return;
         finish();
       },
       // Différé : la fermeture de l'éditeur provoque une transaction pendant le rendu de Svelte.

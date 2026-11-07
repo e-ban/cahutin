@@ -119,3 +119,14 @@ test("fontFamilyName reads a name back with or without quotes", () => {
   expect(fontFamilyName('"Cursive 2", Andika')).toBe("Cursive 2");
   expect(fontFamilyName("")).toBeNull();
 });
+
+test("a class field becomes one atom in the editor and comes back as braces", () => {
+  const rich: RichText = { paragraphs: [{ align: null, runs: [{ ...plainRun, text: "Bonjour " }, { ...plainRun, text: "{prenom} {toto}", bold: true }] }] };
+  const doc = richToTiptap(rich);
+  const content = doc.content![0].content!;
+  expect(content.map((n) => n.type)).toEqual(["text", "classField", "text"]);
+  expect(content[1].attrs).toEqual({ key: "prenom" });
+  expect(content[1].marks).toEqual([{ type: "bold" }]);
+  expect(content[2].text).toBe(" {toto}");
+  expect(tiptapToRich(doc, style)).toEqual(rich);
+});

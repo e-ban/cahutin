@@ -8,3 +8,9 @@ class TextEditing {
 }
 
 export const textEditing = new TextEditing();
+
+/** Un clic dans le panneau de droite, la barre flottante (police, couleur...) ou la liste des champs de la classe
+ *  ne termine pas l'écriture : la mise en forme s'applique au passage choisi, le champ s'insère au curseur. */
+export function keepsEditing(next: { closest(selector: string): unknown } | null): boolean {
+  return !!next?.closest(".right, .ctx, .fields");
+}

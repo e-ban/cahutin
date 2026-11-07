@@ -16,7 +16,7 @@
   let busy = $state(false);
   let plan = $state<GeneratePlan | null>(null);
 
-  // Le texte en cours d'écriture d'abord : un {prénom} juste tapé doit être dans la page lue.
+  // Le texte en cours d'écriture d'abord : un {prenom} juste posé doit être dans la page lue.
   editor.flushPending();
   classPlan(editor.page)
     .then((p) => (plan = p))

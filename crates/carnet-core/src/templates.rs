@@ -69,9 +69,9 @@ fn free_title(width_mm: f64) -> Element {
     t
 }
 
-/// Zone « Prénom » centrée dans son cadre.
+/// Le champ `{prenom}`, centré dans son cadre.
 fn name_zone(f: Frame, size_pt: f64) -> Element {
-    let mut z = ex::text_zone(f, "Prénom", "Andika", size_pt);
+    let mut z = ex::field_text(f, "prenom", "Andika", size_pt);
     if let ElementKind::Text(t) = &mut z.kind {
         t.style.align = Align::Center;
         t.style.valign = Some(VAlign::Middle);
@@ -117,20 +117,20 @@ fn three_scripts_labels() -> Page {
     for row in 0..5 {
         for x in [10.0, 110.0] {
             let y = y0 + row as f64 * (h + gap);
-            let zone = |i: usize, prompt: &str, font: &str| {
+            let zone = |i: usize, field: &str, font: &str| {
                 let (top, height, size) = lines[i];
                 let mut z = name_zone(ex::frame(x + 4.0, y + 4.0 + top, w - 8.0, height), size);
                 if let ElementKind::Text(t) = &mut z.kind {
-                    t.prompt = Some(prompt.into());
+                    t.content = RichText::plain(&format!("{{{field}}}"));
                     t.style.font = font.into();
                 }
                 z
             };
             page.elements.extend(ex::grouped(vec![
                 ex::shape(ShapeKind::Rect, ex::frame(x, y, w, h), Some(LABEL_FILL), Some((0.8, LABEL_BLUE)), 5.0),
-                zone(0, "PRÉNOM", "Andika"),
-                zone(1, "Prénom", "Andika"),
-                zone(2, "Prénom", "Playwrite FR Moderne"),
+                zone(0, "PRENOM", "Andika"),
+                zone(1, "prenom", "Andika"),
+                zone(2, "prenom", "Playwrite FR Moderne"),
             ]));
         }
     }
@@ -195,8 +195,9 @@ fn landscape_poster() -> Page {
 const INK: &str = "#1f3a5f";
 
 /// Zone de texte centrée, sans cadre, avec son invite.
-fn centered_zone(f: Frame, prompt: &str, font: &str, size_pt: f64) -> Element {
-    let mut z = ex::text_zone(f, prompt, font, size_pt);
+/// Un champ de la classe (`prenom`, `PRENOM_3`…), centré dans son cadre.
+fn centered_zone(f: Frame, field: &str, font: &str, size_pt: f64) -> Element {
+    let mut z = ex::field_text(f, field, font, size_pt);
     if let ElementKind::Text(t) = &mut z.kind {
         t.style.align = Align::Center;
         t.style.valign = Some(VAlign::Middle);
@@ -225,7 +226,7 @@ fn memory() -> Page {
                 card(ex::frame(x, y, side, side)),
                 ex::photo_zone(ex::frame(x + 3.0, y + 3.0, side - 6.0, side - 6.0)),
                 card(ex::frame(x2, y, side, side)),
-                centered_zone(ex::frame(x2 + 2.0, y + 2.0, side - 4.0, side - 4.0), "Prénom", "Andika", 20.0),
+                centered_zone(ex::frame(x2 + 2.0, y + 2.0, side - 4.0, side - 4.0), "prenom", "Andika", 20.0),
             ]));
         }
     }
@@ -245,7 +246,7 @@ fn loto() -> Page {
             page.elements.extend(ex::grouped(vec![
                 card(ex::frame(x, y, w, h)),
                 ex::photo_zone(ex::frame(x + 4.0, y + 4.0, w - 8.0, h - 22.0)),
-                centered_zone(ex::frame(x + 2.0, y + h - 17.0, w - 4.0, 14.0), "PRÉNOM", "Andika", 18.0),
+                centered_zone(ex::frame(x + 2.0, y + h - 17.0, w - 4.0, 14.0), "PRENOM", "Andika", 18.0),
             ]));
         }
     }
@@ -260,11 +261,11 @@ fn moving_letters() -> Page {
     let mut page = Page::new(A4_PORTRAIT);
     page.elements.push(ex::text(ex::frame(15.0, 12.0, 180.0, ex::cursive_height(26.0)), "Les lettres de mon prénom", ex::TITLE_FONT, 26.0, "#c0392b", Align::Center));
     page.elements.push(ex::photo_zone(ex::frame(80.0, 38.0, 50.0, 50.0)));
-    page.elements.push(centered_zone(ex::frame(30.0, 92.0, 150.0, ex::cursive_height(32.0)), "Prénom", ex::TITLE_FONT, 32.0));
-    let rows = [("Lettre", "Andika", 30.0, 132.0), ("lettre", "Andika", 30.0, 180.0), ("lettre", ex::TITLE_FONT, 26.0, 228.0)];
-    for (prompt, font, size, y) in rows {
+    page.elements.push(centered_zone(ex::frame(30.0, 92.0, 150.0, ex::cursive_height(32.0)), "prenom", ex::TITLE_FONT, 32.0));
+    let rows = [("PRENOM", "Andika", 30.0, 132.0), ("prenom", "Andika", 30.0, 180.0), ("prenom", ex::TITLE_FONT, 26.0, 228.0)];
+    for (field, font, size, y) in rows {
         for i in 0..12 {
-            let mut z = centered_zone(ex::frame(x0 + i as f64 * (w + gap), y, w, 34.0), &format!("{prompt} {}", i + 1), font, size);
+            let mut z = centered_zone(ex::frame(x0 + i as f64 * (w + gap), y, w, 34.0), &format!("{field}_{}", i + 1), font, size);
             if let ElementKind::Text(t) = &mut z.kind {
                 t.style.padding_mm = Some(0.5);
                 t.frame = Some(TextFrame { fill: None, stroke: Some(Stroke { width_mm: 0.4, color: "#9aa5b1".into(), style: Some(StrokeStyle::Dashed) }), corner_radius_mm: 0.0, image: None, pattern: None });
@@ -280,7 +281,7 @@ fn write_first_name() -> Page {
     let mut page = Page::new(A4_PORTRAIT);
     page.elements.push(ex::text(ex::frame(15.0, 12.0, 180.0, ex::cursive_height(26.0)), "J'écris mon prénom", ex::TITLE_FONT, 26.0, "#c0392b", Align::Center));
     page.elements.push(ex::photo_zone(ex::frame(15.0, 40.0, 45.0, 45.0)));
-    let mut model = centered_zone(ex::frame(65.0, 40.0, 130.0, 45.0), "Prénom", ex::TITLE_FONT, 44.0);
+    let mut model = centered_zone(ex::frame(65.0, 40.0, 130.0, 45.0), "prenom", ex::TITLE_FONT, 44.0);
     if let ElementKind::Text(t) = &mut model.kind {
         t.style.color = "#c4c4c4".into();
     }
@@ -303,7 +304,7 @@ fn attendance() -> Page {
     for r in 0..13 {
         let y = y0 + r as f64 * (row_h + 1.5);
         let mut row = vec![ex::photo_zone(ex::frame(15.0, y, row_h, row_h)), {
-            let mut z = centered_zone(ex::frame(35.0, y, 65.0, row_h), "Prénom", "Andika", 16.0);
+            let mut z = centered_zone(ex::frame(35.0, y, 65.0, row_h), "prenom", "Andika", 16.0);
             if let ElementKind::Text(t) = &mut z.kind {
                 t.style.align = Align::Left;
             }
@@ -331,7 +332,7 @@ fn birthdays() -> Page {
         page.elements.extend(ex::grouped(vec![
             ex::shape(ShapeKind::Rect, ex::frame(x, y, w, h), Some(colors[m / 3]), None, 6.0),
             ex::text(ex::frame(x + 3.0, y + 2.0, w - 6.0, ex::cursive_height(15.0)), &title, ex::TITLE_FONT, 15.0, INK, Align::Center),
-            ex::text(ex::frame(x + 3.0, y + 21.0, w - 6.0, h - 24.0), &format!("{{anniversaires {name}}}"), "Andika", 15.0, "#222222", Align::Center),
+            ex::text(ex::frame(x + 3.0, y + 21.0, w - 6.0, h - 24.0), &format!("{{{}}}", crate::fields::month_key(m + 1)), "Andika", 15.0, "#222222", Align::Center),
         ]));
     }
     page
@@ -420,9 +421,11 @@ pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
         .filter_map(|e| if let ElementKind::Table(t) = &e.kind { Some(t) } else { None })
         .flat_map(|t| t.cells.iter().map(|c| c.element_id.clone()))
         .collect();
-    page.elements.retain(|e| e.zone || e.locked || cells.contains(&e.id) || matches!(e.kind, ElementKind::Shape(_) | ElementKind::Image(_) | ElementKind::Table(_)));
+    // Un texte qui contient un champ de la classe est gardé tel quel : c'est ce que le modèle remplira.
+    let field = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if crate::fields::has_fields_text(t) || crate::fields::has_class_fields_text(t));
+    page.elements.retain(|e| field(e) || e.zone || e.locked || cells.contains(&e.id) || matches!(e.kind, ElementKind::Shape(_) | ElementKind::Image(_) | ElementKind::Table(_)));
     crate::groups::dissolve_small_groups(&mut page);
-    for e in page.elements.iter_mut().filter(|e| e.zone || cells.contains(&e.id)) {
+    for e in page.elements.iter_mut().filter(|e| !field(e) && (e.zone || cells.contains(&e.id))) {
         match &mut e.kind {
             ElementKind::Photo(p) => {
                 p.asset = None;
@@ -598,7 +601,7 @@ mod tests {
     }
 
     fn name_zones(p: &Page) -> Vec<&Element> {
-        p.elements.iter().filter(|e| e.zone && matches!(&e.kind, ElementKind::Text(t) if t.prompt.as_deref() == Some("Prénom"))).collect()
+        p.elements.iter().filter(|e| matches!(&e.kind, ElementKind::Text(t) if t.content.paragraphs.iter().flat_map(|p| &p.runs).any(|r| r.text == "{prenom}"))).collect()
     }
 
     /// Tout reste à 8 mm au moins des bords, la marge des imprimantes.
@@ -724,6 +727,31 @@ mod tests {
         assert!(ids(&a).is_disjoint(&ids(&b)));
         let g = a.grid.as_ref().unwrap();
         assert!(g.cells.iter().all(|c| a.elements.iter().any(|e| e.id == c.element_id)));
+    }
+
+    #[test]
+    fn a_field_text_stays_in_a_saved_template() {
+        let mut page = Page::new(A4_PORTRAIT);
+        for content in ["Bon anniversaire {prenom} !", "{anniversaires_mars}", "Sortie au zoo"] {
+            page.elements.push(Element {
+                id: new_id(),
+                frame: Frame { x_mm: 10.0, y_mm: 10.0, w_mm: 80.0, h_mm: 20.0, rotation_deg: 0.0 },
+                locked: false,
+                zone: false,
+                group: None,
+                kind: ElementKind::Text(TextProps { content: RichText::plain(content), style: TextStyle::default_zone(), prompt: None, frame: None }),
+                subgroups: Vec::new(),
+                flip_h: false,
+                flip_v: false,
+            });
+        }
+        let t = from_page("Anniversaires", &page, &AssetStore::default());
+        let kept: Vec<&str> = t.page.elements.iter().map(|e| match &e.kind {
+            ElementKind::Text(t) => t.content.paragraphs[0].runs[0].text.as_str(),
+            _ => "",
+        }).collect();
+        // Un texte libre peut nommer un enfant : il n'est toujours pas gardé.
+        assert_eq!(kept, ["Bon anniversaire {prenom} !", "{anniversaires_mars}"]);
     }
 
     #[test]
@@ -898,6 +926,18 @@ mod tests {
     }
 
     #[test]
+    fn builtins_use_unaccented_fields_only() {
+        for t in builtin() {
+            assert!(!crate::fields::upgrade(&mut t.page.clone()), "{}", t.info.name);
+        }
+        for info in crate::examples::list() {
+            for mut p in crate::examples::document(&info.id).unwrap().pages {
+                assert!(!crate::fields::upgrade(&mut p), "{}", info.id);
+            }
+        }
+    }
+
+    #[test]
     fn class_templates_are_filled_as_planned() {
         use crate::fill::{FillMode, block_count, generate, suggested_mode};
         let page = |id: &str| builtin().into_iter().find(|t| t.info.id == id).unwrap().page;
@@ -922,7 +962,8 @@ mod tests {
         let mut lea = crate::class::Student::new("Léa", "");
         lea.birth_date = Some("2022-03-12".into());
         let pages = generate(&page("lettres-mobiles"), std::slice::from_ref(&lea), FillMode::PagePerStudent);
-        let letters = pages[0].elements.iter().filter(|e| matches!(&e.kind, ElementKind::Text(t) if t.prompt.as_deref().is_some_and(|p| p.to_lowercase().starts_with("lettre ")))).count();
+        // Les cases de lettres sont les textes encadrés de tirets.
+        let letters = pages[0].elements.iter().filter(|e| matches!(&e.kind, ElementKind::Text(t) if t.frame.is_some())).count();
         assert_eq!(letters, 9);
         let poster = generate(&page("anniversaires"), &[lea], FillMode::WholeClass);
         let all: String = poster[0].elements.iter().filter_map(|e| match &e.kind { ElementKind::Text(t) => Some(t.content.paragraphs.iter().flat_map(|p| &p.runs).map(|r| r.text.as_str()).collect::<String>()), _ => None }).collect();

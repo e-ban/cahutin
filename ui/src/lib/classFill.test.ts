@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { hasNameFields, matchPhotos, nameFieldsFilled, childOfPage, findChildPage } from "./classFill";
+import { hasNameFields, matchPhotos, childOfPage, findChildPage } from "./classFill";
 import type { Element, Page, Student } from "./types";
 
 const frame = { x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 };
@@ -17,16 +17,14 @@ const text = (prompt: string | null, content: string, zone = prompt !== null): E
 });
 const page = (elements: Element[]): Page => ({ id: "p", size: { width_mm: 210, height_mm: 297 }, grid: null, elements });
 
-test("hasNameFields: a Prénom zone or a {prénom} word, not a photo zone or a title", () => {
-  expect(hasNameFields(page([text("Prénom", "")]))).toBe(true);
+test("hasNameFields: a field in braces, not an old Prénom zone, a photo zone or a title", () => {
+  expect(hasNameFields(page([text(null, "{prenom}")]))).toBe(true);
   expect(hasNameFields(page([text(null, "Bravo {prénom} !")]))).toBe(true);
+  expect(hasNameFields(page([text(null, "{PRENOM_2}")]))).toBe(true);
+  expect(hasNameFields(page([text(null, "{anniversaires_mars}")]))).toBe(true);
+  expect(hasNameFields(page([text("Prénom", "")]))).toBe(false);
   expect(hasNameFields(page([text("Titre", "")]))).toBe(false);
-  expect(hasNameFields(page([text(null, "Bonjour")]))).toBe(false);
-});
-
-test("nameFieldsFilled: a Prénom zone already written", () => {
-  expect(nameFieldsFilled(page([text("Prénom", "")]))).toBe(false);
-  expect(nameFieldsFilled(page([text("Prénom", "Léa")]))).toBe(true);
+  expect(hasNameFields(page([text(null, "Bonjour {toto}")]))).toBe(false);
 });
 
 const s = (id: string, first_name: string, last_name = ""): Student => ({ id, first_name, last_name, level: null, group: "", photo: null, photo_allowed: false, symbol: null });

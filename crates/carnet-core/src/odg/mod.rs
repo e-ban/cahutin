@@ -232,7 +232,7 @@ mod tests {
             // Un champ non rempli s'exporte en clair (« Âge ») : c'est ce qu'on relit.
             let shown = |t: &String| crate::fields::split(t).into_iter().map(|p| match p {
                 crate::fields::Piece::Text(x) => x.to_string(),
-                crate::fields::Piece::Field(f) => crate::fields::label(f).unwrap(),
+                crate::fields::Piece::Field(f) => crate::fields::shown(f).unwrap(),
             }).collect::<String>();
             let (before, after) = (texts(&doc.pages).iter().map(shown).collect::<Vec<_>>(), texts(&back.pages));
             for t in &before {
@@ -276,7 +276,7 @@ mod tests {
     fn an_unfilled_field_exports_as_its_label() {
         let doc = doc_with(vec![text(RichText::plain("Bonjour {prenom} {toto}, {PRENOM_2}"), None)]);
         let content = export(&doc, &AssetStore::default()).xml("content.xml");
-        assert!(content.contains("Bonjour Prénom {toto}, Lettre 2"), "{content}");
+        assert!(content.contains("Bonjour Prénom {toto}, 2"), "{content}");
         assert!(!content.contains("{prenom}"));
     }
 

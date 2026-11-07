@@ -371,7 +371,7 @@ impl Writer<'_> {
                     .into_iter()
                     .map(|p| match p {
                         crate::fields::Piece::Text(t) => t.to_string(),
-                        crate::fields::Piece::Field(f) => crate::fields::label(f).unwrap_or_else(|| format!("{{{f}}}")),
+                        crate::fields::Piece::Field(f) => crate::fields::shown(f).unwrap_or_else(|| format!("{{{f}}}")),
                     })
                     .collect();
                 write_run_text(&mut self.body, &shown, &mut at_start);

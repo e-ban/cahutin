@@ -2,12 +2,18 @@
 // enregistré, son texte d'origine gardé comme invite), ou fixe (verrouillé, gardé tel quel : un titre, un
 // logo). Sans l'un ni l'autre, il n'est pas gardé dans le modèle : une photo ou un texte libre peut montrer un
 // enfant ou le nommer (voir `templates::from_page` dans le moteur).
+import { splitFields } from "./classFields";
 import type { Element } from "./types";
 
 export type TemplateRole = "fill" | "fixed" | "none";
 
-/** Les éléments qui ont un rôle à choisir : textes et photos (formes et pictogrammes sont toujours gardés). */
-export const hasTemplateRole = (e: Element) => e.kind.type === "Text" || e.kind.type === "Photo";
+/** Les éléments qui ont un rôle à choisir : textes et photos (formes et pictogrammes sont toujours gardés), sauf
+ *  un texte qui contient un champ de la classe : il est gardé tel quel. */
+export const hasTemplateRole = (e: Element) => (e.kind.type === "Text" && !hasClassField(e)) || e.kind.type === "Photo";
+
+/** Le texte contient un champ de la classe ({prenom}…). */
+export const hasClassField = (e: Element) =>
+  e.kind.type === "Text" && e.kind.content.paragraphs.some((p) => p.runs.some((r) => splitFields(r.text).some((x) => "field" in x)));
 
 export const templateRole = (e: Element): TemplateRole => (e.zone ? "fill" : e.locked ? "fixed" : "none");
 

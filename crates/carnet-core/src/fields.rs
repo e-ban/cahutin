@@ -100,6 +100,15 @@ pub fn label(field: &str) -> Option<String> {
     )
 }
 
+/// Ce qui s'affiche à la place du champ sur la page : son nom, sauf une lettre, dont la case est petite et qui
+/// ne montre que son numéro (comme les anciennes cases de lettres mobiles).
+pub fn shown(field: &str) -> Option<String> {
+    match letter_index(field) {
+        Some((n, _)) => Some(n.to_string()),
+        None => label(field),
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Piece<'a> {
     Text(&'a str),
@@ -246,6 +255,13 @@ mod tests {
         assert_eq!(label("anniversaires_aout").as_deref(), Some("Anniversaires d'août"));
         assert_eq!(label("anniversaires_mars").as_deref(), Some("Anniversaires de mars"));
         assert_eq!(label("toto"), None);
+    }
+
+    #[test]
+    fn a_letter_shows_its_number_only() {
+        assert_eq!(shown("PRENOM_10").as_deref(), Some("10"));
+        assert_eq!(shown("prenom").as_deref(), Some("Prénom"));
+        assert_eq!(shown("toto"), None);
     }
 
     #[test]

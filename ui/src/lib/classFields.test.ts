@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { FIELDS, fieldLabel, letterKey, monthKey, splitFields } from "./classFields";
+import { FIELDS, fieldLabel, fieldShown, letterKey, monthKey, splitFields } from "./classFields";
 
 test("splitFields keeps unknown braces as text", () => {
   expect(splitFields("Bonjour {prenom}, {toto} !")).toEqual([{ text: "Bonjour " }, { field: "prenom" }, { text: ", {toto} !" }]);
@@ -22,4 +22,10 @@ test("labels, letters and months", () => {
   expect(letterKey(2, false)).toBe("prenom_2");
   expect(monthKey(2)).toBe("anniversaires_fevrier");
   expect(monthKey(12)).toBe("anniversaires_decembre");
+});
+
+test("a letter shows its number only: its case is small", () => {
+  expect(fieldShown("PRENOM_10")).toBe("10");
+  expect(fieldShown("prenom_2")).toBe("2");
+  expect(fieldShown("prenom")).toBe("Prénom");
 });

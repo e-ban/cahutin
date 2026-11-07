@@ -31,11 +31,6 @@ export function insertField(key: string) {
   activeTip()?.chain().focus().insertContent({ type: "classField", attrs: { key } }).run();
 }
 
-/** Insère `text` au curseur pendant l'écriture (le prénom de l'élève, par exemple). */
-export function insertAtCursor(text: string) {
-  activeTip()?.chain().focus().insertContent(text).run();
-}
-
 export function setFont(font: string) {
   const tip = activeTip();
   if (tip) tip.chain().focus().setFontFamily(font).run();

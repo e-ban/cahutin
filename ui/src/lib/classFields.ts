@@ -57,6 +57,13 @@ export function fieldLabel(key: string): string | null {
   return FIELDS.find((f) => f.key === (ALIASES[key] ?? key))?.label ?? null;
 }
 
+/** Ce qui s'affiche à la place du champ sur la page : son nom, sauf une lettre, dont la case est petite et qui ne
+ *  montre que son numéro (comme fields::shown dans le moteur). */
+export function fieldShown(key: string): string | null {
+  const letter = letterOf(key);
+  return letter ? String(letter.n) : fieldLabel(key);
+}
+
 /** Un champ d'élève (lettre comprise), pas un champ de toute la classe. */
 export const isStudentField = (key: string) => !!letterOf(key) || FIELDS.some((f) => f.key === (ALIASES[key] ?? key));
 

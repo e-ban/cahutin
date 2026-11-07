@@ -5,6 +5,9 @@
   import { centeredFrame, textElement } from "../../lib/factory";
   import { fr } from "../../lib/i18n/fr";
   import { withTemplateRole } from "../../lib/templateRole";
+  import { fieldText } from "../../lib/fieldEdit";
+  import { insertField } from "../../lib/textFormat.svelte";
+  import FieldMenu from "../FieldMenu.svelte";
   import type { Align, Element, Pattern, RichText } from "../../lib/types";
 
   interface Preset {
@@ -63,6 +66,17 @@
     editor.selection = [el.id];
   }
 
+  /** Un champ : au curseur si l'on écrit, sinon un nouveau texte qui le contient, choisi. */
+  function addField(key: string) {
+    if (editor.editingText) {
+      insertField(key);
+      return;
+    }
+    const el = fieldText(editor.page, key);
+    editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+    editor.selection = [el.id];
+  }
+
   let cols = $state(3);
   let rows = $state(3);
 
@@ -96,6 +110,9 @@
       {p.label}
     </button>
   {/each}
+  <h3>{fr.fieldsTitle}</h3>
+  <p class="hint">{fr.fieldsHint}</p>
+  <FieldMenu onpick={addField} />
   <h3>{fr.writingLines}</h3>
   <div class="lines">
     <button onclick={() => addLines("Seyes")}>{fr.patternSeyes}</button>
@@ -133,6 +150,11 @@
   .preset.hollow {
     -webkit-text-fill-color: transparent;
     -webkit-text-stroke: 0.6px currentColor;
+  }
+  .hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9em;
   }
   .preset {
     text-align: left;

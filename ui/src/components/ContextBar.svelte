@@ -22,7 +22,9 @@
   import { settings } from "../lib/settings.svelte";
   import { handlePadding } from "../lib/geometry";
   import { mmToPx } from "../lib/units";
-  import { hasTemplateRole, templateRole, withTemplateRole } from "../lib/templateRole";
+  import { hasClassField, hasTemplateRole, templateRole, withTemplateRole } from "../lib/templateRole";
+  import { fieldsOf, setField } from "../lib/fieldEdit";
+  import FieldMenu from "./FieldMenu.svelte";
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
   import { inTableGroup, isTableCell, selectedTable } from "../lib/table";
@@ -32,7 +34,7 @@
   import { cutMarks, type CutStyle } from "../lib/cutMarks";
   import { friezeMotifs, resolveMotifs } from "../lib/friezeMotifs.svelte";
   import { setPictosOutline } from "../lib/pictos.svelte";
-  import { ALIGNS, VALIGNS, currentFont, currentSize, insertAtCursor, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
+  import { ALIGNS, VALIGNS, currentFont, currentSize, insertField, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
   import type { NamedTextStyle, Frame } from "../lib/types";
 
   let { pageEl, stageEl }: { pageEl: HTMLElement | undefined; stageEl: HTMLElement | undefined } = $props();
@@ -40,8 +42,6 @@
   const ROTATION_HANDLE_GAP = 44;
 
   type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields" | "repeat" | "styles" | "frieze" | "more";
-  /** Champs de la classe, remplacés pour chaque élève quand on génère les pages. */
-  const CLASS_FIELDS = ["{prénom}", "{PRÉNOM}", "{nom}", "{groupe}", "{âge}", "{anniversaire}"];
   let pop = $state<Pop | null>(null);
   let barEl = $state<HTMLElement>();
   let pos = $state<{ left: number; top: number } | null>(null);
@@ -265,6 +265,15 @@
     editor.selection = editor.selection.filter((id) => !ids.includes(id));
   }
 
+  /** Un champ de la classe : au curseur pendant l'écriture (il remplace la pastille choisie), sinon ajouté au
+   *  texte choisi, ou à la place de son seul champ. */
+  function pickField(key: string) {
+    const id = selected?.id;
+    if (!id) return;
+    if (editor.editingText === id) insertField(key);
+    else editor.updateElement(id, (e) => (e.kind.type === "Text" ? { ...e, kind: { ...e.kind, content: setField(e.kind.content, key) } } : e));
+  }
+
   function setRole(role: "fill" | "fixed") {
     const id = selected?.id;
     if (id) editor.updateElement(id, (e) => withTemplateRole(e, role));
@@ -325,6 +334,9 @@
         <button role="radio" aria-checked={role === "fixed"} class:on={role === "fixed"} title={fr.templateFixedHint} onclick={() => setRole("fixed")}>{fr.templateFixed}</button>
         {#if role === "none"}<span class="dropped">{fr.templateNotKept}</span>{/if}
       </div>
+      <span class="sep"></span>
+    {:else if editor.templateMode && selected && hasClassField(selected)}
+      <span class="dropped">{fr.templateField}</span>
       <span class="sep"></span>
     {/if}
     {#if many}
@@ -460,19 +472,14 @@
       <button title={fr.bold} class:on={isMarkActive("bold", t)} disabled={family && !family.has_bold} onclick={() => toggleMark("bold")}><b>G</b></button>
       <button title={fr.italic} class:on={isMarkActive("italic", t)} disabled={family && !family.has_italic} onclick={() => toggleMark("italic")}><i>I</i></button>
       <button title={fr.underline} class:on={isMarkActive("underline", t)} onclick={() => toggleMark("underline")}><u>S</u></button>
-      {#if editor.editingText === selected.id}
-        <button title={fr.insertFirstNameHint} onclick={() => insertAtCursor("{prénom}")}>＋<span class="lbl"> {fr.insertFirstName}</span></button>
-        <div class="wrap">
-          <button title={fr.insertFieldHint} aria-label={fr.insertFieldHint} onclick={() => toggle("fields")}>▾</button>
-          {#if pop === "fields"}
-            <div class="pop fields">
-              {#each CLASS_FIELDS as f (f)}
-                <button onclick={() => (insertAtCursor(f), (pop = null))}>{fr.classFields[f]}</button>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      {/if}
+      <div class="wrap">
+        <button class="field-btn" title={fr.fieldButtonHint} onclick={() => toggle("fields")}>&#123; &#125;<span class="lbl"> {fr.fieldButton}</span> ▾</button>
+        {#if pop === "fields"}
+          <div class="pop fields">
+            <FieldMenu current={fieldsOf(t.content)} onpick={(key) => (pickField(key), (pop = null))} />
+          </div>
+        {/if}
+      </div>
       <button title={fr.outlineHint} class:on={!!t.style.outline} aria-pressed={!!t.style.outline} onclick={() => updateTextStyle({ outline: !t.style.outline })}><span class="hollow-a">A</span></button>
       <div class="wrap">
         <button title={fr.color} aria-label={fr.color} onclick={() => toggle("color")}><span class="dot" style:background={t.style.color}></span></button>

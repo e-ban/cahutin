@@ -4,7 +4,7 @@
   import TextEditor from "../TextEditor.svelte";
   import { frameMarks } from "../../lib/background";
   import { assetUrl } from "../../lib/api";
-  import { fieldLabel, splitFields } from "../../lib/classFields";
+  import { fieldLabel, fieldShown, splitFields } from "../../lib/classFields";
   import { alignToCss, textPadding } from "../../lib/richtext";
   import { dashArray } from "../../lib/strokes";
   import { onFontsLoaded } from "../../lib/fontsLoaded";
@@ -116,7 +116,7 @@
       {#each props.content.paragraphs as p}
         <p style:text-align={p.align ? alignToCss(p.align) : null}>
           {#each p.runs as r}<span style={runStyle(r)}
-              >{#each splitFields(r.text) as part}{#if "field" in part}<span class="class-field">{fieldLabel(part.field)}</span>{:else}{part.text}{/if}{/each}</span
+              >{#each splitFields(r.text) as part}{#if "field" in part}<span class="class-field" title={fieldLabel(part.field)}>{fieldShown(part.field)}</span>{:else}{part.text}{/if}{/each}</span
             >{/each}{#if p.runs.every((r) => r.text === "")}<br />{/if}
         </p>
       {/each}
@@ -195,15 +195,16 @@
   }
   /* Un champ de la classe : une pastille qui dit son nom ; à l'impression, son nom en clair (print.css).
      Aussi dans l'éditeur, d'où le sélecteur global. */
+  /* En ligne, comme le texte : un nom long (« Anniversaires de septembre ») passe à la ligne, chaque morceau
+     gardant sa pastille. */
   :global(.class-field) {
-    display: inline-block;
-    padding: 0 0.35em;
+    padding: 0 0.3em;
     border: 1px solid #2b6cb0;
     border-radius: 0.6em;
     background: #ebf4ff;
     color: #1a4a80;
-    line-height: 1.15;
-    white-space: nowrap;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
   :global(:root[data-contrast] .class-field) {
     border-width: 2px;

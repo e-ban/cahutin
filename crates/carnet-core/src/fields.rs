@@ -494,7 +494,7 @@ mod tests {
     #[test]
     fn the_ui_lists_the_same_fields() {
         let ui = include_str!("../../../ui/src/lib/classFields.ts");
-        for k in KEYS {
+        for k in KEYS.iter().chain(&DATE_KEYS).chain(&CLASS_KEYS) {
             let entry = format!("{{ key: \"{k}\", label: \"{}\"", label(k).unwrap());
             assert!(ui.contains(&entry), "{entry} absent de classFields.ts");
         }

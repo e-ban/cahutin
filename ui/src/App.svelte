@@ -5,6 +5,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { onMount, tick } from "svelte";
   import Modal from "./components/Modal.svelte";
+  import DateDialog from "./components/DateDialog.svelte";
   import PrintRoot from "./components/PrintRoot.svelte";
   import { cancelFileImport, confirmLeave, exportOdg, exportPdf, importPaths, openPath, save } from "./lib/fileActions";
   import { fr } from "./lib/i18n/fr";
@@ -368,6 +369,7 @@
   <UpdateBanner />
   {#if editor.showBackground}<BackgroundPanel />{/if}
   <Modal />
+<DateDialog />
   {#if editor.blurring}<FaceBlurDialog assetId={editor.blurring} onclose={() => (editor.blurring = null)} />{/if}
   {#if generateOpen && classes.current}<GenerateDialog onclose={() => (generateOpen = false)} />{/if}
   {#if editor.fileImport}

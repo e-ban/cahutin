@@ -1,13 +1,15 @@
 // Ce que l'interface doit savoir de la classe sur la page courante : y a-t-il des prénoms à remplir, et
 // quelle photo va à quel enfant d'après le nom de son fichier.
-import { splitFields } from "./classFields";
+import { isMonthField, isStudentField, splitFields } from "./classFields";
 import { normalize } from "./fontSearch";
 import { displayNames } from "./phototheque";
 import type { Element, Page, Student } from "./types";
 
-/** Un texte avec un champ de la classe : d'un élève, ou de toute la classe ({anniversaires_mars}). */
+/** Un texte avec un champ d'élève, ou de toute la classe ({anniversaires_mars}) ; pas la date ni l'école, qui
+ *  s'écrivent à la création de la page. */
 const hasField = (e: Element) =>
-  e.kind.type === "Text" && e.kind.content.paragraphs.some((p) => p.runs.some((r) => splitFields(r.text).some((x) => "field" in x)));
+  e.kind.type === "Text" &&
+  e.kind.content.paragraphs.some((p) => p.runs.some((r) => splitFields(r.text).some((x) => "field" in x && (isStudentField(x.field) || isMonthField(x.field)))));
 
 /** La page attend la classe : un texte y contient un champ ({prenom}, {age}…). Remplie, elle n'en a plus. */
 export function hasNameFields(page: Page): boolean {

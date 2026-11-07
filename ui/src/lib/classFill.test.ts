@@ -25,6 +25,8 @@ test("hasNameFields: a field in braces, not an old Prénom zone, a photo zone or
   expect(hasNameFields(page([text("Prénom", "")]))).toBe(false);
   expect(hasNameFields(page([text("Titre", "")]))).toBe(false);
   expect(hasNameFields(page([text(null, "Bonjour {toto}")]))).toBe(false);
+  // La date et la classe s'écrivent à la création de la page : pas de bandeau pour elles.
+  expect(hasNameFields(page([text(null, "{date} {ecole}")]))).toBe(false);
 });
 
 const s = (id: string, first_name: string, last_name = ""): Student => ({ id, first_name, last_name, level: null, group: "", photo: null, photo_allowed: false, symbol: null });

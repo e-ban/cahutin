@@ -848,6 +848,6 @@ mirrorH: "Miroir gauche-droite",
     prefsSave: "Enregistrer les réglages",
     prefsSaved: "Réglages enregistrés, la connexion marche.",
     prefsDisable: "Désactiver l'assistant",
-    prefsRemote: "Ce service n'est pas sur cet ordinateur : la disposition de vos pages et vos demandes partiront vers lui, sur Internet.",
+    prefsRemote: "Ce service n'est pas sur cet ordinateur : à chaque demande, la disposition de vos pages et ce que vous écrivez à l'assistant partiront vers lui, sur Internet, jamais les textes, les photos ni la liste de la classe. N'écrivez pas de prénom d'élève dans une demande.",
   },
 } as const;

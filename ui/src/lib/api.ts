@@ -68,7 +68,12 @@ export const classImportPhoto = (path: string) => invoke<AssetMeta>("class_impor
 export const classPlan = (page: Page) => invoke<GeneratePlan>("class_plan", { page });
 export const classParseList = (text: string) => invoke<Student[]>("class_parse_list", { text });
 export const classReadList = (path: string) => invoke<Student[]>("class_read_list", { path });
-export const classGenerate = (page: Page, students: Student[], mode: FillMode, classPhotos: string[]) => invoke<ImportedPages>("class_generate", { page, students, mode, classPhotos });
+export const classGenerate = (page: Page, students: Student[], mode: FillMode, classPhotos: string[], cls: Class | null = null) =>
+  invoke<ImportedPages>("class_generate", { page, students, mode, classPhotos, class: cls });
+/** Écrit les champs de la date (`date` : « 2026-11-09 ») et de la classe d'une page ; les champs d'élève restent. */
+export const fillAutoFields = (page: Page, date: string | null, cls: Class | null) => invoke<Page>("fill_auto_fields", { page, date, class: cls });
+/** Chaque champ de la date puis de la classe, avec ce qu'il donne aujourd'hui (vide sans classe). */
+export const autoFieldExamples = (cls: Class | null) => invoke<[string, string][]>("auto_field_examples", { class: cls });
 export const listTemplates = () => invoke<TemplateInfo[]>("list_templates");
 export const instantiateTemplate = (id: string) => invoke<InstantiatedPage>("instantiate_template", { id });
 export const savePageAsTemplate = (name: string, page: Page) => invoke<TemplateInfo>("save_page_as_template", { name, page });

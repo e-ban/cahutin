@@ -267,6 +267,15 @@ mod tests {
     }
 
     /// Une image à colorier part en contour noir et revient à colorier.
+    /// Une page à remplir exportée telle quelle : on lit le nom du champ, pas `{prenom}`.
+    #[test]
+    fn an_unfilled_field_exports_as_its_label() {
+        let doc = doc_with(vec![text(RichText::plain("Bonjour {prenom} {toto}, {PRENOM_2}"), None)]);
+        let content = export(&doc, &AssetStore::default()).xml("content.xml");
+        assert!(content.contains("Bonjour Prénom {toto}, Lettre 2"), "{content}");
+        assert!(!content.contains("{prenom}"));
+    }
+
     /// Une étoile, un pictogramme et une flèche en miroir : LibreOffice reçoit le miroir (géométrie, style de
     /// l'image, bouts de la flèche échangés), et la relecture d'un export retrouve celui des deux premiers.
     #[test]

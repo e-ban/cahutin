@@ -366,7 +366,15 @@ impl Writer<'_> {
                 let props = self.text_props(run, &t.style);
                 let t_style = self.reg.style("text", "T", props);
                 self.body.open("text:span", &[("text:style-name", &t_style)]);
-                write_run_text(&mut self.body, &run.text, &mut at_start);
+                // Un champ de la classe non rempli s'écrit en clair (« Prénom »), comme à l'impression.
+                let shown: String = crate::fields::split(&run.text)
+                    .into_iter()
+                    .map(|p| match p {
+                        crate::fields::Piece::Text(t) => t.to_string(),
+                        crate::fields::Piece::Field(f) => crate::fields::label(f).unwrap_or_else(|| format!("{{{f}}}")),
+                    })
+                    .collect();
+                write_run_text(&mut self.body, &shown, &mut at_start);
                 self.body.close();
             }
             self.body.close();

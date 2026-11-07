@@ -5,6 +5,7 @@ pub mod class;
 pub mod crop;
 pub mod examples;
 pub mod faces;
+pub mod fields;
 pub mod fill;
 pub mod fonts;
 mod fsutil;

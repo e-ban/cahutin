@@ -219,7 +219,7 @@ pub fn definitions() -> Value {
         },
         {
             "name": "set_template_role",
-            "description": "Rôle d'un texte ou d'une photo dans un modèle : fill (zone vidée à chaque usage ; avec « field », remplie avec la classe), fixed (gardé tel quel et verrouillé : à faire en dernier), none (pas gardé dans le modèle).",
+            "description": "Rôle d'un texte ou d'une photo dans un modèle : fill (zone vidée à chaque usage), fixed (gardé tel quel et verrouillé : à faire en dernier), none (pas gardé dans le modèle). Avec « field », le texte devient ce champ de la classe, gardé tel quel ; un texte qui contient un champ n'a pas de rôle.",
             "inputSchema": { "type": "object", "required": ["element_id", "role"], "properties": {
                 "element_id": id, "role": { "type": "string", "enum": ["fill", "fixed", "none"] }, "field": field,
             } },
@@ -276,10 +276,10 @@ pub fn definitions() -> Value {
             "name": SAVE_AS_TEMPLATE,
             "description": "Enregistre une page comme modèle dans le tiroir Modèles. Seulement si l'utilisateur demande un modèle. \
 Le modèle garde les formes, les images, les zones à remplir, les éléments fixes et les textes que vous avez écrits. \
-Cahutin le remplit avec la classe : les champs (add_text avec field, ou les mots {prénom}, {PRÉNOM}, {nom}, {groupe}, {âge}, {anniversaire} dans un texte, \
-{anniversaires janvier}… pour une affiche de toute la classe), et chaque case photo vide reçoit la photo de l'élève ou son symbole. \
+Cahutin le remplit avec la classe : les champs entre accolades, sans accents, dans n'importe quel texte (add_text avec field, ou {prenom}, {PRENOM}, {nom}, {groupe}, {age}, {anniversaire} écrits dans un texte, \
+{anniversaires_janvier}… pour une affiche de toute la classe), et chaque case photo vide reçoit la photo de l'élève ou son symbole. \
 Pour des étiquettes : un cadre et ses champs, groupés, puis cut_marks et repeat : un élève par bloc (class_fill de get_layout dit « sheet »). \
-Lettres mobiles : un champ Lettre 1, Lettre 2… par case.",
+Lettres mobiles : un champ {PRENOM_1}, {PRENOM_2}… par case.",
             "inputSchema": { "type": "object", "required": ["page", "name"], "properties": { "page": page, "name": { "type": "string", "description": "Nom du modèle" } } },
         },
     ])

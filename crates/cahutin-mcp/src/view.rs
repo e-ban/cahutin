@@ -76,10 +76,11 @@ fn element_view(doc: &Document, page: &Page, e: &Element, selected: bool) -> Val
             "outline": t.style.outline.unwrap_or(false),
             "padding_mm": t.style.padding(),
             "style": t.style.named,
-            // L'invite n'est montrée que si c'est un champ de la classe (« Prénom ») : sinon, elle peut
-            // contenir n'importe quoi.
-            "field": t.prompt.as_deref().filter(|p| e.zone && carnet_core::fill::is_field_prompt(p)),
-            "class_markers": carnet_core::fill::uses_markers(e),
+            // Les champs de la classe du texte ({prenom}…), noms de Cahutin ; jamais les mots autour.
+            "fields": t.content.paragraphs.iter().flat_map(|p| &p.runs).flat_map(|r| carnet_core::fields::split(&r.text)).filter_map(|p| match p {
+                carnet_core::fields::Piece::Field(f) => Some(f.to_string()),
+                carnet_core::fields::Piece::Text(_) => None,
+            }).collect::<Vec<_>>(),
             "fill": t.frame.as_ref().and_then(|fr| fr.fill.clone()),
             "border": t.frame.as_ref().and_then(|fr| fr.stroke.as_ref()).map(stroke_view),
             "has_background_image": t.frame.as_ref().is_some_and(|fr| fr.image.is_some()),
@@ -237,8 +238,8 @@ mod tests {
             for p in view["pages"].as_array_mut().unwrap() {
                 for e in p["elements"].as_array_mut().unwrap() {
                     e.as_object_mut().unwrap().remove("name");
-                    // Le nom d'un champ (« Prénom ») est celui de Cahutin, jamais une donnée de l'enfant.
-                    e.as_object_mut().unwrap().remove("field");
+                    // Le nom d'un champ ({prenom}) est celui de Cahutin, jamais une donnée de l'enfant.
+                    e.as_object_mut().unwrap().remove("fields");
                 }
             }
             let out = view.to_string();

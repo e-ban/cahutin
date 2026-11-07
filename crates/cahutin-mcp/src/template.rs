@@ -1,38 +1,56 @@
 //! Préparer un modèle : le rôle de chaque texte ou photo (à remplir, fixe), les champs que la classe
-//! remplit (`carnet_core::fill`), et la grille de la page. Mêmes règles que `ui/src/lib/templateRole.ts`.
+//! remplit (`carnet_core::fields`, entre accolades), et la grille de la page. Mêmes règles que
+//! `ui/src/lib/templateRole.ts`.
 
-use carnet_core::{Document, ElementKind, ZoneKind, fill, grid};
+use carnet_core::{Document, ElementKind, RichText, ZoneKind, fields, grid};
 use serde_json::{Value, json};
 
 /// Les champs possibles, pour les messages et la description de l'outil.
 pub fn fields_hint() -> String {
-    format!("{}, Lettre 1, Lettre 2… (en capitale) ou lettre 1… (telle qu'elle s'écrit)", fill::FIELD_PROMPTS.join(", "))
+    let simple: Vec<String> = fields::KEYS.iter().map(|k| format!("{{{k}}}")).collect();
+    format!("{}, {{PRENOM_1}}, {{PRENOM_2}}… (une lettre en capitale), {{prenom_1}}… (telle qu'elle s'écrit), {{anniversaires_mars}}… (affiche de toute la classe)", simple.join(", "))
 }
 
-/// Une invite de champ que la classe remplit, sinon une erreur qui les liste.
-pub fn check_field(field: &str) -> Result<(), String> {
-    if fill::is_field_prompt(field) { Ok(()) } else { Err(format!("champ inconnu : {field} (champs : {})", fields_hint())) }
+/// Le nom d'un champ de la classe, sans accolades ni accents ; sinon une erreur qui les liste.
+pub fn check_field(field: &str) -> Result<String, String> {
+    let f = field.trim().trim_start_matches('{').trim_end_matches('}');
+    let known = matches!(fields::split(&format!("{{{f}}}"))[..], [fields::Piece::Field(_)]);
+    if known && fields::fold(f) == f {
+        Ok(f.to_string())
+    } else {
+        Err(format!("champ inconnu : {field} (champs, sans accents : {})", fields_hint()))
+    }
 }
 
 fn str_arg<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
     args.get(key).and_then(Value::as_str).ok_or(format!("« {key} » manque"))
 }
 
-/// Rôle d'un texte ou d'une photo dans le modèle : `fill` (une zone, vidée à chaque usage ; `field` en fait
-/// un champ de la classe), `fixed` (verrouillé, gardé tel quel) ou `none` (pas gardé dans le modèle).
+/// Rôle d'un texte ou d'une photo dans le modèle : `fill` (une zone, vidée à chaque usage), `fixed`
+/// (verrouillé, gardé tel quel) ou `none` (pas gardé dans le modèle). Avec `field`, le texte devient ce champ
+/// de la classe, gardé tel quel. Un texte qui contient déjà un champ n'a pas de rôle à choisir.
 pub fn set_template_role(doc: &mut Document, args: &Value) -> Result<Value, String> {
     let id = str_arg(args, "element_id")?;
     let role = str_arg(args, "role")?;
-    let field = args.get("field").and_then(Value::as_str);
-    if let Some(f) = field {
-        check_field(f)?;
-    }
+    let field = args.get("field").and_then(Value::as_str).map(check_field).transpose()?;
     let e = doc.pages.iter_mut().flat_map(|p| &mut p.elements).find(|e| e.id == id).ok_or(format!("aucun élément « {id} »"))?;
     if !matches!(e.kind, ElementKind::Text(_) | ElementKind::Photo(_)) {
         return Err("seuls les textes et les photos ont un rôle : formes et images sont toujours gardées dans le modèle".into());
     }
     if e.locked {
         return Err(format!("l'élément « {id} » est verrouillé par l'utilisateur"));
+    }
+    if let Some(f) = field {
+        let ElementKind::Text(t) = &mut e.kind else {
+            return Err("un champ (« field ») se met sur un texte ; une case photo vide reçoit la photo ou le symbole de l'élève".into());
+        };
+        t.content = RichText::plain(&format!("{{{f}}}"));
+        t.prompt = None;
+        e.zone = false;
+        return Ok(json!({ "ok": true }));
+    }
+    if matches!(&e.kind, ElementKind::Text(t) if fields::has_fields_text(t) || fields::has_class_fields_text(t)) {
+        return Err("ce texte contient un champ de la classe : il est gardé tel quel dans le modèle, sans rôle à choisir".into());
     }
     match role {
         "fixed" => (e.zone, e.locked) = (false, true),
@@ -43,12 +61,7 @@ pub fn set_template_role(doc: &mut Document, args: &Value) -> Result<Value, Stri
             if let ElementKind::Text(t) = &mut e.kind {
                 let words = t.content.paragraphs.iter().map(|p| p.runs.iter().map(|r| r.text.as_str()).collect::<String>()).collect::<Vec<_>>().join(" ");
                 let words = words.trim().to_string();
-                t.prompt = Some(match field {
-                    Some(f) => f.to_string(),
-                    None => t.prompt.clone().filter(|p| !p.is_empty()).unwrap_or(if words.is_empty() { "Texte".into() } else { words }),
-                });
-            } else if field.is_some() {
-                return Err("un champ (« field ») se met sur un texte ; une case photo vide reçoit la photo ou le symbole de l'élève".into());
+                t.prompt = Some(t.prompt.clone().filter(|p| !p.is_empty()).unwrap_or(if words.is_empty() { "Texte".into() } else { words }));
             }
         }
         r => return Err(format!("rôle inconnu : {r} (fill, fixed, none)")),
@@ -115,10 +128,6 @@ mod tests {
         let ElementKind::Text(tp) = &el(&d, &t).kind else { unreachable!() };
         // Comme dans l'interface : ses mots deviennent l'invite.
         assert_eq!((el(&d, &t).zone, tp.prompt.as_deref()), (true, Some("Mon titre")));
-        set_template_role(&mut d, &json!({ "element_id": t, "role": "fill", "field": "Âge" })).unwrap();
-        let ElementKind::Text(tp) = &el(&d, &t).kind else { unreachable!() };
-        assert_eq!(tp.prompt.as_deref(), Some("Âge"));
-        assert!(set_template_role(&mut d, &json!({ "element_id": t, "role": "fill", "field": "Taille" })).unwrap_err().contains("Prénom"));
         set_template_role(&mut d, &json!({ "element_id": t, "role": "none" })).unwrap();
         assert!(!el(&d, &t).zone);
         set_template_role(&mut d, &json!({ "element_id": t, "role": "fixed" })).unwrap();
@@ -133,26 +142,37 @@ mod tests {
     }
 
     #[test]
-    fn a_text_can_be_added_as_a_field() {
+    fn a_field_is_a_text_holding_it() {
         let mut d = Document::new("x");
-        let t = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 50, "h_mm": 10, "field": "Prénom", "style": "prenom" })).unwrap());
+        let t = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 50, "h_mm": 10, "field": "prenom", "style": "prenom" })).unwrap());
+        let words = |d: &Document, id: &str| match &el(d, id).kind {
+            ElementKind::Text(t) => t.content.paragraphs.iter().flat_map(|p| &p.runs).map(|r| r.text.clone()).collect::<String>(),
+            _ => unreachable!(),
+        };
         let ElementKind::Text(tp) = &el(&d, &t).kind else { unreachable!() };
-        assert_eq!((el(&d, &t).zone, tp.prompt.as_deref(), tp.content.is_blank(), tp.style.named.as_deref()), (true, Some("Prénom"), true, Some("prenom")));
+        assert_eq!((el(&d, &t).zone, tp.prompt.as_deref(), words(&d, &t).as_str(), tp.style.named.as_deref()), (false, None, "{prenom}", Some("prenom")));
+        // Un texte devient un champ ; il n'a plus de rôle à choisir.
+        let u = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 20, "w_mm": 50, "h_mm": 10, "content": "Mon titre" })).unwrap());
+        set_template_role(&mut d, &json!({ "element_id": u, "role": "fill", "field": "{PRENOM_2}" })).unwrap();
+        assert_eq!((el(&d, &u).zone, words(&d, &u).as_str()), (false, "{PRENOM_2}"));
+        assert!(set_template_role(&mut d, &json!({ "element_id": u, "role": "fill" })).unwrap_err().contains("champ"));
+        assert!(set_template_role(&mut d, &json!({ "element_id": u, "role": "fill", "field": "taille" })).unwrap_err().contains("{prenom}"));
+        assert!(set_template_role(&mut d, &json!({ "element_id": u, "role": "fill", "field": "âge" })).unwrap_err().contains("sans accents"));
         assert!(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 5, "h_mm": 5 })).unwrap_err().contains("content"));
     }
 
     #[test]
-    fn the_view_names_known_fields_only() {
+    fn the_view_lists_the_fields_of_each_text() {
         let mut d = Document::new("x");
-        let a = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 50, "h_mm": 10, "field": "Lettre 2" })).unwrap());
+        let a = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 50, "h_mm": 10, "field": "PRENOM_2" })).unwrap());
         let b = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 20, "w_mm": 50, "h_mm": 10, "content": "Chez Mamie Josette" })).unwrap());
         set_template_role(&mut d, &json!({ "element_id": b, "role": "fill" })).unwrap();
-        edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 40, "w_mm": 50, "h_mm": 10, "content": "Joyeux anniversaire {prénom}" })).unwrap();
+        edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 1, "y_mm": 40, "w_mm": 50, "h_mm": 10, "content": "Joyeux anniversaire {prenom}, {age} {toto}" })).unwrap();
         let v = view::layout(&d, None, &[]);
         let els = v["pages"][0]["elements"].as_array().unwrap();
-        assert_eq!(els.iter().find(|e| e["id"] == a.as_str()).unwrap()["field"], "Lettre 2");
-        assert!(els.iter().find(|e| e["id"] == b.as_str()).unwrap()["field"].is_null());
-        assert_eq!(els[2]["class_markers"], true);
+        assert_eq!(els.iter().find(|e| e["id"] == a.as_str()).unwrap()["fields"], json!(["PRENOM_2"]));
+        assert_eq!(els.iter().find(|e| e["id"] == b.as_str()).unwrap()["fields"], json!([]));
+        assert_eq!(els[2]["fields"], json!(["prenom", "age"]));
         assert!(!v.to_string().contains("Josette"), "une invite libre ne sort pas");
         assert!(!v.to_string().contains("anniversaire {"), "ni un texte");
     }
@@ -181,8 +201,8 @@ mod tests {
     fn a_label_made_with_the_tools_fills_with_the_class() {
         let mut d = Document::new("x");
         let frame = new_id_of(edit::add_shape(&mut d, &json!({ "page": 0, "x_mm": 10, "y_mm": 10, "w_mm": 90, "h_mm": 40, "shape": "rect", "border_color": "#333333" })).unwrap());
-        let name = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 15, "y_mm": 15, "w_mm": 80, "h_mm": 15, "field": "Prénom" })).unwrap());
-        let age = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 15, "y_mm": 32, "w_mm": 80, "h_mm": 12, "field": "Âge" })).unwrap());
+        let name = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 15, "y_mm": 15, "w_mm": 80, "h_mm": 15, "field": "prenom" })).unwrap());
+        let age = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 15, "y_mm": 32, "w_mm": 80, "h_mm": 12, "field": "age" })).unwrap());
         tables::repeat(&mut d, &json!({ "element_ids": [frame, name, age], "cols": 2, "rows": 2 })).unwrap();
         let page = &d.pages[0];
         assert_eq!(fill::suggested_mode(page), fill::FillMode::Sheet);
@@ -201,14 +221,15 @@ mod tests {
     fn a_saved_sheet_template_keeps_its_texts_and_cut_marks_and_fills() {
         let mut d = Document::new("x");
         let frame = new_id_of(edit::add_shape(&mut d, &json!({ "page": 0, "x_mm": 10, "y_mm": 10, "w_mm": 90, "h_mm": 40, "shape": "rect" })).unwrap());
-        let name = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 15, "y_mm": 15, "w_mm": 80, "h_mm": 15, "field": "Prénom" })).unwrap());
-        let wish = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 15, "y_mm": 32, "w_mm": 80, "h_mm": 12, "content": "Bon anniversaire {prénom} !" })).unwrap());
+        let name = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 15, "y_mm": 15, "w_mm": 80, "h_mm": 15, "field": "prenom" })).unwrap());
+        let wish = new_id_of(edit::add_text(&mut d, &json!({ "page": 0, "x_mm": 15, "y_mm": 32, "w_mm": 80, "h_mm": 12, "content": "Bon anniversaire {prenom} !" })).unwrap());
         crate::arrange::group(&mut d, &json!({ "element_ids": [frame, name, wish] })).unwrap();
         crate::decor::cut_marks(&mut d, &json!({ "element_ids": [frame], "style": "corners" })).unwrap();
         tables::repeat(&mut d, &json!({ "element_ids": [frame], "cols": 2, "rows": 2 })).unwrap();
         let page = &d.pages[0];
         let keep: Vec<String> = page.elements.iter().filter(|e| matches!(&e.kind, ElementKind::Text(t) if !t.content.is_blank())).map(|e| e.id.clone()).collect();
-        assert_eq!(keep.len(), 4);
+        // Les quatre champs {prenom} et les quatre vœux écrits par l'assistant.
+        assert_eq!(keep.len(), 8);
         let saved = templates::from_page_keeping("Anniversaires", page, &photo::AssetStore::default(), &keep);
         assert_eq!(saved.page.elements.iter().filter(|e| crate::decor::is_cut_mark(e)).count(), 32);
         assert_eq!(fill::suggested_mode(&saved.page), fill::FillMode::Sheet);

@@ -22,6 +22,15 @@ fn num(v: f64) -> String {
     if r.fract() == 0.0 { format!("{r:.0}") } else { format!("{r}") }
 }
 
+/// Le seul champ de la classe d'un texte qui ne contient que lui.
+fn only_field(t: &carnet_core::TextProps) -> Option<&str> {
+    let pieces: Vec<carnet_core::fields::Piece> = t.content.paragraphs.iter().flat_map(|p| &p.runs).flat_map(|r| carnet_core::fields::split(&r.text)).filter(|p| !matches!(p, carnet_core::fields::Piece::Text(x) if x.trim().is_empty())).collect();
+    match pieces[..] {
+        [carnet_core::fields::Piece::Field(f)] => Some(f),
+        _ => None,
+    }
+}
+
 fn plain(t: &carnet_core::TextProps) -> Vec<&str> {
     t.content.paragraphs.iter().flat_map(|p| p.runs.iter().map(|r| r.text.as_str())).collect()
 }
@@ -139,7 +148,10 @@ fn changes(doc: &Document, b: &Element, a: &Element) -> Vec<String> {
             look(&mut out, (frb.fill.as_ref(), fra.fill.as_ref()), (frb.stroke.as_ref(), fra.stroke.as_ref()), (frb.corner_radius_mm, fra.corner_radius_mm), "fond changé");
             // Seuls les mots comptent : un style retire les tailles posées sur les mots sans rien écrire.
             if plain(tb) != plain(ta) {
-                out.push("nouveau texte écrit".into());
+                out.push(match only_field(ta) {
+                    Some(f) => format!("champ « {} »", carnet_core::fields::label(f).unwrap_or_default()),
+                    None => "nouveau texte écrit".into(),
+                });
             }
         }
         (ElementKind::Shape(kb), ElementKind::Shape(ka)) => {
@@ -158,10 +170,7 @@ fn changes(doc: &Document, b: &Element, a: &Element) -> Vec<String> {
         _ => None,
     };
     if a.zone && (!b.zone || prompt(a) != prompt(b)) {
-        out.push(match prompt(a).filter(|p| carnet_core::fill::is_field_prompt(p)) {
-            Some(f) => format!("à remplir ({f})"),
-            None => "à remplir".into(),
-        });
+        out.push("à remplir".into());
     } else if b.zone && !a.zone && !a.locked {
         out.push("plus à remplir".into());
     }
@@ -272,9 +281,11 @@ fn new_line(e: &Element, page: carnet_core::PageSize) -> String {
     let lower = name[..1].to_lowercase() + &name[1..];
     let size = match &e.kind {
         ElementKind::Table(t) => format!(" ({} × {})", t.cols.len(), t.rows.len()),
-        ElementKind::Text(t) if e.zone && t.prompt.as_deref().is_some_and(carnet_core::fill::is_field_prompt) => {
-            return format!("Nouveau champ « {} »", t.prompt.as_deref().unwrap());
-        }
+        // Un texte qui n'est qu'un champ de la classe : « Nouveau champ « Âge » ».
+        ElementKind::Text(t) => match only_field(t) {
+            Some(f) => return format!("Nouveau champ « {} »", carnet_core::fields::label(f).unwrap_or_default()),
+            None => String::new(),
+        },
         _ => String::new(),
     };
     format!("{} {lower}{size}", if fem { "Nouvelle" } else { "Nouveau" })
@@ -666,16 +677,21 @@ mod tests {
     fn template_roles_and_fields() {
         let (b, a) = after(|d| {
             let id = id(d, 0);
-            crate::template::set_template_role(d, &json!({ "element_id": id, "role": "fill", "field": "Prénom" })).unwrap();
+            crate::template::set_template_role(d, &json!({ "element_id": id, "role": "fill", "field": "prenom" })).unwrap();
         });
-        assert_eq!(describe(&b, &a), ["Texte : à remplir (Prénom)"]);
+        assert_eq!(describe(&b, &a), ["Texte : champ « Prénom »"]);
+        let (b, a) = after(|d| {
+            let id = id(d, 0);
+            crate::template::set_template_role(d, &json!({ "element_id": id, "role": "fill" })).unwrap();
+        });
+        assert_eq!(describe(&b, &a), ["Texte : à remplir"]);
         let (b, a) = after(|d| {
             let id = id(d, 0);
             crate::template::set_template_role(d, &json!({ "element_id": id, "role": "fixed" })).unwrap();
         });
         assert_eq!(describe(&b, &a), ["Texte : fixe dans le modèle"]);
         let (b, a) = after(|d| {
-            edit::add_text(d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 9, "h_mm": 9, "field": "Âge" })).unwrap();
+            edit::add_text(d, &json!({ "page": 0, "x_mm": 1, "y_mm": 1, "w_mm": 9, "h_mm": 9, "field": "age" })).unwrap();
         });
         assert_eq!(describe(&b, &a), ["Nouveau champ « Âge »"]);
     }

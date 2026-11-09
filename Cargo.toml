@@ -7,6 +7,12 @@ edition = "2024"
 version = "0.12.0"
 license = "EUPL-1.2"
 
+# Installeur : optimisation à l'édition de liens, un seul bloc de génération, symboles retirés.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
 # Le traitement d'images est très lent sans optimisation : seules ces bibliothèques sont optimisées
 # en développement (optimiser toutes les dépendances rendait la compilation très longue).
 [profile.dev.package.image]

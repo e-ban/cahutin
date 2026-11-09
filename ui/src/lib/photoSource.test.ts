@@ -10,3 +10,9 @@ test("the thumbnail serves a photo whose displayed long edge fits in it", () => 
   expect(useThumb(210, 297, 0.07, 2)).toBe(true);
   expect(THUMB_LONG_EDGE_PX).toBe(256);
 });
+
+test("printing and PDF export always use the full image", () => {
+  // 40 mm à zoom 1 : 151 px, sous la vignette à l'écran, mais l'impression veut l'image entière.
+  expect(useThumb(40, 30, 1, 1)).toBe(true);
+  expect(useThumb(40, 30, 1, 1, true)).toBe(false);
+});

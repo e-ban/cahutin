@@ -1,6 +1,7 @@
 <script lang="ts">
   import { assetUrl } from "../../lib/api";
   import { cropToCss } from "../../lib/crop";
+  import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { useThumb } from "../../lib/photoSource";
   import { pixelRatio } from "../../lib/pixelRatio.svelte";
@@ -13,7 +14,7 @@
 
   const css = $derived(meta ? cropToCss(meta, element.frame, props.crop) : null);
   // Affichée en petit (aperçus), la photo charge sa vignette ; le fantôme du recadrage garde l'image entière.
-  const thumb = $derived(css ? useThumb(css.widthMm, css.heightMm, zoom, pixelRatio.value) : false);
+  const thumb = $derived(css ? useThumb(css.widthMm, css.heightMm, zoom, pixelRatio.value, editor.printing) : false);
   const borderPx = $derived(props.border ? mmToPx(props.border.width_mm, zoom) : 0);
   // Bordure pleine en contour CSS ; en tirets, en SVG avec les longueurs de l'export.
   const solidBorder = $derived(!!props.border && isSolid(props.border));

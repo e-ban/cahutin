@@ -2,6 +2,8 @@
   import { assetUrl } from "../../lib/api";
   import { cropToCss } from "../../lib/crop";
   import { fr } from "../../lib/i18n/fr";
+  import { useThumb } from "../../lib/photoSource";
+  import { pixelRatio } from "../../lib/pixelRatio.svelte";
   import { dashArray, isSolid } from "../../lib/strokes";
   import { mmToPx } from "../../lib/units";
   import type { AssetMeta, Element, PhotoProps } from "../../lib/types";
@@ -10,6 +12,8 @@
   let { element, props, meta, zoom, ghost = false }: { element: Element; props: PhotoProps; meta: AssetMeta | undefined; zoom: number; ghost?: boolean } = $props();
 
   const css = $derived(meta ? cropToCss(meta, element.frame, props.crop) : null);
+  // Affichée en petit (aperçus), la photo charge sa vignette ; le fantôme du recadrage garde l'image entière.
+  const thumb = $derived(css ? useThumb(css.widthMm, css.heightMm, zoom, pixelRatio.value) : false);
   const borderPx = $derived(props.border ? mmToPx(props.border.width_mm, zoom) : 0);
   // Bordure pleine en contour CSS ; en tirets, en SVG avec les longueurs de l'export.
   const solidBorder = $derived(!!props.border && isSolid(props.border));
@@ -40,7 +44,7 @@
     style:box-shadow={props.shadow ? `${mmToPx(1, zoom)}px ${mmToPx(1, zoom)}px 0 rgba(128,128,128,0.5)` : "none"}
   >
     <!-- Miroir : la partie visible, retournée d'un bloc (comme l'export). -->
-    <div class="flip" class:mirrored={props.mirrored}>{@render picture(assetUrl(props.asset), css)}</div>
+    <div class="flip" class:mirrored={props.mirrored}>{@render picture(assetUrl(props.asset, thumb), css)}</div>
   </div>
   {#if props.border && !solidBorder}
     <!-- Hors du cadre rogné : le trait est centré sur le bord, comme le contour plein et dans LibreOffice. -->

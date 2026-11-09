@@ -183,6 +183,11 @@ class Editor {
     if (this.selection.some((id) => !ids.has(id))) this.selection = this.selection.filter((id) => ids.has(id));
   }
 
+  /** Le document tel que l'historique le tient : pendant une proposition, celui de départ, sans elle. */
+  get committed(): Document {
+    return this.#history.current;
+  }
+
   /** L'assistant décide d'une modification à la main ou d'une annulation pendant sa proposition. */
   proposalGate: { edit: (next: Document) => void; undo: () => void } | null = null;
 

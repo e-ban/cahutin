@@ -19,9 +19,10 @@ let running = false;
 
 /** Écrit la copie si besoin ; une erreur est ignorée (la copie précédente reste). */
 export async function backupNow(): Promise<void> {
-  if (running || !shouldBackup(editor.dirty, isSaving(), editor.doc, copyState.lastBacked)) return;
+  // Pendant une proposition de l'assistant, la copie prend le document de départ : rien de non accepté n'y entre.
+  const doc = editor.committed;
+  if (running || !shouldBackup(editor.dirty, isSaving(), doc, copyState.lastBacked)) return;
   running = true;
-  const doc = editor.doc;
   try {
     await api.backupSave(doc, editor.path);
     copyState.lastBacked = doc;

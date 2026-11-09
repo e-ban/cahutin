@@ -62,11 +62,15 @@ jobs:
       - name: Tests de l'interface
         run: npm test
 
-      # En release : l'installeur réutilise ensuite la plupart des dépendances compilées ici.
+      # En release, sans l'optimisation des paquets distribués : rapide.
       - name: Tests du moteur et de l'application
         run: cargo test --workspace --release
 
       - name: Installeur
+        env:
+          # Paquet distribué : optimisation à l'édition de liens et un seul bloc de génération.
+          CARGO_PROFILE_RELEASE_LTO: thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
         run: npm run tauri build
 
       - name: Publier l'installeur
@@ -83,6 +87,9 @@ jobs:
       - name: Application pour le Store
         env:
           CAHUTIN_STORE: "1"
+          # Paquet distribué : optimisation à l'édition de liens et un seul bloc de génération.
+          CARGO_PROFILE_RELEASE_LTO: thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
         run: npm run tauri build -- --no-bundle
 
       - name: Paquet MSIX
@@ -141,6 +148,10 @@ jobs:
 
       # tauri.conf.json ne vise que NSIS (installeur Windows) : les paquets Linux sont demandés ici.
       - name: Paquets
+        env:
+          # Paquet distribué : optimisation à l'édition de liens et un seul bloc de génération.
+          CARGO_PROFILE_RELEASE_LTO: thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
         run: npm run tauri build -- --bundles appimage,deb
 
       - name: Publier les paquets

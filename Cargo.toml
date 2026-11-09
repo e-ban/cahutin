@@ -7,10 +7,10 @@ edition = "2024"
 version = "0.13.0"
 license = "EUPL-1.2"
 
-# Installeur : optimisation à l'édition de liens, un seul bloc de génération, symboles retirés.
+# Symboles retirés. L'optimisation à l'édition de liens et le bloc de génération unique ne s'appliquent
+# qu'aux paquets distribués (variables CARGO_PROFILE_RELEASE_* des étapes de construction de la CI) : sur
+# les tests en release, elles faisaient passer la CI Windows de 4 à plus de 35 minutes.
 [profile.release]
-lto = "thin"
-codegen-units = 1
 strip = true
 
 # Le traitement d'images est très lent sans optimisation : seules ces bibliothèques sont optimisées

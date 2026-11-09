@@ -2,7 +2,7 @@
 //! messagerie ouvre déjà rempli. Cahutin n'envoie rien.
 
 /// Adresse dédiée aux signalements.
-pub const REPORT_EMAIL: &str = "cahutin.proofread153@simplelogin.com";
+pub const REPORT_EMAIL: &str = "cahutin.pavilion366@slmail.me";
 
 /// Le journal ne contient que des noms d'événements et des compteurs (voir la journalisation de l'application).
 pub fn problem_report(app_version: &str, os: &str, generated_at: &str, log_text: &str, max_lines: usize) -> String {
@@ -65,7 +65,7 @@ mod tests {
     #[test]
     fn the_report_mail_is_short_and_names_the_file_to_attach() {
         let url = report_mailto("0.13.0", "windows x86_64", "rapport-carnet.txt");
-        assert!(url.starts_with("mailto:cahutin.proofread153@simplelogin.com?subject=Cahutin%200.13.0%20%3A%20signalement%20d%27un%20probl%C3%A8me&body="), "{url}");
+        assert!(url.starts_with("mailto:cahutin.pavilion366@slmail.me?subject=Cahutin%200.13.0%20%3A%20signalement%20d%27un%20probl%C3%A8me&body="), "{url}");
         assert!(url.contains("rapport-carnet.txt"), "{url}");
         assert!(url.contains("windows%20x86_64"), "{url}");
         assert!(url.contains("%0D%0A"), "retours à la ligne CRLF : {url}");

@@ -14,7 +14,7 @@
 - La barre au-dessus de l'élément choisi range les outils moins utilisés (miroir, quarts de tour, frise, répéter, découpe…) dans « ⋯ Plus » : elle est plus courte. Pour tout voir d'un coup d'œil, décocher ce réglage dans les Préférences.
 - Plus fluide sur un ordinateur modeste : les petites photos (bande des pages, accueil, pages en vis-à-vis) chargent une image réduite, et les photos restent affichées pendant un enregistrement, un export ou un flou de visages. L'impression et l'export PDF utilisent toujours les photos entières.
 - Un document reçu dont les photos et polices dépassent 1 Go n'est pas ouvert, avec le message « Ce document est trop volumineux pour être ouvert. » ; une image de plus de 12 000 pixels de côté est refusée à l'import, avec « image trop grande ».
-- Aide > Signaler un problème : après l'enregistrement du rapport, la messagerie de l'ordinateur s'ouvre sur un message déjà adressé (cahutin.proofread153@simplelogin.com), qui dit quel fichier joindre ; on raconte ce qui s'est passé, on joint le rapport et on envoie. Sans messagerie, Cahutin donne l'adresse.
+- Aide > Signaler un problème : après l'enregistrement du rapport, la messagerie de l'ordinateur s'ouvre sur un message déjà adressé (cahutin.pavilion366@slmail.me), qui dit quel fichier joindre ; on raconte ce qui s'est passé, on joint le rapport et on envoie. Sans messagerie, Cahutin donne l'adresse.
 - Dans Ma collection, un nom d'image ou de thème ne peut plus contenir de deux-points. L'import d'un document par LibreOffice n'exécute aucune macro.
 
 ## 0.12.0

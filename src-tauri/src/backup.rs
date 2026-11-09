@@ -125,6 +125,14 @@ pub fn adopt(root: &Path, id: &str, own: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Reprise : la copie est d'abord ouverte là où elle est ; elle ne passe dans le dossier de `own` qu'une
+/// fois ouverte, pour qu'une copie illisible reste proposée au prochain lancement.
+pub fn restore<T>(root: &Path, id: &str, own: &Path, open: impl FnOnce(&Path) -> Result<T, String>) -> Result<T, String> {
+    let opened = open(&stopped_slot(root, id)?.join(DOCUMENT_FILE))?;
+    adopt(root, id, own)?;
+    Ok(opened)
+}
+
 /// « Non, l'oublier » : la copie d'une fenêtre arrêtée est effacée.
 pub fn discard(root: &Path, id: &str) -> Result<(), String> {
     remove_slot(&stopped_slot(root, id)?);
@@ -186,10 +194,9 @@ pub fn backup_info(state: State<'_, AppState>) -> Option<BackupOffer> {
 
 #[tauri::command(async)]
 pub fn backup_open(state: State<'_, AppState>, id: String) -> Result<RestoredDocument, String> {
-    adopt(backup_root(&state), &id, &state.backup_dir)?;
+    let opened = restore(backup_root(&state), &id, &state.backup_dir, |copy| open_document_in(&state, copy))?;
     let copy = state.backup_dir.join(DOCUMENT_FILE);
     let source = restore_source(info_in(&state.backup_dir).and_then(|i| i.source), &copy);
-    let opened = open_document_in(&state, &copy)?;
     log::info!("backup_restored source_kept={}", source.is_some());
     Ok(RestoredDocument { opened, source })
 }
@@ -312,5 +319,21 @@ mod tests {
         assert_eq!(restore_source(s, &copy), None);
         assert_eq!(restore_source(Some(dir.path().join("absent.carnet").to_string_lossy().into_owned()), &copy), None);
         assert_eq!(restore_source(None, &copy), None);
+    }
+
+    /// Une copie qui ne s'ouvre pas reste où elle est, proposée au prochain lancement.
+    #[test]
+    fn an_unreadable_copy_stays_offered() {
+        let root = tempfile::tempdir().unwrap();
+        let crashed = BackupSlot::acquire(root.path()).unwrap();
+        save_in(crashed.path(), &Document::new("Abîmée"), &AssetStore::default(), &FontSet::builtin(), None).unwrap();
+        std::fs::write(crashed.path().join(DOCUMENT_FILE), b"pas un zip").unwrap();
+        drop(crashed);
+        let me = BackupSlot::acquire(root.path()).unwrap();
+        let (id, _) = orphan(root.path(), me.path()).unwrap();
+        let open = |p: &Path| native::load_from_path(p).map(|l| l.doc.title).map_err(|e| e.message_fr());
+        assert!(restore(root.path(), &id, me.path(), open).is_err());
+        assert_eq!(orphan(root.path(), me.path()).map(|(i, _)| i), Some(id.clone()));
+        assert_eq!(info_in(me.path()), None);
     }
 }

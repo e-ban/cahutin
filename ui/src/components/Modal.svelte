@@ -1,6 +1,21 @@
 <script lang="ts">
   import { modal } from "../lib/modal.svelte";
+
+  // Le choix proposé a le focus à l'ouverture : Entrée le prend, Échap revient en arrière.
+  function focusIf(node: HTMLButtonElement, on: boolean | undefined) {
+    if (on) node.focus();
+  }
+
+  // En capture, avant les autres raccourcis : la touche ferme la boîte et rien d'autre (accueil, page Classe).
+  function onkeydown(e: KeyboardEvent) {
+    if (!modal.message || e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    modal.cancel();
+  }
 </script>
+
+<svelte:window onkeydowncapture={onkeydown} />
 
 {#if modal.message}
   <div class="backdrop">
@@ -8,7 +23,7 @@
       <p>{modal.message}</p>
       <div class="buttons">
         {#each modal.choices as c}
-          <button class:primary={c.primary} onclick={() => modal.answer(c.value)}>{c.label}</button>
+          <button class:primary={c.primary} use:focusIf={c.primary} onclick={() => modal.answer(c.value)}>{c.label}</button>
         {/each}
       </div>
     </div>

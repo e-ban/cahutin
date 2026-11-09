@@ -31,3 +31,10 @@ test("removing class photos says they go to the computer's trash", () => {
   expect(fr.libraryDeleteConfirm(3)).toBe("Mettre ces 3 photos à la corbeille de l'ordinateur ? Vous pourrez les récupérer depuis la corbeille.");
   expect(fr.libraryDeleteConfirm(1)).toBe("Mettre cette photo à la corbeille de l'ordinateur ? Vous pourrez la récupérer depuis la corbeille.");
 });
+
+/** La question avant de quitter un document le nomme, et son retour ne s'appelle pas « Annuler ». */
+test("the save question names the document and offers the way back", () => {
+  expect(fr.saveChangesTo("Sortie à la ferme")).toBe("Enregistrer « Sortie à la ferme » avant de continuer ?");
+  expect(fr.backToDocument).toBe("Revenir au document");
+  expect(fr.dontSave).toBe("Ne pas enregistrer");
+});

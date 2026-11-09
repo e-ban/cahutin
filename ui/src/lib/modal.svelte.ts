@@ -18,6 +18,11 @@ class Modal {
     return new Promise<T>((resolve) => (this.#resolve = resolve as (v: string) => void));
   }
 
+  /** Échap : la première réponse, qui est le retour (« Revenir au document »). */
+  cancel() {
+    if (this.choices.length) this.answer(this.choices[0].value);
+  }
+
   answer(value: string) {
     this.message = null;
     this.#resolve?.(value);

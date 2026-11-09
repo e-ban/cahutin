@@ -66,10 +66,10 @@ export async function save(): Promise<boolean> {
 }
 
 function askToSave(): Promise<DiscardChoice> {
-  return modal.choose<DiscardChoice>("Enregistrer les modifications ?", [
-    { value: "cancel", label: "Annuler" },
-    { value: "discard", label: "Ne pas enregistrer" },
-    { value: "save", label: "Enregistrer", primary: true },
+  return modal.choose<DiscardChoice>(fr.saveChangesTo(editor.doc.title.trim() || fr.untitled), [
+    { value: "cancel", label: fr.backToDocument },
+    { value: "discard", label: fr.dontSave },
+    { value: "save", label: fr.save, primary: true },
   ]);
 }
 

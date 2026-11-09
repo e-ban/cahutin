@@ -13,3 +13,13 @@ test("a second question settles the first one with its first choice", async () =
   expect(await second).toBe("ok");
   expect(modal.message).toBeNull();
 });
+
+test("cancel answers the first choice, the way back", async () => {
+  const p = modal.choose("Enregistrer ?", [
+    { value: "cancel", label: "Revenir au document" },
+    { value: "save", label: "Enregistrer", primary: true },
+  ]);
+  modal.cancel();
+  expect(await p).toBe("cancel");
+  expect(modal.message).toBeNull();
+});

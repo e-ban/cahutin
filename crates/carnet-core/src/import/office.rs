@@ -174,10 +174,12 @@ fn extension(path: &Path) -> String {
 }
 
 /// Réglages du profil LibreOffice d'import : aucun contenu lié (image distante, lien de suivi) n'est
-/// téléchargé, et pas de recherche de mise à jour. Écrits avant le premier lancement.
+/// téléchargé, aucune macro ne s'exécute (niveau de sécurité le plus strict), et pas de recherche de mise
+/// à jour. Écrits avant le premier lancement.
 const OFFLINE_SETTINGS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <oor:items xmlns:oor="http://openoffice.org/2001/registry" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <item oor:path="/org.openoffice.Office.Common/Security/Scripting"><prop oor:name="BlockUntrustedRefererLinks" oor:op="fuse"><value>true</value></prop></item>
+<item oor:path="/org.openoffice.Office.Common/Security/Scripting"><prop oor:name="MacroSecurityLevel" oor:op="fuse"><value>3</value></prop></item>
 <item oor:path="/org.openoffice.Office.Jobs/Jobs/org.openoffice.Office.Jobs:Job['UpdateCheck']/Arguments"><prop oor:name="AutoCheckEnabled" oor:op="fuse"><value>false</value></prop></item>
 </oor:items>
 "#;
@@ -445,5 +447,12 @@ mod tests {
         let err = convert_to_odg(&soffice, &input, work.path(), Duration::from_millis(300), &AtomicBool::new(false)).err().unwrap();
         assert_eq!(err, ImportError::Timeout);
         assert!(start.elapsed() < Duration::from_secs(2));
+    }
+
+    /// Profil d'import : macros au niveau le plus strict (3, aucune macro), liens et contenus distants bloqués.
+    #[test]
+    fn the_import_profile_blocks_macros_and_remote_content() {
+        assert!(OFFLINE_SETTINGS.contains("MacroSecurityLevel") && OFFLINE_SETTINGS.contains("<value>3</value>"));
+        assert!(OFFLINE_SETTINGS.contains("BlockUntrustedRefererLinks"));
     }
 }

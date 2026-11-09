@@ -9,6 +9,10 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Le jeton du workflow ne fait que lire le dépôt ; seule la publication d'une release écrit (voir le job).
+permissions:
+  contents: read
+
 # Un run à la fois : un nouvel envoi attend la fin du run en cours au lieu de l'annuler (le cache
 # Rust n'est enregistré qu'à la fin d'un run réussi). GitHub ne garde que le dernier run en attente.
 concurrency:
@@ -20,7 +24,7 @@ jobs:
   notes:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Version et notes de la release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -31,7 +35,7 @@ jobs:
           grep -q . notes.md || { echo "::error::pas de section « ## $version » dans CHANGELOG.md"; exit 1; }
 
       - if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: notes
           path: notes.md
@@ -41,16 +45,16 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 26
           cache: npm
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Dépendances de l'interface
         run: npm ci
@@ -66,7 +70,7 @@ jobs:
         run: npm run tauri build
 
       - name: Publier l'installeur
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: cahutin-installeur-windows-${{ github.sha }}
           path: target/release/bundle/nsis/*.exe
@@ -91,7 +95,7 @@ jobs:
 
       - name: Publier le paquet MSIX
         if: vars.STORE_IDENTITY_NAME != ''
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: cahutin-msix-${{ github.sha }}
           path: target/msix/*.msix
@@ -104,21 +108,21 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Bibliothèques système
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf file
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 26
           cache: npm
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Dépendances de l'interface
         run: npm ci
@@ -129,12 +133,18 @@ jobs:
       - name: Tests du moteur et de l'application
         run: cargo test --workspace --release
 
+      # Licences, sources et avis de sécurité des dépendances (deny.toml).
+      - name: Dépendances (cargo deny)
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
+
       # tauri.conf.json ne vise que NSIS (installeur Windows) : les paquets Linux sont demandés ici.
       - name: Paquets
         run: npm run tauri build -- --bundles appimage,deb
 
       - name: Publier les paquets
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: cahutin-linux-${{ github.sha }}
           path: |
@@ -152,7 +162,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           path: dist
           merge-multiple: true

@@ -47,10 +47,11 @@ fn write_themes(dir: &Path, themes: &BTreeMap<String, Vec<String>>) -> Result<()
     std::fs::write(&tmp, json).and_then(|_| std::fs::rename(&tmp, dir.join(THEMES_FILE))).map_err(|_| "Les thèmes n'ont pas pu être enregistrés.".to_string())
 }
 
-/// Un libellé propre (thème ou nom d'image) : sans espaces en trop, sans séparateur de dossier, pas trop long.
+/// Un libellé propre (thème ou nom d'image) : sans espaces en trop, sans séparateur de dossier ni deux-points
+/// (lecteur ou flux caché sous Windows), pas trop long.
 fn clean_label(s: &str) -> Option<String> {
     let t: String = s.split_whitespace().collect::<Vec<_>>().join(" ");
-    let ok = !t.is_empty() && !t.starts_with('.') && !t.contains(['/', '\\']) && !t.chars().any(char::is_control);
+    let ok = !t.is_empty() && !t.starts_with('.') && !t.contains(['/', '\\', ':']) && !t.chars().any(char::is_control);
     ok.then(|| t.chars().take(MAX_LABEL).collect())
 }
 
@@ -62,9 +63,9 @@ fn extension(name: &str) -> Option<String> {
     Path::new(name).extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase)
 }
 
-/// Un nom de fichier du dossier, sans chemin : pas de séparateur ni de « .. », une extension acceptée.
+/// Un nom de fichier du dossier, sans chemin : pas de séparateur, de deux-points ni de « .. », une extension acceptée.
 pub fn is_image_name(name: &str) -> bool {
-    !name.is_empty() && !name.contains(['/', '\\']) && !name.starts_with('.') && extension(name).is_some_and(|e| EXTENSIONS.contains(&e.as_str()))
+    !name.is_empty() && !name.contains(['/', '\\', ':']) && !name.starts_with('.') && extension(name).is_some_and(|e| EXTENSIONS.contains(&e.as_str()))
 }
 
 /// Les images du dossier, par ordre alphabétique (sans tenir compte des majuscules).
@@ -383,5 +384,14 @@ mod tests {
         for bad in ["", "../x.png", "a/b.png", "a\\b.png", ".cache.png", "notes.txt", "photo"] {
             assert!(!is_image_name(bad), "{bad}");
         }
+    }
+
+    /// Un deux-points désigne un lecteur sous Windows (« C:x ») ou un flux caché de NTFS : refusé.
+    #[test]
+    fn a_colon_is_refused_in_image_names_and_labels() {
+        assert!(!is_image_name("C:x.png"));
+        assert!(is_image_name("chat.png"));
+        assert_eq!(clean_label("C:piège"), None);
+        assert_eq!(clean_label("  Animaux  "), Some("Animaux".into()));
     }
 }

@@ -15,3 +15,11 @@ allow = [
   "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.8
+
+[advisories]
+yanked = "deny"
+ignore = [
+  # proc-macro-error n'est plus maintenu (RUSTSEC-2024-0370) : tiré par GTK via Tauri, sans
+  # vulnérabilité connue ni remplacement côté Cahutin.
+  { id = "RUSTSEC-2024-0370", reason = "dépendance de Tauri/GTK, pas de CVE" },
+]

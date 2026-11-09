@@ -109,3 +109,17 @@ test("a photo removed from the drawer comes back with undo, on the page and in t
   expect(editor.page.elements[0].kind).toMatchObject({ asset: "ph1" });
   expect(editor.photos.map((p) => p.meta.id)).toEqual(["ph1"]);
 });
+
+test("a notice can carry one action, dropped when another notice replaces it", () => {
+  let ran = 0;
+  editor.notify("Léa n'est plus dans la classe.", { label: "Remettre dans la classe", run: () => ran++ });
+  expect(editor.notice).toBe("Léa n'est plus dans la classe.");
+  expect(editor.noticeAction?.label).toBe("Remettre dans la classe");
+  editor.noticeAction!.run();
+  expect(ran).toBe(1);
+  editor.notice = "Autre message";
+  expect(editor.noticeAction).toBeNull();
+  editor.notify("Sans action");
+  expect(editor.noticeAction).toBeNull();
+  editor.notice = null;
+});

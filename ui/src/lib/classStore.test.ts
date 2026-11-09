@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { filterStudents, groups, schoolYear } from "./classStore.svelte";
+import { filterStudents, groups, schoolYear, withStudentBack, withoutStudent } from "./classStore.svelte";
 import type { Student } from "./types";
 
 const s = (first_name: string, level: Student["level"], group = ""): Student => ({
@@ -29,4 +29,20 @@ test("groups lists each group once, sorted, without the empty one", () => {
 test("schoolYear changes on the first of August", () => {
   expect(schoolYear(new Date(2027, 6, 31))).toBe("2026-2027");
   expect(schoolYear(new Date(2027, 7, 1))).toBe("2027-2028");
+});
+
+test("withoutStudent takes one child out and remembers the place", () => {
+  const r = withoutStudent(list, "Noé");
+  expect(r.students.map((s) => s.first_name)).toEqual(["Léa", "Anna", "Tom"]);
+  expect(r.removed?.first_name).toBe("Noé");
+  expect(r.index).toBe(1);
+  expect(withoutStudent(list, "absent").removed).toBeNull();
+});
+
+test("withStudentBack puts the child back where they were, or at the end", () => {
+  const { students, removed, index } = withoutStudent(list, "Noé");
+  expect(withStudentBack(students, removed!, index).map((s) => s.first_name)).toEqual(["Léa", "Noé", "Anna", "Tom"]);
+  expect(withStudentBack(students.slice(0, 1), removed!, 5).map((s) => s.first_name)).toEqual(["Léa", "Noé"]);
+  // Un autre élève ajouté entre-temps (à la fin) : l'élève remis reprend sa place.
+  expect(withStudentBack([...students, s("Zoé", null)], removed!, index).map((s) => s.first_name)).toEqual(["Léa", "Noé", "Anna", "Tom", "Zoé"]);
 });

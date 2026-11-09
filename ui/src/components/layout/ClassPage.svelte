@@ -6,7 +6,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { assetUrl, classImportPhoto, classParseList, classReadList } from "../../lib/api";
   import { ask } from "../../lib/ask";
-  import { classes, groups, schoolYear } from "../../lib/classStore.svelte";
+  import { classes, groups, schoolYear, withStudentBack, withoutStudent } from "../../lib/classStore.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { modal } from "../../lib/modal.svelte";
@@ -139,9 +139,20 @@
     editor.notice = fr.classSymbolsAssigned(before - (cls?.students.filter((s) => !s.symbol).length ?? 0));
   }
 
-  async function remove(s: Student) {
-    if (!(await ask(fr.classRemoveStudent(s.first_name), fr.delete))) return;
-    classes.update((c) => ({ ...c, students: c.students.filter((x) => x.id !== s.id) }));
+  // Sans question : l'avis propose de remettre l'élève, dans la même classe seulement.
+  function remove(s: Student) {
+    const current = classes.current;
+    if (!current) return;
+    const { students, removed, index } = withoutStudent(current.class.students, s.id);
+    if (!removed) return;
+    classes.update((c) => ({ ...c, students }));
+    editor.notify(fr.classStudentRemoved(removed.first_name), {
+      label: fr.classRestoreStudent,
+      run: () => {
+        if (classes.current?.path !== current.path) return;
+        classes.update((c) => ({ ...c, students: withStudentBack(c.students, removed, index) }));
+      },
+    });
   }
 
   async function trashClass() {

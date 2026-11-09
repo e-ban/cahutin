@@ -18,6 +18,19 @@ export function groups(students: Student[]): string[] {
   return [...new Set(students.map((s) => s.group.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));
 }
 
+/** La liste sans l'élève `id`, l'élève retiré et sa place (pour le remettre) ; `removed` nul s'il n'y est pas. */
+export function withoutStudent(students: Student[], id: string): { students: Student[]; removed: Student | null; index: number } {
+  const index = students.findIndex((s) => s.id === id);
+  if (index < 0) return { students, removed: null, index: -1 };
+  return { students: students.filter((_, i) => i !== index), removed: students[index], index };
+}
+
+/** L'élève remis à sa place, ou à la fin si la liste est devenue plus courte. */
+export function withStudentBack(students: Student[], removed: Student, index: number): Student[] {
+  const at = Math.min(index, students.length);
+  return [...students.slice(0, at), removed, ...students.slice(at)];
+}
+
 /** Année scolaire d'une date : elle change le 1er août. */
 export function schoolYear(d: Date): string {
   const start = d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1;

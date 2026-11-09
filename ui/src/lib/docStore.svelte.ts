@@ -80,8 +80,25 @@ class Editor {
   blurring = $state<string | null>(null);
   /** Documents récents (sur le poste seulement). */
   recents = $state.raw<Recent[]>(readRecents());
+  #notice = $state<string | null>(null);
+  /** Bouton d'action de l'avis (« Remettre dans la classe ») ; perdu dès qu'un autre avis le remplace. */
+  noticeAction = $state<{ label: string; run: () => void } | null>(null);
+
   /** Message à afficher (erreurs d'import, d'enregistrement...). */
-  notice = $state<string | null>(null);
+  get notice(): string | null {
+    return this.#notice;
+  }
+
+  set notice(message: string | null) {
+    this.#notice = message;
+    this.noticeAction = null;
+  }
+
+  /** Avis avec, au besoin, un bouton qui défait ce qui vient d'être fait. */
+  notify(message: string, action?: { label: string; run: () => void }) {
+    this.notice = message;
+    this.noticeAction = action ?? null;
+  }
   /** Travail en cours sans progression mesurable (export) : un message sans bouton. */
   busy = $state<string | null>(null);
   /** Tiroir ouvert à côté de la colonne d'icônes (un seul à la fois). */

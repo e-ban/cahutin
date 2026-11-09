@@ -13,6 +13,11 @@ use std::sync::Arc;
 pub const MAX_LONG_EDGE_PX: u32 = 3000;
 pub const THUMB_LONG_EDGE_PX: u32 = 256;
 pub const JPEG_QUALITY: u8 = 85;
+/// Plus grand côté d'une image à décoder : bien au-delà d'un appareil photo, assez bas pour qu'une
+/// image piégée (dimensions énormes annoncées) soit refusée avant d'allouer sa mémoire.
+pub const MAX_DECODE_PX: u32 = 12_000;
+/// Mémoire que le décodage d'une image peut demander.
+const MAX_DECODE_ALLOC: u64 = 256 * 1024 * 1024;
 
 const IMPORTABLE_EXTENSIONS: [&str; 7] = ["jpg", "jpeg", "png", "webp", "svg", "heic", "heif"];
 
@@ -246,6 +251,8 @@ pub enum ImportError {
     Io,
     /// L'image n'a pas pu être écrite dans le cache.
     Storage,
+    /// Plus de `MAX_DECODE_PX` de côté, ou trop de mémoire à décoder.
+    TooLarge,
 }
 
 impl ImportError {
@@ -256,6 +263,7 @@ impl ImportError {
             ImportError::Decode => "fichier illisible ou abîmé",
             ImportError::Io => "impossible de lire le fichier",
             ImportError::Storage => "impossible d'enregistrer la photo sur le disque (disque plein ?)",
+            ImportError::TooLarge => "image trop grande (plus de 12 000 pixels de côté)",
         }
         .to_string()
     }
@@ -340,13 +348,14 @@ fn import_with(data: &[u8], frame_aspect: Option<f64>) -> Result<Asset, ImportEr
         let mime = if has_transparency(&img) { Mime::Png } else { Mime::Jpeg };
         return asset_from_image(&img, mime);
     }
-    let reader = ImageReader::new(Cursor::new(data)).with_guessed_format().map_err(|_| ImportError::Io)?;
+    let mut reader = ImageReader::new(Cursor::new(data)).with_guessed_format().map_err(|_| ImportError::Io)?;
     if reader.format().is_none() {
         return Err(ImportError::Unsupported);
     }
-    let mut decoder = reader.into_decoder().map_err(|_| ImportError::Decode)?;
+    reader.limits(decode_limits());
+    let mut decoder = reader.into_decoder().map_err(decode_error)?;
     let orientation = decoder.orientation().map_err(|_| ImportError::Decode)?;
-    let mut img = DynamicImage::from_decoder(decoder).map_err(|_| ImportError::Decode)?;
+    let mut img = DynamicImage::from_decoder(decoder).map_err(decode_error)?;
     if frame_aspect.is_none_or(|a| oriented_fits(img.width(), img.height(), orientation, a)) {
         img.apply_orientation(orientation);
     }
@@ -359,6 +368,22 @@ fn import_with(data: &[u8], frame_aspect: Option<f64>) -> Result<Asset, ImportEr
         bytes: Arc::new(encode(&main, mime)?),
         thumb: Arc::new(encode(&thumb, mime)?),
     })
+}
+
+fn decode_limits() -> image::Limits {
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_DECODE_PX);
+    limits.max_image_height = Some(MAX_DECODE_PX);
+    limits.max_alloc = Some(MAX_DECODE_ALLOC);
+    limits
+}
+
+/// Une limite de décodage dépassée est dite comme telle ; toute autre erreur, image illisible.
+fn decode_error(e: image::ImageError) -> ImportError {
+    match e {
+        image::ImageError::Limits(_) => ImportError::TooLarge,
+        _ => ImportError::Decode,
+    }
 }
 
 /// Nouvelle image (nouvel id, vignette refaite) à partir d'une image déjà importée et modifiée (flou).
@@ -668,5 +693,16 @@ mod tests {
         a.meta.id = "../dehors".into();
         assert!(stage(Some(&cache), a).is_err());
         assert!(!root.path().join("dehors.jpg").exists());
+    }
+
+    /// Une image piégée annonce des dimensions énormes : refusée avant d'allouer sa mémoire.
+    #[test]
+    fn a_picture_wider_than_the_limit_is_refused() {
+        let mut out = Cursor::new(Vec::new());
+        image::GrayImage::new(MAX_DECODE_PX + 1, 1).write_to(&mut out, image::ImageFormat::Png).unwrap();
+        assert_eq!(import_bytes(&out.into_inner()).err(), Some(ImportError::TooLarge));
+        let mut ok = Cursor::new(Vec::new());
+        image::GrayImage::new(64, 1).write_to(&mut ok, image::ImageFormat::Png).unwrap();
+        assert!(import_bytes(&ok.into_inner()).is_ok());
     }
 }

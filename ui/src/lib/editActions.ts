@@ -1,4 +1,5 @@
 // Actions d'édition sur la sélection, communes aux raccourcis, au clic droit et à la barre flottante.
+// Copié en partie pour l'assistant dans crates/cahutin-mcp/src/decor.rs (légende d'une photo) : changer les deux ensemble.
 import { warnConsent } from "./phototheque.svelte";
 import { copyElements, duplicateElements, pasteElements, removeElements, reorder } from "./clipboard";
 import { editor } from "./docStore.svelte";

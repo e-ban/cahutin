@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, ReportMail, BackupOffer, RestoredDocument, Page, TemplateInfo, ZoneKind , ClassPhotoAdded, Phototheque, TagChange, MyImage, MyImagesAdded, MyImageKept } from "./types";
+import type { AssistantEvent, AssistantRequest, AssistantSettings, AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind, ClassPhotoAdded, Phototheque, TagChange, MyImage, MyImagesAdded, MyImageKept, ReportMail, BackupOffer, RestoredDocument } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -84,7 +84,7 @@ export const fillAutoFields = (page: Page, date: string | null, cls: Class | nul
 export const autoFieldExamples = (cls: Class | null) => invoke<[string, string][]>("auto_field_examples", { class: cls });
 export const listTemplates = () => invoke<TemplateInfo[]>("list_templates");
 export const instantiateTemplate = (id: string) => invoke<InstantiatedPage>("instantiate_template", { id });
-export const savePageAsTemplate = (name: string, page: Page) => invoke<TemplateInfo>("save_page_as_template", { name, page });
+export const savePageAsTemplate = (name: string, page: Page, keep?: string[]) => invoke<TemplateInfo>("save_page_as_template", { name, page, keep: keep ?? null });
 export const deleteTemplate = (id: string) => invoke<void>("delete_template", { id });
 export const listExamples = () => invoke<ExampleInfo[]>("list_examples");
 export const openExample = (id: string) => invoke<Document>("open_example", { id });
@@ -122,3 +122,18 @@ export function assetUrl(id: string, thumb = false): string {
 /** URL servie par le protocole `carnet-asset`, à partir d'un chemin (`/font/<fichier>`, `/picto/<code>.svg`). */
 export const protocolUrl = (path: string) => assetBase() + path;
 export const fontUrl = protocolUrl;
+
+// Assistant de mise en page (src-tauri/src/assistant.rs).
+export const assistantSettings = () => invoke<AssistantSettings>("assistant_settings");
+/** `apiKey` : `undefined` garde la clé enregistrée, `""` l'efface. */
+export const assistantConfigure = (enabled: boolean, url: string, model: string, apiKey?: string) =>
+  invoke<AssistantSettings>("assistant_configure", { enabled, url, model, apiKey: apiKey ?? null });
+export const assistantTest = (url: string, model: string, apiKey?: string) => invoke<void>("assistant_test", { url, model, apiKey: apiKey ?? null });
+/** Une demande ; `onEvent` reçoit chaque étape dès qu'elle est faite, puis la fin. */
+export function assistantSend(request: AssistantRequest, onEvent: (e: AssistantEvent) => void): Promise<void> {
+  const channel = new Channel<AssistantEvent>();
+  channel.onmessage = onEvent;
+  return invoke<void>("assistant_send", { request, onEvent: channel });
+}
+export const assistantStop = () => invoke<void>("assistant_stop");
+export const assistantReport = (request: string, reply: string, steps: string[]) => invoke<string>("assistant_report", { request, reply, steps });

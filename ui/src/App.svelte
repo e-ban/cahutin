@@ -59,6 +59,10 @@
   import TextDrawer from "./components/drawers/TextDrawer.svelte";
   import FieldsDrawer from "./components/drawers/FieldsDrawer.svelte";
   import { editor } from "./lib/docStore.svelte";
+  import { assistant } from "./lib/assistant.svelte";
+  import AssistantPanel from "./components/assistant/AssistantPanel.svelte";
+  import ProposalHighlights from "./components/assistant/ProposalHighlights.svelte";
+  import ProposalBar from "./components/assistant/ProposalBar.svelte";
   import { fonts } from "./lib/fonts.svelte";
   import { addPhotoAt } from "./lib/editActions";
   import { expandSelection, groupOf, pathOf } from "./lib/groups";
@@ -133,6 +137,7 @@
 
   // Fermeture de la fenêtre : demander d'enregistrer s'il y a des modifications.
   // Polices du poste lues en arrière-plan par le moteur : la liste se met à jour quand elles arrivent.
+  onMount(() => void assistant.load());
   onMount(() => {
     const stop = listen("fonts-changed", () => fonts.load()).catch(() => undefined);
     return () => void stop.then((u) => u?.());
@@ -145,6 +150,13 @@
       win
         .onCloseRequested(async (event) => {
           editor.flushPending();
+          // Une proposition de l'assistant ne rend pas le document « modifié » : la question vient d'abord, puis
+          // la fermeture suit son cours (classe à enregistrer, document modifié).
+          const hadProposal = assistant.proposal !== null;
+          if (hadProposal) {
+            event.preventDefault();
+            if (!(await assistant.settle())) return;
+          }
           // La classe s'enregistre un peu après chaque modification : ce qui attend part maintenant. Si
           // l'enregistrement échoue, on ne ferme pas sans prévenir.
           await classes.flush();
@@ -156,6 +168,7 @@
           // Rien à enregistrer (revenu à l'état enregistré) : la copie de secours part avec la fenêtre.
           if (!editor.dirty) {
             await clearBackup();
+            if (hadProposal) await win.destroy();
             return;
           }
           event.preventDefault();
@@ -312,7 +325,7 @@
 <!-- Pendant la visite ou le panneau Astuces, l'application est inerte : ni clic ni clavier ne l'atteignent. -->
 <div class="app" inert={tour.step !== null || editor.showTips}>
   <TopBar />
-  {#if editor.templateMode}<TemplateBanner />{:else if hasNameFields(editor.page)}<ClassBanner ongenerate={() => (generateOpen = true)} />{/if}
+  {#if editor.proposing}<ProposalBar />{:else if editor.templateMode}<TemplateBanner />{:else if hasNameFields(editor.page)}<ClassBanner ongenerate={() => (generateOpen = true)} />{/if}
   <Rail />
   {#if editor.drawer === "templates"}<TemplatesDrawer />
   {:else if editor.drawer === "images"}<ImagesDrawer />
@@ -354,6 +367,8 @@
       oncrop={applyCrop}
       oncropend={() => (editor.cropping = null)}
       onedittext={(id) => {
+        // Pendant une proposition de l'assistant, la page ne se modifie pas : la frappe serait perdue.
+        if (editor.proposing) return;
         editor.selection = [id];
         editor.editingText = id;
       }}
@@ -368,9 +383,13 @@
       bind:pageEl
     />
     {#if facing?.side === "right"}{@render facingPage(facing.index)}{/if}
-    <Transformer {pageEl} zoom={editor.effectiveZoom} />
-    <GroupTransformer {pageEl} zoom={editor.effectiveZoom} onpick={select} />
-    <ContextBar {pageEl} {stageEl} />
+    <ProposalHighlights {pageEl} {stageEl} />
+    <!-- Pendant une proposition de l'assistant, la page ne se modifie pas : ni poignées ni barre d'outils. -->
+    {#if !editor.proposing}
+      <Transformer {pageEl} zoom={editor.effectiveZoom} />
+      <GroupTransformer {pageEl} zoom={editor.effectiveZoom} onpick={select} />
+      <ContextBar {pageEl} {stageEl} />
+    {/if}
     <BoxSelect {pageEl} {stageEl} zoom={editor.effectiveZoom} />
     <CellBar {pageEl} {stageEl} />
   <TableBar {pageEl} {stageEl} />
@@ -378,7 +397,7 @@
     {#if contextTarget}<ContextMenu target={contextTarget} onclose={() => (contextTarget = null)} />{/if}
   </main>
   <div class="hint-slot"><Hint /></div>
-  <Inspector />
+  {#if assistant.open && assistant.enabled}<AssistantPanel />{:else}<Inspector />{/if}
   <BottomBar />
   {#if editor.showWelcome}<Welcome />{/if}
   {#if editor.showClassPage}<ClassPage />{/if}

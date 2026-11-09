@@ -1,4 +1,5 @@
 // Décors de page : mention de licence OpenMoji (même cadre que l'export ODG), cadres et frises.
+// Copié pour l'assistant dans crates/cahutin-mcp/src/decor.rs : changer les deux ensemble.
 import { newId } from "./factory";
 import { boundsOf, normalizeGroups, pathOf, rotateElements, withPath } from "./groups";
 import { pictoElement } from "./pictos.svelte";

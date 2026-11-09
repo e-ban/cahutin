@@ -4,6 +4,7 @@
 import { newId } from "./factory";
 import type { Document, Element, NamedTextStyle, Page } from "./types";
 
+/** Copiés dans `crates/cahutin-mcp/src/styles.rs` pour l'assistant : les garder pareils. */
 export const BUILTIN_STYLES: NamedTextStyle[] = [
   { id: "titre", name: "Titre", font: "Playwrite FR Moderne", size_pt: 28, color: "#c0392b", align: "Center", outline: null },
   { id: "consigne", name: "Consigne", font: "Andika", size_pt: 16, color: "#1f2c4a", align: "Left", outline: null },

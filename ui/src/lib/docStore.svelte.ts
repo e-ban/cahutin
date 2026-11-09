@@ -168,12 +168,44 @@ class Editor {
     if (this.selection.some((id) => !ids.has(id))) this.selection = this.selection.filter((id) => ids.has(id));
   }
 
+  /** Proposition de l'assistant affichée : le document ne se modifie pas à la main tant qu'elle est là. */
+  proposing = $state(false);
+  #proposal: Document | null = null;
+
+  /** Affiche `doc` sans toucher à l'historique ; `null` : retour au document. */
+  showProposal(doc: Document | null) {
+    this.#proposal = doc;
+    this.proposing = doc !== null;
+    if (doc === null) return this.#sync();
+    this.doc = doc;
+    if (this.pageIndex >= doc.pages.length) this.pageIndex = doc.pages.length - 1;
+    const ids = new Set(this.page.elements.map((e) => e.id));
+    if (this.selection.some((id) => !ids.has(id))) this.selection = this.selection.filter((id) => ids.has(id));
+  }
+
+  /** Le document tel que l'historique le tient : pendant une proposition, celui de départ, sans elle. */
+  get committed(): Document {
+    return this.#history.current;
+  }
+
+  /** L'assistant décide d'une modification à la main ou d'une annulation pendant sa proposition. */
+  proposalGate: { edit: (next: Document) => void; undo: () => void } | null = null;
+
   commit(next: Document) {
+    // Pendant une proposition, une modification à la main attend que l'on garde ou non la proposition (un aperçu
+    // en cours est effacé).
+    if (this.#proposal) {
+      this.doc = this.#proposal;
+      this.proposalGate?.edit(next);
+      return;
+    }
     this.#history.commit(next);
     this.#sync();
   }
 
   undo() {
+    // Annuler pendant une proposition : la refuser.
+    if (this.#proposal) return this.proposalGate?.undo();
     this.#history.undo();
     this.#sync();
     // Une photo retirée revient sur la page : elle revient aussi dans le tiroir.
@@ -182,6 +214,7 @@ class Editor {
   }
 
   redo() {
+    if (this.#proposal) return;
     this.#history.redo();
     this.#sync();
   }
@@ -208,6 +241,8 @@ class Editor {
   /** Nouveau document ou document ouvert : l'historique repart de zéro. */
   /** `unsaved` : document repris d'une copie de secours, à enregistrer (donc « modifié »). */
   reset(doc: Document, path: string | null, opts: { unsaved?: boolean } = {}) {
+    this.#proposal = null;
+    this.proposing = false;
     this.#history = createHistory(doc);
     if (opts.unsaved) this.#history.markUnsaved();
     this.path = path;

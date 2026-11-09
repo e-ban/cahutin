@@ -2,7 +2,7 @@
 
 # Cahutin
 
-Cahutin aide les enseignants de l'école primaire à faire leurs fiches, leurs affiches, leurs étiquettes et leurs pages de cahier de vie : on part d'un modèle, on dépose ses photos, on écrit, et la page est prête à imprimer. Gratuit, libre, et **hors ligne** : aucune donnée ne quitte l'ordinateur.
+Cahutin aide les enseignants de l'école primaire à faire leurs fiches, leurs affiches, leurs étiquettes et leurs pages de cahier de vie : on part d'un modèle, on dépose ses photos, on écrit, et la page est prête à imprimer. Gratuit, libre, et **hors ligne** : aucune donnée ne quitte l'ordinateur, sauf si vous activez l'assistant IA, facultatif (voir « Confidentialité »).
 
 ![La page « Joyeux anniversaire » ouverte dans Cahutin](docs/capture.png)
 
@@ -63,18 +63,24 @@ Au premier lancement, Cahutin demande s'il doit vous prévenir quand une nouvell
 - **Import** : pages d'un autre carnet, et fiches Word (.docx, .doc), LibreOffice (.odt, .odg), PDF ou Publisher (.pub) reprises en textes, photos et formes modifiables ; les tracés d'un PDF (graphisme, cadres) deviennent des formes modifiables (une illustration faite de très nombreux tracés, une image fixe), une police absente est remplacée par une police de même largeur. Un fichier LibreOffice Draw (dont ceux qu'exporte Cahutin) se relit tel quel ; pour les autres formats, LibreOffice doit être installé sur le poste.
 - **Aide** : visite guidée au premier lancement ; huit guides en images (Créer un modèle, Remplir avec ma classe, Photothèque, Flouter des visages, Étiquettes à découper, Reprendre une ancienne fiche, Frise, Ma collection), ouverts depuis l'accueil, le menu Aide ou un bouton « Comment faire » sur place, avec un pas à pas « Me guider » qui montre chaque bouton à l'écran ; astuces par thème et bulles d'aide discrètes.
 - **Préférences** (bouton en haut) : taille de l'interface, police des menus (Andika, OpenDyslexic), contraste élevé, grandes poignées, animations réduites ; pour le daltonisme, noms des couleurs, repères doublés par un signe, palette d'Okabe et Ito et aperçu « Vision daltonienne » ; barre en icônes seules ; format et police d'une nouvelle page, section des fiches de graphisme, export proposé en premier. Les préférences restent sur le poste.
+- **Assistant de mise en page** (à partir de la version 0.13, facultatif et désactivé au départ, Préférences > Assistant) : on écrit ce qu'on veut (« aligne les photos », « fais une fiche d'exercices »), l'assistant prépare une proposition, et rien ne change avant « Accepter ». Cahutin ne fournit pas d'intelligence artificielle : l'assistant se branche sur votre propre service, un compte Claude (Anthropic), OpenAI ou Gemini (Google), en général payant à l'usage, ou Ollama installé sur l'ordinateur. Les textes qu'il écrit (titres, consignes) viennent de l'IA : relisez-les. Une réponse déplacée se signale par « ⚑ Signaler », sous la réponse : un e-mail à l'auteur, prêt dans votre messagerie, sans compte à créer. Ce qu'il envoie : voir « Confidentialité ».
 - **Sorties** : impression (chaque page sur une feuille de son format, affiche A3 en deux feuilles A4, cartes en recto-verso), PDF, et export **ODG** pour LibreOffice Draw, où chaque texte, photo et forme reste modifiable et les polices voyagent avec le fichier.
 
 ## Confidentialité
 
-**Toutes les données restent sur l'ordinateur.** Cahutin fonctionne sans internet, sans compte et sans serveur :
+**Toutes les données restent sur l'ordinateur.** Cahutin fonctionne sans internet, sans compte et sans serveur (l'assistant IA, facultatif, est la seule exception, détaillée plus bas) :
 - les **documents et les photos** (celles des élèves, la photothèque de la classe, la collection d'images) ;
 - les **informations personnelles** : prénoms, noms, dates de naissance, groupes, autorisations photo des élèves ;
 - les **informations d'utilisation** : Cahutin ne mesure rien, ne compte rien et n'envoie aucune statistique ; ses réglages et son journal restent sur le poste.
 
 En détail :
 
-- Une seule connexion possible, facultative et désactivée tant que vous ne l'avez pas acceptée : une fois par jour, Cahutin lit le numéro de la dernière version sur l'API de GitHub (`api.github.com`). Rien d'autre n'est envoyé (ni document, ni identifiant, ni information sur l'ordinateur) ; GitHub voit seulement l'adresse IP de la connexion, comme pour toute visite d'un site. L'interface elle-même n'a accès à aucune adresse distante.
+- Hors assistant IA, une seule connexion possible, facultative et désactivée tant que vous ne l'avez pas acceptée : une fois par jour, Cahutin lit le numéro de la dernière version sur l'API de GitHub (`api.github.com`). Rien d'autre n'est envoyé (ni document, ni identifiant, ni information sur l'ordinateur) ; GitHub voit seulement l'adresse IP de la connexion, comme pour toute visite d'un site. L'interface elle-même n'a accès à aucune adresse distante.
+- **Assistant IA (facultatif)**. Désactivé au départ. Une fois activé, il envoie au service que vous avez choisi, et à lui seul, à chaque demande :
+  - la disposition des pages : place et taille des éléments, polices, couleurs, fonds, formes, noms des pictogrammes, noms des champs (`{prenom}`, sans le prénom), et si une case photo est remplie ;
+  - votre demande, telle que vous l'écrivez, et les échanges de la conversation en cours.
+
+  Il n'envoie jamais les textes des documents, les photos, les noms de fichiers, la liste de la classe (prénoms, dates de naissance, autorisations) ni les noms de vos styles. N'écrivez donc pas de prénom ni d'information sur un élève dans une demande. Le service voit aussi l'adresse IP de la connexion, et traite ce qu'il reçoit selon ses propres conditions, sous votre compte : rien n'est envoyé à l'auteur de Cahutin. Avec Ollama sur l'ordinateur, rien ne sort. La clé du service est enregistrée sur l'ordinateur, dans les réglages de Cahutin (`assistant.json`), et n'est envoyée qu'à l'adresse de ce service, toujours chiffrée (`https://`, sauf pour un service sur l'ordinateur). L'assistant se désactive dans Préférences > Assistant, où « Oublier la clé » l'efface.
 - Les métadonnées des photos (lieu, appareil, date) sont retirées à l'import.
 - Le repérage des visages, pour flouter ceux des enfants sans autorisation photo, se fait sur l'ordinateur par un modèle intégré à l'application, et seulement avec votre accord. Il trouve où sont les visages, sans jamais reconnaître qui est qui. La photo floutée remplace l'originale dans le document.
 - La liste de la classe reste sur l'ordinateur, dans `Documents/Cahutin/Classes`, et sa photothèque dans `Documents/Cahutin/Photos` (photos sans lieu ni appareil ; seule la date de prise de vue est gardée). Les enfants présents sur une photo sont indiqués à la main : aucun visage n'est reconnu.

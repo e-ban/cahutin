@@ -3,6 +3,7 @@
 // large, celui qu'un clic sélectionne) puis ses sous-groupes. `inside` est le chemin du groupe où l'on est
 // entré par double-clic : les blocs sont alors ses membres directs. Les cases de grille ne sont jamais
 // groupées, un tableau garde son propre groupe.
+// Copié en partie pour l'assistant dans crates/cahutin-mcp/src/arrange.rs (grouper, miroir, agrandir) : changer les deux ensemble.
 import { newId } from "./factory";
 import type { Element, Frame, Page } from "./types";
 

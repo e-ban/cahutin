@@ -28,14 +28,14 @@
 
 <header>
   <h1>Confidentialité</h1>
-  <p class="chapo texte">Cahutin est fait pour des documents d'école, avec des photos et des prénoms d'enfants : toutes les données restent sur l'ordinateur. <a href="./">Retour à l'accueil</a>.</p>
+  <p class="chapo texte">Cahutin est fait pour des documents d'école, avec des photos et des prénoms d'enfants : toutes les données restent sur l'ordinateur. Seule exception, si vous l'activez : l'assistant IA, détaillé plus bas. <a href="./">Retour à l'accueil</a>.</p>
 </header>
 
 <main class="texte">
 <section aria-labelledby="donnees">
   <h2 id="donnees">Vos données</h2>
   <ul class="gommettes">
-    <li><h3>Rien n'est envoyé</h3>Cahutin fonctionne sans internet, sans compte et sans serveur. Toutes les données restent sur l'ordinateur : ni l'auteur ni personne d'autre n'y a accès.</li>
+    <li><h3>Rien n'est envoyé</h3>Cahutin fonctionne sans internet, sans compte et sans serveur. Toutes les données restent sur l'ordinateur : ni l'auteur ni personne d'autre n'y a accès. Seule exception : l'assistant IA facultatif, s'il est activé (<a href="#assistant">plus bas</a>).</li>
     <li><h3>Les photos</h3>Les photos des élèves, la photothèque de la classe et votre collection d'images ne quittent jamais l'ordinateur.</li>
     <li><h3>Les informations personnelles</h3>Prénoms, noms, dates de naissance, groupes et autorisations photo des élèves restent dans les fichiers de l'ordinateur.</li>
     <li><h3>L'utilisation</h3>Cahutin ne mesure rien et n'envoie aucune statistique : ni ce que vous faites, ni combien de temps, ni sur quel ordinateur. Les réglages et le journal restent sur le poste.</li>
@@ -47,9 +47,22 @@
 </section>
 
 <section aria-labelledby="reseau">
-  <h2 id="reseau">La seule connexion possible</h2>
-  <p>Si vous l'acceptez (une question au premier lancement, réglable dans le menu Aide), Cahutin lit une fois par jour le numéro de la dernière version sur <code>api.github.com</code>. Rien d'autre n'est envoyé : ni document, ni identifiant, ni information sur l'ordinateur ; GitHub voit l'adresse IP de la connexion, comme pour toute visite d'un site.</p>
+  <h2 id="reseau">La connexion pour les mises à jour</h2>
+  <p>Hors assistant IA, c'est la seule connexion possible. Si vous l'acceptez (une question au premier lancement, réglable dans le menu Aide), Cahutin lit une fois par jour le numéro de la dernière version sur <code>api.github.com</code>. Rien d'autre n'est envoyé : ni document, ni identifiant, ni information sur l'ordinateur ; GitHub voit l'adresse IP de la connexion, comme pour toute visite d'un site.</p>
   <p>La version du Microsoft Store ne fait jamais cette connexion : c'est le Store qui la met à jour.</p>
+</section>
+
+<section aria-labelledby="assistant">
+  <h2 id="assistant">L'assistant IA (facultatif)</h2>
+  <p>À partir de la version 0.13, Cahutin propose un assistant de mise en page. Il est désactivé au départ et ne s'active que dans Préférences &gt; Assistant, où il se désactive aussi. Cahutin ne fournit pas d'intelligence artificielle : l'assistant se branche sur le service que vous choisissez, avec votre propre compte (Claude d'Anthropic, OpenAI, Gemini de Google, en général payants à l'usage), ou sur Ollama installé sur l'ordinateur, et alors rien ne sort.</p>
+  <ul class="gommettes">
+    <li><h3>Ce qui est envoyé</h3>À chaque demande, au service choisi et à lui seul : la disposition des pages (place et taille des éléments, polices, couleurs, fonds, formes, noms des pictogrammes, noms des champs comme <code>{prenom}</code> sans le prénom, et si une case photo est remplie), votre demande telle que vous l'écrivez, et les échanges de la conversation en cours. Le service voit aussi l'adresse IP de la connexion.</li>
+    <li><h3>Ce qui n'est jamais envoyé</h3>Les textes des documents, les photos, les noms de fichiers, la liste de la classe (prénoms, noms, dates de naissance, groupes, autorisations photo) et les noms de vos styles. N'écrivez donc ni prénom ni information sur un élève dans une demande.</li>
+    <li><h3>Qui le reçoit</h3>Seulement le service que vous avez choisi, sous votre compte et selon ses propres conditions. Rien n'est envoyé à l'auteur de Cahutin.</li>
+    <li><h3>La clé du service</h3>Elle est enregistrée sur l'ordinateur, dans les réglages de Cahutin, et n'est envoyée qu'à l'adresse de ce service. « Oublier la clé », dans Préférences &gt; Assistant, l'efface de l'ordinateur.</li>
+    <li><h3>Une connexion chiffrée</h3>Tout ce qui part vers un service sur Internet est chiffré : Cahutin refuse une adresse qui ne commence pas par <code>https://</code>, sauf pour un service installé sur l'ordinateur.</li>
+    <li><h3>Ce qu'il écrit</h3>Les textes que l'assistant ajoute (titres, consignes, légendes) viennent de l'IA : relisez-les avant d'imprimer. Rien ne change dans le document avant « Accepter ». Une réponse déplacée ou choquante se signale par « ⚑ Signaler », sous la réponse : Cahutin prépare dans votre messagerie un e-mail à l'auteur, avec la demande et la réponse, que vous relisez avant de l'envoyer. Sans compte à créer.</li>
+  </ul>
 </section>
 
 <section aria-labelledby="journal">
@@ -64,7 +77,7 @@
 
 <section aria-labelledby="contact">
   <h2 id="contact">Contact</h2>
-  <p>Une question sur vos données : une <a href="https://github.com/e-ban/cahutin/issues">demande sur GitHub</a>, ou un <a href="https://github.com/e-ban/cahutin/security/advisories/new">signalement privé</a>.</p>
+  <p>Une question sur vos données : une <a href="https://github.com/e-ban/cahutin/issues">demande sur GitHub</a>, un <a href="https://github.com/e-ban/cahutin/security/advisories/new">signalement privé</a>, ou un e-mail à <a href="mailto:cahutin.pavilion366@slmail.me">cahutin.pavilion366@slmail.me</a>.</p>
 </section>
 </main>
 

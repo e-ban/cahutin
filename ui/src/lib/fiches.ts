@@ -1,6 +1,7 @@
 // Fiches à générer : labyrinthes et dessins à compléter par symétrie sur quadrillage. Comme les lignes de
 // graphisme, des formes ordinaires (tracés libres, traits, images) réunies en un groupe, sous ce que la page
 // contient déjà.
+// Copié pour l'assistant dans crates/cahutin-mcp/src/exercises.rs : changer les deux ensemble.
 import { newId } from "./factory";
 import type { Level } from "./graphisme";
 import type { Element, Frame, Page, Stroke } from "./types";

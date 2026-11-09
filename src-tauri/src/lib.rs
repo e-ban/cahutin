@@ -1,5 +1,6 @@
 //! Application de bureau : expose le moteur `carnet-core` à l'interface.
 
+mod assistant;
 mod backup;
 mod class_commands;
 mod images_commands;
@@ -150,6 +151,12 @@ pub fn run() {
             commands::list_examples,
             commands::open_example,
             commands::page_set_size,
+            assistant::assistant_settings,
+            assistant::assistant_configure,
+            assistant::assistant_test,
+            assistant::assistant_send,
+            assistant::assistant_stop,
+            assistant::assistant_report,
             commands::list_templates,
             commands::instantiate_template,
             commands::save_page_as_template,

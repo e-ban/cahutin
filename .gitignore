@@ -4,3 +4,7 @@ ui/dist/
 src-tauri/gen/
 packaging/store/
 listingData-*.csv
+
+# Essais locaux : bancs de modèles, journaux, documents de travail, exemples jetables.
+spike/
+crates/cahutin-mcp/examples/

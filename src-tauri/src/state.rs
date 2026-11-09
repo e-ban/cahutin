@@ -19,6 +19,8 @@ pub struct AppState {
     pub pending_fonts: Mutex<Vec<(String, Vec<u8>)>>,
     /// Demande d'annulation de l'import de fichier en cours.
     pub import_cancel: AtomicBool,
+    /// Demande d'arrêt de l'assistant (bouton Arrêter).
+    pub assistant_cancel: AtomicBool,
     /// Dossier des listes de classe (`Documents/Cahutin/Classes`).
     pub classes_dir: PathBuf,
     /// Photothèque ouverte (celle de la classe courante) : son dossier et son index.
@@ -39,6 +41,7 @@ impl AppState {
             system_fonts: RwLock::new(Vec::new()),
             pending_fonts: Mutex::new(Vec::new()),
             import_cancel: AtomicBool::new(false),
+            assistant_cancel: AtomicBool::new(false),
             classes_dir,
             phototheque: Mutex::new(None),
             my_images: Mutex::new(Default::default()),

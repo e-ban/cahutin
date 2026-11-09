@@ -298,6 +298,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cahutin-mcp"
+version = "0.12.0"
+dependencies = [
+ "carnet-core",
+ "image",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "ts-rs",
+ "zip",
+]
+
+[[package]]
 name = "cairo-rs"
 version = "0.18.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -369,6 +382,7 @@ dependencies = [
 name = "carnet-app"
 version = "0.12.0"
 dependencies = [
+ "cahutin-mcp",
  "carnet-core",
  "log",
  "open",

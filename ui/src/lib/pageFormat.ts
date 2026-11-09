@@ -1,4 +1,5 @@
 // Formats de page (A5, A4, A3) et impression d'une affiche A3 sur deux feuilles A4.
+// Copié pour l'assistant dans crates/cahutin-mcp/src/arrange.rs : changer les deux ensemble.
 import { scaleElements } from "./groups";
 import type { Page, PageSize } from "./types";
 

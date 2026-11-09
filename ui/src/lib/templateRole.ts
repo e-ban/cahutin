@@ -2,6 +2,7 @@
 // enregistré, son texte d'origine gardé comme invite), ou fixe (verrouillé, gardé tel quel : un titre, un
 // logo). Sans l'un ni l'autre, il n'est pas gardé dans le modèle : une photo ou un texte libre peut montrer un
 // enfant ou le nommer (voir `templates::from_page` dans le moteur).
+// Copié pour l'assistant dans crates/cahutin-mcp/src/template.rs : changer les deux ensemble.
 import { splitFields } from "./classFields";
 import type { Element } from "./types";
 

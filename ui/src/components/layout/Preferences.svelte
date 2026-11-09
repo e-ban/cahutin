@@ -3,6 +3,7 @@
   // page, graphisme, export, astuces, avis de nouvelles versions. Chaque choix s'applique tout de suite et reste
   // sur le poste.
   import { canExportPdf } from "../../lib/api";
+  import AssistantPrefs from "../assistant/AssistantPrefs.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { hints } from "../../lib/hints.svelte";
   import { fr } from "../../lib/i18n/fr";
@@ -164,6 +165,7 @@
         </label>
       {/if}
     </section>
+    <AssistantPrefs />
     </div>
 
     <div class="buttons"><button class="primary" onclick={close}>{fr.close}</button></div>

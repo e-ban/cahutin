@@ -90,7 +90,7 @@ pub fn definitions() -> Value {
     json!([
         {
             "name": "get_layout",
-            "description": "Mise en page du document : pages, puis chaque élément (texte, photo, forme, image) avec son cadre en mm, son style et s'il est sélectionné. Ni texte ni photo.",
+            "description": "Mise en page du document : pages, puis chaque élément (texte, photo, forme, image) avec son cadre en mm, son style et s'il est sélectionné. Ni texte ni photo. Un champ absent vaut sa valeur par défaut (false, aucun, 0).",
             "inputSchema": { "type": "object", "properties": { "page": { "type": "integer", "description": "Indice de page (0 pour la première) ; absent : toutes" } } },
         },
         {

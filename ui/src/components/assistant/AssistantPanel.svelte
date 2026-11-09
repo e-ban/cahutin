@@ -13,7 +13,8 @@
 
   async function send() {
     const message = text;
-    text = "";
+    // Un message trop long est refusé (2000 caractères au plus) : il reste dans le champ, pour le raccourcir.
+    if ([...message.trim()].length <= 2000) text = "";
     const sending = assistant.send(message);
     await tick();
     threadEl?.scrollTo({ top: threadEl.scrollHeight });

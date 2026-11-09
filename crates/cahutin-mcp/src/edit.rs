@@ -506,7 +506,7 @@ mod tests {
         let view = crate::view::layout(&d, None, &[]);
         assert!(!view.to_string().contains("Léa"));
         let t1 = view["pages"][0]["elements"].as_array().unwrap().iter().find(|e| e["id"] == "t1").unwrap().clone();
-        assert_eq!(t1["empty"], false);
+        assert!(t1.get("empty").is_none(), "un texte écrit n'est pas vide : {t1}");
     }
 
     #[test]

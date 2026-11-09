@@ -23,3 +23,19 @@ test("cancel answers the first choice, the way back", async () => {
   expect(await p).toBe("cancel");
   expect(modal.message).toBeNull();
 });
+
+test("a question can name what Escape answers, so Escape never destroys anything", async () => {
+  const choices = [
+    { value: "discard", label: "Non, l'oublier" },
+    { value: "open", label: "Reprendre", primary: true },
+  ];
+  const p = modal.choose("Reprendre ce travail ?", choices, { escape: "later" });
+  modal.cancel();
+  expect(await p).toBe("later");
+  // Remplacée par une autre question : même réponse que Échap.
+  const q = modal.choose("Reprendre ce travail ?", choices, { escape: "later" });
+  const r = modal.choose("Autre ?", choices);
+  expect(await q).toBe("later");
+  modal.cancel();
+  expect(await r).toBe("discard");
+});

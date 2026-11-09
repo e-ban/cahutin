@@ -75,17 +75,21 @@
   import GuideBook from "./components/layout/GuideBook.svelte";
   import GuideWalk from "./components/GuideWalk.svelte";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
-  import { launchDocument } from "./lib/api";
+  import { backupClear, launchDocument } from "./lib/api";
+  import { offerBackup, startBackups } from "./lib/backup";
 
   editor.reset(newDocument(), null);
   editor.showWelcome = true;
   fonts.load();
   templates.refresh();
   void classes.restore();
-  // Ouvert par un double-clic sur un fichier .carnet : ce document, à la place de l'accueil.
-  void launchDocument()
+  // Après une panne : la copie de secours, si l'utilisateur la reprend. Sinon, ouvert par un double-clic sur
+  // un fichier .carnet : ce document, à la place de l'accueil.
+  void offerBackup()
+    .then((restored) => (restored ? null : launchDocument()))
     .then((path) => (path ? openPath(path, false) : undefined))
     .catch(() => {});
+  onMount(() => startBackups());
   // Après une mise à jour : les nouveautés, une fois, pour qui utilisait déjà Cahutin.
   if (shouldShowWhatsNew(readPref<string | null>("whatsNewSeen", null), readPref("tourDone", false))) editor.showWhatsNew = true;
   function closeWhatsNew() {
@@ -148,7 +152,11 @@
             if (await ask(fr.classUnsavedClose, fr.classCloseAnyway)) await win.destroy();
             return;
           }
-          if (!editor.dirty) return;
+          // Rien à enregistrer (revenu à l'état enregistré) : la copie de secours part avec la fenêtre.
+          if (!editor.dirty) {
+            await backupClear().catch(() => {});
+            return;
+          }
           event.preventDefault();
           if (await confirmLeave()) await win.destroy();
         })

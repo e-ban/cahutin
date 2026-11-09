@@ -1,5 +1,6 @@
 //! Application de bureau : expose le moteur `carnet-core` à l'interface.
 
+mod backup;
 mod class_commands;
 mod images_commands;
 mod phototheque_commands;
@@ -61,7 +62,7 @@ pub fn run() {
             }
             // Classes : un dossier visible, que l'enseignant peut sauvegarder lui-même.
             let classes = app.path().document_dir().map(|d| d.join("Cahutin").join("Classes")).unwrap_or_else(|_| data.join("Classes"));
-            app.manage(AppState::new(store, Library::open(data.join("modeles"))?, data.join("polices"), classes));
+            app.manage(AppState::new(store, Library::open(data.join("modeles"))?, data.join("polices"), classes, data.join("secours")));
             // Polices du poste : lues en arrière-plan pour ne pas retarder l'ouverture de la fenêtre.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
@@ -74,6 +75,10 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            backup::backup_save,
+            backup::backup_info,
+            backup::backup_open,
+            backup::backup_clear,
             commands::import_photos,
             commands::existing_paths,
             commands::document_trash,

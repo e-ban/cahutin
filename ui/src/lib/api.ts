@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind , ClassPhotoAdded, Phototheque, TagChange, MyImage, MyImagesAdded, MyImageKept } from "./types";
+import type { AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, BackupInfo, Page, TemplateInfo, ZoneKind , ClassPhotoAdded, Phototheque, TagChange, MyImage, MyImagesAdded, MyImageKept } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -36,6 +36,11 @@ export const launchDocument = () => invoke<string | null>("launch_document");
 export const listImportableIn = (dir: string) => invoke<string[]>("list_importable_in", { dir });
 export const saveDocument = (path: string, doc: Document) => invoke<void>("save_document", { path, doc });
 export const openDocument = (path: string) => invoke<OpenedDocument>("open_document", { path });
+/** Copie de secours du document ouvert (dossier de l'application), reprise au lancement après une panne. */
+export const backupSave = (doc: Document, source: string | null) => invoke<void>("backup_save", { doc, source });
+export const backupInfo = () => invoke<BackupInfo | null>("backup_info");
+export const backupOpen = () => invoke<OpenedDocument>("backup_open");
+export const backupClear = () => invoke<void>("backup_clear");
 export const previewDocument = (path: string) => invoke<Document>("preview_document", { path });
 export const importFile = (path: string) => invoke<ImportedPages>("import_file", { path });
 export const cancelImport = () => invoke<void>("cancel_import");

@@ -80,6 +80,7 @@ En détail :
 - La liste de la classe reste sur l'ordinateur, dans `Documents/Cahutin/Classes`, et sa photothèque dans `Documents/Cahutin/Photos` (photos sans lieu ni appareil ; seule la date de prise de vue est gardée). Les enfants présents sur une photo sont indiqués à la main : aucun visage n'est reconnu.
 - Le journal de l'application ne contient ni texte de document, ni nom de fichier, ni prénom d'enfant. Le rapport de problème (Aide > Signaler un problème) reprend seulement ce journal.
 - Les photos importées sont copiées dans un dossier temporaire vidé à la fermeture ; un document enregistré (`.carnet`) contient ses propres photos.
+- Une copie de secours du document ouvert est écrite toutes les deux minutes dans le dossier de l'application (`secours`), avec ses photos ; elle est effacée à chaque enregistrement et quand vous quittez le document ; au lancement suivant, Cahutin propose de la reprendre.
 
 ## Fichiers
 

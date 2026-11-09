@@ -9,18 +9,27 @@ class Modal {
   message = $state<string | null>(null);
   choices = $state.raw<Choice<string>[]>([]);
   #resolve: ((v: string) => void) | null = null;
+  #escape: string | null = null;
 
-  /** Une nouvelle question remplace la précédente, qui reçoit sa première réponse (en principe « Annuler »). */
-  choose<T extends string>(message: string, choices: Choice<T>[]): Promise<T> {
-    if (this.#resolve && this.choices.length) this.#resolve(this.choices[0].value);
+  /**
+   * Une nouvelle question remplace la précédente, qui reçoit sa réponse d'Échap. Celle-ci est la première réponse
+   * (en principe le retour, « Revenir au document »), ou `escape` quand le premier bouton efface quelque chose.
+   */
+  choose<T extends string, E extends string = T>(message: string, choices: Choice<T>[], opts: { escape?: E } = {}): Promise<T | E> {
+    if (this.#resolve && this.choices.length) this.#resolve(this.#escapeValue());
     this.message = message;
     this.choices = choices;
-    return new Promise<T>((resolve) => (this.#resolve = resolve as (v: string) => void));
+    this.#escape = opts.escape ?? null;
+    return new Promise<T | E>((resolve) => (this.#resolve = resolve as (v: string) => void));
   }
 
-  /** Échap : la première réponse, qui est le retour (« Revenir au document »). */
+  #escapeValue(): string {
+    return this.#escape ?? this.choices[0].value;
+  }
+
+  /** Échap : la réponse d'Échap de la question. */
   cancel() {
-    if (this.choices.length) this.answer(this.choices[0].value);
+    if (this.choices.length) this.answer(this.#escapeValue());
   }
 
   answer(value: string) {

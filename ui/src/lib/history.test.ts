@@ -54,3 +54,12 @@ test("markSaved with the snapshot actually written", () => {
   h.undo();
   expect(h.isDirty).toBe(false);
 });
+
+test("markUnsaved makes a fresh history dirty until the next save", () => {
+  const h = createHistory({ n: 1 });
+  expect(h.isDirty).toBe(false);
+  h.markUnsaved();
+  expect(h.isDirty).toBe(true);
+  h.markSaved();
+  expect(h.isDirty).toBe(false);
+});

@@ -12,7 +12,7 @@ import { summarizeImport } from "./importSummary";
 import { pendingPaths } from "./photoLibrary";
 import { addRecent, withoutRecent, writeRecents } from "./recents";
 import { missingFamilies } from "./fontNames";
-import type { Document, ImportedPages, ImportOutcome } from "./types";
+import type { Document, ImportedPages, ImportOutcome, OpenedDocument } from "./types";
 import { modal } from "./modal.svelte";
 
 const baseName = () => (editor.doc.title.trim() || "Sans titre").replace(/[\\/:*?"<>|]/g, "-");
@@ -33,6 +33,8 @@ async function guard<T>(action: () => Promise<T>): Promise<T | undefined> {
 }
 
 let saving = false;
+/** Un enregistrement est en cours : la copie de secours attend. */
+export const isSaving = () => saving;
 
 /** Écrit l'état du document au moment de l'appel ; ce qui change pendant l'écriture reste « modifié ». */
 async function write(path: string): Promise<boolean> {
@@ -46,6 +48,8 @@ async function write(path: string): Promise<boolean> {
     if (ok === undefined) return false;
     editor.markSaved(path, snapshot);
     remember(path, snapshot.title);
+    // Enregistré : la copie de secours n'a plus lieu d'être.
+    void api.backupClear().catch(() => {});
     return true;
   } finally {
     saving = false;
@@ -73,7 +77,12 @@ function askToSave(): Promise<DiscardChoice> {
   ]);
 }
 
-export const confirmLeave = () => confirmDiscardIfDirty(askToSave, save);
+/** Quitter le document en connaissance de cause : sa copie de secours est effacée. */
+export async function confirmLeave(): Promise<boolean> {
+  const leave = await confirmDiscardIfDirty(askToSave, save);
+  if (leave) await api.backupClear().catch(() => {});
+  return leave;
+}
 
 export async function newDoc() {
   if (!(await confirmLeave())) return;
@@ -161,8 +170,16 @@ export async function openPath(path: string, confirm = true) {
   const opened = await guard(() => api.openDocument(path));
   if (!opened) return;
   editor.reset(opened.doc, path);
-  editor.carriedPending = opened.doc.pending_photos;
   remember(path, opened.doc.title);
+  await showOpened(opened);
+}
+
+/**
+ * Le document ouvert prend la place du précédent (déjà remis à zéro dans `editor`) : ses photos dans le
+ * panneau, ses polices proposées, ses photos en attente réimportées. Sert aussi à la reprise d'une copie de secours.
+ */
+export async function showOpened(opened: OpenedDocument) {
+  editor.carriedPending = opened.doc.pending_photos;
   void checkDocumentFonts(opened.doc, opened.offered_fonts);
   editor.replaceLibrary(Object.values(opened.doc.assets).flatMap((meta) => (meta ? [{ meta, path: "", folder: "" }] : [])));
   editor.showWelcome = false;

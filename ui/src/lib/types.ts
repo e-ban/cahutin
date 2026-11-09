@@ -24,6 +24,7 @@ export type { ImportOutcome } from "./gen/ImportOutcome";
 export type { InstantiatedPage } from "./gen/InstantiatedPage";
 export type { Mime } from "./gen/Mime";
 export type { OpenedDocument } from "./gen/OpenedDocument";
+export type { BackupInfo } from "./gen/BackupInfo";
 export type { ImportedPages } from "./gen/ImportedPages";
 export type { ImportReport } from "./gen/ImportReport";
 export type { Page } from "./gen/Page";

@@ -180,7 +180,7 @@ fn offer_fonts(state: &AppState, fonts: Vec<(String, Vec<u8>)>, append: bool) ->
     offered_fonts
 }
 
-fn open_document_in(state: &AppState, path: &Path) -> Result<OpenedDocument, String> {
+pub(crate) fn open_document_in(state: &AppState, path: &Path) -> Result<OpenedDocument, String> {
     let native::LoadedDocument { doc, assets, fonts } = native::load_from_path(path).map_err(|e| {
         log::error!("open_document_failed kind={e:?}");
         e.message_fr()
@@ -742,7 +742,7 @@ mod tests {
     }
 
     fn test_state(dir: &Path) -> AppState {
-        AppState::new(AssetStore::default(), Library::open(dir.join("modeles")).unwrap(), dir.join("polices"), dir.join("Classes"))
+        AppState::new(AssetStore::default(), Library::open(dir.join("modeles")).unwrap(), dir.join("polices"), dir.join("Classes"), dir.join("secours"))
     }
 
     fn fixture(name: &str) -> PathBuf {

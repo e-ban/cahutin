@@ -25,10 +25,12 @@ pub struct AppState {
     pub phototheque: Mutex<Option<(PathBuf, carnet_core::phototheque::Phototheque)>>,
     /// « Mes images » déjà importées : (nom, date, taille) → image, pour ne pas la copier à chaque clic.
     pub my_images: Mutex<std::collections::HashMap<(String, u64, u64), carnet_core::AssetMeta>>,
+    /// Dossier de la copie de secours du document ouvert (`<données de l'application>/secours`).
+    pub backup_dir: PathBuf,
 }
 
 impl AppState {
-    pub fn new(store: AssetStore, library: Library, fonts_dir: PathBuf, classes_dir: PathBuf) -> AppState {
+    pub fn new(store: AssetStore, library: Library, fonts_dir: PathBuf, classes_dir: PathBuf, backup_dir: PathBuf) -> AppState {
         AppState {
             store: Mutex::new(store),
             library,
@@ -40,6 +42,7 @@ impl AppState {
             classes_dir,
             phototheque: Mutex::new(None),
             my_images: Mutex::new(Default::default()),
+            backup_dir,
         }
     }
 

@@ -299,7 +299,7 @@ mod tests {
     fn state(dir: &Path) -> AppState {
         let classes = dir.join("Cahutin").join("Classes");
         std::fs::create_dir_all(&classes).unwrap();
-        AppState::new(Default::default(), Library::open(dir.join("modeles")).unwrap(), dir.join("polices"), classes)
+        AppState::new(Default::default(), Library::open(dir.join("modeles")).unwrap(), dir.join("polices"), classes, dir.join("secours"))
     }
 
     fn svg(dir: &Path, name: &str) -> String {

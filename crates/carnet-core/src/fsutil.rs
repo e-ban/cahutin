@@ -4,7 +4,7 @@
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
-pub(crate) fn write_atomically<E: From<std::io::Error>>(path: &Path, write: impl FnOnce(&mut File) -> Result<(), E>) -> Result<(), E> {
+pub fn write_atomically<E: From<std::io::Error>>(path: &Path, write: impl FnOnce(&mut File) -> Result<(), E>) -> Result<(), E> {
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(".tmp");
     let tmp = PathBuf::from(tmp);

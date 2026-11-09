@@ -8,6 +8,8 @@ export interface History<T> {
   redo(): void;
   /** `snapshot` : l'état réellement écrit, s'il a changé depuis le début de l'enregistrement. */
   markSaved(snapshot?: T): void;
+  /** Rien n'est enregistré (document repris d'une copie de secours) : modifié jusqu'au prochain enregistrement. */
+  markUnsaved(): void;
 }
 
 /** Historique d'annulation par instantanés. `limit` borne le nombre d'annulations possibles. */
@@ -49,6 +51,9 @@ export function createHistory<T>(initial: T, limit = 100): History<T> {
     },
     markSaved(snapshot?: T) {
       saved = snapshot === undefined ? current : snapshot;
+    },
+    markUnsaved() {
+      saved = null;
     },
   };
 }

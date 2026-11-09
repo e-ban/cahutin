@@ -206,8 +206,10 @@ class Editor {
   }
 
   /** Nouveau document ou document ouvert : l'historique repart de zéro. */
-  reset(doc: Document, path: string | null) {
+  /** `unsaved` : document repris d'une copie de secours, à enregistrer (donc « modifié »). */
+  reset(doc: Document, path: string | null, opts: { unsaved?: boolean } = {}) {
     this.#history = createHistory(doc);
+    if (opts.unsaved) this.#history.markUnsaved();
     this.path = path;
     this.pageIndex = 0;
     this.selection = [];

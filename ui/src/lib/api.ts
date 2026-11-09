@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, BackupInfo, Page, TemplateInfo, ZoneKind , ClassPhotoAdded, Phototheque, TagChange, MyImage, MyImagesAdded, MyImageKept } from "./types";
+import type { AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, BackupOffer, RestoredDocument, Page, TemplateInfo, ZoneKind , ClassPhotoAdded, Phototheque, TagChange, MyImage, MyImagesAdded, MyImageKept } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -38,8 +38,11 @@ export const saveDocument = (path: string, doc: Document) => invoke<void>("save_
 export const openDocument = (path: string) => invoke<OpenedDocument>("open_document", { path });
 /** Copie de secours du document ouvert (dossier de l'application), reprise au lancement après une panne. */
 export const backupSave = (doc: Document, source: string | null) => invoke<void>("backup_save", { doc, source });
-export const backupInfo = () => invoke<BackupInfo | null>("backup_info");
-export const backupOpen = () => invoke<OpenedDocument>("backup_open");
+/** Copie laissée par une fenêtre arrêtée sans enregistrer, s'il y en a une. */
+export const backupInfo = () => invoke<BackupOffer | null>("backup_info");
+export const backupOpen = (id: string) => invoke<RestoredDocument>("backup_open", { id });
+export const backupDiscard = (id: string) => invoke<void>("backup_discard", { id });
+/** Efface la copie de cette fenêtre. */
 export const backupClear = () => invoke<void>("backup_clear");
 export const previewDocument = (path: string) => invoke<Document>("preview_document", { path });
 export const importFile = (path: string) => invoke<ImportedPages>("import_file", { path });

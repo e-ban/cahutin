@@ -75,7 +75,8 @@
   import GuideBook from "./components/layout/GuideBook.svelte";
   import GuideWalk from "./components/GuideWalk.svelte";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
-  import { backupClear, launchDocument } from "./lib/api";
+  import { launchDocument } from "./lib/api";
+  import { clearBackup } from "./lib/backupCopy";
   import { offerBackup, startBackups } from "./lib/backup";
 
   editor.reset(newDocument(), null);
@@ -154,7 +155,7 @@
           }
           // Rien à enregistrer (revenu à l'état enregistré) : la copie de secours part avec la fenêtre.
           if (!editor.dirty) {
-            await backupClear().catch(() => {});
+            await clearBackup();
             return;
           }
           event.preventDefault();

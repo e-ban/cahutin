@@ -25,6 +25,8 @@ export type { InstantiatedPage } from "./gen/InstantiatedPage";
 export type { Mime } from "./gen/Mime";
 export type { OpenedDocument } from "./gen/OpenedDocument";
 export type { BackupInfo } from "./gen/BackupInfo";
+export type { BackupOffer } from "./gen/BackupOffer";
+export type { RestoredDocument } from "./gen/RestoredDocument";
 export type { ImportedPages } from "./gen/ImportedPages";
 export type { ImportReport } from "./gen/ImportReport";
 export type { Page } from "./gen/Page";

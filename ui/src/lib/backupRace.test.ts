@@ -25,3 +25,20 @@ test("a backup that lands after a save is cleared again, and only one runs at a 
   await first;
   expect(calls).toEqual(["save", "clear"]);
 });
+
+/** Effacée alors que le document reste modifié (ouverture annulée) : la copie est réécrite au tour suivant. */
+test("a copy cleared while the document stays modified is written again", async () => {
+  const { backupNow } = await import("./backup");
+  const { clearBackup } = await import("./backupCopy");
+  const { editor } = await import("./docStore.svelte");
+  calls.length = 0;
+  editor.commit({ ...editor.doc, title: "Encore modifié" });
+  const first = backupNow();
+  finishWrite();
+  await first;
+  await clearBackup();
+  const second = backupNow();
+  finishWrite();
+  await second;
+  expect(calls).toEqual(["save", "clear", "save"]);
+});

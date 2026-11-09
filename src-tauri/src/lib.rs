@@ -62,7 +62,19 @@ pub fn run() {
             }
             // Classes : un dossier visible, que l'enseignant peut sauvegarder lui-même.
             let classes = app.path().document_dir().map(|d| d.join("Cahutin").join("Classes")).unwrap_or_else(|_| data.join("Classes"));
-            app.manage(AppState::new(store, Library::open(data.join("modeles"))?, data.join("polices"), classes, data.join("secours")));
+            // Copie de secours : un dossier par fenêtre, verrouillé tant qu'elle vit.
+            let backup_dir = match backup::BackupSlot::acquire(&data.join("secours")) {
+                Ok(slot) => {
+                    let dir = slot.path().to_path_buf();
+                    app.manage(BackupGuard(slot));
+                    dir
+                }
+                Err(e) => {
+                    log::warn!("backup_slot_unavailable kind={:?}", e.kind());
+                    data.join("secours").join(carnet_core::new_id())
+                }
+            };
+            app.manage(AppState::new(store, Library::open(data.join("modeles"))?, data.join("polices"), classes, backup_dir));
             // Polices du poste : lues en arrière-plan pour ne pas retarder l'ouverture de la fenêtre.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
@@ -79,6 +91,7 @@ pub fn run() {
             backup::backup_info,
             backup::backup_open,
             backup::backup_clear,
+            backup::backup_discard,
             commands::import_photos,
             commands::existing_paths,
             commands::document_trash,
@@ -163,6 +176,9 @@ pub fn run() {
             }
         });
 }
+
+/// Dossier de copie de secours de cette instance : son verrou dit aux autres qu'elle vit.
+struct BackupGuard(#[allow(dead_code)] backup::BackupSlot);
 
 /// Dossier de cache de cette instance, vidé à la fermeture.
 struct CacheGuard(CacheDir);

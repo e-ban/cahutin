@@ -3,6 +3,8 @@ import { open, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { tick } from "svelte";
 import * as api from "./api";
 import { ask } from "./ask";
+import { clearBackup } from "./backupCopy";
+import { imagesDecoded } from "./printImages";
 import { confirmDiscardIfDirty, editor, type DiscardChoice } from "./docStore.svelte";
 import { newDocument } from "./factory";
 import { fonts } from "./fonts.svelte";
@@ -49,7 +51,7 @@ async function write(path: string): Promise<boolean> {
     editor.markSaved(path, snapshot);
     remember(path, snapshot.title);
     // Enregistré : la copie de secours n'a plus lieu d'être.
-    void api.backupClear().catch(() => {});
+    void clearBackup();
     return true;
   } finally {
     saving = false;
@@ -80,7 +82,7 @@ function askToSave(): Promise<DiscardChoice> {
 /** Quitter le document en connaissance de cause : sa copie de secours est effacée. */
 export async function confirmLeave(): Promise<boolean> {
   const leave = await confirmDiscardIfDirty(askToSave, save);
-  if (leave) await api.backupClear().catch(() => {});
+  if (leave) await clearBackup();
   return leave;
 }
 
@@ -280,6 +282,7 @@ async function withPrintPages<T>(action: () => T | Promise<T>): Promise<T> {
   editor.printing = true;
   await tick();
   await document.fonts.ready;
+  await imagesDecoded(document.querySelectorAll<HTMLImageElement>(".print-root img"));
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   try {
     return await action();

@@ -1,31 +1,46 @@
 //! Banque d'images OpenMoji (CC BY-SA 4.0) embarquée : un zip de fichiers `<code>.svg`, construit par
-//! `scripts/build-openmoji.py`. Décompressée une fois, au premier besoin.
+//! `scripts/build-openmoji.py`. Décompressée image par image, à la demande : seul l'index des noms
+//! reste en mémoire.
 
 use std::collections::HashMap;
-use std::io::Read;
-use std::sync::OnceLock;
+use std::io::{Cursor, Read};
+use std::sync::{Mutex, OnceLock};
+use zip::ZipArchive;
 
 static BANK_ZIP: &[u8] = include_bytes!("../../../assets/openmoji/openmoji.zip");
 
-fn bank() -> &'static HashMap<String, Vec<u8>> {
-    static BANK: OnceLock<HashMap<String, Vec<u8>>> = OnceLock::new();
-    BANK.get_or_init(|| {
+type Bank = ZipArchive<Cursor<&'static [u8]>>;
+
+/// L'archive, ouverte une fois.
+fn archive() -> &'static Mutex<Bank> {
+    static ARCHIVE: OnceLock<Mutex<Bank>> = OnceLock::new();
+    ARCHIVE.get_or_init(|| Mutex::new(ZipArchive::new(Cursor::new(BANK_ZIP)).expect("banque OpenMoji embarquée")))
+}
+
+/// Code de l'image vers le rang de son entrée dans l'archive, lu sans rien décompresser.
+fn index() -> &'static HashMap<String, usize> {
+    static INDEX: OnceLock<HashMap<String, usize>> = OnceLock::new();
+    INDEX.get_or_init(|| {
+        let mut zip = archive().lock().unwrap();
         let mut out = HashMap::new();
-        let mut zip = zip::ZipArchive::new(std::io::Cursor::new(BANK_ZIP)).expect("banque OpenMoji embarquée");
         for i in 0..zip.len() {
-            let mut entry = zip.by_index(i).expect("entrée de la banque");
-            let Some(code) = entry.name().ok().and_then(|n| n.strip_suffix(".svg").map(String::from)) else { continue };
-            let mut bytes = Vec::new();
-            entry.read_to_end(&mut bytes).expect("image de la banque");
-            out.insert(code, bytes);
+            let entry = zip.by_index_raw(i).expect("entrée de la banque");
+            if let Some(code) = entry.name().ok().and_then(|n| n.strip_suffix(".svg").map(String::from)) {
+                out.insert(code, i);
+            }
         }
         out
     })
 }
 
 /// Fichier SVG de l'image ; `None` pour un code inconnu.
-pub fn svg(code: &str) -> Option<&'static [u8]> {
-    bank().get(code).map(Vec::as_slice)
+pub fn svg(code: &str) -> Option<Vec<u8>> {
+    let i = *index().get(code)?;
+    let mut zip = archive().lock().unwrap();
+    let mut entry = zip.by_index(i).ok()?;
+    let mut bytes = Vec::new();
+    entry.read_to_end(&mut bytes).ok()?;
+    Some(bytes)
 }
 
 /// L'image retournée (de gauche à droite `h`, de haut en bas `v`) : son contenu dans un groupe qui la retourne
@@ -46,7 +61,7 @@ pub fn mirrored_svg(svg: &[u8], h: bool, v: bool) -> Option<Vec<u8>> {
 
 /// Version au trait noir (à colorier) de l'image ; une couleur de peau n'en a pas d'autre que celle de
 /// l'image de base.
-pub fn outline_svg(code: &str) -> Option<&'static [u8]> {
+pub fn outline_svg(code: &str) -> Option<Vec<u8>> {
     svg(&format!("contour/{}", base_code(code)))
 }
 
@@ -61,7 +76,7 @@ pub fn base_code(code: &str) -> String {
 }
 
 pub fn count() -> usize {
-    bank().len()
+    index().len()
 }
 
 #[cfg(test)]
@@ -78,7 +93,8 @@ mod tests {
     /// Chaque image a sa version à colorier ; une couleur de peau prend celle de l'image de base.
     #[test]
     fn every_picture_has_an_outline_to_colour() {
-        assert!(std::str::from_utf8(outline_svg("1F98A").unwrap()).unwrap().contains("<svg"));
+        let outline: Vec<u8> = outline_svg("1F98A").unwrap();
+        assert!(std::str::from_utf8(&outline).unwrap().contains("<svg"));
         assert_eq!(outline_svg("1F9D2-1F3FD"), outline_svg("1F9D2"));
         assert!(has_skin_tone("1F9D2-1F3FD") && !has_skin_tone("1F98A"));
         assert_eq!(base_code("1F469-1F3FE-200D-1F3EB"), "1F469-200D-1F3EB");
@@ -86,7 +102,9 @@ mod tests {
 
     #[test]
     fn known_picture_is_an_svg() {
-        let fox = std::str::from_utf8(svg("1F98A").unwrap()).unwrap();
+        // Chaque image est décompressée à la demande : l'appelant reçoit ses propres octets.
+        let fox: Vec<u8> = svg("1F98A").unwrap();
+        let fox = std::str::from_utf8(&fox).unwrap();
         assert!(fox.trim_start().starts_with("<svg"), "{}", &fox[..80]);
     }
 

@@ -128,7 +128,6 @@ impl Writer<'_> {
 
     /// Image OpenMoji : le SVG d'origine, ajouté une seule fois à l'archive.
     fn picture(&mut self, e: &Element, code: &str, outline: bool) -> Result<(), OdgError> {
-        let svg = if outline { picto::outline_svg(code) } else { picto::svg(code) }.ok_or_else(|| OdgError::MissingPicture(code.to_string()))?;
         // En miroir : une copie retournée, nommée `…-miroir-h.svg` (`-v`, `-hv`) pour être relue en miroir.
         let mirror = match (e.flip_h, e.flip_v) {
             (false, false) => "",
@@ -138,8 +137,10 @@ impl Writer<'_> {
         };
         let base = if outline { format!("Pictures/openmoji-contour-{}", picto::base_code(code)) } else { format!("Pictures/openmoji-{code}") };
         let path = format!("{base}{mirror}.svg");
+        // Décompressée seulement si elle n'est pas déjà dans l'archive (un code inconnu n'y est jamais).
         if !self.pictures.iter().any(|p| p.path == path) {
-            let bytes = if mirror.is_empty() { Some(svg.to_vec()) } else { picto::mirrored_svg(svg, e.flip_h, e.flip_v) };
+            let svg = if outline { picto::outline_svg(code) } else { picto::svg(code) }.ok_or_else(|| OdgError::MissingPicture(code.to_string()))?;
+            let bytes = if mirror.is_empty() { Some(svg) } else { picto::mirrored_svg(&svg, e.flip_h, e.flip_v) };
             self.pictures.push(Picture { path: path.clone(), media_type: "image/svg+xml", bytes: bytes.ok_or_else(|| OdgError::MissingPicture(code.to_string()))? });
         }
         let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", vec![("draw:stroke", "none".into()), ("draw:fill", "none".into())])]);

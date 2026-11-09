@@ -145,7 +145,7 @@ fn picto_response(file: &str) -> Response<Cow<'static, [u8]>> {
         Some(bytes) => Response::builder()
             .header(header::CONTENT_TYPE, "image/svg+xml")
             .header(header::CACHE_CONTROL, "max-age=31536000, immutable")
-            .body(Cow::Borrowed(bytes))
+            .body(Cow::Owned(bytes))
             .unwrap(),
         None => not_found(),
     }

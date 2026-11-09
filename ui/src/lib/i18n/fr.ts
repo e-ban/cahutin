@@ -200,6 +200,10 @@ export const fr = {
   saveAs: "Enregistrer sous…",
   recentDocs: "Documents récents",
   reportProblem: "Signaler un problème…",
+  reportMailOpened: (file: string, folder: string, address: string) =>
+    `Votre messagerie s'ouvre sur un message à ${address}. Joignez-y le rapport « ${file} » (dossier ${folder}), racontez ce qui s'est passé, puis envoyez. Le rapport ne contient ni photo, ni texte, ni nom de fichier.`,
+  reportMailFailed: (file: string, address: string) =>
+    `Le rapport « ${file} » est enregistré, mais aucune messagerie ne s'est ouverte. Écrivez à ${address} en le joignant.`,
   template: "Modèle",
   output: "Imprimer / Exporter",
   print: "Imprimer",

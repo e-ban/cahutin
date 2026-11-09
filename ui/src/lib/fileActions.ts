@@ -337,9 +337,12 @@ export async function problemReport() {
   const picked = await saveDialog({ defaultPath: "rapport-carnet.txt", filters: [{ name: "Texte", extensions: ["txt"] }] });
   if (!picked) return;
   const path = withExt(picked, "txt");
-  if ((await guard(() => api.exportProblemReport(path))) !== undefined) {
-    editor.notice = `Rapport enregistré : ${fileName(path)}. Il ne contient ni photo, ni texte, ni nom de fichier : vous pouvez l'envoyer.`;
-  }
+  if ((await guard(() => api.exportProblemReport(path))) === undefined) return;
+  // La messagerie s'ouvre sur un mail déjà rempli ; le rapport est à joindre (un lien de mail ne le peut pas).
+  const mail = await guard(() => api.problemReportMail(path));
+  if (!mail) return;
+  const folder = fileName(path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))));
+  editor.notice = mail.opened ? fr.reportMailOpened(fileName(path), folder, mail.address) : fr.reportMailFailed(fileName(path), mail.address);
 }
 
 export async function deletePage(index: number) {

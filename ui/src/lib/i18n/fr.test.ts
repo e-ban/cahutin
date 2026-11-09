@@ -38,3 +38,12 @@ test("the save question names the document and offers the way back", () => {
   expect(fr.backToDocument).toBe("Revenir au document");
   expect(fr.dontSave).toBe("Ne pas enregistrer");
 });
+
+/** Signaler un problème : la messagerie s'ouvre, le message dit quel fichier joindre et à qui écrire sinon. */
+test("the problem report says which file to attach and where to write", () => {
+  const opened = fr.reportMailOpened("rapport-carnet.txt", "Documents", "aide@exemple.fr");
+  expect(opened).toContain("« rapport-carnet.txt »");
+  expect(opened).toContain("Documents");
+  expect(opened).toContain("aide@exemple.fr");
+  expect(fr.reportMailFailed("rapport-carnet.txt", "aide@exemple.fr")).toContain("aide@exemple.fr");
+});

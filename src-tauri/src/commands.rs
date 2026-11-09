@@ -591,6 +591,25 @@ pub fn export_problem_report(app: AppHandle, path: String) -> Result<(), String>
     std::fs::write(&path, text).map_err(|_| "Impossible d'écrire le rapport.".to_string())
 }
 
+/// Messagerie ouverte (ou non) sur le mail de signalement, et l'adresse, pour l'écrire à la main sinon.
+#[derive(Serialize, TS)]
+#[ts(export)]
+pub struct ReportMail {
+    pub opened: bool,
+    pub address: String,
+}
+
+/// Ouvre la messagerie de l'ordinateur sur un mail court à l'adresse des signalements, qui nomme le rapport
+/// `path` à joindre. L'enseignant relit et envoie : Cahutin n'envoie rien lui-même.
+#[tauri::command]
+pub fn problem_report_mail(path: String) -> ReportMail {
+    let file = Path::new(&path).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+    let os = format!("{} {}", std::env::consts::OS, std::env::consts::ARCH);
+    let opened = open::that_detached(report::report_mailto(env!("CARGO_PKG_VERSION"), &os, &file)).is_ok();
+    log::info!("problem_report_mail opened={opened}");
+    ReportMail { opened, address: report::REPORT_EMAIL.to_string() }
+}
+
 /// Version du Microsoft Store : pas d'avis de nouvelle version.
 #[tauri::command]
 pub fn is_store_build() -> bool {

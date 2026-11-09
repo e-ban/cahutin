@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, BackupOffer, RestoredDocument, Page, TemplateInfo, ZoneKind , ClassPhotoAdded, Phototheque, TagChange, MyImage, MyImagesAdded, MyImageKept } from "./types";
+import type { AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, ReportMail, BackupOffer, RestoredDocument, Page, TemplateInfo, ZoneKind , ClassPhotoAdded, Phototheque, TagChange, MyImage, MyImagesAdded, MyImageKept } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -94,6 +94,8 @@ export const removeFont = (family: string) => invoke<void>("remove_font", { fami
 export const fontFiles = () => invoke<FontFileInfo[]>("font_files");
 export const acceptDocumentFonts = () => invoke<FontFamilyInfo[]>("accept_document_fonts");
 export const exportProblemReport = (path: string) => invoke<void>("export_problem_report", { path });
+/** Ouvre la messagerie sur le mail de signalement, qui nomme le rapport à joindre. */
+export const problemReportMail = (path: string) => invoke<ReportMail>("problem_report_mail", { path });
 export const canExportPdf = () => invoke<boolean>("can_export_pdf");
 /** Une taille de feuille pour tout le PDF : celle de la première page. */
 export const isStoreBuild = () => invoke<boolean>("is_store_build");

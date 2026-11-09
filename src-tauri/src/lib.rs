@@ -160,6 +160,7 @@ pub fn run() {
             commands::font_files,
             commands::accept_document_fonts,
             commands::export_problem_report,
+            commands::problem_report_mail,
             commands::can_export_pdf,
             commands::is_store_build,
             commands::export_pdf,

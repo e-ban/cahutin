@@ -33,3 +33,11 @@ test("the walk moves on when a step is done, even the one after, and stops after
   guides.next();
   expect(guides.walking).toBeNull();
 });
+
+/** L'assistant IA a son guide : l'activer, demander, accepter ou refuser, signaler une réponse. */
+test("the assistant guide explains activation, what is sent, accepting and reporting", () => {
+  const g = GUIDES.find((x) => x.id === "assistant");
+  expect(g?.panels.map((p) => p.image)).toEqual(["activer", "demander", "accepter", "signaler"].map((n) => `/guides/assistant/${n}.webp`));
+  const text = g!.panels.map((p) => p.text).join(" ");
+  for (const word of ["Préférences", "Accepter", "Signaler", "prénom"]) expect(text).toContain(word);
+});

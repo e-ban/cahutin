@@ -35,3 +35,8 @@ test("each novelty has a title, a text, its own screenshot on disk, and no long 
   const images = RELEASES.flatMap((r) => r.items.map((n) => n.image));
   expect(new Set(images).size).toBe(images.length);
 });
+
+test("version 0.13 opens with the assistant", () => {
+  expect(WHATS_NEW.version).toBe("0.13");
+  expect(WHATS_NEW.items[0].image).toBe("/nouveautes/0.13/assistant.webp");
+});

@@ -14,3 +14,7 @@ test("tip ids are unique", () => {
 test("tips use no long dashes", () => {
   for (const t of TIPS) expect(t.title + t.text).not.toMatch(/[–—]/);
 });
+
+test("a tip points to the assistant guide", () => {
+  expect(TIPS.find((t) => t.id === "assistant")?.guide).toBe("assistant");
+});

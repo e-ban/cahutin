@@ -493,6 +493,35 @@ export const GUIDES: Guide[] = [
       },
     ],
   },
+  {
+    id: "assistant",
+    icon: "✦",
+    title: "L'assistant IA",
+    summary: "Facultatif : demander une mise en page en quelques mots, puis l'accepter ou la refuser.",
+    panels: [
+      {
+        title: "L'activer, si vous le voulez",
+        text: "Préférences > Assistant de mise en page. Cahutin ne fournit pas l'IA : choisissez votre service (Claude, OpenAI, Gemini, souvent payants, ou Ollama sur l'ordinateur), puis « Activer l'assistant ». Ce cadre dit ce qui part vers ce service : la disposition de la page et vos demandes, jamais vos textes, vos photos ni les prénoms.",
+        image: img("assistant", "activer"),
+      },
+      {
+        title: "Demander",
+        text: "Le bouton « ✦ Assistant », en haut, ouvre son panneau. Écrivez ce que vous voulez changer, comme à un collègue, puis « Envoyer ». Cliquez d'abord sur un élément pour le désigner. N'écrivez pas de prénom d'élève dans une demande.",
+        image: img("assistant", "demander"),
+      },
+      {
+        title: "Accepter ou refuser",
+        text: "La proposition s'affiche sur la page, entourée de pointillés, mais rien n'est encore changé. « Accepter » la garde (Ctrl+Z la défait ensuite), « Refuser » ou Ctrl+Z revient à la page d'avant. Relisez les textes écrits par l'IA avant d'imprimer.",
+        image: img("assistant", "accepter"),
+      },
+      {
+        title: "Signaler une réponse",
+        text: "Une réponse déplacée ou choquante ? « ⚑ Signaler », sous la réponse, prépare dans votre messagerie un e-mail à l'auteur de Cahutin, avec votre demande et la réponse : relisez-le, puis envoyez-le.",
+        image: img("assistant", "signaler"),
+      },
+    ],
+    walk: [],
+  },
 ];
 
 export const guideById = (id: string) => GUIDES.find((g) => g.id === id) ?? null;

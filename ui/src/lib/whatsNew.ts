@@ -18,6 +18,31 @@ export interface Release {
 /** De la plus récente à la plus ancienne. */
 export const RELEASES: Release[] = [
   {
+    version: "0.13",
+    items: [
+      {
+        title: "Un assistant IA, si vous le voulez",
+        text: "Facultatif et désactivé au départ (Préférences > Assistant de mise en page). Écrivez ce que vous voulez, « mets le titre en rouge », « aligne les images », et l'assistant propose : rien ne change avant « Accepter ». Cahutin ne fournit pas l'IA, il se branche sur votre propre service, et ne lui envoie ni vos textes, ni vos photos, ni les prénoms. Le guide « L'assistant IA » montre tout.",
+        image: "/nouveautes/0.13/assistant.webp",
+      },
+      {
+        title: "Des champs qui se remplissent seuls",
+        text: "Le tiroir Champs pose le prénom de chaque enfant, son âge, la date, la saison, le nom de la classe ou de l'école. Ils se remplissent à la création de la page, ou avec la classe ; un champ pas encore rempli s'imprime en blanc.",
+        image: "/nouveautes/0.13/champs.webp",
+      },
+      {
+        title: "Une copie de secours",
+        text: "Toutes les deux minutes, un document pas encore enregistré est copié. Si Cahutin s'arrête (panne, coupure de courant), il propose au lancement suivant de reprendre ce travail.",
+        image: "/nouveautes/0.13/secours.webp",
+      },
+      {
+        title: "Une barre plus courte",
+        text: "Les outils moins utilisés (miroir, quarts de tour, répéter, repères de découpe) sont rangés dans « ⋯ Plus ». Pour tout voir d'un coup d'œil, décochez ce réglage dans les Préférences.",
+        image: "/nouveautes/0.13/plus.webp",
+      },
+    ],
+  },
+  {
     version: "0.12",
     items: [
       {

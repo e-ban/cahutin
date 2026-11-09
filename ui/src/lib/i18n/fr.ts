@@ -440,7 +440,11 @@ export const fr = {
   libraryNewTag: "Nouvelle activité (sortie, atelier…)",
   libraryUse: (n: number) => (n > 1 ? `Mettre ces ${n} photos dans le document` : "Mettre dans le document"),
   libraryUsed: (n: number) => (n > 1 ? `${n} photos ajoutées au tiroir Photos du document` : "Photo ajoutée au tiroir Photos du document"),
-  libraryDeleteConfirm: (n: number) => (n > 1 ? `Supprimer ces ${n} photos de la photothèque ?` : "Supprimer cette photo de la photothèque ?"),
+  libraryDeleteConfirm: (n: number) =>
+    n > 1
+      ? `Mettre ces ${n} photos à la corbeille de l'ordinateur ? Vous pourrez les récupérer depuis la corbeille.`
+      : "Mettre cette photo à la corbeille de l'ordinateur ? Vous pourrez la récupérer depuis la corbeille.",
+  libraryTrash: "Mettre à la corbeille",
   libraryBehind: (period: string) => `Peu de photos ${period === "month" ? "ce mois-ci" : period === "trimester" ? "ces trois mois" : period === "year" ? "cette année" : ""} :`,
   libraryNoConsent: (names: string[] | string) => `Sans autorisation photo : ${[names].flat().join(", ")}. À flouter avant de servir.`,
   libraryNoConsentHint: "Pas d'autorisation photo",

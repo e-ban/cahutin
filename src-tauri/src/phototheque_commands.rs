@@ -106,7 +106,16 @@ pub fn phototheque_add(state: State<'_, AppState>, paths: Vec<String>, on_progre
 #[tauri::command(async)]
 pub fn phototheque_remove(state: State<'_, AppState>, ids: Vec<String>) -> Result<Phototheque, String> {
     with_open(&state, |dir, index| {
-        phototheque::remove(dir, index, &ids);
+        // À la corbeille de l'ordinateur, comme un document ou une classe : une erreur se rattrape.
+        let files = phototheque::files_to_dispose(dir, index, &ids);
+        // Fichiers déjà tous disparus : rien à mettre à la corbeille, l'index se met à jour quand même.
+        if !files.is_empty() {
+            trash::delete_all(&files).map_err(|e| {
+                log::error!("phototheque_trash_failed kind={}", crate::commands::trash_error_kind(&e));
+                "Les photos n'ont pas pu être mises à la corbeille.".to_string()
+            })?;
+        }
+        phototheque::remove(index, &ids);
         phototheque::save(dir, index)?;
         log::info!("phototheque_remove photos={}", ids.len());
         Ok(index.clone())

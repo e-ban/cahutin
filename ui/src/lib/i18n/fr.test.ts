@@ -24,3 +24,10 @@ test("the welcome screen starts from a template, not only a life book", () => {
   expect(fr.welcomeTemplate).toBe("Partir d'un modèle");
   expect(fr.chooseTemplate).toBe("Choisissez un modèle");
 });
+
+/** Les photos retirées de la photothèque vont dans la corbeille de l'ordinateur, et la question le dit. */
+test("removing class photos says they go to the computer's trash", () => {
+  expect(fr.libraryTrash).toBe("Mettre à la corbeille");
+  expect(fr.libraryDeleteConfirm(3)).toBe("Mettre ces 3 photos à la corbeille de l'ordinateur ? Vous pourrez les récupérer depuis la corbeille.");
+  expect(fr.libraryDeleteConfirm(1)).toBe("Mettre cette photo à la corbeille de l'ordinateur ? Vous pourrez la récupérer depuis la corbeille.");
+});

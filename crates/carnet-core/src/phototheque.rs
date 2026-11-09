@@ -109,15 +109,19 @@ pub fn add_asset(dir: &Path, asset: &Asset, taken: Option<String>) -> Result<Cla
     Ok(ClassPhoto { id: m.id.clone(), width_px: m.width_px, height_px: m.height_px, mime: m.mime, taken, added: iso(class::today()), students: vec![], tags: vec![] })
 }
 
-/// Les photos retirées de l'index et du disque.
-pub fn remove(dir: &Path, lib: &mut Phototheque, ids: &[Id]) {
-    for p in lib.photos.iter().filter(|p| ids.contains(&p.id)) {
-        for thumb in [false, true] {
-            if let Some(f) = file_of(dir, &p.id, p.mime, thumb) {
-                let _ = std::fs::remove_file(f);
-            }
-        }
-    }
+/// Fichiers (photo et vignette) des photos `ids` qui sont encore sur le disque : l'application les met à
+/// la corbeille de l'ordinateur. Un fichier déjà disparu n'est pas listé.
+pub fn files_to_dispose(dir: &Path, lib: &Phototheque, ids: &[Id]) -> Vec<PathBuf> {
+    lib.photos
+        .iter()
+        .filter(|p| ids.contains(&p.id))
+        .flat_map(|p| [false, true].into_iter().filter_map(|thumb| file_of(dir, &p.id, p.mime, thumb)))
+        .filter(|f| f.exists())
+        .collect()
+}
+
+/// Les photos retirées de l'index ; leurs fichiers ne sont pas touchés (voir `files_to_dispose`).
+pub fn remove(lib: &mut Phototheque, ids: &[Id]) {
     lib.photos.retain(|p| !ids.contains(&p.id));
 }
 
@@ -192,10 +196,17 @@ mod tests {
         let asset = load_asset(&lib_dir, &back.photos[0]).unwrap();
         assert_eq!((asset.meta.width_px, asset.meta.height_px), (40, 30));
         let mut lib = back;
-        remove(&lib_dir, &mut lib, &ids[..1]);
+        let files = files_to_dispose(&lib_dir, &lib, &ids[..1]);
+        assert_eq!(files.len(), 2, "la photo et sa vignette");
+        assert!(files.iter().all(|f| f.exists()));
+        let back_before_remove = lib.clone();
+        remove(&mut lib, &ids[..1]);
         assert_eq!(lib.photos.len(), 1);
-        // Les fichiers de la photo retirée ont disparu, l'index et l'autre photo restent.
-        assert_eq!(std::fs::read_dir(&lib_dir).unwrap().count(), 1 + 2);
+        // Le moteur n'efface rien : c'est l'application qui met les fichiers à la corbeille.
+        assert_eq!(std::fs::read_dir(&lib_dir).unwrap().count(), 1 + 4);
+        // Un fichier déjà disparu n'est pas listé.
+        std::fs::remove_file(&files[0]).unwrap();
+        assert_eq!(files_to_dispose(&lib_dir, &back_before_remove, &ids[..1]).len(), 1);
     }
 
     #[test]

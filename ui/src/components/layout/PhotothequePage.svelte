@@ -139,7 +139,7 @@
     newTag = "";
   }
   async function removeChosen() {
-    if (!(await ask(fr.libraryDeleteConfirm(selected.length), fr.delete))) return;
+    if (!(await ask(fr.libraryDeleteConfirm(selected.length), fr.libraryTrash))) return;
     await run(() => classLibrary.remove(selected));
     selected = [];
   }
@@ -284,7 +284,7 @@
           {#if chosen.some((p) => withoutConsent(p, students).length)}<p class="warn-text">{fr.libraryBlurFirst}</p>{/if}
           <div class="actions">
             <button class="primary" onclick={useChosen}>{fr.libraryUse(chosen.length)}</button>
-            <button class="danger" onclick={removeChosen}>🗑 {fr.delete}</button>
+            <button class="danger" onclick={removeChosen}>🗑 {fr.libraryTrash}</button>
           </div>
         </aside>
       {/if}

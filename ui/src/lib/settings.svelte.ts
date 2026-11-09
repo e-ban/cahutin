@@ -32,8 +32,9 @@ class Settings {
   compactToolbar = $state(readPref("compactToolbar", false));
 
   /** Les outils moins utilisés (miroir, quarts de tour, frise, répéter, découpe…) dans un menu « Plus » plutôt
-   *  que dans la barre : désactivé par défaut, tout est visible d'un coup d'œil. */
-  moreMenu = $state(readPref("moreMenu", false));
+   *  que dans la barre : activé par défaut, pour une barre courte ; tout afficher d'un coup d'œil reste un choix
+   *  des Préférences. */
+  moreMenu = $state(readPref("moreMenu", true));
 
   uiScale = $state<UiScale>(readPref("uiScale", 1));
   uiFont = $state<UiFont>(readPref("uiFont", "Atkinson Hyperlegible"));

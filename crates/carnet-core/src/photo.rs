@@ -125,6 +125,13 @@ impl AssetStore {
     pub fn thumb(&self, id: &str) -> Option<(Arc<Vec<u8>>, Mime)> {
         self.entries.get(id).map(|e| (e.thumb.clone(), e.meta.mime))
     }
+
+    /// Copie des seules entrées `ids`, sans dossier de cache : les octets se relisent par le chemin
+    /// déjà noté dans chaque entrée. Pour enregistrer ou exporter sans garder le magasin verrouillé.
+    pub fn subset(&self, ids: &std::collections::BTreeSet<String>) -> AssetStore {
+        let entries = ids.iter().filter_map(|id| Some((id.clone(), self.entries.get(id)?.clone()))).collect();
+        AssetStore { entries, cache_dir: None }
+    }
 }
 
 fn extension(mime: Mime) -> &'static str {
@@ -704,5 +711,20 @@ mod tests {
         let mut ok = Cursor::new(Vec::new());
         image::GrayImage::new(64, 1).write_to(&mut ok, image::ImageFormat::Png).unwrap();
         assert!(import_bytes(&ok.into_inner()).is_ok());
+    }
+
+    /// Un sous-ensemble du magasin sert les images demandées, sans tenir le magasin pendant la lecture.
+    #[test]
+    fn a_subset_serves_only_the_requested_pictures() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = AssetStore::with_cache_dir(dir.path().to_path_buf()).unwrap();
+        let (a, b) = (import_bytes(&jpeg(30, 20)).unwrap(), import_bytes(&jpeg(30, 20)).unwrap());
+        let (ida, idb) = (a.meta.id.clone(), b.meta.id.clone());
+        store.insert(a.clone()).unwrap();
+        store.insert(b).unwrap();
+        let sub = store.subset(&std::collections::BTreeSet::from([ida.clone()]));
+        assert_eq!(sub.get(&ida).unwrap().bytes, a.bytes);
+        assert!(sub.get(&idb).is_none());
+        assert!(sub.thumb(&ida).is_some());
     }
 }

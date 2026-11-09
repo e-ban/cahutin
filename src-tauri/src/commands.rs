@@ -11,6 +11,7 @@ use carnet_core::photo::AssetStore;
 use carnet_core::{AssetMeta, Document, Frame, Page, PageSize, ZoneKind, examples, grid, native, odg, report, table};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
@@ -131,8 +132,9 @@ pub fn list_importable_in(dir: String) -> Vec<String> {
 }
 
 fn save_document_in(state: &AppState, path: &Path, doc: &Document) -> Result<(), String> {
-    let store = state.store.lock().unwrap();
-    native::save_to_path(doc, &store, &state.fonts.read().unwrap(), path).map_err(|e| {
+    // Le magasin n'est tenu que le temps de la copie : les photos restent servies pendant l'écriture.
+    let snapshot = state.store.lock().unwrap().subset(&native::used_assets(doc));
+    native::save_to_path(doc, &snapshot, &state.fonts.read().unwrap(), path).map_err(|e| {
         log::error!("save_document_failed kind={e:?}");
         e.message_fr()
     })?;
@@ -291,8 +293,8 @@ pub fn preview_document(state: State<'_, AppState>, path: String) -> Result<Docu
 /// Exécutée hors du fil principal : la fenêtre reste réactive.
 #[tauri::command(async)]
 pub fn export_odg(state: State<'_, AppState>, path: String, doc: Document) -> Result<(), String> {
-    let store = state.store.lock().unwrap();
-    odg::export_odg_to_path(&doc, &store, &state.fonts.read().unwrap(), Path::new(&path)).map_err(|e| {
+    let snapshot = state.store.lock().unwrap().subset(&native::used_assets(&doc));
+    odg::export_odg_to_path(&doc, &snapshot, &state.fonts.read().unwrap(), Path::new(&path)).map_err(|e| {
         log::error!("export_odg_failed kind={}", e.kind());
         e.message_fr()
     })?;
@@ -363,11 +365,12 @@ pub fn detect_in(store: &AssetStore, asset_id: &str) -> Result<Vec<FaceBox>, Str
 }
 
 /// Photo floutée dans les zones : une nouvelle image, qui rejoint les images de l'application.
-pub fn blur_in(store: &mut AssetStore, asset_id: &str, zones: &[FaceBox]) -> Result<AssetMeta, String> {
-    let asset = store.get(asset_id).ok_or(PHOTO_NOT_FOUND)?;
+/// Le flou se fait hors du verrou : les vignettes restent servies pendant ce temps.
+pub fn blur_in(store: &Mutex<AssetStore>, asset_id: &str, zones: &[FaceBox]) -> Result<AssetMeta, String> {
+    let asset = store.lock().unwrap().get(asset_id).ok_or(PHOTO_NOT_FOUND)?;
     let out = faces::blur_regions(&asset, zones).map_err(|e| e.message_fr())?;
     let meta = out.meta.clone();
-    store.insert(out).map_err(|e| e.message_fr())?;
+    store.lock().unwrap().insert(out).map_err(|e| e.message_fr())?;
     Ok(meta)
 }
 
@@ -383,7 +386,7 @@ pub fn photo_detect_faces(state: State<'_, AppState>, asset_id: String) -> Resul
 
 #[tauri::command(async)]
 pub fn photo_blur(state: State<'_, AppState>, asset_id: String, zones: Vec<FaceBox>) -> Result<AssetMeta, String> {
-    let meta = blur_in(&mut state.store.lock().unwrap(), &asset_id, &zones)?;
+    let meta = blur_in(&state.store, &asset_id, &zones)?;
     log::info!("photo_blur zones={}", zones.len());
     Ok(meta)
 }
@@ -656,20 +659,20 @@ mod tests {
 
     #[test]
     fn blur_of_an_unknown_photo_is_a_french_error() {
-        let mut store = AssetStore::default();
-        assert_eq!(blur_in(&mut store, "absente", &[]).unwrap_err(), PHOTO_NOT_FOUND);
-        assert_eq!(detect_in(&store, "absente").unwrap_err(), PHOTO_NOT_FOUND);
+        let store = std::sync::Mutex::new(AssetStore::default());
+        assert_eq!(blur_in(&store, "absente", &[]).unwrap_err(), PHOTO_NOT_FOUND);
+        assert_eq!(detect_in(&store.lock().unwrap(), "absente").unwrap_err(), PHOTO_NOT_FOUND);
     }
 
     #[test]
     fn blurred_photo_joins_the_store() {
-        let mut store = AssetStore::default();
+        let store = std::sync::Mutex::new(AssetStore::default());
         let a = carnet_core::photo::import_path(&fixture("faces-apollo11.jpg")).unwrap();
         let id = a.meta.id.clone();
-        store.insert(a).unwrap();
-        let zones = detect_in(&store, &id).unwrap();
-        let meta = blur_in(&mut store, &id, &zones).unwrap();
-        assert!(store.get(&meta.id).is_some() && meta.id != id);
+        store.lock().unwrap().insert(a).unwrap();
+        let zones = detect_in(&store.lock().unwrap(), &id).unwrap();
+        let meta = blur_in(&store, &id, &zones).unwrap();
+        assert!(store.lock().unwrap().get(&meta.id).is_some() && meta.id != id);
     }
 
     #[test]

@@ -71,7 +71,8 @@ pub(crate) fn extension(mime: Mime) -> &'static str {
     }
 }
 
-fn used_assets(doc: &Document) -> BTreeSet<String> {
+/// Images désignées par un élément du document.
+pub fn used_assets(doc: &Document) -> BTreeSet<String> {
     doc.pages.iter().flat_map(|p| &p.elements).flat_map(Element::asset_ids).cloned().collect()
 }
 

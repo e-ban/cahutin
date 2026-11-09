@@ -21,6 +21,8 @@ vi.mock("./api", () => ({
     else for (const e of events) onEvent(e);
   },
   assistantStop: async () => {},
+  // Quitter le document efface la copie de secours (fileActions.confirmLeave).
+  backupClear: async () => {},
   assistantReport: async (...args: unknown[]) => (reports.push(args), "auteur@exemple.fr"),
   assistantSettings: async () => ({ enabled: true, url: "http://localhost:11434/v1", model: "qwen3:4b", has_key: false }),
   savePageAsTemplate: async (name: string, _page: unknown, keep?: string[]) => void saved.push({ name, keep }),

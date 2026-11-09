@@ -47,3 +47,8 @@ test("the problem report says which file to attach and where to write", () => {
   expect(opened).toContain("aide@exemple.fr");
   expect(fr.reportMailFailed("rapport-carnet.txt", "aide@exemple.fr")).toContain("aide@exemple.fr");
 });
+
+/** La barre de proposition : « 2 modifications » puis une phrase qui nomme la proposition, sans accord bancal. */
+test("the proposal bar reads well whatever the count", () => {
+  expect(fr.assistant.locked).toBe("Acceptez ou refusez cette proposition avant de modifier la page (Ctrl+Z la refuse).");
+});

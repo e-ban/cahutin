@@ -32,6 +32,8 @@ pub enum NativeError {
     /// Une photo du document n'est plus en mémoire.
     MissingAsset,
     Io,
+    /// Images et polices cumulées au-delà de `MAX_DOCUMENT_BYTES`.
+    TooLarge,
 }
 
 impl NativeError {
@@ -41,6 +43,7 @@ impl NativeError {
             NativeError::Corrupt => "Ce fichier est abîmé ou n'est pas un document de l'application.",
             NativeError::MissingAsset => "Une photo du document est introuvable : le document n'a pas été enregistré.",
             NativeError::Io => "Impossible de lire ou d'écrire le fichier.",
+            NativeError::TooLarge => "Ce document est trop volumineux pour être ouvert.",
         }
         .to_string()
     }
@@ -194,7 +197,20 @@ pub(crate) fn read_entry<R: Read + Seek>(zip: &mut ZipArchive<R>, name: &str) ->
     read_capped(&mut entry, MAX_ENTRY_BYTES).ok_or(NativeError::Corrupt)
 }
 
+/// Taille maximale des images et polices d'un document, cumulées : chaque entrée a déjà son plafond,
+/// celui-ci empêche un fichier fait de nombreuses grosses entrées de remplir la mémoire.
+pub(crate) const MAX_DOCUMENT_BYTES: u64 = 1024 * 1024 * 1024;
+
 pub fn load(input: impl Read + Seek) -> Result<LoadedDocument, NativeError> {
+    load_with_cap(input, MAX_DOCUMENT_BYTES)
+}
+
+pub(crate) fn load_with_cap(input: impl Read + Seek, max_total: u64) -> Result<LoadedDocument, NativeError> {
+    let mut total: u64 = 0;
+    let mut count = |len: usize| {
+        total += len as u64;
+        if total > max_total { Err(NativeError::TooLarge) } else { Ok(()) }
+    };
     let mut zip = ZipArchive::new(input)?;
     let json = read_entry(&mut zip, DOCUMENT_ENTRY)?;
     let version: serde_json::Value = serde_json::from_slice(&json).map_err(|_| NativeError::Corrupt)?;
@@ -215,11 +231,11 @@ pub fn load(input: impl Read + Seek) -> Result<LoadedDocument, NativeError> {
     let mut assets = Vec::new();
     for meta in doc.assets.values() {
         let ext = extension(meta.mime);
-        assets.push(Asset {
-            meta: meta.clone(),
-            bytes: Arc::new(read_entry(&mut zip, &format!("assets/{}.{ext}", meta.id))?),
-            thumb: Arc::new(read_entry(&mut zip, &format!("assets/{}.thumb.{ext}", meta.id))?),
-        });
+        let bytes = read_entry(&mut zip, &format!("assets/{}.{ext}", meta.id))?;
+        count(bytes.len())?;
+        let thumb = read_entry(&mut zip, &format!("assets/{}.thumb.{ext}", meta.id))?;
+        count(thumb.len())?;
+        assets.push(Asset { meta: meta.clone(), bytes: Arc::new(bytes), thumb: Arc::new(thumb) });
     }
     let font_entries: Vec<String> = zip
         .file_names()
@@ -228,7 +244,9 @@ pub fn load(input: impl Read + Seek) -> Result<LoadedDocument, NativeError> {
         .collect();
     let mut fonts = Vec::new();
     for name in font_entries {
-        fonts.push((name.clone(), read_entry(&mut zip, &format!("{FONTS_DIR}{name}"))?));
+        let bytes = read_entry(&mut zip, &format!("{FONTS_DIR}{name}"))?;
+        count(bytes.len())?;
+        fonts.push((name, bytes));
     }
     Ok(LoadedDocument { doc, assets, fonts })
 }
@@ -548,6 +566,30 @@ mod tests {
         assert!(read_capped(&mut bomb, 10_000).is_none());
         let mut fits = std::io::repeat(7).take(10_000);
         assert_eq!(read_capped(&mut fits, 10_000).unwrap().len(), 10_000);
+    }
+
+    /// Chaque entrée tient sous son plafond, mais leur somme dépasse celui du document : refusé comme trop
+    /// volumineux, et non comme abîmé.
+    #[test]
+    fn a_document_whose_images_sum_over_the_cap_is_refused() {
+        let mut doc = Document::new("lourd");
+        let a = photo_asset();
+        let b = photo_asset();
+        doc.assets.insert(a.meta.id.clone(), a.meta.clone());
+        doc.assets.insert(b.meta.id.clone(), b.meta.clone());
+        doc.pages[0].elements.push(photo_element(&a.meta.id));
+        doc.pages[0].elements.push(photo_element(&b.meta.id));
+        let mut store = AssetStore::default();
+        store.insert(a.clone()).unwrap();
+        store.insert(b.clone()).unwrap();
+        let mut buf = Cursor::new(Vec::new());
+        save(&doc, &store, &FontSet::builtin(), &mut buf).unwrap();
+        let total = (a.bytes.len() + a.thumb.len() + b.bytes.len() + b.thumb.len()) as u64;
+        buf.set_position(0);
+        assert_eq!(load_with_cap(buf.clone(), total - 1).err(), Some(NativeError::TooLarge));
+        buf.set_position(0);
+        assert!(load_with_cap(buf, total).is_ok());
+        assert_eq!(NativeError::TooLarge.message_fr(), "Ce document est trop volumineux pour être ouvert.");
     }
 
     /// Un identifiant de photo sert de nom de fichier dans le cache : un fichier piégé (`../`) est refusé.

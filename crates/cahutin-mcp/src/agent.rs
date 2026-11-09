@@ -51,6 +51,8 @@ pub struct Done {
     #[ts(type = "Array<unknown>")]
     pub history: Vec<Value>,
     pub error: Option<String>,
+    /// Une courte demande pour poursuivre, proposée par le modèle (sa ligne « Suite : »), retirée de `reply`.
+    pub suggestion: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
@@ -129,7 +131,10 @@ Chaque message de l'utilisateur commence par la page affichée et les éléments
 Commencez toujours par get_layout (la page affichée, sans autre argument) pour trouver les identifiants, puis appelez \
 les outils de modification ; un résultat de get_layout « périmé » se redemande. \
 N'affirmez jamais une modification sans avoir appelé l'outil. Vous ne pouvez pas lire les textes : vous pouvez en écrire. \
-N'utilisez save_as_template que si l'utilisateur demande un modèle. Répondez en français, en peu de mots."
+N'utilisez save_as_template que si l'utilisateur demande un modèle. Répondez en français, en peu de mots. \
+Après une modification, finissez si c'est utile par une dernière ligne « Suite : » suivie d'une courte demande que \
+l'utilisateur pourrait vous faire ensuite sur cette page, écrite comme il l'écrirait (« Suite : Mets le titre en bleu ») ; \
+jamais après un refus ni après une question."
     )
 }
 
@@ -161,6 +166,24 @@ fn previous(history: &[Value]) -> Vec<Value> {
             }
         })
         .collect()
+}
+
+/// Longueur d'une suggestion : une demande courte, qui tient sur un bouton.
+const MAX_SUGGESTION_CHARS: usize = 80;
+
+/// La réponse sans sa dernière ligne « Suite : … », et cette suggestion. Une ligne trop longue ou vide reste
+/// dans la réponse. Le modèle peut l'écrire en gras, sans espace avant les deux-points, ou entre guillemets.
+fn split_suggestion(content: &str) -> (String, Option<String>) {
+    let trimmed = content.trim_end();
+    let (head, last) = trimmed.rsplit_once('\n').unwrap_or(("", trimmed));
+    let line = last.trim().trim_matches(['*', '_']).trim();
+    let rest = line.get(..5).filter(|w| w.eq_ignore_ascii_case("suite")).map(|_| line[5..].trim_start());
+    let Some(rest) = rest.and_then(|r| r.strip_prefix(':')) else { return (content.to_string(), None) };
+    let idea = rest.trim().trim_matches(['*', '_', '«', '»', '"', ' ', '\u{a0}', '\u{202f}']).trim();
+    if idea.is_empty() || idea.chars().count() > MAX_SUGGESTION_CHARS {
+        return (content.to_string(), None);
+    }
+    (head.trim_end().to_string(), Some(idea.to_string()))
 }
 
 /// Arguments d'un appel : une chaîne JSON (API OpenAI) ou déjà un objet.
@@ -223,7 +246,7 @@ fn template_request(doc: &Document, args: &Value) -> Result<TemplateRequest, Str
 pub fn run(req: Request, chat: &mut dyn FnMut(&Value) -> Result<Value, ChatError>, on_event: &mut dyn FnMut(Event), cancel: &AtomicBool) {
     let system = json!({ "role": "system", "content": system_prompt() });
     let mut history = previous(&req.history);
-    let finish = |reply: String, history: Vec<Value>, error: Option<String>, on_event: &mut dyn FnMut(Event)| on_event(Event::Done(Done { reply, history, error }));
+    let finish = |reply: String, history: Vec<Value>, error: Option<String>, on_event: &mut dyn FnMut(Event)| on_event(Event::Done(Done { reply, history, error, suggestion: None }));
     if req.text.chars().count() > MAX_TEXT_CHARS {
         let error = format!("Votre message est trop long ({MAX_TEXT_CHARS} caractères au plus). Raccourcissez-le, ou faites plusieurs demandes.");
         return finish(String::new(), history, Some(error), on_event);
@@ -247,7 +270,8 @@ pub fn run(req: Request, chat: &mut dyn FnMut(&Value) -> Result<Value, ChatError
         let content = message.get("content").and_then(Value::as_str).unwrap_or("").to_string();
         history.push(assistant_message(&content, &tool_calls));
         if tool_calls.is_empty() {
-            return finish(content, history, None, on_event);
+            let (reply, suggestion) = split_suggestion(&content);
+            return on_event(Event::Done(Done { reply, history, error: None, suggestion }));
         }
         let mut stopped = false;
         for tc in &tool_calls {
@@ -586,6 +610,27 @@ mod tests {
         let mut req = request(&doc());
         req.text = "é".repeat(MAX_TEXT_CHARS);
         assert_eq!(run_script(req, vec![Ok(reply("ok"))]).1.len(), 1);
+    }
+
+    #[test]
+    fn the_last_suite_line_becomes_a_suggestion() {
+        let d = doc();
+        let (events, _) = run_script(request(&d), vec![Ok(reply("J'ai déplacé le titre.\nSuite : Mets le titre en bleu"))]);
+        assert_eq!((done(&events).reply.as_str(), done(&events).suggestion.as_deref()), ("J'ai déplacé le titre.", Some("Mets le titre en bleu")));
+        // L'historique garde la réponse entière : le modèle voit ce qu'il a proposé.
+        assert!(done(&events).history.last().unwrap()["content"].as_str().unwrap().ends_with("Mets le titre en bleu"));
+        for (text, idea) in [
+            ("Fait.\n**Suite :** « Ajoute une légende »", Some("Ajoute une légende")),
+            ("Fait.\nsuite: Aligne les photos\n", Some("Aligne les photos")),
+            ("Suite\u{a0}: Centre le titre", Some("Centre le titre")),
+            ("Fait. La suite : à vous de voir.", None),
+            ("Fait.\nSuite :", None),
+            ("Désolé, je ne peux pas.", None),
+        ] {
+            assert_eq!(split_suggestion(text).1.as_deref(), idea, "{text:?}");
+        }
+        let long = format!("Fait.\nSuite : {}", "a".repeat(MAX_SUGGESTION_CHARS + 1));
+        assert_eq!(split_suggestion(&long), (long.clone(), None));
     }
 
     #[test]

@@ -11,6 +11,11 @@
   let text = $state("");
   let threadEl = $state<HTMLElement>();
   let textEl = $state<HTMLTextAreaElement>();
+  /** La suite proposée par la dernière réponse, au-dessus du champ ; cachée une fois dans le champ. */
+  const next = $derived.by(() => {
+    const last = assistant.thread.at(-1);
+    return !assistant.busy && last?.kind === "assistant" && last.suggestion && text.trim() !== last.suggestion ? last.suggestion : null;
+  });
 
   async function send() {
     const message = text;
@@ -30,7 +35,7 @@
     threadEl?.scrollTo({ top: threadEl.scrollHeight });
   }
 
-  /** Une idée de demande remplit le champ, à envoyer telle quelle ou à compléter. */
+  /** Une idée de demande, ou la suite proposée par l'assistant, remplit le champ, à envoyer telle quelle ou à compléter. */
   function suggest(idea: string) {
     text = idea;
     textEl?.focus();
@@ -105,6 +110,7 @@
     }}
   >
     <small>{t.selectionHint(editor.selection.length)}</small>
+    {#if next}<button type="button" class="next" title={t.nextHint} onclick={() => suggest(next)}>→ {next}</button>{/if}
     <textarea
       bind:this={textEl}
       bind:value={text}
@@ -178,6 +184,13 @@
   }
   .retry {
     align-self: flex-start;
+  }
+  .next {
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
   }
   .restart {
     align-self: center;

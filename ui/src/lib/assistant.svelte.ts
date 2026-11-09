@@ -10,7 +10,7 @@ import type { AssistantDone, AssistantSettings, AssistantStep, Document, Element
 export type Outcome = "pending" | "accepted" | "refused" | "none";
 export type Entry =
   | { kind: "user"; text: string }
-  | { kind: "assistant"; text: string; steps: AssistantStep[]; outcome: Outcome }
+  | { kind: "assistant"; text: string; steps: AssistantStep[]; outcome: Outcome; suggestion?: string | null }
   | { kind: "error"; text: string };
 
 export interface Proposal {
@@ -117,7 +117,7 @@ class Assistant {
     if (end.error && !steps.length && [...text].length <= MAX_TEXT_CHARS) this.retryable = { text, history: before };
     const outcome: Outcome = steps.length ? "pending" : "none";
     // Une erreur sans rien de fait : l'erreur seule, pas « Aucune modification » avant elle.
-    const entries: Entry[] = end.error && !end.reply && !steps.length ? [] : [{ kind: "assistant", text: end.reply, steps, outcome }];
+    const entries: Entry[] = end.error && !end.reply && !steps.length ? [] : [{ kind: "assistant", text: end.reply, steps, outcome, suggestion: end.suggestion }];
     if (end.error) entries.push({ kind: "error", text: end.error });
     this.thread = [...this.thread, ...entries];
   }

@@ -47,6 +47,7 @@ const done = (reply = "C'est fait.", error: string | null = null, history: unkno
   reply,
   history,
   error,
+  suggestion: null,
 });
 
 beforeEach(() => {
@@ -378,4 +379,11 @@ test("a new conversation empties the thread, the pending proposal settled first"
 test("the empty panel offers ideas of requests", () => {
   expect(fr.assistant.ideas.length).toBeGreaterThan(2);
   for (const idea of fr.assistant.ideas) expect([...idea].length).toBeLessThan(60);
+});
+
+test("the suggestion to go on is kept with the reply", async () => {
+  script.push((r) => [step(titled(r.document, "A")), { ...(done("Titre déplacé.") as Extract<AssistantEvent, { type: "Done" }>), suggestion: "Mets le titre en bleu" }]);
+  await assistant.send("x");
+  const last = assistant.thread.at(-1);
+  expect(last?.kind === "assistant" && [last.text, last.suggestion]).toEqual(["Titre déplacé.", "Mets le titre en bleu"]);
 });

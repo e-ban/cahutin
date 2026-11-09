@@ -4,4 +4,8 @@ export type AssistantDone = { reply: string,
 /**
  * Les échanges de cette demande et des précédentes, sans la consigne : à renvoyer pour continuer.
  */
-history: Array<unknown>, error: string | null, };
+history: Array<unknown>, error: string | null, 
+/**
+ * Une courte demande pour poursuivre, proposée par le modèle (sa ligne « Suite : »), retirée de `reply`.
+ */
+suggestion: string | null, };

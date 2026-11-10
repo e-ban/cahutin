@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Mode modèle : une case photo vide n'affiche plus « Choisir une photo », qui ne faisait rien (un modèle garde ses cases vides), ni le lien vers les photos pour l'image d'un cadre de texte.
 - Préférences : les catégories à gauche (Affichage, Accessibilité, Daltonisme, Barre d'outils, Nouvelle page, Graphisme, Exporter, Aide, Assistant), les réglages de celle choisie à droite, et « Chercher un réglage » pour trouver un réglage par son nom (« contraste », « sombre », « A4 »…).
 - Frise : le menu « Modifier la frise » reste ouvert pendant qu'on règle la taille, l'espacement ou la marge, et « Supprimer la frise » s'y trouve, à côté de « Changer les images ».
 - Thèmes : Préférences > Affichage propose Papier (les couleurs d'origine), Craie, Crayon et Nuit, un thème sombre pour le soir. La page reste blanche, comme sur papier, et le contraste élevé passe avant le thème. Les Préférences s'ouvrent aussi depuis la page d'accueil.

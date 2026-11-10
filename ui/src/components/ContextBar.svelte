@@ -416,7 +416,8 @@
     {:else if selected?.kind.type === "Photo"}
       {@const ph = selected.kind}
       {#if !ph.asset}
-        <button class="main" onclick={openPhotos}><Icon name="photo" /><span class="lbl"> {fr.choosePhoto}</span></button>
+        <!-- Un modèle n'a que des cases vides : on y choisira une photo en remplissant le document. -->
+        {#if !editor.templateMode}<button class="main" onclick={openPhotos}><Icon name="photo" /><span class="lbl"> {fr.choosePhoto}</span></button>{/if}
       {:else}
         <button class:on={editor.replacingPhoto} title={fr.replacePhotoHint} onclick={() => ((editor.replacingPhoto = true), editor.openImages("photos"))}><Icon name="replace" /><span class="lbl"> {fr.replace}</span></button>
         <button onclick={() => (editor.cropping = selected.id)}><Icon name="crop" /><span class="lbl"> {fr.crop}</span></button>
@@ -548,10 +549,11 @@
             {/if}
             <span>{fr.padding} : {textPadding(t.style)} mm</span>
             <input type="range" min="0" max="10" step="0.5" value={textPadding(t.style)} oninput={(e) => previewTextStyle({ padding_mm: Number(e.currentTarget.value) })} onchange={endPreview} />
-            <span>{fr.frameImage}</span>
+            <!-- En mode modèle, l'onglet Photos ne montre que les cases : pas d'image de cadre à y prendre. -->
             {#if editor.photos.length === 0 && !f?.image}
-              <button class="link" onclick={openPhotos}>{fr.frameImageHint}</button>
+              {#if !editor.templateMode}<span>{fr.frameImage}</span><button class="link" onclick={openPhotos}>{fr.frameImageHint}</button>{/if}
             {:else}
+              <span>{fr.frameImage}</span>
               <div class="frame-images">
                 <button class="none" class:on={!f?.image} onclick={() => setFrameImage(null)}>{fr.frameImageNone}</button>
                 {#each editor.photos as p (p.meta.id)}

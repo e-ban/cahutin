@@ -2,7 +2,7 @@
   // « Remplir avec ma classe » : Cahutin voit si la page est une planche (étiquettes, cartes) ou une page à
   // décliner par élève ; les pages remplies prennent la place de la page modèle, en un pas d'annulation.
   import { classGenerate, classPlan } from "../lib/api";
-  import { classes, filterStudents, groups } from "../lib/classStore.svelte";
+  import { classes, groups, presetOf, presetStudents } from "../lib/classStore.svelte";
   import { editor } from "../lib/docStore.svelte";
   import { fr } from "../lib/i18n/fr";
   import { replacePage } from "../lib/importPages";
@@ -10,7 +10,7 @@
 
   let { onclose }: { onclose: () => void } = $props();
 
-  // « all », « level:MS » ou « group:Les loups ».
+  // Choix rapide : « all », « level:MS », « group:Les loups », ou « custom » quand les cases cochées n'en sont aucun.
   let who = $state("all");
   let error = $state<string | null>(null);
   let busy = $state(false);
@@ -25,13 +25,23 @@
   const students = $derived(classes.current?.class.students ?? []);
   const levels = $derived([...new Set(students.map((s) => s.level).filter((l): l is Level => !!l))].sort());
   const groupList = $derived(groups(students));
-  const chosen = $derived(
-    who === "all"
-      ? students
-      : who.startsWith("level:")
-        ? filterStudents(students, { level: who.slice(6) as Level })
-        : filterStudents(students, { group: who.slice(6) }),
-  );
+  const presets = $derived(["all", ...levels.map((l) => `level:${l}`), ...groupList.map((g) => `group:${g}`)]);
+  // Les élèves cochés, toute la classe au départ ; l'ordre de la classe est gardé.
+  let checked = $state(new Set(classes.current?.class.students.map((s) => s.id) ?? []));
+  const chosen = $derived(students.filter((s) => checked.has(s.id)));
+
+  function choosePreset(preset: string) {
+    who = preset;
+    checked = new Set(presetStudents(students, preset).map((s) => s.id));
+  }
+
+  function toggleStudent(id: string, on: boolean) {
+    const next = new Set(checked);
+    if (on) next.add(id);
+    else next.delete(id);
+    checked = next;
+    who = presetOf(students, next, presets);
+  }
   const pages = $derived(!plan ? 0 : plan.mode === "Sheet" ? Math.ceil(chosen.length / Math.max(1, plan.blocks)) : plan.mode === "WholeClass" ? 1 : chosen.length);
 
   async function generate() {
@@ -67,12 +77,27 @@
     {#if levels.length || groupList.length}
       <label class="who">
         {fr.generateWho}
-        <select bind:value={who}>
+        <select value={who} onchange={(e) => e.currentTarget.value !== "custom" && choosePreset(e.currentTarget.value)}>
           <option value="all">{fr.generateAll}</option>
           {#each levels as l (l)}<option value={`level:${l}`}>{fr.generateLevel(l)}</option>{/each}
           {#each groupList as g (g)}<option value={`group:${g}`}>{fr.generateGroup(g)}</option>{/each}
+          {#if who === "custom"}<option value="custom">{fr.generateCustom}</option>{/if}
         </select>
       </label>
+    {/if}
+    {#if students.length > 1}
+      <details class="pick">
+        <summary>{fr.generatePick(chosen.length, students.length)}</summary>
+        <div class="pick-all">
+          <button onclick={() => choosePreset("all")}>{fr.generatePickAll}</button>
+          <button onclick={() => ((checked = new Set()), (who = "custom"))}>{fr.generatePickNone}</button>
+        </div>
+        <div class="students">
+          {#each students as s (s.id)}
+            <label><input type="checkbox" checked={checked.has(s.id)} onchange={(e) => toggleStudent(s.id, e.currentTarget.checked)} /> {s.first_name} {s.last_name}</label>
+          {/each}
+        </div>
+      </details>
     {/if}
     <p class="hint">{fr.generateReplaces}</p>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -117,6 +142,30 @@
     display: flex;
     gap: 8px;
     align-items: center;
+  }
+  .pick summary {
+    cursor: pointer;
+    color: var(--accent);
+  }
+  .pick-all {
+    display: flex;
+    gap: 6px;
+    margin: 8px 0 6px;
+  }
+  .students {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 2px 12px;
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+  .students label {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .hint {
     font-size: 12px;

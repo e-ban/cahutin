@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { filterStudents, groups, schoolYear, withStudentBack, withoutStudent } from "./classStore.svelte";
+import { filterStudents, groups, presetOf, presetStudents, schoolYear, withStudentBack, withoutStudent } from "./classStore.svelte";
 import type { Student } from "./types";
 
 const s = (first_name: string, level: Student["level"], group = ""): Student => ({
@@ -45,4 +45,17 @@ test("withStudentBack puts the child back where they were, or at the end", () =>
   expect(withStudentBack(students.slice(0, 1), removed!, 5).map((s) => s.first_name)).toEqual(["Léa", "Noé"]);
   // Un autre élève ajouté entre-temps (à la fin) : l'élève remis reprend sa place.
   expect(withStudentBack([...students, s("Zoé", null)], removed!, index).map((s) => s.first_name)).toEqual(["Léa", "Noé", "Anna", "Tom", "Zoé"]);
+});
+
+test("a quick choice gives its students, and ticked students name their quick choice", () => {
+  const students = [s("Léa", "MS", "Les loups"), s("Noé", "GS"), s("Anna", "MS"), s("Tom", "GS", "Les loups ")];
+  const names = (list: Student[]) => list.map((s) => s.first_name);
+  expect(names(presetStudents(students, "all"))).toEqual(["Léa", "Noé", "Anna", "Tom"]);
+  expect(names(presetStudents(students, "level:MS"))).toEqual(["Léa", "Anna"]);
+  expect(names(presetStudents(students, "group:Les loups"))).toEqual(["Léa", "Tom"]);
+  const presets = ["all", "level:GS", "level:MS", "group:Les loups"];
+  expect(presetOf(students, new Set(["Léa", "Noé", "Anna", "Tom"]), presets)).toBe("all");
+  expect(presetOf(students, new Set(["Anna", "Léa"]), presets)).toBe("level:MS");
+  expect(presetOf(students, new Set(["Léa"]), presets)).toBe("custom");
+  expect(presetOf(students, new Set(), presets)).toBe("custom");
 });

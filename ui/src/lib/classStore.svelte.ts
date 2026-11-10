@@ -13,6 +13,21 @@ export function filterStudents(students: Student[], f: { level?: Level | null; g
   return students.filter((s) => (!f.level || s.level === f.level) && (!f.group || s.group === f.group));
 }
 
+/** Les élèves d'un choix rapide : « all », « level:MS » ou « group:Les loups ». */
+export function presetStudents(students: Student[], preset: string): Student[] {
+  if (preset.startsWith("level:")) return filterStudents(students, { level: preset.slice(6) as Level });
+  if (preset.startsWith("group:")) return students.filter((s) => s.group.trim() === preset.slice(6));
+  return students;
+}
+
+/** Le choix rapide qui donne exactement les élèves cochés, sinon « custom ». */
+export function presetOf(students: Student[], checked: Set<string>, presets: string[]): string {
+  return presets.find((p) => {
+    const ids = presetStudents(students, p).map((s) => s.id);
+    return ids.length === checked.size && ids.every((id) => checked.has(id));
+  }) ?? "custom";
+}
+
 /** Groupes de la classe, une fois chacun, triés. */
 export function groups(students: Student[]): string[] {
   return [...new Set(students.map((s) => s.group.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));

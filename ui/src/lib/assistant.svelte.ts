@@ -5,12 +5,12 @@ import { editor } from "./docStore.svelte";
 import { fr } from "./i18n/fr";
 import { modal } from "./modal.svelte";
 import { templates } from "./templates.svelte";
-import type { AssistantDone, AssistantSettings, AssistantStep, Document, Element } from "./types";
+import type { AssistantDone, AssistantSettings, AssistantStep, AssistantUndoBlocked, Document, Element } from "./types";
 
 export type Outcome = "pending" | "accepted" | "refused" | "none";
 export type Entry =
   | { kind: "user"; text: string }
-  | { kind: "assistant"; text: string; steps: AssistantStep[]; outcome: Outcome; suggestion?: string | null }
+  | { kind: "assistant"; text: string; steps: AssistantStep[]; outcome: Outcome; suggestion?: string | null; undone?: AssistantStep[] }
   | { kind: "error"; text: string };
 
 export interface Proposal {
@@ -61,6 +61,9 @@ class Assistant {
   /** La dernière demande, si elle a échoué ou été arrêtée sans rien faire : « Réessayer » la renvoie telle
    *  quelle, avec les échanges d'avant elle (pas deux fois la même question au modèle). */
   retryable = $state.raw<{ text: string; history: unknown[] } | null>(null);
+  /** Ce que l'enseignante a défait depuis la dernière demande : dit au modèle avec la suivante, qui sinon
+   *  croirait ces modifications encore là. */
+  #undoneNote: string[] = [];
 
   get enabled(): boolean {
     return this.settings?.enabled === true;
@@ -85,7 +88,9 @@ class Assistant {
     const steps: AssistantStep[] = [];
     let done: AssistantDone | null = null;
     this.busy = true;
-    const request = { document: p ? lastDoc(p) : editor.doc, page: editor.pageIndex, selection: editor.selection, history: this.#history, text };
+    const note = this.#undoneNote.length ? `[Défait par l'utilisateur : ${this.#undoneNote.join(" ; ")}.]\n` : "";
+    this.#undoneNote = [];
+    const request = { document: p ? lastDoc(p) : editor.doc, page: editor.pageIndex, selection: editor.selection, history: this.#history, text: note + text };
     // Tauri livre les gros messages (chaque étape porte le document) après coup : la demande n'est finie
     // qu'à la réception de « Done », pas au retour de l'appel.
     let finished!: () => void;
@@ -154,7 +159,45 @@ class Assistant {
     this.proposal = null;
     this.viewing = null;
     this.#history = [];
+    this.#undoneNote = [];
     this.retryable = null;
+  }
+
+  /** Défait une étape de la proposition et garde les autres, si aucune ne dépend d'elle ; sinon un message
+   *  dit laquelle défaire d'abord. La dernière étape défaite ferme la proposition, comme « Refuser ». */
+  async undo(step: AssistantStep) {
+    const p = this.proposal;
+    const k = p ? p.steps.indexOf(step) : -1;
+    if (!p || k < 0 || this.busy) return;
+    const before = k === 0 ? p.base : p.steps[k - 1].document;
+    const later = p.steps.slice(k + 1);
+    let docs: Document[];
+    try {
+      docs = await api.assistantUndoStep(before, step.document, later.map((s) => s.document));
+    } catch (e) {
+      const blocked = e as AssistantUndoBlocked;
+      const by = typeof blocked?.step === "number" ? later[blocked.step] : null;
+      editor.notice = by ? fr.assistant.undoBlockedBy(by.summary.join(", ")) : typeof blocked?.step === "object" ? fr.assistant.undoOnlyLast : String(e);
+      return;
+    }
+    const redone = new Map(later.map((s, i) => [s, { ...s, document: docs[i] }]));
+    const swap = (s: AssistantStep) => redone.get(s) ?? s;
+    this.thread = this.thread.map((e) =>
+      e.kind === "assistant" && e.steps.includes(step)
+        ? { ...e, steps: e.steps.map(swap), undone: [...(e.undone ?? []), step] }
+        : e.kind === "assistant" && e.steps.some((s) => redone.has(s))
+          ? { ...e, steps: e.steps.map(swap) }
+          : e,
+    );
+    this.#undoneNote.push(step.summary.join(", "));
+    const steps = [...p.steps.slice(0, k), ...later.map(swap)];
+    if (!steps.length) {
+      editor.showProposal(null);
+      this.#close("refused");
+      return;
+    }
+    this.proposal = { ...p, steps };
+    this.view(null);
   }
 
   async accept() {
@@ -249,6 +292,7 @@ class Assistant {
   /** Autre document : le fil et la proposition sont oubliés. */
   clear() {
     this.#history = [];
+    this.#undoneNote = [];
     this.retryable = null;
     this.thread = [];
     this.proposal = null;

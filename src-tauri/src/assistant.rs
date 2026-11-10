@@ -372,6 +372,12 @@ pub fn assistant_report(app: AppHandle, request: String, reply: String, steps: V
     Ok(REPORT_EMAIL.to_string())
 }
 
+/// Défaire une étape de la proposition : les documents des étapes suivantes, refaits sans elle.
+#[tauri::command(async)]
+pub fn assistant_undo_step(before: carnet_core::Document, after: carnet_core::Document, rest: Vec<carnet_core::Document>) -> Result<Vec<carnet_core::Document>, cahutin_mcp::undo::Blocked> {
+    cahutin_mcp::undo::undo_step(&before, &after, &rest)
+}
+
 #[tauri::command]
 pub fn assistant_stop(state: State<'_, AppState>) {
     state.assistant_cancel.store(true, Ordering::SeqCst);

@@ -76,9 +76,21 @@
             <ol>
               {#each entry.steps as step, j (j)}
                 <li>
-                  <button class="step" class:on={assistant.viewing === step} onclick={() => pick(step)}>
-                    {#each step.summary as line, k (k)}<span>{line}</span>{/each}
-                  </button>
+                  {#if entry.undone?.includes(step)}
+                    <span class="step undone">
+                      {#each step.summary as line, k (k)}<s>{line}</s>{/each}
+                      <small>{t.undone}</small>
+                    </span>
+                  {:else}
+                    <div class="row">
+                      <button class="step" class:on={assistant.viewing === step} onclick={() => pick(step)}>
+                        {#each step.summary as line, k (k)}<span>{line}</span>{/each}
+                      </button>
+                      {#if entry.outcome === "pending" && !assistant.busy}
+                        <button class="ghost undo" title={t.undoHint} onclick={() => void assistant.undo(step)}>↶ {t.undo}</button>
+                      {/if}
+                    </div>
+                  {/if}
                 </li>
               {/each}
             </ol>
@@ -233,6 +245,22 @@
     cursor: pointer;
     font: inherit;
     font-size: 13px;
+  }
+  .row {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .undo {
+    flex: none;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .undone {
+    color: var(--muted);
+  }
+  .undone small {
+    font-style: italic;
   }
   .step:hover {
     border-color: var(--line);

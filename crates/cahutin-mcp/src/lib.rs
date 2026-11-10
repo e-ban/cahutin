@@ -14,4 +14,5 @@ pub mod styles;
 pub mod tables;
 pub mod template;
 pub mod tools;
+pub mod undo;
 pub mod view;

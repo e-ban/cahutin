@@ -11,6 +11,8 @@ const written: Document[] = [];
 const reports: unknown[][] = [];
 /** Le dernier envoi : pour finir à la main une demande restée en cours. */
 let emit: (e: AssistantEvent) => void = () => {};
+/** Le moteur simulé de « Défaire » : par défaut, les étapes suivantes reçoivent la marque « sans ». */
+let undoStep: (before: Document, after: Document, rest: Document[]) => Promise<Document[]> = async (_b, _a, rest) => rest.map((d) => ({ ...d, title: `${d.title} sans` }));
 
 vi.mock("./api", () => ({
   assistantSend: async (request: AssistantRequest, onEvent: (e: AssistantEvent) => void) => {
@@ -21,6 +23,7 @@ vi.mock("./api", () => ({
     else for (const e of events) onEvent(e);
   },
   assistantStop: async () => {},
+  assistantUndoStep: (before: Document, after: Document, rest: Document[]) => undoStep(before, after, rest),
   // Quitter le document efface la copie de secours (fileActions.confirmLeave).
   backupClear: async () => {},
   assistantReport: async (...args: unknown[]) => (reports.push(args), "auteur@exemple.fr"),
@@ -386,4 +389,49 @@ test("the suggestion to go on is kept with the reply", async () => {
   await assistant.send("x");
   const last = assistant.thread.at(-1);
   expect(last?.kind === "assistant" && [last.text, last.suggestion]).toEqual(["Titre déplacé.", "Mets le titre en bleu"]);
+});
+
+test("undoing one step keeps the others, and the next request says so", async () => {
+  const base = editor.doc;
+  script.push((r) => [step(titled(r.document, "A"), { summary: ["Titre : en bleu"] }), step(titled(r.document, "B")), done()]);
+  await assistant.send("x");
+  const [first] = assistant.proposal!.steps;
+  await assistant.undo(first);
+  expect(assistant.proposal?.steps.map((s) => s.document.title)).toEqual(["B sans"]);
+  expect(editor.doc.title).toBe("B sans");
+  const entry = assistant.thread.at(-1);
+  expect(entry?.kind === "assistant" && entry.undone).toEqual([first]);
+  expect(entry?.kind === "assistant" && entry.steps.map((s) => s.document.title)).toEqual(["A", "B sans"]);
+  script.push(() => [done()]);
+  await assistant.send("Et la suite ?");
+  expect(sent.at(-1)?.text).toBe("[Défait par l'utilisateur : Titre : en bleu.]\nEt la suite ?");
+  expect(assistant.thread.some((e) => e.kind === "user" && e.text === "Et la suite ?")).toBe(true);
+  await assistant.accept();
+  editor.undo();
+  expect(editor.doc).toBe(base);
+});
+
+test("a step another one builds on is not undone", async () => {
+  undoStep = async () => Promise.reject({ step: 0 });
+  script.push((r) => [step(titled(r.document, "A")), step(titled(r.document, "B"), { summary: ["Titre : déplacé"] }), done()]);
+  await assistant.send("x");
+  const before = assistant.proposal;
+  await assistant.undo(before!.steps[0]);
+  expect(assistant.proposal).toBe(before);
+  expect(editor.notice).toBe(fr.assistant.undoBlockedBy("Titre : déplacé"));
+  undoStep = async () => Promise.reject({ step: null });
+  await assistant.undo(before!.steps[0]);
+  expect(editor.notice).toBe(fr.assistant.undoOnlyLast);
+  undoStep = async (_b, _a, rest) => rest.map((d) => ({ ...d, title: `${d.title} sans` }));
+});
+
+test("undoing the only step closes the proposal", async () => {
+  const base = editor.doc;
+  script.push((r) => [step(titled(r.document, "A")), done()]);
+  await assistant.send("x");
+  await assistant.undo(assistant.proposal!.steps[0]);
+  expect(assistant.proposal).toBeNull();
+  expect(editor.doc).toBe(base);
+  const last = assistant.thread.at(-1);
+  expect(last?.kind === "assistant" && last.outcome).toBe("refused");
 });

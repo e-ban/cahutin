@@ -136,4 +136,6 @@ export function assistantSend(request: AssistantRequest, onEvent: (e: AssistantE
   return invoke<void>("assistant_send", { request, onEvent: channel });
 }
 export const assistantStop = () => invoke<void>("assistant_stop");
+/** Les documents des étapes suivantes sans l'étape before → after ; rejette avec AssistantUndoBlocked. */
+export const assistantUndoStep = (before: Document, after: Document, rest: Document[]) => invoke<Document[]>("assistant_undo_step", { before, after, rest });
 export const assistantReport = (request: string, reply: string, steps: string[]) => invoke<string>("assistant_report", { request, reply, steps });

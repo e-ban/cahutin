@@ -4,6 +4,7 @@
   import { fonts } from "../lib/fonts.svelte";
   import { groupFamilies, searchFamilies } from "../lib/fontSearch";
   import { fr } from "../lib/i18n/fr";
+  import { fitInWindow } from "../lib/popover";
   import type { FontFamilyInfo } from "../lib/types";
 
   let { value, onpick, compact = false }: { value: string; onpick: (name: string) => void; compact?: boolean } = $props();
@@ -59,7 +60,7 @@
     <span style:font-family={`"${value}", "Andika"`}>{value}</span> ▾
   </button>
   {#if open}
-    <div class="pop">
+    <div use:fitInWindow class="pop">
       <input bind:this={input} bind:value={query} placeholder={fr.searchFont} aria-label={fr.searchFont} onkeydown={onKey} />
       <div class="list" role="listbox" aria-label={fr.fonts}>
         {#each sections as s (s.title)}
@@ -119,6 +120,9 @@
   .list {
     max-height: 320px;
     overflow-y: auto;
+    /* Le menu raccourci pour tenir dans la fenêtre : la liste défile, le champ de recherche reste. */
+    min-height: 0;
+    flex: 1 1 auto;
   }
   .group {
     font-size: 11px;

@@ -26,6 +26,7 @@
   import { fieldsOf, removeField } from "../lib/fieldEdit";
   import { placeField } from "../lib/fieldPlacing.svelte";
   import FieldMenu from "./FieldMenu.svelte";
+  import { fitInWindow } from "../lib/popover";
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
   import { inTableGroup, isTableCell, selectedTable } from "../lib/table";
@@ -354,7 +355,7 @@
         <div class="wrap">
           <button class:on={!!t.border} onclick={() => toggle("stroke")}>▦<span class="lbl"> {fr.tableBorders}</span></button>
           {#if pop === "stroke"}
-            <div class="pop">
+            <div use:fitInWindow class="pop">
               <span>{t.border ? `${t.border.width_mm} mm` : fr.noStroke}</span>
               <input
                 type="range"
@@ -380,7 +381,7 @@
       <div class="wrap">
         <button onclick={() => toggle("alignMany")} disabled={units() < 2}>☰<span class="lbl"> {fr.alignMenu} ▾</span></button>
         {#if pop === "alignMany"}
-          <div class="pop list">
+          <div use:fitInWindow class="pop list">
             {#each alignModes as [mode, label] (mode)}<button onclick={() => applyFrames((f) => alignFrames(f, mode))}>{label}</button>{/each}
           </div>
         {/if}
@@ -388,7 +389,7 @@
       <div class="wrap">
         <button onclick={() => toggle("distribute")} disabled={units() < 3}>⇹<span class="lbl"> {fr.distribute} ▾</span></button>
         {#if pop === "distribute"}
-          <div class="pop list">
+          <div use:fitInWindow class="pop list">
             <button onclick={() => applyFrames((f) => distributeFrames(f, "h"))}>{fr.distributeH}</button>
             <button onclick={() => applyFrames((f) => distributeFrames(f, "v"))}>{fr.distributeV}</button>
           </div>
@@ -416,7 +417,7 @@
         <div class="wrap">
           <button class:on={pop === "corners"} onclick={() => toggle("corners")}>◜<span class="lbl"> {fr.corners}</span></button>
           {#if pop === "corners"}
-            <div class="pop">
+            <div use:fitInWindow class="pop">
               <span>{ph.corner_radius_mm} mm</span>
               <input type="range" min="0" max="20" step="1" value={ph.corner_radius_mm} oninput={(e) => previewPhoto({ corner_radius_mm: Number(e.currentTarget.value) })} onchange={endPreview} />
             </div>
@@ -425,7 +426,7 @@
         <div class="wrap">
           <button class:on={!!ph.border} onclick={() => toggle("border")}>▢<span class="lbl"> {fr.border}</span></button>
           {#if pop === "border"}
-            <div class="pop">
+            <div use:fitInWindow class="pop">
               <label class="check">
                 <input type="checkbox" checked={!!ph.border} onchange={(e) => updatePhoto({ border: e.currentTarget.checked ? { width_mm: 1, color: "#ffffff" } : null })} />
                 {fr.border}
@@ -452,7 +453,7 @@
           {named ? named.name : fr.textStyleNone}{named && !followsStyle(selected, named) ? " *" : ""} ▾
         </button>
         {#if pop === "styles"}
-          <div class="pop styles">
+          <div use:fitInWindow class="pop styles">
             {#each docStyles as s (s.id)}
               <button class:on={s.id === t.style.named} style:font-family={`"${s.font}"`} style:color={s.color} onclick={() => useStyle(s)}>{s.name}</button>
             {/each}
@@ -477,7 +478,7 @@
       <div class="wrap">
         <button class="field-btn" title={fr.fieldButtonHint} onclick={() => toggle("fields")}>&#123; &#125;<span class="lbl"> {fr.fieldButton}</span> ▾</button>
         {#if pop === "fields"}
-          <div class="pop fields">
+          <div use:fitInWindow class="pop fields">
             <FieldMenu current={editor.editingText === selected?.id ? [] : fieldsOf(t.content)} onpick={(key) => (pickField(key), (pop = null))} />
           </div>
         {/if}
@@ -485,12 +486,12 @@
       <button title={fr.outlineHint} class:on={!!t.style.outline} aria-pressed={!!t.style.outline} onclick={() => updateTextStyle({ outline: !t.style.outline })}><span class="hollow-a">A</span></button>
       <div class="wrap">
         <button title={fr.color} aria-label={fr.color} onclick={() => toggle("color")}><span class="dot" style:background={t.style.color}></span></button>
-        {#if pop === "color"}<div class="pop"><ColorPicker value={t.style.color} onchange={(c) => (setColor(c), (pop = null))} /></div>{/if}
+        {#if pop === "color"}<div use:fitInWindow class="pop"><ColorPicker value={t.style.color} onchange={(c) => (setColor(c), (pop = null))} /></div>{/if}
       </div>
       <div class="wrap">
         <button class="iconbtn" title={fr.alignment} aria-label={fr.alignment} onclick={() => toggle("align")}><AlignIcon align={t.style.align} /> ▾</button>
         {#if pop === "align"}
-          <div class="pop grid">
+          <div use:fitInWindow class="pop grid">
             <div class="row">
               {#each ALIGNS as a (a)}
                 <button class:on={t.style.align === a} title={fr.textAlign[a]} aria-label={fr.textAlign[a]} onclick={() => setAlign(a)}><AlignIcon align={a} /></button>
@@ -508,7 +509,7 @@
         <button class:on={!!t.frame} onclick={() => toggle("frame")}>▭<span class="lbl"> {fr.textFrame}</span></button>
         {#if pop === "frame"}
           {@const f = t.frame}
-          <div class="pop frame">
+          <div use:fitInWindow class="pop frame">
             <span>{fr.frameFill}</span>
             <ColorPicker value={f?.fill ?? null} allowNone onchange={(c) => updateTextFrame({ fill: c })} />
             <span>{fr.writingLines}</span>
@@ -564,13 +565,13 @@
       {#if !isStrokeOnly(s.shape) && s.shape !== "Path"}
       <div class="wrap">
         <button onclick={() => toggle("fill")}><span class="dot" style:background={s.fill ?? "transparent"}></span><span class="lbl"> {fr.fill}</span></button>
-        {#if pop === "fill"}<div class="pop"><ColorPicker value={s.fill} allowNone onchange={(c) => updateShape({ fill: c })} /></div>{/if}
+        {#if pop === "fill"}<div use:fitInWindow class="pop"><ColorPicker value={s.fill} allowNone onchange={(c) => updateShape({ fill: c })} /></div>{/if}
       </div>
       {/if}
       <div class="wrap">
         <button class:on={!!s.stroke} onclick={() => toggle("stroke")}>▢<span class="lbl"> {fr.stroke}</span></button>
         {#if pop === "stroke"}
-          <div class="pop">
+          <div use:fitInWindow class="pop">
             <span>{s.stroke ? `${s.stroke.width_mm} mm` : fr.noStroke}</span>
             <input
               type="range"
@@ -595,7 +596,7 @@
         <div class="wrap">
           <button onclick={() => toggle("corners")}>◜<span class="lbl"> {fr.corners}</span></button>
           {#if pop === "corners"}
-            <div class="pop">
+            <div use:fitInWindow class="pop">
               <span>{s.corner_radius_mm} mm</span>
               <input type="range" min="0" max="20" step="1" value={s.corner_radius_mm} oninput={(e) => previewShape({ corner_radius_mm: Number(e.currentTarget.value) })} onchange={endPreview} />
             </div>
@@ -612,7 +613,7 @@
         <button class:on={pop === "more" || pop === "frieze" || pop === "repeat" || pop === "cut"} aria-haspopup="menu" title={fr.moreTools} onclick={() => toggle("more")}>⋯<span class="lbl"> {fr.moreTools} ▾</span></button>
         {#if pop === "more"}
           {@const ph = selected?.kind.type === "Photo" && selected.kind.asset ? selected.kind : null}
-          <div class="pop list more" role="menu">
+          <div use:fitInWindow class="pop list more" role="menu">
             {#if ph}
               <button role="menuitem" class:on={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}>◩ {fr.shadow}</button>
               <button role="menuitem" title={fr.keepInMyImagesHint} onclick={() => ((pop = null), ph.asset && myImages.keep(ph.asset))}>⭐ {fr.keepInMyImages}</button>
@@ -641,9 +642,9 @@
             {/if}
           </div>
         {:else if pop === "frieze" && friezeNow}
-          <div class="pop frieze">{@render friezePop(friezeNow)}</div>
+          <div use:fitInWindow class="pop frieze">{@render friezePop(friezeNow)}</div>
         {:else if pop === "repeat"}
-          <div class="pop repeat">
+          <div use:fitInWindow class="pop repeat">
             <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
             <label>{fr.tableRows} <input type="number" min="1" max="20" bind:value={repeatRows} /></label>
             <button class="primary" disabled={repeatCols * repeatRows < 2} onclick={() => repeat(false)}>{fr.repeatApply(repeatCols * repeatRows)}</button>
@@ -651,7 +652,7 @@
             <GuideLink id="etiquettes" />
           </div>
         {:else if pop === "cut"}
-          <div class="pop list">
+          <div use:fitInWindow class="pop list">
             <button onclick={() => setCutMarks("corners")}>⌜ ⌝ {fr.cutCorners}</button>
             <button onclick={() => setCutMarks("dashed")}>✂ ┄ {fr.cutDashed}</button>
             <button onclick={() => setCutMarks(null)}>{fr.cutNone}</button>
@@ -679,7 +680,7 @@
         <div class="wrap">
           <button data-guide="frieze-size" class:on={pop === "frieze"} title={fr.friezeEditHint2} onclick={() => toggle("frieze")}>❀<span class="lbl"> {fr.friezeEdit} ▾</span></button>
           {#if pop === "frieze"}
-            <div class="pop frieze">{@render friezePop(friezeNow)}</div>
+            <div use:fitInWindow class="pop frieze">{@render friezePop(friezeNow)}</div>
           {/if}
         </div>
         <button class="danger" title={fr.friezeDeleteHint} onclick={deleteFrieze}>🗑<span class="lbl"> {fr.friezeDelete}</span></button>
@@ -688,7 +689,7 @@
         <div class="wrap">
           <button data-guide="repeat" title={fr.repeatHint} onclick={() => toggle("repeat")}>▦<span class="lbl"> {fr.repeat} ▾</span></button>
           {#if pop === "repeat"}
-            <div class="pop repeat">
+            <div use:fitInWindow class="pop repeat">
               <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
               <label>{fr.tableRows} <input type="number" min="1" max="20" bind:value={repeatRows} /></label>
               <button class="primary" disabled={repeatCols * repeatRows < 2} onclick={() => repeat(false)}>{fr.repeatApply(repeatCols * repeatRows)}</button>
@@ -700,7 +701,7 @@
         <div class="wrap">
           <button data-guide="cut" title={fr.cutMarksHint} onclick={() => toggle("cut")}>✂<span class="lbl"> {fr.cutMarks} ▾</span></button>
           {#if pop === "cut"}
-            <div class="pop list">
+            <div use:fitInWindow class="pop list">
               <button onclick={() => setCutMarks("corners")}>⌜ ⌝ {fr.cutCorners}</button>
               <button onclick={() => setCutMarks("dashed")}>✂ ┄ {fr.cutDashed}</button>
               <button onclick={() => setCutMarks(null)}>{fr.cutNone}</button>

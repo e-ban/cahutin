@@ -28,7 +28,7 @@
   <div class="box" role="dialog" aria-modal="true" aria-labelledby="prefs-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
     <h2 id="prefs-title"><Icon name="settings" size={20} /> {fr.preferences}</h2>
 
-    <!-- Sur un grand écran, les sections se rangent en deux colonnes ; sur un petit, en une. -->
+    <!-- Sur un grand écran, les sections se rangent en trois colonnes ; sur un petit, en deux ou en une. -->
     <div class="sections">
     <section>
       <h3>{fr.prefsDisplay}</h3>
@@ -203,15 +203,15 @@
     background: var(--panel);
     border-radius: 12px;
     padding: 20px 24px;
-    width: min(1000px, 94vw);
-    max-height: 88vh;
+    width: min(1320px, 96vw);
+    max-height: 92vh;
     overflow-y: auto;
     box-sizing: border-box;
     box-shadow: 0 10px 30px var(--shadow);
   }
   .sections {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(390px, 100%), 1fr));
     gap: 4px 36px;
     align-items: start;
   }

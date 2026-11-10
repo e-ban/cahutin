@@ -5,6 +5,7 @@
   import ColorPicker from "../ColorPicker.svelte";
   import StrokeStylePicker from "../StrokeStylePicker.svelte";
   import FontPicker from "../FontPicker.svelte";
+  import Icon from "../Icon.svelte";
   import Section from "./InspectorSection.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
@@ -102,8 +103,8 @@
 
 <!-- Les mêmes réglages pour tout : quart de tour, miroir (sauf un texte), devant ou derrière. -->
 {#snippet quarterTurns(fixed: boolean)}
-  <button disabled={fixed} title={fr.rotateLeft} onclick={() => rotateSelection(-90)}>↺ 90°</button>
-  <button disabled={fixed} title={fr.rotateRight} onclick={() => rotateSelection(90)}>↻ 90°</button>
+  <button disabled={fixed} title={fr.rotateLeft} onclick={() => rotateSelection(-90)}><Icon name="rotateLeft" /> 90°</button>
+  <button disabled={fixed} title={fr.rotateRight} onclick={() => rotateSelection(90)}><Icon name="rotateRight" /> 90°</button>
 {/snippet}
 
 {#snippet turnAndOrder(fixed: boolean, mirror: boolean)}
@@ -111,27 +112,27 @@
     <div class="field">
       <span>{fr.mirrorRow}</span>
       <div class="row">
-        <button disabled={fixed} title={fr.mirrorHHint} onclick={() => mirrorSelection("h")}>⇋ {fr.mirrorH}</button>
-        <button disabled={fixed} title={fr.mirrorVHint} onclick={() => mirrorSelection("v")}>⇅ {fr.mirrorV}</button>
+        <button disabled={fixed} title={fr.mirrorHHint} onclick={() => mirrorSelection("h")}><Icon name="flipH" /> {fr.mirrorH}</button>
+        <button disabled={fixed} title={fr.mirrorVHint} onclick={() => mirrorSelection("v")}><Icon name="flipV" /> {fr.mirrorV}</button>
       </div>
     </div>
   {/if}
   <div class="field">
     <span>{fr.orderRow}</span>
     <div class="row">
-      <button onclick={() => bringSelection("front")}>{fr.bringFront}</button>
-      <button onclick={() => bringSelection("back")}>{fr.sendBack}</button>
+      <button onclick={() => bringSelection("front")}><Icon name="bringFront" /> {fr.bringFront}</button>
+      <button onclick={() => bringSelection("back")}><Icon name="sendBack" /> {fr.sendBack}</button>
     </div>
   </div>
 {/snippet}
 
 {#if !editor.inspectorOpen}
-  <button class="tab" title={fr.openInspector} aria-label={fr.openInspector} onclick={() => (editor.inspectorOpen = true)}>⚙ {fr.inspector} ◂</button>
+  <button class="tab" title={fr.openInspector} aria-label={fr.openInspector} onclick={() => (editor.inspectorOpen = true)}><Icon name="settings" /> {fr.inspector} <Icon name="chevronLeft" size={14} /></button>
 {:else}
 <aside class="right" aria-label={fr.inspector}>
   <header>
     <h3>{fr.inspector}</h3>
-    <button class="close" title={fr.closeInspector} aria-label={fr.closeInspector} onclick={() => (editor.inspectorOpen = false)}>▸</button>
+    <button class="close" title={fr.closeInspector} aria-label={fr.closeInspector} onclick={() => (editor.inspectorOpen = false)}><Icon name="chevronRight" /></button>
   </header>
   {#if groupIds}
     <h3>{fr.groupOf(groupIds.length)}</h3>
@@ -158,10 +159,10 @@
     </Section>
     <Section id="arrange" title={fr.sectionArrange} open={false}>{@render turnAndOrder(groupLocked, true)}</Section>
     <div class="actions">
-      <button onclick={ungroupSelection}>⊟ {fr.ungroup}</button>
+      <button onclick={ungroupSelection}><Icon name="ungroup" /> {fr.ungroup}</button>
       <!-- Même règle que la barre : tout le groupe verrouillé, on le déverrouille. -->
-      <button onclick={toggleLockSelection}>{selectionLocked() ? `🔓 ${fr.unlock}` : `🔒 ${fr.lock}`}</button>
-      <button onclick={deleteSelection}>🗑 {fr.delete}</button>
+      <button onclick={toggleLockSelection}>{#if selectionLocked()}<Icon name="unlock" /> {fr.unlock}{:else}<Icon name="lock" /> {fr.lock}{/if}</button>
+      <button onclick={deleteSelection}><Icon name="trash" /> {fr.delete}</button>
     </div>
   {:else if !selected}
     <p class="hint">{fr.noSelection}</p>
@@ -219,7 +220,8 @@
           <input type="range" min="100" max={Math.max(500, Math.ceil(ph.crop.scale * 100))} step="5" disabled={cropFixed} value={Math.round(ph.crop.scale * 100)} oninput={(e) => previewCrop((_, __, crop) => ({ ...crop, scale: Number(e.currentTarget.value) / 100 }))} onchange={endPreview} />
           {#each [["x", fr.cropPosX], ["y", fr.cropPosY]] as [axis, label] (axis)}
             {@const p = pos[axis as "x" | "y"]}
-            <span>{label}</span>
+            <!-- Sa valeur après le nom, comme pour les autres curseurs (aucune quand rien n'est caché). -->
+            <span>{label}{p === null ? "" : ` : ${Math.round(p * 100)} %`}</span>
             <input
               type="range"
               min="0"
@@ -232,7 +234,7 @@
               onchange={endPreview}
             />
           {/each}
-          <button disabled={frameFixed} title={fr.wholePhotoHint} onclick={() => reframe((m, e, crop) => wholePhoto(m, e.frame, crop, ...flips(e), editor.page.size.width_mm, editor.page.size.height_mm))}>🖼 {fr.wholePhoto}</button>
+          <button disabled={frameFixed} title={fr.wholePhotoHint} onclick={() => reframe((m, e, crop) => wholePhoto(m, e.frame, crop, ...flips(e), editor.page.size.width_mm, editor.page.size.height_mm))}><Icon name="photo" /> {fr.wholePhoto}</button>
         </div>
         </Section>
       {/if}
@@ -375,11 +377,11 @@
     <div class="actions">
       {#if !(editor.templateMode && hasTemplateRole(selected))}
       <button onclick={() => update((e) => ({ ...e, locked: !e.locked }))}>
-        {#if editor.templateMode}📌 {selected.locked ? fr.unfixCell : fr.fixCell}{:else}{selected.locked ? `🔓 ${fr.unlock}` : `🔒 ${fr.lock}`}{/if}
+        {#if editor.templateMode}<Icon name="pin" /> {selected.locked ? fr.unfixCell : fr.fixCell}{:else if selected.locked}<Icon name="unlock" /> {fr.unlock}{:else}<Icon name="lock" /> {fr.lock}{/if}
       </button>
       {/if}
       {#if !selected.locked}
-        <button onclick={deleteSelection}>🗑 {fr.delete}</button>
+        <button onclick={deleteSelection}><Icon name="trash" /> {fr.delete}</button>
       {/if}
     </div>
 
@@ -403,6 +405,14 @@
   }
   header h3 {
     margin: 0;
+  }
+  /* Titres calmes : écrits normalement, en gras léger, de la couleur du texte. */
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text);
   }
   .close {
     border: 0;

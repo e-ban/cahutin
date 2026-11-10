@@ -1,6 +1,7 @@
 <script lang="ts">
   // Panneau de l'assistant, à droite à la place de l'inspecteur : la proposition en cours (Accepter /
   // Refuser), le fil des demandes avec leurs étapes cliquables, et le champ de saisie.
+  import Icon from "../Icon.svelte";
   import { tick } from "svelte";
   import { assistant, MAX_TEXT_CHARS } from "../../lib/assistant.svelte";
   import { editor } from "../../lib/docStore.svelte";
@@ -55,10 +56,10 @@
 
 <aside class="right" aria-label={t.title}>
   <header>
-    <h2>✦ {t.title}</h2>
+    <h2><Icon name="assistant" /> {t.title}</h2>
     <!-- Le panneau prend la place des réglages : un élément choisi, on peut y revenir d'un clic. -->
-    {#if editor.selection.length && !editor.proposing}<button class="ghost settings" onclick={() => (assistant.open = false)}>⚙ {t.showSettings}</button>{/if}
-    <button class="ghost" title={t.close} aria-label={t.close} onclick={() => (assistant.open = false)}>✕</button>
+    {#if editor.selection.length && !editor.proposing}<button class="ghost settings" onclick={() => (assistant.open = false)}><Icon name="settings" /> {t.showSettings}</button>{/if}
+    <button class="ghost" title={t.close} aria-label={t.close} onclick={() => (assistant.open = false)}><Icon name="close" /></button>
   </header>
 
   <div class="thread" bind:this={threadEl}>
@@ -75,7 +76,7 @@
         <p class="user">{entry.text}</p>
       {:else if entry.kind === "error"}
         <p class="error">{entry.text}</p>
-        {#if i === assistant.thread.length - 1 && assistant.retryable && !assistant.busy}<button class="retry" onclick={() => void retry()}>⟳ {t.retry}</button>{/if}
+        {#if i === assistant.thread.length - 1 && assistant.retryable && !assistant.busy}<button class="retry" onclick={() => void retry()}><Icon name="refresh" /> {t.retry}</button>{/if}
       {:else}
         <div class="reply">
           {#if entry.text}<p>{entry.text}</p>{/if}
@@ -88,7 +89,7 @@
                       {#each step.summary as line, k (k)}<s>{line}</s>{/each}
                       <small>{t.undone}</small>
                       {#if assistant.redoable === step && !assistant.busy}
-                        <button class="ghost undo" title={t.redoHint} onclick={() => assistant.restore()}>↷ {t.redo}</button>
+                        <button class="ghost undo" title={t.redoHint} onclick={() => assistant.restore()}><Icon name="redo" /> {t.redo}</button>
                       {/if}
                     </span>
                   {:else}
@@ -97,7 +98,7 @@
                         {#each step.summary as line, k (k)}<span>{line}</span>{/each}
                       </button>
                       {#if entry.outcome === "pending" && !assistant.busy}
-                        <button class="ghost undo" title={t.undoHint} onclick={() => void assistant.undo(step)}>↶ {t.undo}</button>
+                        <button class="ghost undo" title={t.undoHint} onclick={() => void assistant.undo(step)}><Icon name="undo" /> {t.undo}</button>
                       {/if}
                     </div>
                   {/if}
@@ -107,18 +108,18 @@
           {:else}
             <small>{t.noChange}</small>
           {/if}
-          {#if entry.outcome === "accepted"}<small class="outcome ok">✔ {t.accepted}</small>{/if}
-          {#if entry.outcome === "refused"}<small class="outcome">✖ {t.refused}</small>{/if}
+          {#if entry.outcome === "accepted"}<small class="outcome ok"><Icon name="check" size={14} /> {t.accepted}</small>{/if}
+          {#if entry.outcome === "refused"}<small class="outcome"><Icon name="x" size={14} /> {t.refused}</small>{/if}
           <!-- Le coût à gauche, « Signaler » à droite, sur une même ligne ; le détail du coût se déplie dessous. -->
           <div class="foot">
             {#if entry.cost}
               {@const c = entry.cost}
               <button class="ghost cost" title={t.costHint} aria-label="{t.cost} : {t.costLevels[c.level - 1]}" aria-expanded={costOpen.has(i)} onclick={() => toggleCost(i)}>
-                {t.cost} <span class="dots">{"●".repeat(c.level)}{"○".repeat(3 - c.level)}</span> {costOpen.has(i) ? "▾" : "▸"}
+                {t.cost} <span class="dots">{"●".repeat(c.level)}{"○".repeat(3 - c.level)}</span> <Icon name={costOpen.has(i) ? "chevronDown" : "chevronRight"} size={14} />
               </button>
             {/if}
             <!-- Une réponse déplacée se signale à l'auteur (règles du Microsoft Store sur l'IA générative). -->
-            <button class="ghost report" title={t.reportHint} onclick={() => void assistant.report(entry)}>⚑ {t.report}</button>
+            <button class="ghost report" title={t.reportHint} onclick={() => void assistant.report(entry)}><Icon name="flag" /> {t.report}</button>
           </div>
           {#if entry.cost && costOpen.has(i)}
             {@const c = entry.cost}
@@ -128,7 +129,7 @@
       {/if}
     {/each}
     {#if assistant.thread.length && !assistant.busy}
-      <button class="ghost restart" title={t.restartHint} onclick={() => void assistant.restart()}>↺ {t.restart}</button>
+      <button class="ghost restart" title={t.restartHint} onclick={() => void assistant.restart()}><Icon name="restart" /> {t.restart}</button>
     {/if}
     {#if assistant.busy}
       <div class="busy">
@@ -145,7 +146,7 @@
     }}
   >
     <small>{t.selectionHint(editor.selection.length)}</small>
-    {#if next}<button type="button" class="next" title={t.nextHint} onclick={() => suggest(next)}>→ {next}</button>{/if}
+    {#if next}<button type="button" class="next" title={t.nextHint} onclick={() => suggest(next)}><Icon name="arrowRight" size={14} /> {next}</button>{/if}
     <textarea
       bind:this={textEl}
       bind:value={text}

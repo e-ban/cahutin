@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "../Icon.svelte";
   import GuideLink from "../GuideLink.svelte";
   // Tiroir Classe, à côté du document : la classe choisie et le remplissage de la page. La classe s'édite
   // sur sa page dédiée (« Modifier la classe… »).
@@ -21,12 +22,12 @@
       <b>{cls.name}</b>
       <span>{cls.year} · {fr.classCount(cls.students.length)}</span>
     </div>
-    <button class="primary" disabled={!cls.students.length} onclick={ongenerate}>✨ {fr.classGenerate}</button>
-    <button data-guide="class-edit" onclick={() => (editor.showClassPage = true)}>✎ {fr.classEdit}</button>
-    <button data-guide="phototheque" title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}>🖼️ {fr.libraryTitle}</button>
+    <button class="primary" disabled={!cls.students.length} onclick={ongenerate}><Icon name="users" /> {fr.classGenerate}</button>
+    <button data-guide="class-edit" onclick={() => (editor.showClassPage = true)}><Icon name="edit" /> {fr.classEdit}</button>
+    <button data-guide="phototheque" title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}><Icon name="images" /> {fr.libraryTitle}</button>
   {:else}
     <p class="hint">{classes.list.length ? fr.classChoose : fr.classNone}</p>
-    <button class="primary" data-guide="class-edit" onclick={() => (editor.showClassPage = true)}>✎ {fr.classEdit}</button>
+    <button class="primary" data-guide="class-edit" onclick={() => (editor.showClassPage = true)}><Icon name="edit" /> {fr.classEdit}</button>
   {/if}
   <GuideLink id="classe" />
   {#if others.length}

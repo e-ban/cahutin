@@ -1,5 +1,6 @@
 <script lang="ts">
   // Astuce discrète en bas de la page, liée à ce que l'on fait ; chacune au plus 3 fois.
+  import Icon from "../Icon.svelte";
   import { untrack } from "svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { firstHint, hints, type HintId } from "../../lib/hints.svelte";
@@ -53,8 +54,8 @@
 
 {#if current}
   <div class="hint" role="status">
-    <span>💡 {TEXTS[current]}</span>
-    <button title={fr.closeHint} aria-label={fr.closeHint} onclick={() => (current = null)}>×</button>
+    <span><Icon name="lightbulb" /> {TEXTS[current]}</span>
+    <button title={fr.closeHint} aria-label={fr.closeHint} onclick={() => (current = null)}><Icon name="close" size={14} /></button>
   </div>
 {/if}
 

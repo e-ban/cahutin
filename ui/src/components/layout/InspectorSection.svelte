@@ -2,6 +2,7 @@
   // Section repliable du panneau Réglages (et des tiroirs) : un clic sur son titre l'ouvre ou la ferme, et elle
   // reste ainsi.
   import type { Snippet } from "svelte";
+  import Icon from "../Icon.svelte";
   import { inspectorSections } from "../../lib/inspectorSections.svelte";
 
   let { id, title, open = true, hint, children }: { id: string; title: string; open?: boolean; hint?: string; children: Snippet } = $props();
@@ -11,6 +12,7 @@
 
 <details class="section" open={isOpen} ontoggle={(e) => inspectorSections.set(id, e.currentTarget.open)}>
   <summary>
+    <span class="caret"><Icon name="chevronRight" size={14} /></span>
     <span class="title">{title}</span>
     <!-- Repliée, elle dit en quelques mots ce qu'elle contient. -->
     {#if hint && !isOpen}<small class="hint">{hint}</small>{/if}
@@ -26,8 +28,9 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 0;
+    padding: 12px 0;
     font-weight: 600;
+    color: var(--text);
     cursor: pointer;
     list-style: none;
     user-select: none;
@@ -50,19 +53,19 @@
   summary:hover .hint {
     color: var(--muted);
   }
-  summary::before {
-    content: "▸";
+  .caret {
+    display: inline-flex;
     width: 1em;
     color: var(--muted);
     transition: transform 0.15s;
   }
-  .section[open] > summary::before {
+  .section[open] > summary .caret {
     transform: rotate(90deg);
   }
   summary:hover {
     color: var(--accent);
   }
   .body {
-    padding-bottom: 6px;
+    padding-bottom: 12px;
   }
 </style>

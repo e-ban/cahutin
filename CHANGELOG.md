@@ -2,6 +2,13 @@
 
 ## Non publié
 
+- Des icônes identiques sur Windows, macOS et Linux : l'interface ne passe plus par les emojis du système, mais par un même jeu d'icônes au trait (Lucide), livré avec Cahutin.
+- Barre du haut : « Imprimer / Exporter » est le seul bouton bleu ; « Enregistrer » est plus discret, avec le point « pas encore enregistré » dedans ; Annuler et Rétablir vont par paire.
+- Colonne de gauche : le tiroir ouvert est surligné.
+- Menus : une colonne d'icônes, les raccourcis à droite, des titres de section (« Documents récents ») et des coches pour ce qui est activé.
+- Barre de l'élément : les outils sont rangés par familles, dans le même ordre pour tous les éléments (le contenu, l'apparence, la place sur la page, puis Supprimer).
+- Panneau Réglages : des titres plus calmes, plus d'air, et la valeur écrite à côté de chaque curseur.
+- Barre du bas : vignettes plus grandes avec leur numéro ; Dupliquer, Fond, Format, Vis-à-vis, Paysage et Supprimer la page sont rangés dans un menu « Page ».
 - Remplir avec ma classe : « Choisir les élèves » déplie la liste de la classe, à cocher un par un, avec « Tous » et « Aucun ». Le niveau ou le groupe cochent leurs élèves d'un coup, et le nombre de pages suit.
 - Barre de l'élément : un menu qui s'ouvre sous un outil (Champ, Styles, Plus, polices…) ne dépasse plus de la fenêtre. Il s'ouvre au-dessus quand la place manque en dessous, et défile s'il est trop long.
 - Import d'un PDF : un mot ou une phrase soulignés arrivent soulignés, au lieu d'un trait à part sous le texte. Le compte rendu ne compte plus les cadres vides, et quand beaucoup de dessins manquent, il le dit sans chiffre (« comparez avec le fichier d'origine »).

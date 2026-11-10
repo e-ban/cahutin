@@ -6,6 +6,7 @@
   import { assistant } from "../../lib/assistant.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
+  import Icon from "../Icon.svelte";
 
   let titleEl = $state<HTMLInputElement>();
 
@@ -30,7 +31,7 @@
 <header class="top">
   <button class="logo" title={fr.homeHint} onclick={goHome}><img src="/logo/cahutin.svg" alt="" />{fr.appName}</button>
   <FileMenu />
-  <button class="ghost" title={fr.preferencesHint} onclick={() => (editor.showPreferences = true)}>⚙ {fr.preferences}</button>
+  <button class="ghost" title={fr.preferencesHint} onclick={() => (editor.showPreferences = true)}><Icon name="settings" />{fr.preferences}</button>
   <HelpMenu />
   <input
     class="title"
@@ -40,14 +41,18 @@
     bind:this={titleEl}
     onchange={(e) => setTitle(e.currentTarget.value)}
   />
-  {#if editor.dirty}<span class="dirty" title={fr.unsaved}>•</span>{/if}
-  <button class="save" title="{fr.saveHint} (Ctrl+S)" onclick={() => save()}>💾 {fr.save}</button>
-  <button class="ghost" onclick={() => editor.undo()} disabled={!editor.canUndo} title="{fr.undo} (Ctrl+Z)" aria-label={fr.undo}>↶</button>
-  <button class="ghost" onclick={() => editor.redo()} disabled={!editor.canRedo} title="{fr.redo} (Ctrl+Y)" aria-label={fr.redo}>↷</button>
+  <button class="save" title="{fr.saveHint} (Ctrl+S)" onclick={() => save()}>
+    <Icon name="save" />{fr.save}
+    {#if editor.dirty}<span class="dirty" role="img" title={fr.unsaved} aria-label={fr.unsaved}></span>{/if}
+  </button>
+  <div class="pair">
+    <button onclick={() => editor.undo()} disabled={!editor.canUndo} title="{fr.undo} (Ctrl+Z)" aria-label={fr.undo}><Icon name="undo" /></button>
+    <button onclick={() => editor.redo()} disabled={!editor.canRedo} title="{fr.redo} (Ctrl+Y)" aria-label={fr.redo}><Icon name="redo" /></button>
+  </div>
   <span class="spacer"></span>
-  <button class="ghost" class:tpl-on={editor.templateMode} data-guide="template-mode" onclick={toggleTemplateMode}>▦ {fr.template}</button>
+  <button class="ghost" class:tpl-on={editor.templateMode} data-guide="template-mode" onclick={toggleTemplateMode}><Icon name="template" />{fr.template}</button>
   {#if assistant.enabled}
-    <button class="ghost" class:tpl-on={assistant.open} title={fr.assistant.buttonHint} onclick={() => (assistant.open = !assistant.open)}>✦ {fr.assistant.button}</button>
+    <button class="ghost" class:tpl-on={assistant.open} title={fr.assistant.buttonHint} onclick={() => (assistant.open = !assistant.open)}><Icon name="assistant" />{fr.assistant.button}</button>
   {/if}
   <OutputMenu />
 </header>
@@ -92,21 +97,51 @@
     border-color: var(--line);
     background: white;
   }
-  /* Comme « Imprimer / Exporter » : la commande qu'on cherche, bien visible. */
-  .save {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: white;
-    font-weight: 600;
+  .top > button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     white-space: nowrap;
   }
-  .save:hover {
-    filter: brightness(1.08);
+  /* Bouton discret à bordure : « Imprimer / Exporter » reste le seul bouton plein. */
+  .save {
+    background: var(--panel);
+    border-color: var(--line);
   }
+  /* Le point des changements pas encore enregistrés, dans le bouton après le libellé. */
   .dirty {
-    color: var(--accent);
-    font-size: 20px;
-    line-height: 1;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  /* Annuler et Rétablir : une seule bordure autour des deux, un trait entre eux. */
+  .pair {
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel);
+  }
+  .pair button {
+    display: flex;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 5px 8px;
+  }
+  .pair button:first-child {
+    border-radius: 5px 0 0 5px;
+  }
+  .pair button:last-child {
+    border-left: 1px solid var(--line);
+    border-radius: 0 5px 5px 0;
+  }
+  .pair button:not(:disabled):hover {
+    background: #eef5fc;
+  }
+  :global(:root[data-contrast]) .pair,
+  :global(:root[data-contrast]) .pair button:last-child {
+    border-width: 2px;
   }
   .ghost {
     border-color: transparent;

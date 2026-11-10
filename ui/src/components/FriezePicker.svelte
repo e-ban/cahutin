@@ -1,6 +1,7 @@
 <script lang="ts">
   // Choix des motifs d'une frise, dans une fenêtre : un clic ajoute l'image à la suite (numérotée), un second
   // l'en retire.
+  import Icon from "./Icon.svelte";
   import MyImagesPanel from "./drawers/MyImagesPanel.svelte";
   import PictoPanel from "./drawers/PictoPanel.svelte";
   import { toggleMotif } from "../lib/decor";
@@ -39,7 +40,7 @@
       {/if}
     </div>
     <div class="buttons">
-      <button class="primary" onclick={onclose}>✓ {fr.friezePickDone}</button>
+      <button class="primary" onclick={onclose}><Icon name="check" /> {fr.friezePickDone}</button>
     </div>
   </div>
 </div>

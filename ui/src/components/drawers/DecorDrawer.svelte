@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "../Icon.svelte";
   import GuideLink from "../GuideLink.svelte";
   // Tiroir Décors : cadres de page et frises. Les motifs d'une frise se choisissent dans une fenêtre ; les
   // images à poser sont dans le tiroir Images.
@@ -49,7 +50,7 @@
     <div class="moved" role="note">
       <span>{fr.picturesMoved}</span>
       <button class="link" onclick={() => (closeMoved(), editor.openImages("pictos"))}>{fr.picturesMovedOpen}</button>
-      <button class="close" title={fr.close} aria-label={fr.close} onclick={closeMoved}>×</button>
+      <button class="close" title={fr.close} aria-label={fr.close} onclick={closeMoved}><Icon name="close" size={14} /></button>
     </div>
   {/if}
   <InspectorSection id="decor-frames" title={fr.frames} hint={fr.sectionHints.frames} open={false}>
@@ -66,13 +67,13 @@
       {#each friezeMotifs.codes as code, i (code)}
         <span class="motif">
           <img src={motifUrl(code)} alt="" />
-          <button class="remove" title={fr.removeMotif} aria-label={fr.removeMotif} onclick={() => (friezeMotifs.codes = friezeMotifs.codes.filter((_, j) => j !== i))}>×</button>
+          <button class="remove" title={fr.removeMotif} aria-label={fr.removeMotif} onclick={() => (friezeMotifs.codes = friezeMotifs.codes.filter((_, j) => j !== i))}><Icon name="close" size={12} /></button>
         </span>
       {:else}
         <span class="hint">{fr.friezeNoMotif}</span>
       {/each}
     </div>
-    <button data-guide="frieze-pick" onclick={() => (picking = true)}>＋ {fr.friezePick}</button>
+    <button data-guide="frieze-pick" onclick={() => (picking = true)}><Icon name="add" /> {fr.friezePick}</button>
     <label class="slider">
       <span>{fr.friezeSize}</span>
       <input type="range" min="6" max="40" step="1" bind:value={friezeMotifs.size} />

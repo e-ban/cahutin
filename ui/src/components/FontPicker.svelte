@@ -1,6 +1,7 @@
 <script lang="ts">
   // Choix d'une police avec recherche : fournies, ajoutées par vous, puis celles de l'ordinateur.
   import { tick } from "svelte";
+  import Icon from "./Icon.svelte";
   import { fonts } from "../lib/fonts.svelte";
   import { groupFamilies, searchFamilies } from "../lib/fontSearch";
   import { fr } from "../lib/i18n/fr";
@@ -57,7 +58,7 @@
 
 <div class="picker" bind:this={root}>
   <button class="trigger" class:compact title={fr.font} aria-haspopup="listbox" aria-expanded={open} onclick={toggle}>
-    <span style:font-family={`"${value}", "Andika"`}>{value}</span> ▾
+    <span style:font-family={`"${value}", "Andika"`}>{value}</span> <Icon name="chevronDown" size={14} />
   </button>
   {#if open}
     <div use:fitInWindow class="pop">
@@ -68,7 +69,7 @@
           {#each s.items as f (f.name)}
             <button role="option" aria-selected={f.name === value} class:on={f.name === value} onclick={() => pick(f)}>
               <span class="name" style:font-family={`"${f.name}", "Andika"`}>{f.name}</span>
-              {#if !f.embeddable}<small class="warn">{fr.exportWarning}</small>{/if}
+              {#if !f.embeddable}<small class="warn"><Icon name="warning" size={12} /> {fr.exportWarning}</small>{/if}
             </button>
           {/each}
         {:else}

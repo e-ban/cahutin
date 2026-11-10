@@ -10,20 +10,20 @@
   listExamples().then((l) => (examples = l)).catch(() => (examples = []));
 
   const items = $derived<MenuItem[]>([
-    { label: fr.homeMenu, action: files.goHome },
-    { label: fr.newDoc, shortcut: "Ctrl+N", action: files.newDoc, separator: true },
-    { label: fr.openDoc, shortcut: "Ctrl+O", action: files.openDoc },
-    { label: fr.importFiles, action: () => files.importFiles() },
-    { label: fr.save, shortcut: "Ctrl+S", action: files.save, separator: true },
-    { label: fr.saveAs, action: files.saveAs },
+    { label: fr.homeMenu, icon: "home", action: files.goHome },
+    { label: fr.newDoc, icon: "fileNew", shortcut: "Ctrl+N", action: files.newDoc, separator: true },
+    { label: fr.openDoc, icon: "folderOpen", shortcut: "Ctrl+O", action: files.openDoc },
+    { label: fr.importFiles, icon: "fileImport", action: () => files.importFiles() },
+    { label: fr.save, icon: "save", shortcut: "Ctrl+S", action: files.save, separator: true },
+    { label: fr.saveAs, icon: "save", action: files.saveAs },
     ...(editor.recents.length
       ? [
-          { label: fr.recentDocs, disabled: true, separator: true, action: () => {} },
-          ...editor.recents.map((r) => ({ label: `   ${r.title}`, action: () => files.openPath(r.path) })),
+          { label: fr.recentDocs, heading: true, separator: true },
+          ...editor.recents.map((r): MenuItem => ({ label: r.title, icon: "documentText", action: () => files.openPath(r.path) })),
         ]
       : []),
     ...(examples.length
-      ? [{ label: fr.examplesMenu, separator: true, children: examples.map((ex) => ({ label: ex.name, action: () => files.openExampleDoc(ex.id) })) }]
+      ? [{ label: fr.examplesMenu, icon: "example", separator: true, children: examples.map((ex) => ({ label: ex.name, action: () => files.openExampleDoc(ex.id) })) } satisfies MenuItem]
       : []),
   ]);
 </script>

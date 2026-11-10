@@ -11,14 +11,14 @@
   import { updates } from "../../lib/updates.svelte";
 
   const items = $derived<MenuItem[]>([
-    { label: fr.tourMenu, action: () => tour.start() },
-    { label: fr.tips, action: () => (editor.showTips = true) },
-    { label: fr.guides, action: () => guides.show() },
-    { label: fr.whatsNewMenu, action: () => (editor.showWhatsNew = true) },
-    { label: `${hints.enabled ? "✓" : "   "} ${fr.hintsWhileWorking}`, action: () => hints.toggle() },
-    ...(updates.store ? [] : [{ label: `${updates.consent === true ? "✓" : "   "} ${fr.updatesMenu}`, action: () => updates.setConsent(updates.consent !== true), separator: true }]),
-    { label: fr.reportProblem, action: files.problemReport, separator: true },
-    { label: fr.about, action: () => (editor.showAbout = true) },
+    { label: fr.tourMenu, icon: "play", action: () => tour.start() },
+    { label: fr.tips, icon: "lightbulb", action: () => (editor.showTips = true) },
+    { label: fr.guides, icon: "guide", action: () => guides.show() },
+    { label: fr.whatsNewMenu, icon: "star", action: () => (editor.showWhatsNew = true) },
+    { label: fr.hintsWhileWorking, checked: hints.enabled, action: () => hints.toggle() },
+    ...(updates.store ? [] : [{ label: fr.updatesMenu, checked: updates.consent === true, action: () => updates.setConsent(updates.consent !== true), separator: true }]),
+    { label: fr.reportProblem, icon: "flag", action: files.problemReport, separator: true },
+    { label: fr.about, icon: "info", action: () => (editor.showAbout = true) },
   ]);
 </script>
 

@@ -16,6 +16,13 @@ import Braces from "@lucide/svelte/icons/braces";
 import Camera from "@lucide/svelte/icons/camera";
 import Captions from "@lucide/svelte/icons/captions";
 import Cat from "@lucide/svelte/icons/cat";
+import BringToFront from "@lucide/svelte/icons/bring-to-front";
+import CircleHelp from "@lucide/svelte/icons/circle-help";
+import Group from "@lucide/svelte/icons/group";
+import Info from "@lucide/svelte/icons/info";
+import SendToBack from "@lucide/svelte/icons/send-to-back";
+import TableCellsSplit from "@lucide/svelte/icons/table-cells-split";
+import Ungroup from "@lucide/svelte/icons/ungroup";
 import Check from "@lucide/svelte/icons/check";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronLeft from "@lucide/svelte/icons/chevron-left";
@@ -193,6 +200,13 @@ export const ICONS = {
   warning: TriangleAlert,
   x: X,
   zoomIn: ZoomIn,
+  info: Info,
+  help: CircleHelp,
+  group: Group,
+  ungroup: Ungroup,
+  bringFront: BringToFront,
+  sendBack: SendToBack,
+  cellSplit: TableCellsSplit,
   zoomOut: ZoomOut,
   eye: Eye,
   eyeOff: EyeOff,

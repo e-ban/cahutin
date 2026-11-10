@@ -2,6 +2,7 @@
   // Fenêtre des guides : la liste (menu Aide > Guides), puis le livret d'un guide, un panneau à la fois, sa
   // capture animée et deux ou trois phrases. Au dernier panneau, « Me guider » lance le pas à pas sur l'écran.
   // Avec les animations réduites, la capture reste sur sa première image.
+  import Icon from "../Icon.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { GUIDES, guideById, guides } from "../../lib/guides.svelte";
   import { editor } from "../../lib/docStore.svelte";
@@ -54,8 +55,8 @@
   <div class="box" role="dialog" aria-modal="true" aria-labelledby="guide-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
     {#if guide && panel}
       <div class="head">
-        <button class="link" onclick={() => choose(null)}>← {fr.guidesAll}</button>
-        <p class="kicker">{guide.icon} {guide.title} · {i + 1}/{guide.panels.length}</p>
+        <button class="link" onclick={() => choose(null)}><Icon name="back" /> {fr.guidesAll}</button>
+        <p class="kicker"><Icon name={guide.icon} size={14} /> {guide.title} · {i + 1}/{guide.panels.length}</p>
       </div>
       <h2 id="guide-title">{panel.title}</h2>
       {#if settings.reduceMotion}
@@ -73,28 +74,28 @@
         {#if i > 0}<button onclick={() => i--}>{fr.whatsNewPrev}</button>{/if}
         {#if last}
           <button onclick={() => guides.close()}>{fr.close}</button>
-          {#if guide.walk.length}<button class="primary" onclick={() => guides.walk(guide.id)}>👉 {fr.guideWalk}</button>{/if}
+          {#if guide.walk.length}<button class="primary" onclick={() => guides.walk(guide.id)}><Icon name="arrowRight" /> {fr.guideWalk}</button>{/if}
         {:else}
           <button class="primary" onclick={() => i++}>{fr.whatsNewNext}</button>
         {/if}
       </div>
     {:else}
       <div class="head">
-        <h2 id="guide-title">📘 {fr.guides}</h2>
+        <h2 id="guide-title"><Icon name="guide" size={20} /> {fr.guides}</h2>
         <button onclick={() => guides.close()}>{fr.close}</button>
       </div>
       <p class="intro">{fr.guidesIntro}</p>
       <ul class="list">
         <li>
           <button class="item" onclick={startTour}>
-            <span class="icon">▶</span>
+            <span class="icon"><Icon name="play" size={26} /></span>
             <span><b>{fr.tourMenu}</b><small>{fr.guidesTour}</small></span>
           </button>
         </li>
         {#each GUIDES as g (g.id)}
           <li>
             <button class="item" onclick={() => choose(g.id)}>
-              <span class="icon">{g.icon}</span>
+              <span class="icon"><Icon name={g.icon} size={26} /></span>
               <span><b>{g.title}</b><small>{g.summary}</small></span>
             </button>
           </li>

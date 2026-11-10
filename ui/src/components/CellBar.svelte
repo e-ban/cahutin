@@ -1,6 +1,7 @@
 <script lang="ts">
   // Barre d'une case de grille en mode modèle : type de zone, diviser, fixer, vider.
   import { tick } from "svelte";
+  import Icon from "./Icon.svelte";
   import { gridSetKind, gridSplit } from "../lib/api";
   import { placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
@@ -75,12 +76,12 @@
 
 {#if visible && cell}
   <div class="ctx" role="toolbar" tabindex="-1" aria-label="Barre de la case" bind:this={barEl} style:left={pos ? `${pos.left}px` : "-9999px"} style:top={pos ? `${pos.top}px` : "-9999px"}>
-    <button class="photo" class:on={cell.kind.type === "Photo"} onclick={() => setKind("Photo")}>🖼 {fr.cellPhoto}</button>
-    <button class="text" class:on={cell.kind.type === "Text"} onclick={() => setKind("Text")}>T {fr.cellText}</button>
+    <button class="photo" class:on={cell.kind.type === "Photo"} onclick={() => setKind("Photo")}><Icon name="photo" /> {fr.cellPhoto}</button>
+    <button class="text" class:on={cell.kind.type === "Text"} onclick={() => setKind("Text")}><Icon name="text" /> {fr.cellText}</button>
     <span class="sep"></span>
-    <button disabled={!spanned} onclick={() => spanned && run((p) => gridSplit(p, spanned))}>⊟ {fr.splitCell}</button>
-    <button class:on={cell.locked} onclick={() => editor.updateElement(cell.id, (e) => ({ ...e, locked: !e.locked }))}>📌 {cell.locked ? fr.unfixCell : fr.fixCell}</button>
-    <button onclick={empty}>⌫ {fr.emptyCell}</button>
+    <button disabled={!spanned} onclick={() => spanned && run((p) => gridSplit(p, spanned))}><Icon name="cellSplit" /> {fr.splitCell}</button>
+    <button class:on={cell.locked} onclick={() => editor.updateElement(cell.id, (e) => ({ ...e, locked: !e.locked }))}><Icon name="pin" /> {cell.locked ? fr.unfixCell : fr.fixCell}</button>
+    <button onclick={empty}><Icon name="empty" /> {fr.emptyCell}</button>
   </div>
 {/if}
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import GuideLink from "../GuideLink.svelte";
+  import Icon from "../Icon.svelte";
   // Page « Ma classe » : la classe sur toute la largeur, un élève par ligne (photo, prénom, nom,
   // autorisation, symbole, niveau, groupe). Ouverte depuis l'accueil ou par « Modifier la classe… » du
   // tiroir. Tout s'enregistre seul dans Documents/Cahutin/Classes.
@@ -177,8 +178,8 @@
 
 <div class="class-page" bind:this={pageEl}>
   <div class="top">
-    <button class="back" onclick={close}>← {fr.classPageBack}</button>
-    <h1>🧒 {fr.classPageTitle}</h1>
+    <button class="back" onclick={close}><Icon name="back" /> {fr.classPageBack}</button>
+    <h1><Icon name="class" size={24} /> {fr.classPageTitle}</h1>
     {#if cls && classes.list.length}
       <select class="switch" value="" onchange={(e) => switchTo(e.currentTarget.value)} aria-label={fr.classSwitch}>
         <option value="">{fr.classSwitch}…</option>
@@ -218,8 +219,8 @@
       <h2>{cls || classes.list.length ? fr.classNew : fr.classFirst}</h2>
       <textarea rows="10" bind:value={pasted} placeholder={fr.classPastePlaceholder}></textarea>
       <div class="row-buttons">
-        <button class="primary" disabled={!pasted.trim()} onclick={createFromPaste}>＋ {fr.classCreate}</button>
-        <button title={fr.classOpenFileHint} onclick={() => addFromFile(true)}>📄 {fr.classOpenFile}</button>
+        <button class="primary" disabled={!pasted.trim()} onclick={createFromPaste}><Icon name="add" /> {fr.classCreate}</button>
+        <button title={fr.classOpenFileHint} onclick={() => addFromFile(true)}><Icon name="fileImport" /> {fr.classOpenFile}</button>
         {#if creating}<button onclick={() => (creating = false)}>{fr.cancel}</button>{/if}
       </div>
       <p class="hint">{fr.classPrivacy}</p>
@@ -233,18 +234,18 @@
       <label>{fr.classTeacher} <input class="teacher" value={cls.teacher} onchange={(e) => classes.update((c) => ({ ...c, teacher: e.currentTarget.value.trim() }))} /></label>
       <span class="count">{fr.classCount(cls.students.length)}</span>
       <span class="spacer"></span>
-      <button onclick={() => (pasting = !pasting)}>📋 {fr.classPaste}</button>
-      <button disabled={!cls.students.length} title={fr.classPhotosHint} onclick={addPhotos}>📷 {fr.classPhotosAdd}</button>
-      <button disabled={cls.students.every((s) => s.symbol)} title={fr.classSymbolsAssignHint} onclick={giveSymbols}>🐱 {fr.classSymbolsAssign}</button>
-      <button title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}>🖼️ {fr.libraryTitle}</button>
-      <button class="danger" onclick={trashClass}>🗑 {fr.classTrash}</button>
+      <button onclick={() => (pasting = !pasting)}><Icon name="clipboard" /> {fr.classPaste}</button>
+      <button disabled={!cls.students.length} title={fr.classPhotosHint} onclick={addPhotos}><Icon name="camera" /> {fr.classPhotosAdd}</button>
+      <button disabled={cls.students.every((s) => s.symbol)} title={fr.classSymbolsAssignHint} onclick={giveSymbols}><Icon name="symbol" /> {fr.classSymbolsAssign}</button>
+      <button title={fr.libraryOpenHint} onclick={() => (editor.showPhototheque = true)}><Icon name="images" /> {fr.libraryTitle}</button>
+      <button class="danger" onclick={trashClass}><Icon name="trash" /> {fr.classTrash}</button>
     </div>
     {#if pasting}
       <div class="paste">
         <textarea rows="5" bind:value={pasted} placeholder={fr.classPastePlaceholder}></textarea>
         <div class="row-buttons">
           <button class="primary" disabled={!pasted.trim()} onclick={addPasted}>{fr.classPasteAdd}</button>
-          <button title={fr.classOpenFileHint} onclick={() => addFromFile(false)}>📄 {fr.classOpenFile}</button>
+          <button title={fr.classOpenFileHint} onclick={() => addFromFile(false)}><Icon name="fileImport" /> {fr.classOpenFile}</button>
           <button onclick={() => (pasting = false)}>{fr.cancel}</button>
         </div>
       </div>
@@ -257,7 +258,7 @@
           <th>{fr.classFirstName}</th>
           <th>{fr.classLastName}</th>
           <th title={fr.classConsent} data-guide="class-consent">
-            📷 {fr.classConsentShort}
+            <Icon name="camera" /> {fr.classConsentShort}
             {#if cls.students.length > 1}
               {@const all = cls.students.every((s) => s.photo_allowed)}
               <label class="all"><input type="checkbox" checked={all} indeterminate={!all && cls.students.some((s) => s.photo_allowed)} onchange={(e) => setAllConsent(e.currentTarget.checked)} /> {fr.classConsentCheckAll}</label>
@@ -276,7 +277,7 @@
           <tr>
             <td>
               <button class="face" title={photo ? fr.classPhotoChange : fr.classPhotoChoose} onclick={() => choosePhoto(s)}>
-                {#if photo}<img src={assetUrl(photo.id, true)} alt="" />{:else}＋{/if}
+                {#if photo}<img src={assetUrl(photo.id, true)} alt="" />{:else}<Icon name="add" size={18} />{/if}
               </button>
               {#if photo}<button class="link small" onclick={() => setStudent(s.id, { photo: null })}>{fr.classPhotoRemove}</button>{/if}
             </td>
@@ -285,7 +286,7 @@
             <td class="center"><input type="checkbox" aria-label={fr.classConsent} checked={s.photo_allowed} onchange={(e) => setStudent(s.id, { photo_allowed: e.currentTarget.checked })} /></td>
             <td>
               <button class="symbol" class:empty={!s.symbol} title={fr.classSymbolSearch} onclick={() => (symbolFor = symbolFor === s.id ? null : s.id)}>
-                {#if s.symbol}<img src={pictoUrl(s.symbol)} alt="" />{:else}＋{/if}
+                {#if s.symbol}<img src={pictoUrl(s.symbol)} alt="" />{:else}<Icon name="add" size={18} />{/if}
               </button>
             </td>
             <td><input type="date" class="birth" value={s.birth_date ?? ""} onchange={(e) => setStudent(s.id, { birth_date: e.currentTarget.value || null })} /></td>
@@ -296,7 +297,7 @@
               </select>
             </td>
             <td><input list="class-page-groups" value={s.group} onchange={(e) => setStudent(s.id, { group: e.currentTarget.value.trim() })} /></td>
-            <td><button class="remove" title={fr.classRemove} aria-label={fr.classRemove} onclick={() => remove(s)}>🗑</button></td>
+            <td><button class="remove" title={fr.classRemove} aria-label={fr.classRemove} onclick={() => remove(s)}><Icon name="trash" /></button></td>
           </tr>
           {#if symbolFor === s.id}
             <tr class="symbols-row">
@@ -319,7 +320,7 @@
           <td></td>
           <td colspan="8">
             <input placeholder={fr.classAddOne} bind:value={newFirst} onkeydown={(e) => e.key === "Enter" && addOne()} />
-            <button disabled={!newFirst.trim()} onclick={addOne}>＋ {fr.classAddOneButton}</button>
+            <button disabled={!newFirst.trim()} onclick={addOne}><Icon name="add" /> {fr.classAddOneButton}</button>
           </td>
         </tr>
       </tbody>

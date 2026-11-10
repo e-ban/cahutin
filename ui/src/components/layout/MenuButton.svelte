@@ -1,6 +1,14 @@
 <script lang="ts" module>
+  import type { IconName } from "../../lib/icons";
+
   export interface MenuItem {
     label: string;
+    /** Icône dans la colonne de gauche. */
+    icon?: IconName;
+    /** Réglage qu'on coche : une coche dans la colonne des icônes quand il est vrai. */
+    checked?: boolean;
+    /** Petit titre de section, qu'on ne clique pas. */
+    heading?: boolean;
     shortcut?: string;
     title?: string;
     disabled?: boolean;
@@ -14,7 +22,17 @@
 
 <script lang="ts">
   // Bouton qui ouvre une liste de commandes ; se ferme avec Échap, un clic ailleurs ou après un choix.
-  let { label, items, primary = false }: { label: string; items: MenuItem[]; primary?: boolean } = $props();
+  // `up` : la liste s'ouvre au-dessus du bouton (barre du bas).
+  import Icon from "../Icon.svelte";
+
+  let {
+    label,
+    items,
+    primary = false,
+    icon,
+    title,
+    up = false,
+  }: { label: string; items: MenuItem[]; primary?: boolean; icon?: IconName; title?: string; up?: boolean } = $props();
 
   let open = $state(false);
   let root = $state<HTMLElement>();
@@ -37,37 +55,59 @@
 
 <svelte:window onpointerdown={onWindowPointer} onkeydown={(e) => e.key === "Escape" && (open = false)} />
 
+<!-- Colonne des icônes de 16 px, vide s'il n'y en a pas : les libellés restent alignés. -->
+{#snippet ico(item: MenuItem)}
+  <span class="ico">
+    {#if item.checked}<Icon name="check" />{:else if item.icon}<Icon name={item.icon} />{/if}
+  </span>
+{/snippet}
+
+{#snippet entry(item: MenuItem, onenter?: () => void)}
+  {#if item.heading}
+    <div class="heading" role="presentation" onpointerenter={onenter}>{item.label}</div>
+  {:else}
+    <button
+      role={item.checked === undefined ? "menuitem" : "menuitemcheckbox"}
+      aria-checked={item.checked}
+      class="item"
+      title={item.title}
+      disabled={item.disabled}
+      onpointerenter={onenter}
+      onclick={() => choose(item)}
+    >
+      {@render ico(item)}
+      <span class="label">{item.label}</span>
+      {#if item.shortcut}<kbd>{item.shortcut}</kbd>{/if}
+    </button>
+  {/if}
+{/snippet}
+
 <div class="menu" bind:this={root}>
-  <button class="trigger" class:primary class:ghost={!primary} aria-haspopup="menu" aria-expanded={open} onclick={() => (open = !open)}>
-    {label} ▾
+  <button class="trigger" class:primary class:ghost={!primary} {title} aria-haspopup="menu" aria-expanded={open} onclick={() => (open = !open)}>
+    {#if icon}<Icon name={icon} />{/if}{label}<Icon name="chevronDown" size={14} />
   </button>
   {#if open}
-    <div class="list" class:right={primary} role="menu">
+    <div class="list" class:right={primary} class:up role="menu">
       {#each items as item, i}
         {#if item.separator}<hr />{/if}
         {#if item.children}
           <div class="sub-wrap" role="presentation" onpointerenter={() => (sub = i)}>
             <button role="menuitem" class="item" class:active={sub === i} aria-haspopup="menu" aria-expanded={sub === i} title={item.title} disabled={item.disabled} onclick={() => (sub = i)}>
-              <span>{item.label}</span>
-              <span class="arrow" aria-hidden="true">▸</span>
+              {@render ico(item)}
+              <span class="label">{item.label}</span>
+              <span class="arrow" aria-hidden="true"><Icon name="chevronRight" size={14} /></span>
             </button>
             {#if sub === i}
               <div class="list sub" class:left={primary} role="menu">
                 {#each item.children as child}
                   {#if child.separator}<hr />{/if}
-                  <button role="menuitem" class="item" title={child.title} disabled={child.disabled} onclick={() => choose(child)}>
-                    <span>{child.label}</span>
-                    {#if child.shortcut}<kbd>{child.shortcut}</kbd>{/if}
-                  </button>
+                  {@render entry(child)}
                 {/each}
               </div>
             {/if}
           </div>
         {:else}
-          <button role="menuitem" class="item" title={item.title} disabled={item.disabled} onpointerenter={() => (sub = null)} onclick={() => choose(item)}>
-            <span>{item.label}</span>
-            {#if item.shortcut}<kbd>{item.shortcut}</kbd>{/if}
-          </button>
+          {@render entry(item, () => (sub = null))}
         {/if}
       {/each}
     </div>
@@ -77,6 +117,12 @@
 <style>
   .menu {
     position: relative;
+  }
+  .trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
   }
   .ghost {
     border-color: transparent;
@@ -107,6 +153,14 @@
     left: auto;
     right: 0;
   }
+  .list.up {
+    top: auto;
+    bottom: calc(100% + 4px);
+  }
+  .list.up .list.sub {
+    top: auto;
+    bottom: -5px;
+  }
   .sub-wrap {
     position: relative;
   }
@@ -122,20 +176,37 @@
     right: calc(100% + 4px);
   }
   .arrow {
+    display: flex;
     color: var(--muted);
   }
   .item.active {
     background: #eef5fc;
   }
+  /* Icône, libellé, puis le raccourci calé à droite. */
   .item {
     display: flex;
-    justify-content: space-between;
-    gap: 16px;
+    align-items: center;
+    gap: 10px;
     width: 100%;
     border: 0;
     background: transparent;
     text-align: left;
     padding: 6px 10px;
+  }
+  .ico {
+    flex: none;
+    display: flex;
+    width: 16px;
+    height: 16px;
+  }
+  .label {
+    flex: 1;
+  }
+  .heading {
+    padding: 6px 10px 2px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
   }
   .item:not(:disabled):hover {
     background: #eef5fc;
@@ -143,6 +214,7 @@
   kbd {
     font: inherit;
     color: var(--muted);
+    margin-left: 16px;
   }
   hr {
     border: 0;

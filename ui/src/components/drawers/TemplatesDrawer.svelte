@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "../Icon.svelte";
   import Drawer from "../layout/Drawer.svelte";
   import PageView from "../PageView.svelte";
   import { ask } from "../../lib/ask";
@@ -23,7 +24,7 @@
         aria-label={fr.deleteTemplate}
         onclick={async () => {
           if (await ask(fr.confirmDeleteTemplate(t.name), fr.delete)) templates.remove(t.id).catch((e) => (editor.notice = String(e)));
-        }}>×</button
+        }}><Icon name="trash" size={14} /></button
       >
     {/if}
   </div>

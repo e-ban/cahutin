@@ -2,6 +2,7 @@
   // Pas à pas d'un guide (« Me guider ») : un anneau autour du vrai bouton de l'étape et une bulle qui dit quoi
   // faire. Rien n'est bloqué : on fait l'action dans son document, et l'étape suivante vient d'elle-même. On peut
   // aussi passer une étape ou arrêter.
+  import Icon from "./Icon.svelte";
   import { tick } from "svelte";
   import { fr } from "../lib/i18n/fr";
   import { guideById, guides } from "../lib/guides.svelte";
@@ -46,7 +47,7 @@
     <div class="ring" style:left="{target.left}px" style:top="{target.top}px" style:width="{target.width}px" style:height="{target.height}px"></div>
   {/if}
   <div class="bubble" bind:this={bubbleEl} role="status" aria-live="polite" style:left="{pos?.left ?? 0}px" style:top="{pos?.top ?? 0}px" style:visibility={pos ? "visible" : "hidden"}>
-    <p class="kicker">{guide.icon} {guide.title} · {guides.walking.step + 1}/{guide.walk.length}</p>
+    <p class="kicker"><Icon name={guide.icon} size={14} /> {guide.title} · {guides.walking.step + 1}/{guide.walk.length}</p>
     <h3>{step.title}</h3>
     <p>{step.text}</p>
     <div class="buttons">

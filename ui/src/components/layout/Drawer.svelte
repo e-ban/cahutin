@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
+  import Icon from "../Icon.svelte";
 
   let { title, children }: { title: string; children: Snippet } = $props();
 </script>
@@ -9,7 +10,7 @@
 <aside class="drawer" aria-label={title}>
   <header>
     <h3>{title}</h3>
-    <button class="close" title={fr.closeDrawer} aria-label={fr.closeDrawer} onclick={() => (editor.drawer = null)}>×</button>
+    <button class="close" title={fr.closeDrawer} aria-label={fr.closeDrawer} onclick={() => (editor.drawer = null)}><Icon name="close" size={18} /></button>
   </header>
   <div class="body">{@render children()}</div>
 </aside>
@@ -36,8 +37,8 @@
   .close {
     border: 0;
     background: transparent;
-    font-size: 18px;
-    padding: 0 6px;
+    display: flex;
+    padding: 4px;
   }
   .body {
     overflow-y: auto;

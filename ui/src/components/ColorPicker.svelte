@@ -1,6 +1,7 @@
 <script lang="ts">
   // Pastilles de couleur et sélecteur libre. Préférences : couleurs pour élèves daltoniens, nom de chaque couleur
   // au survol et nom de la couleur choisie écrit à côté.
+  import Icon from "./Icon.svelte";
   import { fr } from "../lib/i18n/fr";
   import { CVD_PALETTE, PALETTE, colorName } from "../lib/palette";
   import { settings } from "../lib/settings.svelte";
@@ -10,7 +11,7 @@
 
 <div class="colors">
   {#if allowNone}
-    <button class="swatch none" class:active={value === null} title="Aucune" onclick={() => onchange(null)}>∅</button>
+    <button class="swatch none" class:active={value === null} title="Aucune" aria-label="Aucune" onclick={() => onchange(null)}><Icon name="ban" size={14} /></button>
   {/if}
   {#each settings.cvdPalette ? CVD_PALETTE : PALETTE as s (s.color)}
     {@const label = settings.colorNames ? s.name : s.color}
@@ -38,8 +39,8 @@
     outline-offset: 1px;
   }
   .none {
-    font-size: 12px;
-    line-height: 1;
+    display: grid;
+    place-items: center;
   }
   .name {
     font-size: 12px;

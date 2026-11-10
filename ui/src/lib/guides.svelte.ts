@@ -3,6 +3,7 @@
 // passe à la suivante quand l'action est faite. Pour un nouveau guide : l'ajouter à GUIDES, ses captures dans
 // `assets/guides/<id>/`.
 import { hasNameFields } from "./classFill";
+import type { IconName } from "./icons";
 import { classes } from "./classStore.svelte";
 import { isCutMark } from "./cutMarks";
 import { editor } from "./docStore.svelte";
@@ -30,7 +31,7 @@ export interface WalkStep {
 
 export interface Guide {
   id: string;
-  icon: string;
+  icon: IconName;
   title: string;
   summary: string;
   panels: GuidePanel[];
@@ -42,7 +43,7 @@ const img = (guide: string, name: string) => `/guides/${guide}/${name}.webp`;
 export const GUIDES: Guide[] = [
   {
     id: "modele",
-    icon: "▦",
+    icon: "template",
     title: "Créer un modèle",
     summary: "Une page à réutiliser : ses cases à remplir à chaque fois, ses éléments fixes, enregistrée dans vos modèles.",
     panels: [
@@ -119,7 +120,7 @@ export const GUIDES: Guide[] = [
   },
   {
     id: "classe",
-    icon: "🧒",
+    icon: "class",
     title: "Remplir avec ma classe",
     summary: "La liste des prénoms collée une fois, puis une page par enfant ou une planche d'étiquettes, d'un clic.",
     panels: [
@@ -194,7 +195,7 @@ export const GUIDES: Guide[] = [
   },
   {
     id: "phototheque",
-    icon: "📷",
+    icon: "images",
     title: "Photothèque de la classe",
     summary: "Les photos de l'année rangées par jour, par enfant et par activité, et les enfants peu photographiés.",
     panels: [
@@ -205,7 +206,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Ajouter les photos",
-        text: "En haut, « ＋ Photos » ou « 📁 Dossier » : elles se rangent par jour. Le lieu et l'appareil ne sont pas gardés.",
+        text: "En haut, « Photos » ou « Dossier » : elles se rangent par jour. Le lieu et l'appareil ne sont pas gardés.",
         image: img("phototheque", "ajouter"),
       },
       {
@@ -240,7 +241,7 @@ export const GUIDES: Guide[] = [
       {
         target: '[data-guide="library-add"]',
         title: "Ajoutez des photos",
-        text: "« ＋ Photos » ou « 📁 Dossier ». S'il y en a déjà, passez à l'étape suivante.",
+        text: "« Photos » ou « Dossier ». S'il y en a déjà, passez à l'étape suivante.",
         baseline: () => classLibrary.photos.length,
         done: (base) => classLibrary.photos.length > base,
       },
@@ -260,7 +261,7 @@ export const GUIDES: Guide[] = [
   },
   {
     id: "flou",
-    icon: "◍",
+    icon: "blur",
     title: "Flouter des visages",
     summary: "Le visage d'un enfant sans autorisation photo, caché avant d'imprimer ; la photo d'origine n'est pas gardée.",
     panels: [
@@ -308,7 +309,7 @@ export const GUIDES: Guide[] = [
   },
   {
     id: "etiquettes",
-    icon: "✂️",
+    icon: "cut",
     title: "Étiquettes à découper",
     summary: "Une étiquette ou une carte, répétée sur toute la page, avec des repères pour couper droit.",
     panels: [
@@ -362,7 +363,7 @@ export const GUIDES: Guide[] = [
   },
   {
     id: "import",
-    icon: "📥",
+    icon: "fileImport",
     title: "Reprendre une ancienne fiche",
     summary: "Une fiche Word, PDF, Publisher ou LibreOffice ouverte dans Cahutin, textes et photos modifiables.",
     panels: [
@@ -386,7 +387,7 @@ export const GUIDES: Guide[] = [
   },
   {
     id: "frise",
-    icon: "🌸",
+    icon: "frieze",
     title: "Frise autour d'un bloc",
     summary: "Des images répétées autour d'une photo ou d'un texte, réglables après coup.",
     panels: [
@@ -440,7 +441,7 @@ export const GUIDES: Guide[] = [
   },
   {
     id: "collection",
-    icon: "🗂",
+    icon: "collection",
     title: "Ma collection",
     summary: "Vos dessins et illustrations, gardés pour tous vos documents et rangés par thème.",
     panels: [
@@ -495,7 +496,7 @@ export const GUIDES: Guide[] = [
   },
   {
     id: "assistant",
-    icon: "✦",
+    icon: "assistant",
     title: "L'assistant IA",
     summary: "Facultatif : demander une mise en page en quelques mots, puis l'accepter ou la refuser.",
     panels: [
@@ -506,7 +507,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Demander",
-        text: "Le bouton « ✦ Assistant », en haut, ouvre son panneau. Écrivez ce que vous voulez changer, comme à un collègue, puis « Envoyer ». Cliquez d'abord sur un élément pour le désigner. Le panneau vide propose des idées : un clic en met une dans le champ. Si la réponse n'arrive pas, « ⟳ Réessayer » renvoie la même demande. Sous chaque réponse, « Coût ●○○ » dit ce que la demande a coûté chez votre service : un point pour une petite demande, trois pour une grosse ; un clic donne le détail. N'écrivez pas de prénom d'élève dans une demande.",
+        text: "Le bouton « Assistant », en haut, ouvre son panneau. Écrivez ce que vous voulez changer, comme à un collègue, puis « Envoyer ». Cliquez d'abord sur un élément pour le désigner. Le panneau vide propose des idées : un clic en met une dans le champ. Si la réponse n'arrive pas, « ⟳ Réessayer » renvoie la même demande. Sous chaque réponse, « Coût ●○○ » dit ce que la demande a coûté chez votre service : un point pour une petite demande, trois pour une grosse ; un clic donne le détail. N'écrivez pas de prénom d'élève dans une demande.",
         image: img("assistant", "demander"),
       },
       {
@@ -516,7 +517,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Signaler une réponse",
-        text: "Une réponse déplacée ou choquante ? « ⚑ Signaler », sous la réponse, prépare dans votre messagerie un e-mail à l'auteur de Cahutin, avec votre demande et la réponse : relisez-le, puis envoyez-le.",
+        text: "Une réponse déplacée ou choquante ? « Signaler », sous la réponse, prépare dans votre messagerie un e-mail à l'auteur de Cahutin, avec votre demande et la réponse : relisez-le, puis envoyez-le.",
         image: img("assistant", "signaler"),
       },
     ],

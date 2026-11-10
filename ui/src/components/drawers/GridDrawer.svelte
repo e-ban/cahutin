@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "../Icon.svelte";
   import Drawer from "../layout/Drawer.svelte";
   import { gridLiberate, gridPreset, gridSet } from "../../lib/api";
   import { ask } from "../../lib/ask";
@@ -57,9 +58,9 @@
     <label>{fr.rows}
       <span class="counter"><button onclick={() => (rows = Math.max(1, rows - 1))}>−</button><output>{rows}</output><button onclick={() => (rows = Math.min(8, rows + 1))}>+</button></span>
     </label>
-    <button onclick={() => run((page) => gridSet(page, cols, rows))}>▦ {fr.applyGrid}</button>
+    <button onclick={() => run((page) => gridSet(page, cols, rows))}><Icon name="grid" /> {fr.applyGrid}</button>
   </div>
-  <button class="free" disabled={!editor.page.grid} onclick={liberate}>✥ {fr.freeZones}</button>
+  <button class="free" disabled={!editor.page.grid} onclick={liberate}><Icon name="free" /> {fr.freeZones}</button>
 </Drawer>
 
 <style>

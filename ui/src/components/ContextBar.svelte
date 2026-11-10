@@ -5,6 +5,7 @@
   import AlignIcon from "./AlignIcon.svelte";
   import ColorPicker from "./ColorPicker.svelte";
   import GuideLink from "./GuideLink.svelte";
+  import Icon from "./Icon.svelte";
   import StrokeStylePicker from "./StrokeStylePicker.svelte";
   import VAlignIcon from "./VAlignIcon.svelte";
   import FontPicker from "./FontPicker.svelte";
@@ -220,6 +221,16 @@
   const friezeIds = $derived(editor.selection.length > 1 ? friezeIn(editor.page, editor.selection) : null);
   const friezeNow = $derived(friezeIds ? friezeSettings(editor.page, friezeIds) : null);
 
+  /** Outils de place sur la page dans la barre (hors « Plus ») : un trait les sépare des précédents. */
+  const hasPlace = $derived(!settings.moreMenu && (canMirror || canRotate || canFrieze || !!(friezeIds && friezeNow) || canCut));
+
+  /** Supprimer dans la barre : une photo choisie, une image ou une forme, non verrouillées (sauf en mode modèle). */
+  const canDelete = $derived(
+    !!selected &&
+      (selected.kind.type === "Image" || selected.kind.type === "Shape" || (selected.kind.type === "Photo" && !!selected.kind.asset)) &&
+      (!selected.locked || editor.templateMode),
+  );
+
   function setFrieze(size: number, gap: number, distance?: number) {
     const ids = friezeIds;
     if (!ids) return;
@@ -311,7 +322,7 @@
     <input type="range" min="0" max={now.block ? 30 : 60} step="1" value={Math.round(now.distance)} onchange={(e) => setFrieze(now.size, now.gap, Number(e.currentTarget.value))} />
     {Math.round(now.distance)} mm
   </label>
-  <button onclick={editFriezeMotifs}>🖼 {fr.friezeChangeImages}</button>
+  <button onclick={editFriezeMotifs}><Icon name="images" /> {fr.friezeChangeImages}</button>
 {/snippet}
 
 {#if friezeCodes}<FriezePicker bind:codes={friezeCodes} onclose={applyFriezeMotifs} />{/if}
@@ -342,18 +353,20 @@
       <span class="dropped">{fr.templateField}</span>
       <span class="sep"></span>
     {/if}
+    <!-- Les outils par famille, dans le même ordre pour tout élément : son contenu, son allure, sa place sur la
+         page, sa légende, puis Supprimer. -->
     {#if many}
       {#if isGroup}
-        <button class="main" title="Ctrl+Maj+G" onclick={ungroupSelection}>⊟<span class="lbl"> {fr.ungroup}</span></button>
+        <button class="main" title="Ctrl+Maj+G" onclick={ungroupSelection}><Icon name="ungroup" /><span class="lbl"> {fr.ungroup}</span></button>
       {:else}
-        <button class="main" title="Ctrl+G" disabled={!canGroup} onclick={groupSelection}>⊞<span class="lbl"> {fr.group}</span></button>
+        <button class="main" title="Ctrl+G" disabled={!canGroup} onclick={groupSelection}><Icon name="group" /><span class="lbl"> {fr.group}</span></button>
       {/if}
-      <span class="sep"></span>
       {#if table?.kind.type === "Table"}
         {@const t = table.kind}
         {@const id = table.id}
+        <span class="sep"></span>
         <div class="wrap">
-          <button class:on={!!t.border} onclick={() => toggle("stroke")}>▦<span class="lbl"> {fr.tableBorders}</span></button>
+          <button class:on={!!t.border} onclick={() => toggle("stroke")}><Icon name="border" /><span class="lbl"> {fr.tableBorders}</span></button>
           {#if pop === "stroke"}
             <div use:fitInWindow class="pop">
               <span>{t.border ? `${t.border.width_mm} mm` : fr.noStroke}</span>
@@ -376,10 +389,10 @@
             </div>
           {/if}
         </div>
-        <span class="sep"></span>
       {/if}
+      <span class="sep"></span>
       <div class="wrap">
-        <button onclick={() => toggle("alignMany")} disabled={units() < 2}>☰<span class="lbl"> {fr.alignMenu} ▾</span></button>
+        <button onclick={() => toggle("alignMany")} disabled={units() < 2}><Icon name="align" /><span class="lbl"> {fr.alignMenu} <Icon name="chevronDown" size={14} /></span></button>
         {#if pop === "alignMany"}
           <div use:fitInWindow class="pop list">
             {#each alignModes as [mode, label] (mode)}<button onclick={() => applyFrames((f) => alignFrames(f, mode))}>{label}</button>{/each}
@@ -387,7 +400,7 @@
         {/if}
       </div>
       <div class="wrap">
-        <button onclick={() => toggle("distribute")} disabled={units() < 3}>⇹<span class="lbl"> {fr.distribute} ▾</span></button>
+        <button onclick={() => toggle("distribute")} disabled={units() < 3}><Icon name="distribute" /><span class="lbl"> {fr.distribute} <Icon name="chevronDown" size={14} /></span></button>
         {#if pop === "distribute"}
           <div use:fitInWindow class="pop list">
             <button onclick={() => applyFrames((f) => distributeFrames(f, "h"))}>{fr.distributeH}</button>
@@ -395,27 +408,17 @@
           </div>
         {/if}
       </div>
-      <span class="sep"></span>
-      {#if isGroup}
-        <!-- Comme l'action : tout le groupe verrouillé, le bouton le déverrouille ; sinon il verrouille. -->
-        {@const allLocked = selectionLocked()}
-        <button title={allLocked ? fr.unlock : fr.lock} aria-label={allLocked ? fr.unlock : fr.lock} aria-pressed={allLocked} onclick={toggleLockSelection}>{allLocked ? "🔓" : "🔒"}<span class="lbl"> {allLocked ? fr.unlock : fr.lock}</span></button>
-      {/if}
-      <button onclick={removeSelected}>🗑<span class="lbl"> {fr.delete}</span></button>
     {:else if selected?.kind.type === "Photo"}
       {@const ph = selected.kind}
       {#if !ph.asset}
-        <button class="main" onclick={openPhotos}>🖼<span class="lbl"> {fr.choosePhoto}</span></button>
-        <button onclick={() => addCaption(selected.id)}>✎<span class="lbl"> {fr.caption}</span></button>
+        <button class="main" onclick={openPhotos}><Icon name="photo" /><span class="lbl"> {fr.choosePhoto}</span></button>
       {:else}
-        <button class:on={editor.replacingPhoto} title={fr.replacePhotoHint} onclick={() => ((editor.replacingPhoto = true), editor.openImages("photos"))}>⇄<span class="lbl"> {fr.replace}</span></button>
-        <button onclick={() => (editor.cropping = selected.id)}>⛶<span class="lbl"> {fr.crop}</span></button>
-        <button data-guide="blur" title={fr.blurHint} onclick={() => (editor.blurring = ph.asset)}>◍<span class="lbl"> {fr.blurButton}</span></button>
-        {#if !settings.moreMenu}
-        <button title={fr.keepInMyImagesHint} onclick={() => ph.asset && myImages.keep(ph.asset)}>⭐<span class="lbl"> {fr.keepInMyImages}</span></button>
-        {/if}
+        <button class:on={editor.replacingPhoto} title={fr.replacePhotoHint} onclick={() => ((editor.replacingPhoto = true), editor.openImages("photos"))}><Icon name="replace" /><span class="lbl"> {fr.replace}</span></button>
+        <button onclick={() => (editor.cropping = selected.id)}><Icon name="crop" /><span class="lbl"> {fr.crop}</span></button>
+        <button data-guide="blur" title={fr.blurHint} onclick={() => (editor.blurring = ph.asset)}><Icon name="blur" /><span class="lbl"> {fr.blurButton}</span></button>
+        <span class="sep"></span>
         <div class="wrap">
-          <button class:on={pop === "corners"} onclick={() => toggle("corners")}>◜<span class="lbl"> {fr.corners}</span></button>
+          <button class:on={pop === "corners"} onclick={() => toggle("corners")}><Icon name="corners" /><span class="lbl"> {fr.corners}</span></button>
           {#if pop === "corners"}
             <div use:fitInWindow class="pop">
               <span>{ph.corner_radius_mm} mm</span>
@@ -424,7 +427,7 @@
           {/if}
         </div>
         <div class="wrap">
-          <button class:on={!!ph.border} onclick={() => toggle("border")}>▢<span class="lbl"> {fr.border}</span></button>
+          <button class:on={!!ph.border} onclick={() => toggle("border")}><Icon name="border" /><span class="lbl"> {fr.border}</span></button>
           {#if pop === "border"}
             <div use:fitInWindow class="pop">
               <label class="check">
@@ -439,10 +442,8 @@
           {/if}
         </div>
         {#if !settings.moreMenu}
-        <button class:on={ph.shadow} aria-pressed={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}>◩<span class="lbl"> {fr.shadow}</span></button>
+        <button class:on={ph.shadow} aria-pressed={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}><Icon name="shadow" /><span class="lbl"> {fr.shadow}</span></button>
         {/if}
-        <button onclick={() => addCaption(selected.id)}>✎<span class="lbl"> {fr.caption}</span></button>
-        {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
       {/if}
     {:else if selected?.kind.type === "Text"}
       {@const t = selected.kind}
@@ -450,7 +451,7 @@
       {@const named = docStyles.find((s) => s.id === t.style.named)}
       <div class="wrap">
         <button class="style-btn" title={fr.textStylesHint} onclick={() => toggle("styles")}>
-          {named ? named.name : fr.textStyleNone}{named && !followsStyle(selected, named) ? " *" : ""} ▾
+          {named ? named.name : fr.textStyleNone}{named && !followsStyle(selected, named) ? " *" : ""} <Icon name="chevronDown" size={14} />
         </button>
         {#if pop === "styles"}
           <div use:fitInWindow class="pop styles">
@@ -458,11 +459,11 @@
               <button class:on={s.id === t.style.named} style:font-family={`"${s.font}"`} style:color={s.color} onclick={() => useStyle(s)}>{s.name}</button>
             {/each}
             {#if named && !followsStyle(selected, named)}
-              <button class="update" title={fr.textStyleUpdateHint} onclick={() => redefineFromSelected(named)}>↻<span class="lbl"> {fr.textStyleUpdate(named.name)}</span></button>
+              <button class="update" title={fr.textStyleUpdateHint} onclick={() => redefineFromSelected(named)}><Icon name="refresh" /><span class="lbl"> {fr.textStyleUpdate(named.name)}</span></button>
             {/if}
             <div class="new-style">
               <input placeholder={fr.textStyleNew} bind:value={newStyleName} onkeydown={(e) => e.key === "Enter" && createStyle()} />
-              <button disabled={!newStyleName.trim()} onclick={createStyle}>＋</button>
+              <button disabled={!newStyleName.trim()} aria-label={fr.textStyleNew} onclick={createStyle}><Icon name="add" /></button>
             </div>
           </div>
         {/if}
@@ -476,7 +477,7 @@
       <button title={fr.italic} class:on={isMarkActive("italic", t)} disabled={family && !family.has_italic} onclick={() => toggleMark("italic")}><i>I</i></button>
       <button title={fr.underline} class:on={isMarkActive("underline", t)} onclick={() => toggleMark("underline")}><u>S</u></button>
       <div class="wrap">
-        <button class="field-btn" title={fr.fieldButtonHint} onclick={() => toggle("fields")}>&#123; &#125;<span class="lbl"> {fr.fieldButton}</span> ▾</button>
+        <button class="field-btn" title={fr.fieldButtonHint} onclick={() => toggle("fields")}><Icon name="braces" /><span class="lbl"> {fr.fieldButton}</span> <Icon name="chevronDown" size={14} /></button>
         {#if pop === "fields"}
           <div use:fitInWindow class="pop fields">
             <FieldMenu current={editor.editingText === selected?.id ? [] : fieldsOf(t.content)} onpick={(key) => (pickField(key), (pop = null))} />
@@ -489,7 +490,7 @@
         {#if pop === "color"}<div use:fitInWindow class="pop"><ColorPicker value={t.style.color} onchange={(c) => (setColor(c), (pop = null))} /></div>{/if}
       </div>
       <div class="wrap">
-        <button class="iconbtn" title={fr.alignment} aria-label={fr.alignment} onclick={() => toggle("align")}><AlignIcon align={t.style.align} /> ▾</button>
+        <button class="iconbtn" title={fr.alignment} aria-label={fr.alignment} onclick={() => toggle("align")}><AlignIcon align={t.style.align} /> <Icon name="chevronDown" size={14} /></button>
         {#if pop === "align"}
           <div use:fitInWindow class="pop grid">
             <div class="row">
@@ -505,8 +506,9 @@
           </div>
         {/if}
       </div>
+      <span class="sep"></span>
       <div class="wrap">
-        <button class:on={!!t.frame} onclick={() => toggle("frame")}>▭<span class="lbl"> {fr.textFrame}</span></button>
+        <button class:on={!!t.frame} onclick={() => toggle("frame")}><Icon name="frame" /><span class="lbl"> {fr.textFrame}</span></button>
         {#if pop === "frame"}
           {@const f = t.frame}
           <div use:fitInWindow class="pop frame">
@@ -556,10 +558,9 @@
         {/if}
       </div>
     {:else if selected?.kind.type === "Image"}
-      <button class:on={editor.replacingPictos} onclick={() => ((editor.replacingPictos = true), editor.openImages("pictos"))}>⇄<span class="lbl"> {fr.replace}</span></button>
+      <button class:on={editor.replacingPictos} onclick={() => ((editor.replacingPictos = true), editor.openImages("pictos"))}><Icon name="replace" /><span class="lbl"> {fr.replace}</span></button>
       {@const colourIn = selected.kind.outline === true}
-      <button class:on={colourIn} aria-pressed={colourIn} title={fr.pictoOutlineHint} onclick={() => editor.updatePage((p) => setPictosOutline(p, editor.selection, !colourIn))}>✎<span class="lbl"> {fr.pictoOutlineShort}</span></button>
-      {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
+      <button class:on={colourIn} aria-pressed={colourIn} title={fr.pictoOutlineHint} onclick={() => editor.updatePage((p) => setPictosOutline(p, editor.selection, !colourIn))}><Icon name="paint" /><span class="lbl"> {fr.pictoOutlineShort}</span></button>
     {:else if selected?.kind.type === "Shape"}
       {@const s = selected.kind}
       {#if !isStrokeOnly(s.shape) && s.shape !== "Path"}
@@ -569,7 +570,7 @@
       </div>
       {/if}
       <div class="wrap">
-        <button class:on={!!s.stroke} onclick={() => toggle("stroke")}>▢<span class="lbl"> {fr.stroke}</span></button>
+        <button class:on={!!s.stroke} onclick={() => toggle("stroke")}><Icon name="border" /><span class="lbl"> {fr.stroke}</span></button>
         {#if pop === "stroke"}
           <div use:fitInWindow class="pop">
             <span>{s.stroke ? `${s.stroke.width_mm} mm` : fr.noStroke}</span>
@@ -594,7 +595,7 @@
       </div>
       {#if s.shape === "Rect"}
         <div class="wrap">
-          <button onclick={() => toggle("corners")}>◜<span class="lbl"> {fr.corners}</span></button>
+          <button onclick={() => toggle("corners")}><Icon name="corners" /><span class="lbl"> {fr.corners}</span></button>
           {#if pop === "corners"}
             <div use:fitInWindow class="pop">
               <span>{s.corner_radius_mm} mm</span>
@@ -603,42 +604,119 @@
           {/if}
         </div>
       {/if}
-      {#if !selected.locked || editor.templateMode}<button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}>🗑</button>{/if}
+    {/if}
+    <!-- Sa place sur la page (dans « Plus » avec cette préférence). Plusieurs éléments : aligner et répartir
+         ouvrent déjà la famille, sans trait entre eux. -->
+    {#if !settings.moreMenu}
+      {#if hasPlace && !many}<span class="sep"></span>{/if}
+      {#if canMirror}
+        {@const mh = selected ? (selected.kind.type === "Photo" ? !!selected.kind.mirrored : !!selected.flip_h) : false}
+        <!-- Un seul outil, deux sens : gauche-droite et haut-bas côte à côte, sans menu. -->
+        <div class="mirror" role="group" aria-label={fr.mirrorRow}>
+          <span class="mirror-name">{fr.mirrorRow}</span>
+          <button class:on={mh} aria-pressed={mh} title={fr.mirrorHHint} aria-label={fr.mirrorH} onclick={() => mirrorSelection("h")}><Icon name="flipH" /><span class="lbl">{fr.mirrorH}</span></button>
+          <button class:on={!!selected?.flip_v} aria-pressed={!!selected?.flip_v} title={fr.mirrorVHint} aria-label={fr.mirrorV} onclick={() => mirrorSelection("v")}><Icon name="flipV" /><span class="lbl">{fr.mirrorV}</span></button>
+        </div>
+      {/if}
+      {#if canRotate}
+        <button title={fr.rotateLeft} aria-label={fr.rotateLeft} onclick={() => rotateSelection(-90)}><Icon name="rotateLeft" /></button>
+        <button title={fr.rotateRight} aria-label={fr.rotateRight} onclick={() => rotateSelection(90)}><Icon name="rotateRight" /></button>
+      {/if}
+      {#if canFrieze}
+        <button data-guide="frieze-around" title={fr.blockFriezeHint} onclick={addBlockFrieze}><Icon name="frieze" /><span class="lbl"> {fr.blockFriezeAround}</span></button>
+      {/if}
+      {#if friezeIds && friezeNow}
+        <div class="wrap">
+          <button data-guide="frieze-size" class:on={pop === "frieze"} title={fr.friezeEditHint2} onclick={() => toggle("frieze")}><Icon name="frieze" /><span class="lbl"> {fr.friezeEdit} <Icon name="chevronDown" size={14} /></span></button>
+          {#if pop === "frieze"}
+            <div use:fitInWindow class="pop frieze">{@render friezePop(friezeNow)}</div>
+          {/if}
+        </div>
+        <button class="danger" title={fr.friezeDeleteHint} onclick={deleteFrieze}><Icon name="trash" /><span class="lbl"> {fr.friezeDelete}</span></button>
+      {/if}
+      {#if canCut}
+        <div class="wrap">
+          <button data-guide="repeat" title={fr.repeatHint} onclick={() => toggle("repeat")}><Icon name="repeat" /><span class="lbl"> {fr.repeat} <Icon name="chevronDown" size={14} /></span></button>
+          {#if pop === "repeat"}
+            <div use:fitInWindow class="pop repeat">
+              <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
+              <label>{fr.tableRows} <input type="number" min="1" max="20" bind:value={repeatRows} /></label>
+              <button class="primary" disabled={repeatCols * repeatRows < 2} onclick={() => repeat(false)}>{fr.repeatApply(repeatCols * repeatRows)}</button>
+              <button onclick={() => repeat(true)}>{fr.repeatFill}</button>
+              <GuideLink id="etiquettes" />
+            </div>
+          {/if}
+        </div>
+        <div class="wrap">
+          <button data-guide="cut" title={fr.cutMarksHint} onclick={() => toggle("cut")}><Icon name="cut" /><span class="lbl"> {fr.cutMarks} <Icon name="chevronDown" size={14} /></span></button>
+          {#if pop === "cut"}
+            <div use:fitInWindow class="pop list">
+              <button onclick={() => setCutMarks("corners")}><Icon name="crop" /> {fr.cutCorners}</button>
+              <button onclick={() => setCutMarks("dashed")}><Icon name="cut" /> {fr.cutDashed}</button>
+              <button onclick={() => setCutMarks(null)}>{fr.cutNone}</button>
+            </div>
+          {/if}
+        </div>
+      {/if}
+    {/if}
+    <!-- Sa légende, et la garder dans « Mes images ». -->
+    {#if selected?.kind.type === "Photo" && !many}
+      {@const ph = selected.kind}
+      <span class="sep"></span>
+      <button onclick={() => addCaption(selected.id)}><Icon name="caption" /><span class="lbl"> {fr.caption}</span></button>
+      {#if ph.asset && !settings.moreMenu}
+        <button title={fr.keepInMyImagesHint} onclick={() => ph.asset && myImages.keep(ph.asset)}><Icon name="star" /><span class="lbl"> {fr.keepInMyImages}</span></button>
+      {/if}
+    {/if}
+    <!-- Supprimer en dernier ; « Plus » ou « Tous les réglages » au bout de la barre. -->
+    {#if many}
+      <span class="sep"></span>
+      {#if isGroup}
+        <!-- Comme l'action : tout le groupe verrouillé, le bouton le déverrouille ; sinon il verrouille. -->
+        {@const allLocked = selectionLocked()}
+        <button title={allLocked ? fr.unlock : fr.lock} aria-label={allLocked ? fr.unlock : fr.lock} aria-pressed={allLocked} onclick={toggleLockSelection}><Icon name={allLocked ? "unlock" : "lock"} /><span class="lbl"> {allLocked ? fr.unlock : fr.lock}</span></button>
+      {/if}
+      <button onclick={removeSelected}><Icon name="trash" /><span class="lbl"> {fr.delete}</span></button>
+    {:else if canDelete}
+      <span class="sep"></span>
+      <button title={fr.delete} aria-label={fr.delete} onclick={removeSelected}><Icon name="trash" /></button>
     {/if}
     {#if settings.moreMenu}
     <!-- Les outils de tous les jours sont dans la barre ; les autres dans « Plus », où s'ouvrent aussi leurs
            réglages (taille de la frise, répéter, repères de découpe). -->
       <span class="sep"></span>
       <div class="wrap">
-        <button class:on={pop === "more" || pop === "frieze" || pop === "repeat" || pop === "cut"} aria-haspopup="menu" title={fr.moreTools} onclick={() => toggle("more")}>⋯<span class="lbl"> {fr.moreTools} ▾</span></button>
+        <button class:on={pop === "more" || pop === "frieze" || pop === "repeat" || pop === "cut"} aria-haspopup="menu" title={fr.moreTools} onclick={() => toggle("more")}><Icon name="more" /><span class="lbl"> {fr.moreTools} <Icon name="chevronDown" size={14} /></span></button>
         {#if pop === "more"}
           {@const ph = selected?.kind.type === "Photo" && selected.kind.asset ? selected.kind : null}
           <div use:fitInWindow class="pop list more" role="menu">
             {#if ph}
-              <button role="menuitem" class:on={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}>◩ {fr.shadow}</button>
-              <button role="menuitem" title={fr.keepInMyImagesHint} onclick={() => ((pop = null), ph.asset && myImages.keep(ph.asset))}>⭐ {fr.keepInMyImages}</button>
+              <button role="menuitem" class:on={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}><Icon name="shadow" /> {fr.shadow}</button>
             {/if}
             {#if canMirror}
-              <button role="menuitem" title={fr.mirrorHHint} onclick={() => mirrorSelection("h")}>⇋ {fr.mirrorH}</button>
-              <button role="menuitem" title={fr.mirrorVHint} onclick={() => mirrorSelection("v")}>⇅ {fr.mirrorV}</button>
+              <button role="menuitem" title={fr.mirrorHHint} onclick={() => mirrorSelection("h")}><Icon name="flipH" /> {fr.mirrorH}</button>
+              <button role="menuitem" title={fr.mirrorVHint} onclick={() => mirrorSelection("v")}><Icon name="flipV" /> {fr.mirrorV}</button>
             {/if}
             {#if canRotate}
-              <button role="menuitem" onclick={() => rotateSelection(-90)}>↺ {fr.rotateLeftShort}</button>
-              <button role="menuitem" onclick={() => rotateSelection(90)}>↻ {fr.rotateRightShort}</button>
+              <button role="menuitem" onclick={() => rotateSelection(-90)}><Icon name="rotateLeft" /> {fr.rotateLeftShort}</button>
+              <button role="menuitem" onclick={() => rotateSelection(90)}><Icon name="rotateRight" /> {fr.rotateRightShort}</button>
             {/if}
             {#if canFrieze}
-              <button role="menuitem" data-guide="frieze-around" title={fr.blockFriezeHint} onclick={() => ((pop = null), addBlockFrieze())}>❀ {fr.blockFriezeAround}</button>
+              <button role="menuitem" data-guide="frieze-around" title={fr.blockFriezeHint} onclick={() => ((pop = null), addBlockFrieze())}><Icon name="frieze" /> {fr.blockFriezeAround}</button>
             {/if}
             {#if friezeIds && friezeNow}
-              <button role="menuitem" data-guide="frieze-size" title={fr.friezeEditHint2} onclick={() => (pop = "frieze")}>❀ {fr.friezeEdit} ▸</button>
-              <button role="menuitem" class="danger" onclick={deleteFrieze}>🗑 {fr.friezeDelete}</button>
+              <button role="menuitem" data-guide="frieze-size" title={fr.friezeEditHint2} onclick={() => (pop = "frieze")}><Icon name="frieze" /> {fr.friezeEdit} <Icon name="chevronRight" size={14} /></button>
+              <button role="menuitem" class="danger" onclick={deleteFrieze}><Icon name="trash" /> {fr.friezeDelete}</button>
             {/if}
             {#if canCut}
-              <button role="menuitem" data-guide="repeat" title={fr.repeatHint} onclick={() => (pop = "repeat")}>▦ {fr.repeat} ▸</button>
-              <button role="menuitem" data-guide="cut" title={fr.cutMarksHint} onclick={() => (pop = "cut")}>✂ {fr.cutMarks} ▸</button>
+              <button role="menuitem" data-guide="repeat" title={fr.repeatHint} onclick={() => (pop = "repeat")}><Icon name="repeat" /> {fr.repeat} <Icon name="chevronRight" size={14} /></button>
+              <button role="menuitem" data-guide="cut" title={fr.cutMarksHint} onclick={() => (pop = "cut")}><Icon name="cut" /> {fr.cutMarks} <Icon name="chevronRight" size={14} /></button>
+            {/if}
+            {#if ph}
+              <button role="menuitem" title={fr.keepInMyImagesHint} onclick={() => ((pop = null), ph.asset && myImages.keep(ph.asset))}><Icon name="star" /> {fr.keepInMyImages}</button>
             {/if}
             {#if !many}
-              <button role="menuitem" onclick={() => ((pop = null), (editor.inspectorOpen = true))}>⚙ {fr.allSettings}</button>
+              <button role="menuitem" onclick={() => ((pop = null), (editor.inspectorOpen = true))}><Icon name="settings" /> {fr.allSettings}</button>
             {/if}
           </div>
         {:else if pop === "frieze" && friezeNow}
@@ -653,66 +731,15 @@
           </div>
         {:else if pop === "cut"}
           <div use:fitInWindow class="pop list">
-            <button onclick={() => setCutMarks("corners")}>⌜ ⌝ {fr.cutCorners}</button>
-            <button onclick={() => setCutMarks("dashed")}>✂ ┄ {fr.cutDashed}</button>
+            <button onclick={() => setCutMarks("corners")}><Icon name="crop" /> {fr.cutCorners}</button>
+            <button onclick={() => setCutMarks("dashed")}><Icon name="cut" /> {fr.cutDashed}</button>
             <button onclick={() => setCutMarks(null)}>{fr.cutNone}</button>
           </div>
         {/if}
       </div>
-    {:else}
-    {#if canMirror}
-        {@const mh = selected ? (selected.kind.type === "Photo" ? !!selected.kind.mirrored : !!selected.flip_h) : false}
-        <!-- Un seul outil, deux sens : gauche-droite et haut-bas côte à côte, sans menu. -->
-        <div class="mirror" role="group" aria-label={fr.mirrorRow}>
-          <span class="mirror-name">{fr.mirrorRow}</span>
-          <button class:on={mh} aria-pressed={mh} title={fr.mirrorHHint} aria-label={fr.mirrorH} onclick={() => mirrorSelection("h")}>⇋<span class="lbl">{fr.mirrorH}</span></button>
-          <button class:on={!!selected?.flip_v} aria-pressed={!!selected?.flip_v} title={fr.mirrorVHint} aria-label={fr.mirrorV} onclick={() => mirrorSelection("v")}>⇅<span class="lbl">{fr.mirrorV}</span></button>
-        </div>
-      {/if}
-      {#if canRotate}
-        <button title={fr.rotateLeft} aria-label={fr.rotateLeft} onclick={() => rotateSelection(-90)}>↺</button>
-        <button title={fr.rotateRight} aria-label={fr.rotateRight} onclick={() => rotateSelection(90)}>↻</button>
-      {/if}
-      {#if canFrieze}
-        <button data-guide="frieze-around" title={fr.blockFriezeHint} onclick={addBlockFrieze}>❀<span class="lbl"> {fr.blockFriezeAround}</span></button>
-      {/if}
-      {#if friezeIds && friezeNow}
-        <div class="wrap">
-          <button data-guide="frieze-size" class:on={pop === "frieze"} title={fr.friezeEditHint2} onclick={() => toggle("frieze")}>❀<span class="lbl"> {fr.friezeEdit} ▾</span></button>
-          {#if pop === "frieze"}
-            <div use:fitInWindow class="pop frieze">{@render friezePop(friezeNow)}</div>
-          {/if}
-        </div>
-        <button class="danger" title={fr.friezeDeleteHint} onclick={deleteFrieze}>🗑<span class="lbl"> {fr.friezeDelete}</span></button>
-      {/if}
-      {#if canCut}
-        <div class="wrap">
-          <button data-guide="repeat" title={fr.repeatHint} onclick={() => toggle("repeat")}>▦<span class="lbl"> {fr.repeat} ▾</span></button>
-          {#if pop === "repeat"}
-            <div use:fitInWindow class="pop repeat">
-              <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
-              <label>{fr.tableRows} <input type="number" min="1" max="20" bind:value={repeatRows} /></label>
-              <button class="primary" disabled={repeatCols * repeatRows < 2} onclick={() => repeat(false)}>{fr.repeatApply(repeatCols * repeatRows)}</button>
-              <button onclick={() => repeat(true)}>{fr.repeatFill}</button>
-              <GuideLink id="etiquettes" />
-            </div>
-          {/if}
-        </div>
-        <div class="wrap">
-          <button data-guide="cut" title={fr.cutMarksHint} onclick={() => toggle("cut")}>✂<span class="lbl"> {fr.cutMarks} ▾</span></button>
-          {#if pop === "cut"}
-            <div use:fitInWindow class="pop list">
-              <button onclick={() => setCutMarks("corners")}>⌜ ⌝ {fr.cutCorners}</button>
-              <button onclick={() => setCutMarks("dashed")}>✂ ┄ {fr.cutDashed}</button>
-              <button onclick={() => setCutMarks(null)}>{fr.cutNone}</button>
-            </div>
-          {/if}
-        </div>
-      {/if}
-      {#if !many}
-        <span class="sep"></span>
-        <button title={fr.allSettings} aria-label={fr.allSettings} onclick={() => (editor.inspectorOpen = true)}>⋯</button>
-      {/if}
+    {:else if !many}
+      <span class="sep"></span>
+      <button title={fr.allSettings} aria-label={fr.allSettings} onclick={() => (editor.inspectorOpen = true)}><Icon name="settings" /></button>
     {/if}
   </div>
 {/if}

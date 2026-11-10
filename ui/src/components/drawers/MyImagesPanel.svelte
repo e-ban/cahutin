@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "../Icon.svelte";
   import GuideLink from "../GuideLink.svelte";
   // La collection : les images de l'enseignant, gardées d'un document à l'autre. `query` filtre ; pendant une
   // recherche (`searching`), seules les vignettes trouvées sont montrées. Avec `onpick` (choix des motifs d'une
@@ -57,7 +58,7 @@
 
 {#if !searching}
   <p class="what">{fr.myImagesWhat}</p>
-  <button class="add" data-guide="collection-add" onclick={add}>＋ {fr.myImagesAdd}</button>
+  <button class="add" data-guide="collection-add" onclick={add}><Icon name="add" /> {fr.myImagesAdd}</button>
 {/if}
 {#if myImages.images.length && (!searching || shown.length)}
   {#if searching}<h4>{fr.myImages}</h4>{/if}
@@ -88,7 +89,7 @@
           <span class="name">{displayName(img.name)}</span>
           {#if rank >= 0}<span class="rank">{rank + 1}</span>{/if}
         </button>
-        {#if !onpick}<button class="remove" title={fr.myImagesRemove} aria-label={`${fr.myImagesRemove} : ${displayName(img.name)}`} onclick={() => remove(img.name)}>×</button>{/if}
+        {#if !onpick}<button class="remove" title={fr.myImagesRemove} aria-label={`${fr.myImagesRemove} : ${displayName(img.name)}`} onclick={() => remove(img.name)}><Icon name="close" size={14} /></button>{/if}
       </div>
     {:else}
       <p class="hint">{fr.myImagesNone}</p>
@@ -99,7 +100,7 @@
   <p class="hint">{fr.myImagesEmpty}</p>
 {/if}
 {#if !searching && !onpick}
-  <button class="organize" data-guide="collection-organize" onclick={() => (editor.showCollection = true)}>🗂 {fr.collectionOrganize}</button>
+  <button class="organize" data-guide="collection-organize" onclick={() => (editor.showCollection = true)}><Icon name="collection" /> {fr.collectionOrganize}</button>
   <GuideLink id="collection" />
   <p class="hint">{fr.myImagesWhere}</p>
   {#if onphotos}<button class="link" onclick={onphotos}>{fr.myImagesPhotosLink}</button>{/if}

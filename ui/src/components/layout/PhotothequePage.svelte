@@ -1,5 +1,6 @@
 <script lang="ts">
   import GuideLink from "../GuideLink.svelte";
+  import Icon from "../Icon.svelte";
   // Photothèque de la classe : toutes les photos de l'année, à trier (garder, supprimer), à étiqueter
   // (élèves présents, activités), à retrouver (par enfant, par activité, par période) et à poser dans le
   // document. Un bandeau signale les enfants peu photographiés et une pastille les photos d'un enfant
@@ -165,11 +166,11 @@
 
 <div class="library-page">
   <div class="top">
-    <button class="back" onclick={close}>← {fr.classPageBack}</button>
-    <h1>📷 {fr.libraryTitle}{#if classes.current}{` · ${classes.current.class.name}`}{/if}</h1>
+    <button class="back" onclick={close}><Icon name="back" /> {fr.classPageBack}</button>
+    <h1><Icon name="images" size={24} /> {fr.libraryTitle}{#if classes.current}{` · ${classes.current.class.name}`}{/if}</h1>
     {#if classes.current}
-      <button data-guide="library-add" onclick={addFiles}>{fr.addPhotosButton}</button>
-      <button onclick={addFolder}>{fr.addFolderButton}</button>
+      <button data-guide="library-add" onclick={addFiles}><Icon name="add" /> {fr.addPhotosButton}</button>
+      <button onclick={addFolder}><Icon name="folder" /> {fr.addFolderButton}</button>
     {/if}
     <GuideLink id="phototheque" />
   </div>
@@ -203,7 +204,7 @@
         <h3>{fr.libraryChildren}</h3>
         {#each students as s (s.id)}
           <button class="child" class:on={filter.student === s.id} onclick={() => (filter = { period: filter.period, student: s.id })}>
-            <span>{nameOf(s.id)}{#if !s.photo_allowed}<span class="no-consent" title={fr.libraryNoConsentHint}> 🚫</span>{/if}</span>
+            <span>{nameOf(s.id)}{#if !s.photo_allowed}<span class="no-consent" title={fr.libraryNoConsentHint}> <Icon name="ban" size={14} /></span>{/if}</span>
             <span class="n">{counts.get(s.id) ?? 0}</span>
           </button>
         {/each}
@@ -251,8 +252,8 @@
                 title={p.students.map(nameOf).join(", ")}
               >
                 <img src={classPhotoUrl(p.id)} alt="" loading="lazy" draggable="false" />
-                {#if marking && on}<span class="badge mark">✓ {nameOf(marking)}</span>{:else if p.students.length}<span class="badge">🧒 {p.students.length}</span>{/if}
-                {#if missing.length}<span class="badge warn" title={fr.libraryNoConsent(missing.map((s) => nameOf(s.id)))}>🚫 {missing.length}</span>{/if}
+                {#if marking && on}<span class="badge mark"><Icon name="check" size={12} /> {nameOf(marking)}</span>{:else if p.students.length}<span class="badge"><Icon name="users" size={12} /> {p.students.length}</span>{/if}
+                {#if missing.length}<span class="badge warn" title={fr.libraryNoConsent(missing.map((s) => nameOf(s.id)))}><Icon name="ban" size={12} /> {missing.length}</span>{/if}
               </button>
             {/each}
             </div>
@@ -279,12 +280,12 @@
           </div>
           <div class="new-tag">
             <input placeholder={fr.libraryNewTag} bind:value={newTag} onkeydown={(e) => e.key === "Enter" && addTag()} />
-            <button disabled={!newTag.trim()} onclick={addTag}>＋</button>
+            <button disabled={!newTag.trim()} title={fr.libraryNewTag} aria-label={fr.libraryNewTag} onclick={addTag}><Icon name="add" /></button>
           </div>
           {#if chosen.some((p) => withoutConsent(p, students).length)}<p class="warn-text">{fr.libraryBlurFirst}</p>{/if}
           <div class="actions">
             <button class="primary" onclick={useChosen}>{fr.libraryUse(chosen.length)}</button>
-            <button class="danger" onclick={removeChosen}>🗑 {fr.libraryTrash}</button>
+            <button class="danger" onclick={removeChosen}><Icon name="trash" /> {fr.libraryTrash}</button>
           </div>
         </aside>
       {/if}

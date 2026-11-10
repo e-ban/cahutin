@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "../Icon.svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import Drawer from "../layout/Drawer.svelte";
   import { addFont, removeFont } from "../../lib/api";
@@ -48,15 +49,15 @@
     <button class="name" style:font-family={`"${f.name}", "Andika"`} onpointerdown={(e) => e.preventDefault()} onclick={() => apply(f)}>{f.name}</button>
     {#if f.kind}<small class="tag">{f.kind}</small>{/if}
     {#if !f.embeddable}
-      <button class="tag warn" onclick={() => (explain = explain === f.name ? null : f.name)}>{fr.exportWarning}</button>
+      <button class="tag warn" onclick={() => (explain = explain === f.name ? null : f.name)}><Icon name="warning" size={12} /> {fr.exportWarning}</button>
     {/if}
-    {#if f.user}<button class="del" title={fr.removeFont} aria-label={fr.removeFont} onclick={() => remove(f)}>×</button>{/if}
+    {#if f.user}<button class="del" title={fr.removeFont} aria-label={fr.removeFont} onclick={() => remove(f)}><Icon name="close" size={14} /></button>{/if}
   </div>
   {#if explain === f.name}<p class="explain">{fr.restrictedFontExplain}</p>{/if}
 {/snippet}
 
 <Drawer title={fr.fonts}>
-  <button class="add" onclick={pick}>{fr.addFont}</button>
+  <button class="add" onclick={pick}><Icon name="add" /> {fr.addFont}</button>
   <input class="search" type="search" bind:value={query} placeholder={fr.searchFont} aria-label={fr.searchFont} />
   <p class="hint">{fr.applyFontHint}</p>
   {#if groups.builtin.length}

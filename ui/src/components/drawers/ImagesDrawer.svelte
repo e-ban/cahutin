@@ -2,6 +2,7 @@
   // Tiroir Images : toutes les images au même endroit. Photos (celles de ce document, la photothèque de la
   // classe), Mes images (gardées pour tous les documents), Pictogrammes (OpenMoji). Une recherche cherche à la
   // fois dans Mes images et les pictogrammes.
+  import Icon from "../Icon.svelte";
   import { onDestroy } from "svelte";
   import Drawer from "../layout/Drawer.svelte";
   import MyImagesPanel from "./MyImagesPanel.svelte";
@@ -51,7 +52,7 @@
   </div>
   {#if tab === "photos" && editor.templateMode}
     <!-- Un modèle n'a pas de photos, seulement des cases où l'on en déposera une. -->
-    <button class="zone" onclick={addPhotoZone}>⬚ {fr.photoZoneAdd}</button>
+    <button class="zone" onclick={addPhotoZone}><Icon name="frame" /> {fr.photoZoneAdd}</button>
     <p class="hint">{fr.photoZoneHint}</p>
   {:else if tab === "photos"}
     <PhotosPanel />

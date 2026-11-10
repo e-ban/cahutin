@@ -1,5 +1,6 @@
 <script lang="ts">
   // Fond de la page : couleur, papier kraft, motifs d'école ; appliquer à toutes les pages.
+  import Icon from "./Icon.svelte";
   import ColorPicker from "./ColorPicker.svelte";
   import { KRAFT, marks } from "../lib/background";
   import { editor } from "../lib/docStore.svelte";
@@ -28,7 +29,7 @@
 <div class="panel" role="dialog" aria-label={fr.background}>
   <header>
     <h3>{fr.background}</h3>
-    <button class="close" aria-label={fr.close} onclick={() => (editor.showBackground = false)}>×</button>
+    <button class="close" aria-label={fr.close} onclick={() => (editor.showBackground = false)}><Icon name="close" size={18} /></button>
   </header>
   <span class="label">{fr.backgroundColor}</span>
   <ColorPicker value={current.color} onchange={(c) => apply(c ?? "#ffffff", current.pattern ?? null)} />
@@ -78,7 +79,7 @@
   .close {
     border: 0;
     background: transparent;
-    font-size: 18px;
+    display: flex;
   }
   .label {
     font-size: 12px;

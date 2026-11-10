@@ -1,5 +1,7 @@
 <script lang="ts">
   import PageView from "../PageView.svelte";
+  import Icon from "../Icon.svelte";
+  import MenuButton, { type MenuItem } from "./MenuButton.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { nextZoom } from "../../lib/units";
   import { newPage } from "../../lib/factory";
@@ -13,7 +15,7 @@
   import { childOfPage, findChildPage } from "../../lib/classFill";
   import type { Page } from "../../lib/types";
 
-  const MINI = 0.07;
+  const MINI = 0.09;
 
   let strip = $state<HTMLElement>();
   const count = $derived(editor.doc.pages.length);
@@ -90,6 +92,27 @@
       editor.notice = String(e);
     }
   }
+
+  const landscape = $derived(editor.page.size.width_mm > editor.page.size.height_mm);
+  const formats: Format[] = ["A5", "A4", "A3"];
+
+  // Les commandes de la page courante, rangées dans le menu « Page ».
+  const pageItems = $derived<MenuItem[]>([
+    { label: fr.duplicatePage, icon: "duplicate", action: duplicate },
+    { label: fr.backgroundButton, icon: "background", checked: editor.showBackground, action: () => (editor.showBackground = !editor.showBackground) },
+    {
+      label: fr.pageFormatShort,
+      title: fr.pageFormat,
+      icon: "page",
+      children: formats.map((f): MenuItem => ({ label: f, checked: formatOf(editor.page.size) === f, action: () => formatOf(editor.page.size) !== f && setFormat(f) })),
+    },
+    { label: fr.spread, title: fr.spreadHint, icon: "spread", checked: editor.spread, action: () => (editor.spread = !editor.spread) },
+    ...(settings.cvdPreview
+      ? [{ label: fr.cvdView, title: fr.cvdViewHint, icon: "cvd", checked: editor.cvdView, action: () => (editor.cvdView = !editor.cvdView) } satisfies MenuItem]
+      : []),
+    { label: landscape ? fr.portrait : fr.landscape, icon: landscape ? "portrait" : "landscape", action: rotate },
+    { label: fr.deletePage, icon: "trash", disabled: editor.doc.pages.length === 1, separator: true, action: () => deletePage(editor.pageIndex) },
+  ]);
 </script>
 
 <footer class="pagebar">
@@ -106,27 +129,17 @@
     {#each editor.doc.pages as p, i (p.id)}
       <button class="thumb" class:current={i === editor.pageIndex} title={thumbTitle(i)} onclick={() => ((editor.pageIndex = i), (editor.selection = []))}>
         <PageView page={p} doc={editor.doc} zoom={MINI} />
+        <span class="num" aria-hidden="true">{i + 1}</span>
       </button>
     {/each}
   </div>
-  <button onclick={() => insert(newPage())} title={fr.addPage}>＋ {fr.addPage}</button>
-  <button class="ghost" onclick={duplicate}>⧉ {fr.duplicatePage}</button>
-  <button class="ghost" class:on={editor.showBackground} onclick={() => (editor.showBackground = !editor.showBackground)}>▤ {fr.backgroundButton}</button>
-  <select class="format" title={fr.pageFormat} aria-label={fr.pageFormat} value={formatOf(editor.page.size) ?? ""} onchange={(e) => setFormat(e.currentTarget.value as Format)}>
-    {#if !formatOf(editor.page.size)}<option value="">{fr.pageFormatOther}</option>{/if}
-    <option value="A5">A5</option>
-    <option value="A4">A4</option>
-    <option value="A3">A3</option>
-  </select>
-  <button class="ghost" class:on={editor.spread} aria-pressed={editor.spread} title={fr.spreadHint} onclick={() => (editor.spread = !editor.spread)}>📖 {fr.spread}</button>
-  {#if settings.cvdPreview}<button class="ghost" class:on={editor.cvdView} aria-pressed={editor.cvdView} title={fr.cvdViewHint} onclick={() => (editor.cvdView = !editor.cvdView)}>👁 {fr.cvdView}</button>{/if}
-  <button class="ghost" onclick={rotate}>⟳ {editor.page.size.width_mm > editor.page.size.height_mm ? fr.portrait : fr.landscape}</button>
-  <button class="ghost" disabled={editor.doc.pages.length === 1} onclick={() => deletePage(editor.pageIndex)}>🗑 {fr.deletePage}</button>
+  <button class="add" onclick={() => insert(newPage())} title={fr.addPage}><Icon name="add" />{fr.addPage}</button>
+  <MenuButton label={fr.pageMenu} title={fr.pageMenuHint} icon="page" items={pageItems} up />
   <span class="spacer"></span>
   <div class="zoom" aria-label={fr.zoom}>
-    <button class="ghost" title={fr.zoomOut} aria-label={fr.zoomOut} onclick={() => (editor.zoom = nextZoom(editor.effectiveZoom, -1))}>−</button>
+    <button class="ghost" title={fr.zoomOut} aria-label={fr.zoomOut} onclick={() => (editor.zoom = nextZoom(editor.effectiveZoom, -1))}><Icon name="zoomOut" /></button>
     <span class="pct">{Math.round(editor.effectiveZoom * 100)} %</span>
-    <button class="ghost" title={fr.zoomIn} aria-label={fr.zoomIn} onclick={() => (editor.zoom = nextZoom(editor.effectiveZoom, 1))}>+</button>
+    <button class="ghost" title={fr.zoomIn} aria-label={fr.zoomIn} onclick={() => (editor.zoom = nextZoom(editor.effectiveZoom, 1))}><Icon name="zoomIn" /></button>
     <button class:on={editor.zoom === "fit"} onclick={() => (editor.zoom = "fit")}>{fr.zoomFit}</button>
   </div>
 </footer>
@@ -164,9 +177,18 @@
   }
   /* Les boutons gardent leur libellé sur une ligne ; la bande des miniatures cède la place. */
   .pagebar > button,
-  .pagebar > select {
+  .pagebar > :global(.menu) {
     white-space: nowrap;
     flex-shrink: 0;
+  }
+  /* « Ajouter une page » : la commande qu'on cherche, bien visible sans être un bouton plein. */
+  .add {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
   }
   @media (max-width: 1150px) {
     .pagebar > button {
@@ -175,9 +197,30 @@
     }
   }
   .thumb {
+    position: relative;
     padding: 2px;
     background: white;
     flex: none;
+  }
+  /* Le numéro de la page, dans le coin de sa miniature. */
+  .num {
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    min-width: 14px;
+    padding: 0 3px;
+    border-radius: 4px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-size: 10px;
+    line-height: 13px;
+    text-align: center;
+  }
+  .thumb.current .num {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
   }
   .thumb :global(.page) {
     pointer-events: none;
@@ -192,6 +235,9 @@
   }
   .spacer {
     flex: 1;
+  }
+  .zoom > button {
+    display: flex;
   }
   .zoom {
     display: flex;

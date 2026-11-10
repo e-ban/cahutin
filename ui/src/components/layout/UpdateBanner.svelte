@@ -1,6 +1,7 @@
 <script lang="ts">
   // Bandeau discret, en bas à droite : la question des nouvelles versions (une seule fois), puis l'avis
   // quand une version plus récente existe. Il n'interrompt jamais le travail.
+  import Icon from "../Icon.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { tour } from "../../lib/tour.svelte";
@@ -29,7 +30,7 @@
     <p>{fr.updateAvailable(version)}</p>
     <div class="actions">
       <button class="primary" onclick={download}>{fr.updateDownload}</button>
-      <button aria-label={fr.close} title={fr.close} onclick={() => updates.dismiss(version)}>✕</button>
+      <button aria-label={fr.close} title={fr.close} onclick={() => updates.dismiss(version)}><Icon name="close" /></button>
     </div>
   </div>
 {/if}

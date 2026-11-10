@@ -2,6 +2,7 @@
   // Préférences de l'application : affichage (taille, police, contraste, poignées), barre d'outils, nouvelle
   // page, graphisme, export, astuces, avis de nouvelles versions. Chaque choix s'applique tout de suite et reste
   // sur le poste.
+  import Icon from "../Icon.svelte";
   import { canExportPdf } from "../../lib/api";
   import AssistantPrefs from "../assistant/AssistantPrefs.svelte";
   import { editor } from "../../lib/docStore.svelte";
@@ -24,7 +25,7 @@
 
 <div class="backdrop" role="presentation" onclick={close}>
   <div class="box" role="dialog" aria-modal="true" aria-labelledby="prefs-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
-    <h2 id="prefs-title">⚙ {fr.preferences}</h2>
+    <h2 id="prefs-title"><Icon name="settings" size={20} /> {fr.preferences}</h2>
 
     <!-- Sur un grand écran, les sections se rangent en deux colonnes ; sur un petit, en une. -->
     <div class="sections">

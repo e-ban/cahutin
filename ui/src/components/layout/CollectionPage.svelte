@@ -1,5 +1,6 @@
 <script lang="ts">
   import GuideLink from "../GuideLink.svelte";
+  import Icon from "../Icon.svelte";
   // Page de la collection : ranger ses images dans des thèmes (« Automne », « Animaux »), les renommer, les
   // retirer et remettre celles retirées, en ajouter (fichiers ou dossier entier).
   import { open } from "@tauri-apps/plugin-dialog";
@@ -104,10 +105,10 @@
 
 <div class="collection-page">
   <div class="top">
-    <button class="back" onclick={close}>← {fr.classPageBack}</button>
-    <h1>🗂 {fr.collectionTitle}</h1>
-    <button onclick={addFiles}>＋ {fr.myImagesAdd}</button>
-    <button onclick={addFolder}>{fr.addFolderButton}</button>
+    <button class="back" onclick={close}><Icon name="back" /> {fr.classPageBack}</button>
+    <h1><Icon name="collection" size={24} /> {fr.collectionTitle}</h1>
+    <button onclick={addFiles}><Icon name="add" /> {fr.myImagesAdd}</button>
+    <button onclick={addFolder}><Icon name="folder" /> {fr.addFolderButton}</button>
     <GuideLink id="collection" />
   </div>
   <p class="intro">{fr.collectionIntro}</p>
@@ -160,16 +161,16 @@
             {#if view.kind === "removed"}
               <div class="pic"><img src={`${removedImageUrl(img.name)}?v=${img.modified}`} alt="" loading="lazy" /></div>
               <span class="name">{displayName(img.name)}</span>
-              <button onclick={() => run(() => myImages.restore(img.name))}>↩ {fr.collectionRestore}</button>
+              <button onclick={() => run(() => myImages.restore(img.name))}><Icon name="undo" /> {fr.collectionRestore}</button>
             {:else}
               <button class="pic" aria-pressed={chosen} title={fr.collectionChooseHint} onclick={() => toggle(img.name)}>
                 <img src={`${myImageUrl(img.name)}?v=${img.modified}`} alt="" loading="lazy" />
-                {#if chosen}<span class="tick" aria-hidden="true">✓</span>{/if}
+                {#if chosen}<span class="tick" aria-hidden="true"><Icon name="check" size={14} /></span>{/if}
               </button>
               <input class="name-input" value={displayName(img.name)} aria-label={fr.collectionRenameLabel} title={fr.collectionRenameLabel} onchange={(e) => rename(img.name, e.currentTarget)} onkeydown={(e) => e.key === "Enter" && e.currentTarget.blur()} />
               <div class="themes">
                 {#each img.themes ?? [] as t (t)}
-                  <span class="theme">{t}<button title={fr.collectionTakeOut(t)} aria-label={fr.collectionTakeOut(t)} onclick={() => takeOut([img.name], t)}>×</button></span>
+                  <span class="theme">{t}<button title={fr.collectionTakeOut(t)} aria-label={fr.collectionTakeOut(t)} onclick={() => takeOut([img.name], t)}><Icon name="close" size={12} /></button></span>
                 {/each}
               </div>
             {/if}
@@ -312,8 +313,8 @@
     border-radius: 50%;
     background: var(--accent);
     color: white;
-    line-height: 22px;
-    text-align: center;
+    display: grid;
+    place-items: center;
   }
   .name-input {
     font-size: 13px;
@@ -348,8 +349,7 @@
     border: 0;
     background: transparent;
     padding: 0 4px;
-    font-size: 13px;
-    line-height: 1;
+    display: flex;
   }
   .theme button:hover {
     color: #d32f2f;

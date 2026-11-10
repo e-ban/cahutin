@@ -3,6 +3,7 @@
   // service (Claude, OpenAI, Gemini, Ollama sur cet ordinateur, ou un autre : adresse et modèle à la main), essayer
   // la connexion. Le nom du modèle d'un service connu se change dans « Réglages avancés » : ces noms changent vite.
   // L'activation essaie d'abord la connexion : l'assistant n'apparaît que s'il répond.
+  import Icon from "../Icon.svelte";
   import { assistantConfigure, assistantTest } from "../../lib/api";
   import { assistant } from "../../lib/assistant.svelte";
   import { fr } from "../../lib/i18n/fr";
@@ -103,8 +104,8 @@
   {#if wanted}
     <div class="explain">
       <p>{t.prefsWhat}</p>
-      <p>✔ {t.prefsSent}</p>
-      <p>✖ {t.prefsNeverSent}</p>
+      <p><Icon name="check" /> {t.prefsSent}</p>
+      <p><Icon name="x" /> {t.prefsNeverSent}</p>
       <p class="warn">{t.prefsNoNames}</p>
     </div>
     <label class="field">

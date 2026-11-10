@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "../Icon.svelte";
   import Drawer from "../layout/Drawer.svelte";
   import ShapeEl from "../elements/ShapeEl.svelte";
   import { editor } from "../../lib/docStore.svelte";
@@ -123,7 +124,7 @@
   </InspectorSection>
 
   <InspectorSection id="shapes-maze" title={fr.mazeTitle} hint={fr.sectionHints.maze} open={false}>
-    <button class="wide" onclick={() => addSheet(maze(editor.page, level))}>🐤 {fr.mazeAdd(level)}</button>
+    <button class="wide" onclick={() => addSheet(maze(editor.page, level))}><Icon name="maze" /> {fr.mazeAdd(level)}</button>
     <p class="hint">{fr.mazeHint}</p>
   </InspectorSection>
 
@@ -139,7 +140,7 @@
   <InspectorSection id="shapes-markers" title={fr.markersTitle} hint={fr.sectionHints.markers} open={false}>
     <div class="grid paths">
       <button onclick={() => addMarker("point")}><span class="dot"></span>{fr.markerStart}</button>
-      <button onclick={() => addMarker("fleche")}><span class="arrow">➜</span>{fr.markerArrow}</button>
+      <button onclick={() => addMarker("fleche")}><span class="arrow"><Icon name="arrowRight" size={18} /></span>{fr.markerArrow}</button>
     </div>
     <p class="hint">{fr.markersHint}</p>
   </InspectorSection>

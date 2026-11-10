@@ -2,6 +2,7 @@
   // Une photo de la photothèque en grand, pour voir qui est dessus : les prénoms à côté, à cocher, les
   // flèches pour passer à la suivante. La liste est celle du moment de l'ouverture : une photo étiquetée
   // reste dans le défilement même si elle quitte le filtre « À trier ».
+  import Icon from "../Icon.svelte";
   import { classPhotoUrl } from "../../lib/api";
   import { fr } from "../../lib/i18n/fr";
   import { dayOf, withoutConsent } from "../../lib/phototheque";
@@ -43,20 +44,20 @@
 <div class="viewer" role="dialog" aria-modal="true" aria-label={fr.libraryViewer}>
   <div class="image">
     {#if photo}<img src={classPhotoUrl(photo.id, false)} alt="" />{/if}
-    <button class="nav prev" disabled={i === 0} aria-label={fr.libraryPrev} onclick={() => go(-1)}>‹</button>
-    <button class="nav next" disabled={i === ids.length - 1} aria-label={fr.libraryNext} onclick={() => go(1)}>›</button>
+    <button class="nav prev" disabled={i === 0} aria-label={fr.libraryPrev} onclick={() => go(-1)}><Icon name="chevronLeft" size={32} /></button>
+    <button class="nav next" disabled={i === ids.length - 1} aria-label={fr.libraryNext} onclick={() => go(1)}><Icon name="chevronRight" size={32} /></button>
   </div>
   <aside>
     <div class="head">
       <span>{fr.libraryPosition(i + 1, ids.length)}{#if photo}{` · ${fr.libraryDay(dayOf(photo))}`}{/if}</span>
-      <button onclick={onclose}>✕ {fr.close}</button>
+      <button onclick={onclose}><Icon name="close" /> {fr.close}</button>
     </div>
     <p class="hint">{fr.libraryWhoOne}</p>
     {#if photo}
       <div class="kids">
         {#each students as s (s.id)}
           {@const on = photo.students.includes(s.id)}
-          <button class="kid" class:on aria-pressed={on} onclick={() => toggle(s.id)}>{names.get(s.id)}{#if !s.photo_allowed}<span title={fr.libraryNoConsentHint}> 🚫</span>{/if}</button>
+          <button class="kid" class:on aria-pressed={on} onclick={() => toggle(s.id)}>{names.get(s.id)}{#if !s.photo_allowed}<span title={fr.libraryNoConsentHint}> <Icon name="ban" size={14} /></span>{/if}</button>
         {/each}
       </div>
       {#if missing.length}<p class="warn">{fr.libraryNoConsent(missing.map((s) => names.get(s.id) ?? s.first_name))}</p>{/if}
@@ -91,9 +92,9 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    font-size: 36px;
-    line-height: 1;
-    padding: 8px 14px;
+    display: grid;
+    place-items: center;
+    padding: 10px;
     background: rgba(255, 255, 255, 0.85);
     border-radius: 50%;
   }

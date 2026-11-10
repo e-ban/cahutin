@@ -2,6 +2,7 @@
   // Barre d'une case de tableau modifiée seule (après un double-clic), sous la case : lignes, colonnes,
   // fusion et contenu. La barre flottante de la case (texte, fond) reste au-dessus.
   import { tick } from "svelte";
+  import Icon from "./Icon.svelte";
   import { tableInsertCol, tableInsertRow, tableMerge, tableRemoveCol, tableRemoveRow, tableSetCell, tableSplit } from "../lib/api";
   import { selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
@@ -103,21 +104,21 @@
 
 {#if visible && cell}
   <div class="ctx" class:busy role="toolbar" tabindex="-1" aria-label={fr.tableBar} aria-busy={busy} bind:this={barEl} style:left={pos ? `${pos.left}px` : "-9999px"} style:top={pos ? `${pos.top}px` : "-9999px"}>
-    <button title={fr.rowAbove} aria-label={fr.rowAbove} onclick={withCell((id) => (p) => tableInsertRow(p, id, false))}>⤒ {fr.row}</button>
-    <button title={fr.rowBelow} aria-label={fr.rowBelow} onclick={withCell((id) => (p) => tableInsertRow(p, id, true))}>⤓ {fr.row}</button>
-    <button title={fr.colLeft} aria-label={fr.colLeft} onclick={withCell((id) => (p) => tableInsertCol(p, id, false))}>⇤ {fr.col}</button>
-    <button title={fr.colRight} aria-label={fr.colRight} onclick={withCell((id) => (p) => tableInsertCol(p, id, true))}>⇥ {fr.col}</button>
+    <button title={fr.rowAbove} aria-label={fr.rowAbove} onclick={withCell((id) => (p) => tableInsertRow(p, id, false))}><Icon name="chevronUp" /> {fr.row}</button>
+    <button title={fr.rowBelow} aria-label={fr.rowBelow} onclick={withCell((id) => (p) => tableInsertRow(p, id, true))}><Icon name="chevronDown" /> {fr.row}</button>
+    <button title={fr.colLeft} aria-label={fr.colLeft} onclick={withCell((id) => (p) => tableInsertCol(p, id, false))}><Icon name="chevronLeft" /> {fr.col}</button>
+    <button title={fr.colRight} aria-label={fr.colRight} onclick={withCell((id) => (p) => tableInsertCol(p, id, true))}><Icon name="chevronRight" /> {fr.col}</button>
     <span class="sep"></span>
-    <button title={fr.removeRow} disabled={grid!.rows.length < 2} onclick={withCell((id) => (p) => tableRemoveRow(p, id))}>✕ {fr.row}</button>
-    <button title={fr.removeCol} disabled={grid!.cols.length < 2} onclick={withCell((id) => (p) => tableRemoveCol(p, id))}>✕ {fr.col}</button>
+    <button title={fr.removeRow} disabled={grid!.rows.length < 2} onclick={withCell((id) => (p) => tableRemoveRow(p, id))}><Icon name="x" /> {fr.row}</button>
+    <button title={fr.removeCol} disabled={grid!.cols.length < 2} onclick={withCell((id) => (p) => tableRemoveCol(p, id))}><Icon name="x" /> {fr.col}</button>
     <span class="sep"></span>
     <button title={fr.mergeRight} disabled={!neighbour("right")} onclick={() => merge("right")}>{fr.mergeRightShort}</button>
     <button title={fr.mergeBelow} disabled={!neighbour("below")} onclick={() => merge("below")}>{fr.mergeBelowShort}</button>
-    <button disabled={cell.col_span === 1 && cell.row_span === 1} onclick={withCell((id) => (p) => tableSplit(p, id))}>⊟ {fr.splitCell}</button>
+    <button disabled={cell.col_span === 1 && cell.row_span === 1} onclick={withCell((id) => (p) => tableSplit(p, id))}><Icon name="cellSplit" /> {fr.splitCell}</button>
     <span class="sep"></span>
-    <button class:on={element?.kind.type === "Text"} onclick={() => setContent("Text")}>T {fr.cellText}</button>
-    <button class:on={element?.kind.type === "Image"} onclick={() => setContent({ Picto: DEFAULT_PICTO })}>✿ {fr.cellPicto}</button>
-    <button class:on={element?.kind.type === "Photo"} onclick={() => setContent("Photo")}>🖼 {fr.cellPhoto}</button>
+    <button class:on={element?.kind.type === "Text"} onclick={() => setContent("Text")}><Icon name="text" /> {fr.cellText}</button>
+    <button class:on={element?.kind.type === "Image"} onclick={() => setContent({ Picto: DEFAULT_PICTO })}><Icon name="picto" /> {fr.cellPicto}</button>
+    <button class:on={element?.kind.type === "Photo"} onclick={() => setContent("Photo")}><Icon name="photo" /> {fr.cellPhoto}</button>
   </div>
 {/if}
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   // Panneau « Astuces » (menu Aide) : toutes les astuces, rangées par thème. Échap ou Fermer le ferme.
+  import Icon from "./Icon.svelte";
   import { editor } from "../lib/docStore.svelte";
   import { fr } from "../lib/i18n/fr";
   import { guides } from "../lib/guides.svelte";
@@ -16,7 +17,7 @@
 <div class="backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && close()}>
   <div class="panel" role="dialog" aria-modal="true" aria-labelledby="tips-title">
     <header>
-      <h2 id="tips-title">💡 {fr.tips}</h2>
+      <h2 id="tips-title"><Icon name="lightbulb" size={20} /> {fr.tips}</h2>
       <button bind:this={closeEl} onclick={close}>{fr.close}</button>
     </header>
     <div class="body">
@@ -25,11 +26,11 @@
           <h3>{theme}</h3>
           {#each TIPS.filter((t) => t.theme === theme) as tip (tip.id)}
             <div class="tip">
-              <span class="icon" aria-hidden="true">{tip.icon}</span>
+              <span class="icon" aria-hidden="true"><Icon name={tip.icon} size={22} /></span>
               <div>
                 <b>{tip.title}</b>
                 <p>{tip.text}</p>
-                {#if tip.guide}<button class="guide" onclick={() => (close(), guides.show(tip.guide))}>📘 {fr.guideSee}</button>{/if}
+                {#if tip.guide}<button class="guide" onclick={() => (close(), guides.show(tip.guide))}><Icon name="guide" /> {fr.guideSee}</button>{/if}
               </div>
             </div>
           {/each}

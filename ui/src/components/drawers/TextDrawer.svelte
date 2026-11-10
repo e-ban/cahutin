@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "../Icon.svelte";
   import Drawer from "../layout/Drawer.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { tableAdd } from "../../lib/api";
@@ -82,7 +83,7 @@
 </script>
 
 <Drawer title={fr.text}>
-  <button class="primary" onclick={() => add()}>✏️ {fr.addText}</button>
+  <button class="primary" onclick={() => add()}><Icon name="text" /> {fr.addText}</button>
   <!-- Les styles prêts ouverts au départ (poser un titre) et les autres sections repliées : on voit d'un coup tout
        ce que le tiroir propose, et chacune reste comme on la laisse. -->
   <InspectorSection id="text-presets" title={fr.textPresets} hint={fr.sectionHints.textPresets}>
@@ -114,7 +115,7 @@
       <label>{fr.tableCols} <input type="number" min="1" max="8" bind:value={cols} /></label>
       <label>{fr.tableRows} <input type="number" min="1" max="8" bind:value={rows} /></label>
     </div>
-    <button onclick={addTable}>▦ {fr.addTable}</button>
+    <button onclick={addTable}><Icon name="grid" /> {fr.addTable}</button>
   </InspectorSection>
 </Drawer>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
   import GuideLink from "./GuideLink.svelte";
   // Flouter des visages : la photo entière en grand ; les visages repérés (si le repérage est actif) se
   // cochent d'un clic, d'autres zones se tracent à la main en glissant. « Flouter » remplace la photo par sa
@@ -158,7 +159,7 @@
           {/if}
           {#each manual as z, i (i)}
             <div class="face on manual" style={box(z)}></div>
-            <button class="remove" style:left="{(z.x + z.w) * 100}%" style:top="{z.y * 100}%" title={fr.blurRemoveZone} aria-label={fr.blurRemoveZone} onclick={() => (manual = manual.filter((_, j) => j !== i))}>×</button>
+            <button class="remove" style:left="{(z.x + z.w) * 100}%" style:top="{z.y * 100}%" title={fr.blurRemoveZone} aria-label={fr.blurRemoveZone} onclick={() => (manual = manual.filter((_, j) => j !== i))}><Icon name="close" size={14} /></button>
           {/each}
           {#if preview}<div class="face drawing" style={box(preview)}></div>{/if}
         </div>
@@ -256,7 +257,8 @@
     padding: 0;
     border-radius: 50%;
     background: white;
-    line-height: 1;
+    display: grid;
+    place-items: center;
   }
   .busy {
     position: absolute;

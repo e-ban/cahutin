@@ -1,6 +1,7 @@
 <script lang="ts">
   // Bandeau au-dessus de la page pendant une proposition de l'assistant, que le panneau soit ouvert ou non :
   // la page ne se modifie pas tant qu'on n'a pas accepté ou refusé.
+  import Icon from "../Icon.svelte";
   import { assistant } from "../../lib/assistant.svelte";
   import { fr } from "../../lib/i18n/fr";
 
@@ -10,14 +11,14 @@
 
 <div class="banner" role="status">
   {#if assistant.viewing}
-    <span class="text">✦ {t.viewingStep}</span>
+    <span class="text"><Icon name="assistant" /> {t.viewingStep}</span>
     <span class="spacer"></span>
     <button class="primary" onclick={() => assistant.view(null)}>{t.backToEnd}</button>
   {:else if assistant.proposal}
-    <span class="text">✦ {t.proposes(count)}. {t.locked}</span>
+    <span class="text"><Icon name="assistant" /> {t.proposes(count)}. {t.locked}</span>
     <span class="spacer"></span>
-    <button class="primary" onclick={() => assistant.accept()} disabled={assistant.busy}>✔ {t.accept}</button>
-    <button onclick={() => assistant.refuse()} disabled={assistant.busy}>✖ {t.refuse}</button>
+    <button class="primary" onclick={() => assistant.accept()} disabled={assistant.busy}><Icon name="check" /> {t.accept}</button>
+    <button onclick={() => assistant.refuse()} disabled={assistant.busy}><Icon name="x" /> {t.refuse}</button>
     {#if !assistant.open}<button onclick={() => (assistant.open = true)}>{t.showDetails}</button>{/if}
   {/if}
 </div>

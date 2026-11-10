@@ -2,6 +2,7 @@
   // Écran d'accueil : un bandeau (logo, nom, version), les choix sur toute la largeur, puis les documents
   // récents avec l'aperçu de leur première page. Le même écran sert à Fichier > Nouveau.
   import { getVersion } from "@tauri-apps/api/app";
+  import Icon from "../Icon.svelte";
   import PageView from "../PageView.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { guides } from "../../lib/guides.svelte";
@@ -110,23 +111,23 @@
       </div>
       <h1>{fr.welcomeTitle}</h1>
       {#if editor.welcomeOverDoc}
-        <button class="back-doc" onclick={close}>{fr.welcomeBackToDoc(editor.doc.title)}</button>
+        <button class="back-doc" onclick={close}><Icon name="back" /> {fr.welcomeBackToDoc(editor.doc.title)}</button>
       {/if}
     </header>
     <div class="choices">
       <button class="choice main" onclick={() => (step = "layouts")}>
-        <b>📐</b><span>{fr.welcomeTemplate}</span><small>{fr.welcomeTemplateSub}</small>
+        <b><Icon name="template" size={26} /></b><span>{fr.welcomeTemplate}</span><small>{fr.welcomeTemplateSub}</small>
       </button>
-      <button class="choice" onclick={blankPage}><b>📄</b><span>{fr.welcomeBlank}</span><small>{fr.welcomeBlankSub}</small></button>
-      <button class="choice" onclick={() => openDoc()}><b>📂</b><span>{fr.welcomeResume}</span><small>{fr.welcomeResumeSub}</small></button>
-      <button class="choice" onclick={() => importFiles(undefined, { fresh: true })}><b>📥</b><span>{fr.welcomeImport}</span><small>{fr.welcomeImportSub}</small></button>
-      <button class="choice" onclick={showExamples}><b>✨</b><span>{fr.welcomeExamples}</span><small>{fr.welcomeExamplesSub}</small></button>
+      <button class="choice" onclick={blankPage}><b><Icon name="fileNew" size={26} /></b><span>{fr.welcomeBlank}</span><small>{fr.welcomeBlankSub}</small></button>
+      <button class="choice" onclick={() => openDoc()}><b><Icon name="folderOpen" size={26} /></b><span>{fr.welcomeResume}</span><small>{fr.welcomeResumeSub}</small></button>
+      <button class="choice" onclick={() => importFiles(undefined, { fresh: true })}><b><Icon name="import" size={26} /></b><span>{fr.welcomeImport}</span><small>{fr.welcomeImportSub}</small></button>
+      <button class="choice" onclick={showExamples}><b><Icon name="example" size={26} /></b><span>{fr.welcomeExamples}</span><small>{fr.welcomeExamplesSub}</small></button>
     </div>
     <!-- Ce qui sert à tous les documents, à part : la collection d'images et la classe. -->
     <div class="choices own">
-      <button class="choice" onclick={() => (editor.showCollection = true)}><b>🗂</b><span>{fr.welcomeCollection}</span><small>{fr.welcomeCollectionSub}</small></button>
-      <button class="choice" onclick={() => (editor.showClassPage = true)}><b>🧒</b><span>{fr.welcomeClass}</span><small>{fr.welcomeClassSub}</small></button>
-      <button class="choice" onclick={() => guides.show()}><b>📘</b><span>{fr.welcomeGuides}</span><small>{fr.welcomeGuidesSub}</small></button>
+      <button class="choice" onclick={() => (editor.showCollection = true)}><b><Icon name="collection" size={26} /></b><span>{fr.welcomeCollection}</span><small>{fr.welcomeCollectionSub}</small></button>
+      <button class="choice" onclick={() => (editor.showClassPage = true)}><b><Icon name="class" size={26} /></b><span>{fr.welcomeClass}</span><small>{fr.welcomeClassSub}</small></button>
+      <button class="choice" onclick={() => guides.show()}><b><Icon name="guide" size={26} /></b><span>{fr.welcomeGuides}</span><small>{fr.welcomeGuidesSub}</small></button>
     </div>
     <div class="recents-head">
       <h2>{fr.recentDocs}</h2>
@@ -141,12 +142,12 @@
           <li oncontextmenu={(e) => (e.preventDefault(), (menu = { path: r.path, title: r.title, x: e.clientX, y: e.clientY }))}>
             <button class="card" onclick={() => openPath(r.path)} title={fileName(r.path)}>
               <div class="mini small">
-                {#if doc}<PageView page={doc.pages[0]} {doc} zoom={RECENT} />{:else}<span class="blank">📄</span>{/if}
+                {#if doc}<PageView page={doc.pages[0]} {doc} zoom={RECENT} />{:else}<span class="blank"><Icon name="document" size={40} /></span>{/if}
               </div>
               <span class="title">{r.title}</span>
               <small>{new Date(r.openedAt).toLocaleDateString("fr-FR")}</small>
             </button>
-            <button class="forget" title={fr.recentForget} aria-label={`${fr.recentForget} : ${r.title}`} onclick={() => forgetRecent(r.path)}>×</button>
+            <button class="forget" title={fr.recentForget} aria-label={`${fr.recentForget} : ${r.title}`} onclick={() => forgetRecent(r.path)}><Icon name="close" size={14} /></button>
           </li>
         {/each}
       </ul>
@@ -159,12 +160,12 @@
       <div class="menu" role="menu" style:left="{m.x}px" style:top="{m.y}px">
         <button role="menuitem" onclick={() => fromMenu((r) => openPath(r.path))}>{fr.recentOpen}</button>
         <button role="menuitem" onclick={() => fromMenu((r) => forgetRecent(r.path))}>{fr.recentForget}</button>
-        <button role="menuitem" class="danger" onclick={() => fromMenu((r) => trashRecent(r.path, r.title))}>🗑 {fr.recentTrashMenu}</button>
+        <button role="menuitem" class="danger" onclick={() => fromMenu((r) => trashRecent(r.path, r.title))}><Icon name="trash" /> {fr.recentTrashMenu}</button>
       </div>
     {/if}
   {:else if step === "examples"}
     <div class="head">
-      <button class="back" onclick={() => (step = "choices")}>{fr.back}</button>
+      <button class="back" onclick={() => (step = "choices")}><Icon name="back" /> {fr.classPageBack}</button>
       <h1>{fr.chooseExample}</h1>
     </div>
     <div class="grid">
@@ -177,12 +178,12 @@
     </div>
   {:else}
     <div class="head">
-      <button class="back" onclick={() => (step = "choices")}>{fr.back}</button>
+      <button class="back" onclick={() => (step = "choices")}><Icon name="back" /> {fr.classPageBack}</button>
       <h1>{fr.chooseTemplate}</h1>
     </div>
     <div class="grid">
       <button class="card new" onclick={createTemplate}>
-        <div class="mini"><span class="plus">＋</span></div>
+        <div class="mini"><span class="plus"><Icon name="add" size={64} /></span></div>
         <span>{fr.createTemplate}</span>
         <small>{fr.createTemplateSub}</small>
       </button>
@@ -297,9 +298,15 @@
     font-size: 15px;
     font-weight: 600;
   }
+  /* L'icône du choix dans une pastille ronde, teintée de bleu. */
   .choice b {
-    font-size: 36px;
-    font-weight: 400;
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent);
   }
   .choice small {
     color: var(--muted);
@@ -338,8 +345,8 @@
     border: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.95);
     color: var(--muted);
-    font-size: 16px;
-    line-height: 22px;
+    display: grid;
+    place-items: center;
   }
   .forget:hover,
   .forget:focus-visible {
@@ -426,11 +433,11 @@
     font-weight: 400;
   }
   .plus {
-    font-size: 64px;
+    display: flex;
     color: var(--accent);
   }
   .blank {
-    font-size: 40px;
+    display: flex;
     opacity: 0.4;
   }
   .head {

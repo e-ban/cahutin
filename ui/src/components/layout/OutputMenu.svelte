@@ -12,17 +12,17 @@
 
   // L'export choisi dans les Préférences vient en premier.
   const exports = $derived.by<MenuItem[]>(() => {
-    const odg: MenuItem = { label: fr.exportOdg, title: fr.exportOdgHint, action: files.exportOdg };
-    const both = pdf ? [{ label: fr.exportPdf, action: files.exportPdf }, odg] : [odg];
+    const odg: MenuItem = { label: fr.exportOdg, icon: "document", title: fr.exportOdgHint, action: files.exportOdg };
+    const both: MenuItem[] = pdf ? [{ label: fr.exportPdf, icon: "documentText", action: files.exportPdf }, odg] : [odg];
     return settings.preferredExport === "odg" ? both.reverse() : both;
   });
 
   const items = $derived<MenuItem[]>([
-    { label: fr.print, shortcut: "Ctrl+P", action: files.print },
-    ...(editor.doc.pages.length > 1 ? [{ label: fr.printDuplex, title: fr.printDuplexHint, action: files.printDuplex }] : []),
-    ...(editor.doc.pages.some((p) => formatOf(p.size) === "A3") ? [{ label: fr.printTiles, title: fr.printTilesHint, action: files.printTiled }] : []),
+    { label: fr.print, icon: "print", shortcut: "Ctrl+P", action: files.print },
+    ...(editor.doc.pages.length > 1 ? [{ label: fr.printDuplex, icon: "flipH", title: fr.printDuplexHint, action: files.printDuplex } satisfies MenuItem] : []),
+    ...(editor.doc.pages.some((p) => formatOf(p.size) === "A3") ? [{ label: fr.printTiles, icon: "grid", title: fr.printTilesHint, action: files.printTiled } satisfies MenuItem] : []),
     ...exports.map((item, i) => (i === 0 ? { ...item, separator: true } : item)),
   ]);
 </script>
 
-<MenuButton label={fr.output} {items} primary />
+<MenuButton label={fr.output} icon="print" {items} primary />

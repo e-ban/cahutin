@@ -1,5 +1,6 @@
 <script lang="ts">
   // Bandeau du mode modèle : une phrase d'aide, enregistrer comme modèle, terminer, le guide.
+  import Icon from "../Icon.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { guides } from "../../lib/guides.svelte";
@@ -29,7 +30,7 @@
 </script>
 
 <div class="banner">
-  <span class="text">▦ {fr.templateBanner}</span>
+  <span class="text"><Icon name="template" /> {fr.templateBanner}</span>
   <span class="spacer"></span>
   {#if naming}
     <!-- svelte-ignore a11y_autofocus -->
@@ -37,10 +38,10 @@
     <button class="primary" onclick={save} disabled={!name.trim()}>{fr.save}</button>
     <button onclick={() => (naming = false)}>{fr.cancel}</button>
   {:else}
-    <button class="primary" data-guide="save-template" onclick={() => (naming = true)}>💾 {fr.saveAsTemplate}</button>
+    <button class="primary" data-guide="save-template" onclick={() => (naming = true)}><Icon name="save" /> {fr.saveAsTemplate}</button>
   {/if}
-  <button data-guide="finish-template" onclick={finish}>✓ {fr.finishTemplate}</button>
-  <button class="help" title={fr.guideHelp} onclick={() => guides.show("modele")}>? {fr.guideHelp}</button>
+  <button data-guide="finish-template" onclick={finish}><Icon name="check" /> {fr.finishTemplate}</button>
+  <button class="help" title={fr.guideHelp} onclick={() => guides.show("modele")}><Icon name="help" /> {fr.guideHelp}</button>
 </div>
 
 <style>

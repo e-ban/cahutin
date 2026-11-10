@@ -3,6 +3,7 @@
   // section) et sous le bouton « Champ » de la barre d'un texte (ajouter, ou enlever un champ coché). `current` :
   // les champs du texte choisi, cochés.
   import { onMount } from "svelte";
+  import Icon from "./Icon.svelte";
   import { autoFieldExamples } from "../lib/api";
   import { CLASS_INFO_FIELDS, DATE_FIELDS, FIELDS, fieldLabel, letterKey, monthKey } from "../lib/classFields";
   import { classes } from "../lib/classStore.svelte";
@@ -31,7 +32,7 @@
   {#if !only || only === "student"}
   {#each FIELDS as f (f.key)}
     <button class="field" class:on={current.includes(f.key)} aria-pressed={current.includes(f.key)} title={current.includes(f.key) ? fr.fieldRemove : undefined} onclick={() => onpick(f.key)}>
-      <span class="name">{current.includes(f.key) ? "✓ " : ""}{f.label}</span>
+      <span class="name">{#if current.includes(f.key)}<Icon name="check" size={14} /> {/if}{f.label}</span>
       <small>{f.hint}</small>
     </button>
   {/each}
@@ -59,7 +60,7 @@
     {#if !only}<h4>{g.title}</h4>{/if}
     {#each g.list as f (f.key)}
       <button class="field" class:on={current.includes(f.key)} aria-pressed={current.includes(f.key)} title={current.includes(f.key) ? fr.fieldRemove : undefined} onclick={() => onpick(f.key)}>
-        <span class="name">{current.includes(f.key) ? "✓ " : ""}{f.label}</span>
+        <span class="name">{#if current.includes(f.key)}<Icon name="check" size={14} /> {/if}{f.label}</span>
         <small>{examples[f.key] ? `« ${examples[f.key]} »` : f.hint}</small>
       </button>
     {/each}

@@ -109,17 +109,21 @@
           {/if}
           {#if entry.outcome === "accepted"}<small class="outcome ok">✔ {t.accepted}</small>{/if}
           {#if entry.outcome === "refused"}<small class="outcome">✖ {t.refused}</small>{/if}
-          {#if entry.cost}
-            {@const c = entry.cost}
-            <button class="ghost cost" title={t.costHint} aria-label="{t.cost} : {t.costLevels[c.level - 1]}" aria-expanded={costOpen.has(i)} onclick={() => toggleCost(i)}>
-              {t.cost} <span class="dots">{"●".repeat(c.level)}{"○".repeat(3 - c.level)}</span> {costOpen.has(i) ? "▾" : "▸"}
-            </button>
-            {#if costOpen.has(i)}
-              <small class="cost-detail">{t.costLevels[c.level - 1]} : {t.costDetail(c.rounds, c.sent, c.sent ? Math.round((c.cached / c.sent) * 100) : 0, c.received)}</small>
+          <!-- Le coût à gauche, « Signaler » à droite, sur une même ligne ; le détail du coût se déplie dessous. -->
+          <div class="foot">
+            {#if entry.cost}
+              {@const c = entry.cost}
+              <button class="ghost cost" title={t.costHint} aria-label="{t.cost} : {t.costLevels[c.level - 1]}" aria-expanded={costOpen.has(i)} onclick={() => toggleCost(i)}>
+                {t.cost} <span class="dots">{"●".repeat(c.level)}{"○".repeat(3 - c.level)}</span> {costOpen.has(i) ? "▾" : "▸"}
+              </button>
             {/if}
+            <!-- Une réponse déplacée se signale à l'auteur (règles du Microsoft Store sur l'IA générative). -->
+            <button class="ghost report" title={t.reportHint} onclick={() => void assistant.report(entry)}>⚑ {t.report}</button>
+          </div>
+          {#if entry.cost && costOpen.has(i)}
+            {@const c = entry.cost}
+            <small class="cost-detail">{t.costLevels[c.level - 1]} : {t.costDetail(c.rounds, c.sent, c.sent ? Math.round((c.cached / c.sent) * 100) : 0, c.received)}</small>
           {/if}
-          <!-- Une réponse déplacée se signale à l'auteur (règles du Microsoft Store sur l'IA générative). -->
-          <button class="ghost report" title={t.reportHint} onclick={() => void assistant.report(entry)}>⚑ {t.report}</button>
         </div>
       {/if}
     {/each}
@@ -296,9 +300,12 @@
   .outcome.ok {
     color: #2e7d32;
   }
-  .cost {
-    display: block;
+  .foot {
+    display: flex;
+    align-items: center;
     margin-top: 4px;
+  }
+  .cost {
     font-size: 12px;
     color: var(--muted);
   }
@@ -310,8 +317,7 @@
     color: var(--muted);
   }
   .report {
-    display: block;
-    margin: 4px 0 0 auto;
+    margin-left: auto;
     font-size: 12px;
     color: var(--muted);
   }

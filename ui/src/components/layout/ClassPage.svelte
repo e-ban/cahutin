@@ -7,7 +7,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { assetUrl, classImportPhoto, classParseList, classReadList } from "../../lib/api";
   import { ask } from "../../lib/ask";
-  import { classes, groups, schoolYear, withStudentBack, withoutStudent } from "../../lib/classStore.svelte";
+  import { classes, groups, patchStudents, schoolYear, withStudentBack, withoutStudent } from "../../lib/classStore.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { modal } from "../../lib/modal.svelte";
@@ -130,6 +130,23 @@
   }
 
   /** Autorisation pour toute la classe : tout cocher, ou tout décocher si tout est déjà coché. */
+  // Les élèves cochés dans la première colonne, pour leur donner un niveau ou un groupe d'un coup.
+  let picked = $state(new Set<string>());
+  const pickedNow = $derived(new Set((cls?.students ?? []).filter((s) => picked.has(s.id)).map((s) => s.id)));
+  let groupForPicked = $state("");
+
+  function pick(id: string, on: boolean) {
+    const next = new Set(picked);
+    if (on) next.add(id);
+    else next.delete(id);
+    picked = next;
+  }
+
+  function setPicked(patch: Partial<Student>) {
+    const ids = pickedNow;
+    classes.update((c) => ({ ...c, students: patchStudents(c.students, ids, patch) }));
+  }
+
   function setAllConsent(allowed: boolean) {
     classes.update((c) => ({ ...c, students: c.students.map((s) => ({ ...s, photo_allowed: allowed })) }));
   }
@@ -251,9 +268,36 @@
       </div>
     {/if}
 
+    {#if pickedNow.size}
+      <!-- Les élèves cochés : un niveau ou un groupe pour tous d'un coup. -->
+      <div class="picked" role="group" aria-label={fr.classPicked(pickedNow.size)}>
+        <b>{fr.classPicked(pickedNow.size)}</b>
+        <label>
+          {fr.classLevel}
+          <select value="" onchange={(e) => { if (e.currentTarget.value) setPicked({ level: e.currentTarget.value === "none" ? null : (e.currentTarget.value as Level) }); e.currentTarget.value = ""; }}>
+            <option value="">{fr.classPickedChoose}</option>
+            <option value="none">{fr.classNoLevel}</option>
+            {#each LEVELS as l (l)}<option value={l}>{l}</option>{/each}
+          </select>
+        </label>
+        <label>
+          {fr.classGroup}
+          <input list="class-page-groups" bind:value={groupForPicked} placeholder={fr.classPickedNoGroup} onkeydown={(e) => e.key === "Enter" && setPicked({ group: groupForPicked.trim() })} />
+        </label>
+        <button onclick={() => setPicked({ group: groupForPicked.trim() })}>{fr.classPickedApplyGroup}</button>
+        <span class="spacer"></span>
+        <button class="link" onclick={() => (picked = new Set())}>{fr.classPickedClear}</button>
+      </div>
+    {/if}
     <table>
       <thead>
         <tr>
+          <th class="pick-col">
+            {#if cls.students.length > 1}
+              {@const every = cls.students.every((s) => pickedNow.has(s.id))}
+              <input type="checkbox" aria-label={fr.classPickAll} title={fr.classPickAll} checked={every} indeterminate={!every && pickedNow.size > 0} onchange={(e) => (picked = new Set(e.currentTarget.checked ? cls.students.map((s) => s.id) : []))} />
+            {/if}
+          </th>
           <th>{fr.classPhoto}</th>
           <th>{fr.classFirstName}</th>
           <th>{fr.classLastName}</th>
@@ -274,7 +318,8 @@
       <tbody>
         {#each cls.students as s (s.id)}
           {@const photo = s.photo ? cls.photos[s.photo] : undefined}
-          <tr>
+          <tr class:chosen={pickedNow.has(s.id)}>
+            <td class="pick-col"><input type="checkbox" aria-label={fr.classPickOne(s.first_name)} checked={pickedNow.has(s.id)} onchange={(e) => pick(s.id, e.currentTarget.checked)} /></td>
             <td>
               <button class="face" title={photo ? fr.classPhotoChange : fr.classPhotoChoose} onclick={() => choosePhoto(s)}>
                 {#if photo}<img src={assetUrl(photo.id, true)} alt="" />{:else}<Icon name="add" size={18} />{/if}
@@ -301,7 +346,7 @@
           </tr>
           {#if symbolFor === s.id}
             <tr class="symbols-row">
-              <td colspan="9">
+              <td colspan="10">
                 <div class="symbols">
                   <!-- svelte-ignore a11y_autofocus -->
                   <input placeholder={fr.classSymbolSearch} bind:value={symbolQuery} autofocus />
@@ -317,7 +362,7 @@
           {/if}
         {/each}
         <tr class="add">
-          <td></td>
+          <td colspan="2"></td>
           <td colspan="8">
             <input placeholder={fr.classAddOne} bind:value={newFirst} onkeydown={(e) => e.key === "Enter" && addOne()} />
             <button disabled={!newFirst.trim()} onclick={addOne}><Icon name="add" /> {fr.classAddOneButton}</button>
@@ -466,6 +511,32 @@
     border-color: var(--accent);
     color: var(--on-accent);
     font-weight: 600;
+  }
+  .picked {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+    margin-bottom: 8px;
+    padding: 10px 14px;
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    background: var(--accent-soft);
+  }
+  .picked label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pick-col {
+    width: 28px;
+    text-align: center;
+  }
+  tr.chosen td {
+    background: var(--accent-soft);
   }
   table {
     width: 100%;

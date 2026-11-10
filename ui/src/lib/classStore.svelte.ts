@@ -13,6 +13,11 @@ export function filterStudents(students: Student[], f: { level?: Level | null; g
   return students.filter((s) => (!f.level || s.level === f.level) && (!f.group || s.group === f.group));
 }
 
+/** Les élèves `ids` reçoivent `patch` (le même niveau ou le même groupe) ; les autres restent tels quels. */
+export function patchStudents(students: Student[], ids: Set<string>, patch: Partial<Student>): Student[] {
+  return students.map((s) => (ids.has(s.id) ? { ...s, ...patch } : s));
+}
+
 /** Les élèves d'un choix rapide : « all », « level:MS » ou « group:Les loups ». */
 export function presetStudents(students: Student[], preset: string): Student[] {
   if (preset.startsWith("level:")) return filterStudents(students, { level: preset.slice(6) as Level });

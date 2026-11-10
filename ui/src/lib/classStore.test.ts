@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { filterStudents, groups, presetOf, presetStudents, schoolYear, withStudentBack, withoutStudent } from "./classStore.svelte";
+import { filterStudents, groups, patchStudents, presetOf, presetStudents, schoolYear, withStudentBack, withoutStudent } from "./classStore.svelte";
 import type { Student } from "./types";
 
 const s = (first_name: string, level: Student["level"], group = ""): Student => ({
@@ -58,4 +58,13 @@ test("a quick choice gives its students, and ticked students name their quick ch
   expect(presetOf(students, new Set(["Anna", "Léa"]), presets)).toBe("level:MS");
   expect(presetOf(students, new Set(["Léa"]), presets)).toBe("custom");
   expect(presetOf(students, new Set(), presets)).toBe("custom");
+});
+
+test("several chosen students get the same level or group at once", () => {
+  const students = [s("Léa", "MS", "Les loups"), s("Noé", "GS"), s("Anna", null)];
+  const after = patchStudents(students, new Set(["Léa", "Anna"]), { level: "GS" });
+  expect(after.map((x) => x.level)).toEqual(["GS", "GS", "GS"]);
+  expect(after[0].group).toBe("Les loups");
+  expect(patchStudents(students, new Set(["Noé"]), { group: "Les ours" }).map((x) => x.group)).toEqual(["Les loups", "Les ours", ""]);
+  expect(patchStudents(students, new Set(), { level: "PS" })).toEqual(students);
 });

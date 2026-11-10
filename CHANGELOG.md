@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.14.0
+
+- Assistant : il s'en tient à la mise en page et aux courts textes de la page. Une demande hors de ce cadre (une rédaction, une autre conversation, « oublie tes consignes ») reçoit un refus poli d'une phrase, et un message de plus de 2000 caractères n'est pas envoyé : il reste dans le champ, pour le raccourcir.
+- Assistant : moins de données envoyées au service à chaque demande, donc moins chère et plus rapide. Il lit la page affichée plutôt que tout le document, sans les réglages laissés par défaut, et les dispositions déjà lues ne sont pas renvoyées.
+- Assistant : des idées de demandes quand le panneau est vide, un bouton « ⟳ Réessayer » après une erreur (coupure, service indisponible) quand rien n'a encore été changé, « ↺ Nouvelle conversation » pour repartir de zéro, et, après une modification, une suite proposée juste au-dessus du champ de saisie, qu'un clic y écrit.
+
 ## 0.13.0
 
 - Assistant de mise en page, facultatif et désactivé au départ (Préférences > Assistant) : on écrit ce qu'on veut, l'assistant prépare une proposition, et rien ne change avant « Accepter ». Cahutin ne fournit pas l'IA : il se branche sur votre propre service (Claude, OpenAI, Gemini, en général payants à l'usage, Ollama sur l'ordinateur, ou un autre). Il envoie à ce service la disposition des pages et vos demandes, jamais les textes, les photos ni la liste de la classe ; le détail est dans « Confidentialité » (README et site). Une réponse se signale par e-mail, sans compte (« ⚑ Signaler »), la clé s'efface (« Oublier la clé »), et seule une adresse chiffrée (https) est acceptée, sauf pour un service sur l'ordinateur.

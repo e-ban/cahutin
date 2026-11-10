@@ -87,7 +87,10 @@ pub fn request(body: &Value, model: &str) -> Value {
         .flatten()
         .map(|t| json!({ "name": t["function"]["name"], "description": t["function"]["description"], "input_schema": t["function"]["parameters"] }))
         .collect();
-    let mut out = json!({ "model": model, "max_tokens": MAX_TOKENS, "system": system, "messages": messages });
+    let mut out = json!({ "model": model, "max_tokens": MAX_TOKENS, "messages": messages });
+    if !system.is_empty() {
+        out["system"] = json!(system);
+    }
     if !tools.is_empty() {
         out["tools"] = json!(tools);
         out["tool_choice"] = json!({ "type": "auto" });
@@ -191,6 +194,15 @@ mod tests {
         assert_eq!(first["system"], second["system"]);
         assert_eq!(first["tools"], second["tools"]);
         assert_eq!(first["messages"][0]["content"][0]["text"], second["messages"][0]["content"][0]["text"]);
+    }
+
+    #[test]
+    fn a_request_without_instructions_has_no_system() {
+        // L'essai de connexion (Préférences) n'envoie qu'un message.
+        let r = request(&json!({ "messages": [{ "role": "user", "content": "Appelez l'outil ping." }] }), "m");
+        assert!(r.get("system").is_none());
+        assert!(r.get("tools").is_none());
+        assert_eq!(r["messages"][0]["content"][0]["cache_control"], json!({ "type": "ephemeral" }));
     }
 
     #[test]

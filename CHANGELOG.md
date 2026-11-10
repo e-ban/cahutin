@@ -1,5 +1,10 @@
 # Journal des versions
 
+## Non publié
+
+- Assistant avec Claude : Cahutin passe par l'API Messages d'Anthropic, qui garde en cache la consigne et la description des outils, renvoyées à chaque échange. Les demandes coûtent moins cher.
+- Assistant : chaque demande note dans le journal ce qu'elle a coûté (échanges, appels d'outils, tokens envoyés, reçus, lus et écrits en cache), sans la demande ni la réponse. Pour les développeurs, un banc d'essai rejoue une vingtaine de demandes types avec un vrai service.
+
 ## 0.14.0
 
 - Assistant : il s'en tient à la mise en page et aux courts textes de la page. Une demande hors de ce cadre (une rédaction, une autre conversation, « oublie tes consignes ») reçoit un refus poli d'une phrase, et un message de plus de 2000 caractères n'est pas envoyé : il reste dans le champ, pour le raccourcir.

@@ -8,7 +8,7 @@
 //!
 //! La clé vient seulement de l'environnement, n'est jamais écrite ; le relevé va dans `docs/assistant/`.
 
-use super::{Settings, Usage, check_url, host_of, run_measured};
+use super::{Settings, Usage, check_url, host_of, run_measured, test_connection};
 use cahutin_mcp::agent::{Event, Request};
 use carnet_core::{Document, ElementKind, examples};
 use std::sync::atomic::AtomicBool;
@@ -144,6 +144,8 @@ fn bench() {
     let s = Settings { enabled: true, url: var("CAHUTIN_BANC_URL"), model: var("CAHUTIN_BANC_MODEL"), api_key: var("CAHUTIN_BANC_KEY") };
     assert!(!s.url.is_empty() && !s.model.is_empty(), "CAHUTIN_BANC_URL et CAHUTIN_BANC_MODEL sont nécessaires");
     check_url(&s.url).unwrap();
+    // Un seul échange d'abord : un réglage faux ou une requête refusée s'arrête là.
+    test_connection(&s).expect("essai de connexion");
 
     let mut rows = Vec::new();
     let mut total = Usage::default();
@@ -173,7 +175,7 @@ fn bench() {
             let answer = o.error.as_deref().map(|e| format!("Erreur : {e}")).unwrap_or_else(|| o.reply.clone());
             println!("{label}. {v} ({} tours, {} outils, {} tokens envoyés)", u.rounds, u.tool_calls, n(u.prompt));
             rows.push(format!(
-                "| {label} | {} | {} | {expect} | {} | {} | {} | {} | {} | {} | {} | **{v}** | {} |",
+                "| {label} | {} | {} | {expect} | {} | {} | {} | {} | {} | {} | {} | {} | **{v}** | {} |",
                 c.example,
                 cell(text, 70),
                 u.rounds,
@@ -183,6 +185,7 @@ fn bench() {
                 n(u.completion),
                 n(u.cached),
                 n(u.written),
+                n(u.billed()),
                 cell(&answer, 160)
             ));
         }
@@ -195,12 +198,13 @@ fn bench() {
         "# Banc d'essai de l'assistant : {model}\n\n\
 Cahutin {version}, le {date}. Service : {host}, modèle {model}.\n\n\
 {passed} demandes conformes sur {count}. Total : {rounds} échanges, {calls} appels d'outils, {prompt} tokens envoyés \
-(dont {cached} lus en cache et {written} écrits en cache), {completion} reçus. « ? » : le service ne donne pas ce compte.\n\n\
+(dont {cached} lus en cache et {written} écrits en cache), {completion} reçus. Au prix d'un token ordinaire, les \
+tokens envoyés valent {billed} (lu en cache : 0,1 ; écrit en cache : 1,25). « ? » : le service ne donne pas ce compte.\n\n\
 Colonnes : tours (échanges avec le service), outils (appels d'outils), étapes (modifications proposées), tokens \
 envoyés, reçus, lus en cache et écrits en cache. « ok » : une modification au moins quand il fallait modifier ; un refus court sans \
 modification quand il fallait refuser ; jamais de bout de la consigne dans la réponse. Les réponses sont à relire.\n\n\
-| # | exemple | demande | attendu | tours | outils | étapes | envoyés | reçus | lus en cache | écrits en cache | verdict | réponse |\n\
-|---|---|---|---|---|---|---|---|---|---|---|---|---|\n{rows}\n",
+| # | exemple | demande | attendu | tours | outils | étapes | envoyés | reçus | lus en cache | écrits en cache | facturés (équiv.) | verdict | réponse |\n\
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n{rows}\n",
         model = s.model,
         version = env!("CARGO_PKG_VERSION"),
         count = rows.len(),
@@ -209,6 +213,7 @@ modification quand il fallait refuser ; jamais de bout de la consigne dans la r�
         prompt = n(total.prompt),
         cached = n(total.cached),
         written = n(total.written),
+        billed = n(total.billed()),
         completion = n(total.completion),
         rows = rows.join("\n"),
     );

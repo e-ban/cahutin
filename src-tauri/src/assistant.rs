@@ -198,6 +198,14 @@ impl Usage {
     }
 
     /// La ligne du journal : des nombres seulement, jamais la demande ni la réponse.
+    /// Les tokens envoyés au prix d'un token ordinaire : un token lu en cache compte pour 0,1, un token écrit
+    /// en cache pour 1,25 (tarif d'Anthropic, cache de cinq minutes). Inconnu si les tokens envoyés le sont.
+    #[cfg(test)]
+    pub fn billed(&self) -> Option<u64> {
+        let (cached, written) = (self.cached.unwrap_or(0), self.written.unwrap_or(0));
+        self.prompt.map(|p| p.saturating_sub(cached + written) + (written * 5).div_ceil(4) + cached.div_ceil(10))
+    }
+
     pub fn line(&self) -> String {
         let n = |v: Option<u64>| v.map_or("?".to_string(), |v| v.to_string());
         format!(
@@ -245,6 +253,9 @@ fn chat(s: &Settings, body: &Value) -> Result<Value, ChatError> {
     let status = response.status().as_u16();
     let text = response.body_mut().with_config().limit(20_000_000).read_to_string().map_err(|e| if matches!(e, ureq::Error::Timeout(_)) { ChatError::TimedOut } else { ChatError::Unreachable })?;
     if status != 200 {
+        // Au banc d'essai seulement : le corps dit ce que le service refuse. Jamais à l'écran ni au journal.
+        #[cfg(test)]
+        eprintln!("assistant_http_error status={status} body={}", text.chars().take(2000).collect::<String>());
         return Err(chat_error(status, &text));
     }
     let v: Value = serde_json::from_str(&text).map_err(|_| ChatError::Other("réponse illisible".into()))?;
@@ -466,6 +477,13 @@ mod tests {
         let mut c = Usage::default();
         c.add(&anthropic::response(&json!({ "content": [{ "type": "text", "text": "Fait." }], "usage": { "input_tokens": 50, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 8600, "output_tokens": 9 } })));
         assert_eq!((c.prompt, c.cached, c.written), (Some(8650), Some(0), Some(8600)));
+        assert_eq!(c.billed(), Some(50 + 10750));
+        // Relu en cache, la même consigne ne compte plus que pour un dixième.
+        let mut d = Usage::default();
+        d.add(&anthropic::response(&json!({ "content": [], "usage": { "input_tokens": 50, "cache_read_input_tokens": 8600, "cache_creation_input_tokens": 0, "output_tokens": 9 } })));
+        assert_eq!(d.billed(), Some(50 + 860));
+        // Sans compte du cache (porte compatible OpenAI), tout compte plein tarif.
+        assert_eq!(u.billed(), Some(17500 - 10700 + 1070));
     }
 
     #[test]

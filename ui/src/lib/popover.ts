@@ -46,19 +46,19 @@ export function fitInWindow(node: HTMLElement, gap = 6) {
   function place() {
     const anchorEl = node.parentElement;
     if (!anchorEl) return;
-    // Mesuré dans sa place d'origine, sans les réglages d'avant.
-    node.style.top = "";
-    node.style.bottom = "";
+    // Mesuré sans les réglages d'avant.
     node.style.maxHeight = "";
     node.style.overflowY = "";
     node.style.translate = "";
+    // Mesuré sous le bouton, quel que soit le sens choisi par la feuille de style.
+    node.style.top = `calc(100% + ${gap}px)`;
+    node.style.bottom = "auto";
     const a = anchorEl.getBoundingClientRect();
     const r = node.getBoundingClientRect();
     const fit = fitPopover({ top: a.top, bottom: a.bottom }, { left: r.left, width: r.width, height: r.height }, { width: window.innerWidth, height: window.innerHeight }, gap);
-    if (fit.above) {
-      node.style.top = "auto";
-      node.style.bottom = `calc(100% + ${gap}px)`;
-    }
+    // Les deux sens sont écrits : un menu ouvert au-dessus par sa feuille de style peut aussi passer dessous.
+    node.style.top = fit.above ? "auto" : `calc(100% + ${gap}px)`;
+    node.style.bottom = fit.above ? `calc(100% + ${gap}px)` : "auto";
     if (fit.maxHeight !== null) {
       node.style.maxHeight = `${fit.maxHeight}px`;
       node.style.overflowY = "auto";

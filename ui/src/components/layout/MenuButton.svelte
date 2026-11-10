@@ -24,6 +24,7 @@
   // Bouton qui ouvre une liste de commandes ; se ferme avec Échap, un clic ailleurs ou après un choix.
   // `up` : la liste s'ouvre au-dessus du bouton (barre du bas).
   import Icon from "../Icon.svelte";
+  import { fitInWindow } from "../../lib/popover";
 
   let {
     label,
@@ -87,7 +88,7 @@
     {#if icon}<Icon name={icon} />{/if}{label}<Icon name="chevronDown" size={14} />
   </button>
   {#if open}
-    <div class="list" class:right={primary} class:up role="menu">
+    <div use:fitInWindow={4} class="list" class:right={primary} class:up role="menu">
       {#each items as item, i}
         {#if item.separator}<hr />{/if}
         {#if item.children}

@@ -1,5 +1,9 @@
 # Journal des versions
 
+## Non publié
+
+- Ma collection : une image retirée apparaît tout de suite dans « Images retirées », et son compte suit, sans rouvrir la page.
+
 ## 0.15.0
 
 - Assistant : sous chaque réponse, « Coût ●●○ » dit si la demande était petite, moyenne ou grosse chez votre service, et un clic en donne le détail (échanges, tokens envoyés, relus en cache, reçus). Rien ne s'affiche avec un service installé sur l'ordinateur (Ollama).

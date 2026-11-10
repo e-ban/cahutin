@@ -21,7 +21,8 @@
   myImages.loadRemoved();
 
   const themes = $derived(themeCounts(myImages.images));
-  const untagged = $derived(myImages.images.filter((i) => !i.themes?.length).length);
+  // Le même filtre que la grille : le nombre affiché est celui des images qu'on voit.
+  const untagged = $derived(filterByTheme(myImages.images, { kind: "none" }).length);
   const shown = $derived(view.kind === "removed" ? myImages.removed : filterByTheme(myImages.images, view));
   const isView = (v: View) => JSON.stringify(v) === JSON.stringify(view);
 

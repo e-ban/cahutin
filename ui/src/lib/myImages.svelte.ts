@@ -31,6 +31,8 @@ class MyImages {
 
   async remove(name: string) {
     this.images = await myImagesRemove(name);
+    // La rubrique « Images retirées » compte aussitôt celle-ci.
+    await this.loadRemoved();
   }
 
   async loadRemoved() {

@@ -403,7 +403,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Régler après coup",
-        text: "Cliquez sur la frise, puis « Modifier la frise » dans sa barre : la taille des images, l'espace entre elles, ou les images elles-mêmes changent, sans tout refaire. « Supprimer la frise » la retire, en gardant ce qu'elle entoure.",
+        text: "Cliquez sur la frise, puis « Modifier la frise » dans sa barre : la taille des images, l'espace entre elles, ou les images elles-mêmes changent, sans tout refaire. Dans le même menu, « Supprimer la frise » la retire, en gardant ce qu'elle entoure.",
         image: img("frise", "taille"),
       },
     ],

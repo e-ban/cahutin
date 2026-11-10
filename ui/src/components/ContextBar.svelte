@@ -67,9 +67,12 @@
   const cellInTemplate = $derived(editor.templateMode && editor.selection.some((id) => inGrid(id)));
   const visible = $derived(editor.selection.length > 0 && !editor.gesture && !editor.cropping && !cellInTemplate && !editor.printing);
 
+  /** Un réglage qui remplace les éléments choisis (taille de la frise, ses images) : son menu reste ouvert. */
+  let keepPop = false;
   $effect(() => {
     void editor.selection;
-    pop = null;
+    if (keepPop) keepPop = false;
+    else pop = null;
   });
 
   async function reposition() {
@@ -240,6 +243,7 @@
       fresh = r.ids;
       return r.page;
     });
+    keepPop = true;
     editor.selection = [...editor.selection.filter((id) => !ids.includes(id)), ...fresh];
   }
 
@@ -323,6 +327,7 @@
     {Math.round(now.distance)} mm
   </label>
   <button onclick={editFriezeMotifs}><Icon name="images" /> {fr.friezeChangeImages}</button>
+  <button class="danger" title={fr.friezeDeleteHint} onclick={deleteFrieze}><Icon name="trash" /> {fr.friezeDelete}</button>
 {/snippet}
 
 {#if friezeCodes}<FriezePicker bind:codes={friezeCodes} onclose={applyFriezeMotifs} />{/if}
@@ -632,7 +637,6 @@
             <div use:fitInWindow class="pop frieze">{@render friezePop(friezeNow)}</div>
           {/if}
         </div>
-        <button class="danger" title={fr.friezeDeleteHint} onclick={deleteFrieze}><Icon name="trash" /><span class="lbl"> {fr.friezeDelete}</span></button>
       {/if}
       {#if canCut}
         <div class="wrap">
@@ -706,7 +710,6 @@
             {/if}
             {#if friezeIds && friezeNow}
               <button role="menuitem" data-guide="frieze-size" title={fr.friezeEditHint2} onclick={() => (pop = "frieze")}><Icon name="frieze" /> {fr.friezeEdit} <Icon name="chevronRight" size={14} /></button>
-              <button role="menuitem" class="danger" onclick={deleteFrieze}><Icon name="trash" /> {fr.friezeDelete}</button>
             {/if}
             {#if canCut}
               <button role="menuitem" data-guide="repeat" title={fr.repeatHint} onclick={() => (pop = "repeat")}><Icon name="repeat" /> {fr.repeat} <Icon name="chevronRight" size={14} /></button>

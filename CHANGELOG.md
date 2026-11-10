@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Frise : le menu « Modifier la frise » reste ouvert pendant qu'on règle la taille, l'espacement ou la marge, et « Supprimer la frise » s'y trouve, à côté de « Changer les images ».
 - Thèmes : Préférences > Affichage propose Papier (les couleurs d'origine), Craie, Crayon et Nuit, un thème sombre pour le soir. La page reste blanche, comme sur papier, et le contraste élevé passe avant le thème. Les Préférences s'ouvrent aussi depuis la page d'accueil.
 - Des icônes identiques sur Windows, macOS et Linux : l'interface ne passe plus par les emojis du système, mais par un même jeu d'icônes au trait (Lucide), livré avec Cahutin.
 - Barre du haut : « Imprimer / Exporter » est le seul bouton bleu ; « Enregistrer » est plus discret, avec le point « pas encore enregistré » dedans ; Annuler et Rétablir vont par paire.

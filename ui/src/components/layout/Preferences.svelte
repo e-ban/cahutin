@@ -1,191 +1,53 @@
 <script lang="ts">
-  // Préférences de l'application : affichage (taille, police, contraste, poignées), barre d'outils, nouvelle
-  // page, graphisme, export, astuces, avis de nouvelles versions. Chaque choix s'applique tout de suite et reste
-  // sur le poste.
+  // Préférences de l'application : les catégories à gauche (avec une recherche), les réglages de celle choisie à
+  // droite. Chaque choix s'applique tout de suite et reste sur le poste. Les catégories et leurs réglages sont dans
+  // lib/prefsCategories.ts et components/prefs/.
   import Icon from "../Icon.svelte";
   import { canExportPdf } from "../../lib/api";
-  import AssistantPrefs from "../assistant/AssistantPrefs.svelte";
   import { editor } from "../../lib/docStore.svelte";
-  import { hints } from "../../lib/hints.svelte";
   import { fr } from "../../lib/i18n/fr";
-  import { EMBEDDED_FAMILIES } from "../../lib/fontNames";
-  import type { Level } from "../../lib/graphisme";
-  import type { Format } from "../../lib/pageFormat";
-  import { LABEL_DELAYS, UI_FONTS, UI_SCALES, settings, type LabelDelay, type UiFont, type UiScale } from "../../lib/settings.svelte";
-  import { THEMES, THEME_IDS } from "../../lib/themes";
-  import { updates } from "../../lib/updates.svelte";
+  import { PREFS_CATEGORIES, searchPrefs } from "../../lib/prefsCategories";
 
   const close = () => (editor.showPreferences = false);
 
   // Le choix de l'export n'a de sens que là où le PDF est proposé.
   let pdf = $state(false);
   canExportPdf().then((v) => (pdf = v)).catch(() => (pdf = false));
+
+  let query = $state("");
+  const available = $derived(PREFS_CATEGORIES.filter((c) => !c.needsPdf || pdf));
+  const shown = $derived(searchPrefs(available, query));
+  // La catégorie ouverte : celle choisie, ou la première trouvée par la recherche.
+  const current = $derived(shown.find((c) => c.id === editor.prefsCategory) ?? shown[0] ?? null);
 </script>
 
 <svelte:window onkeydown={(e) => e.key === "Escape" && close()} />
 
 <div class="backdrop" role="presentation" onclick={close}>
   <div class="box" role="dialog" aria-modal="true" aria-labelledby="prefs-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
-    <h2 id="prefs-title"><Icon name="settings" size={20} /> {fr.preferences}</h2>
-
-    <!-- Sur un grand écran, les sections se rangent en trois colonnes ; sur un petit, en deux ou en une. -->
-    <div class="sections">
-    <section>
-      <h3>{fr.prefsDisplay}</h3>
-      <!-- Le thème : un aperçu de chaque ambiance (le fond, une barre, un bouton), la page blanche au milieu. -->
-      <div class="theme-head"><b>{fr.prefsTheme}</b><small>{fr.prefsThemeHint}</small></div>
-      <div class="themes" role="radiogroup" aria-label={fr.prefsTheme}>
-        {#each THEME_IDS as id (id)}
-          {@const c = THEMES[id].colors}
-          <button role="radio" class="theme" aria-checked={settings.theme === id} class:on={settings.theme === id} title={fr.themeHints[id]} onclick={() => settings.set("theme", id)}>
-            <span class="swatch" style:background={c.bg} aria-hidden="true">
-              <span class="bar" style:background={c.panel} style:border-color={c.line}><span class="dot" style:background={c.accent}></span></span>
-              <span class="paper"></span>
-            </span>
-            <span class="theme-name">{fr.themeNames[id]}</span>
-          </button>
-        {/each}
-      </div>
-      {#if settings.highContrast}<p class="theme-note">{fr.prefsThemeContrast}</p>{/if}
-      <div class="row">
-        <span><b>{fr.prefsUiScale}</b><small>{fr.prefsUiScaleHint}</small></span>
-        <div class="seg" role="radiogroup" aria-label={fr.prefsUiScale}>
-          {#each UI_SCALES as scale (scale)}
-            <button role="radio" aria-checked={settings.uiScale === scale} class:on={settings.uiScale === scale} onclick={() => settings.set("uiScale", scale as UiScale)}>{Math.round(scale * 100)} %</button>
+    <header>
+      <h2 id="prefs-title"><Icon name="settings" size={20} /> {fr.preferences}</h2>
+      <button class="close" title={fr.close} aria-label={fr.close} onclick={close}><Icon name="close" size={18} /></button>
+    </header>
+    <div class="body">
+      <nav aria-label={fr.prefsCategories}>
+        <input class="search" type="search" bind:value={query} placeholder={fr.prefsSearch} aria-label={fr.prefsSearch} />
+        <div class="cats" role="tablist" aria-orientation="vertical">
+          {#each shown as c (c.id)}
+            <button role="tab" class="cat" class:on={current?.id === c.id} aria-selected={current?.id === c.id} onclick={() => (editor.prefsCategory = c.id)}>
+              <Icon name={c.icon} size={18} /><span>{c.label}</span>
+            </button>
           {/each}
+          {#if shown.length === 0}<p class="none">{fr.prefsSearchNone}</p>{/if}
         </div>
+      </nav>
+      <div class="pane" role="tabpanel" tabindex="0" aria-label={current?.label}>
+        {#if current}
+          <h3>{current.label}</h3>
+          <current.pane />
+        {/if}
       </div>
-      <div class="row">
-        <span><b>{fr.prefsUiFont}</b><small>{fr.prefsUiFontHint}</small></span>
-        <select value={settings.uiFont} style:font-family={`"${settings.uiFont}"`} onchange={(e) => settings.set("uiFont", e.currentTarget.value as UiFont)}>
-          {#each UI_FONTS as font (font)}<option value={font} style:font-family={`"${font}"`}>{fr.prefsUiFontNames[font]}</option>{/each}
-        </select>
-      </div>
-      <label class="choice">
-        <input type="checkbox" checked={settings.highContrast} onchange={(e) => settings.set("highContrast", e.currentTarget.checked)} />
-        <span><b>{fr.prefsContrast}</b><small>{fr.prefsContrastHint}</small></span>
-      </label>
-      <label class="choice">
-        <input type="checkbox" checked={settings.bigHandles} onchange={(e) => settings.set("bigHandles", e.currentTarget.checked)} />
-        <span><b>{fr.prefsBigHandles}</b><small>{fr.prefsBigHandlesHint}</small></span>
-      </label>
-      <label class="choice">
-        <input type="checkbox" checked={settings.reduceMotion} onchange={(e) => settings.set("reduceMotion", e.currentTarget.checked)} />
-        <span><b>{fr.prefsReduceMotion}</b><small>{fr.prefsReduceMotionHint}</small></span>
-      </label>
-    </section>
-
-    <section>
-      <h3>{fr.prefsColorBlind}</h3>
-      <label class="choice">
-        <input type="checkbox" checked={settings.colorNames} onchange={(e) => settings.set("colorNames", e.currentTarget.checked)} />
-        <span><b>{fr.prefsColorNames}</b><small>{fr.prefsColorNamesHint}</small></span>
-      </label>
-      <label class="choice">
-        <input type="checkbox" checked={settings.doubleCues} onchange={(e) => settings.set("doubleCues", e.currentTarget.checked)} />
-        <span><b>{fr.prefsDoubleCues}</b><small>{fr.prefsDoubleCuesHint}</small></span>
-      </label>
-      <label class="choice">
-        <input type="checkbox" checked={settings.cvdPalette} onchange={(e) => settings.set("cvdPalette", e.currentTarget.checked)} />
-        <span><b>{fr.prefsCvdPalette}</b><small>{fr.prefsCvdPaletteHint}</small></span>
-      </label>
-      <label class="choice">
-        <input type="checkbox" checked={settings.cvdPreview} onchange={(e) => settings.set("cvdPreview", e.currentTarget.checked)} />
-        <span><b>{fr.prefsCvdPreview}</b><small>{fr.prefsCvdPreviewHint}</small></span>
-      </label>
-    </section>
-
-    <section>
-      <h3>{fr.prefsToolbar}</h3>
-      <label class="choice">
-        <input type="radio" name="toolbar" checked={!settings.compactToolbar} onchange={() => settings.setCompactToolbar(false)} />
-        <span><b>{fr.prefsToolbarFull}</b><small>{fr.prefsToolbarFullHint}</small></span>
-      </label>
-      <label class="choice">
-        <input type="radio" name="toolbar" checked={settings.compactToolbar} onchange={() => settings.setCompactToolbar(true)} />
-        <span><b>{fr.prefsToolbarCompact}</b><small>{fr.prefsToolbarCompactHint}</small></span>
-      </label>
-      {#if settings.compactToolbar}
-        <div class="row sub">
-          <span><b>{fr.prefsLabelDelay}</b><small>{fr.prefsLabelDelayHint}</small></span>
-          <select value={settings.labelDelay} aria-label={fr.prefsLabelDelay} onchange={(e) => settings.set("labelDelay", Number(e.currentTarget.value) as LabelDelay)}>
-            {#each LABEL_DELAYS as d (d)}<option value={d}>{fr.prefsLabelDelays[d]}</option>{/each}
-          </select>
-        </div>
-      {/if}
-      <label class="choice">
-        <input type="checkbox" checked={settings.moreMenu} onchange={(e) => settings.setMoreMenu(e.currentTarget.checked)} />
-        <span><b>{fr.prefsMoreMenu}</b><small>{fr.prefsMoreMenuHint}</small></span>
-      </label>
-    </section>
-
-    <section>
-      <h3>{fr.prefsNewPage}</h3>
-      <div class="row">
-        <span><b>{fr.prefsPageFormat}</b><small>{fr.prefsNewPageHint}</small></span>
-        <span class="controls">
-          <select value={settings.pageFormat} aria-label={fr.prefsPageFormat} onchange={(e) => settings.set("pageFormat", e.currentTarget.value as Format)}>
-            <option value="A5">A5</option>
-            <option value="A4">A4</option>
-            <option value="A3">A3</option>
-          </select>
-          <select value={settings.pageLandscape ? "l" : "p"} aria-label={fr.landscape} onchange={(e) => settings.set("pageLandscape", e.currentTarget.value === "l")}>
-            <option value="p">{fr.portrait}</option>
-            <option value="l">{fr.landscape}</option>
-          </select>
-        </span>
-      </div>
-      <div class="row">
-        <span><b>{fr.prefsTextFont}</b><small>{fr.prefsTextFontHint}</small></span>
-        <select value={settings.textFont} style:font-family={`"${settings.textFont}"`} onchange={(e) => settings.set("textFont", e.currentTarget.value)}>
-          {#each EMBEDDED_FAMILIES as font (font)}<option value={font} style:font-family={`"${font}"`}>{font}</option>{/each}
-        </select>
-      </div>
-    </section>
-
-    <section>
-      <h3>{fr.prefsGraphisme}</h3>
-      <div class="row">
-        <span><b>{fr.graphismeLevel}</b><small>{fr.prefsGraphismeHint}</small></span>
-        <select value={settings.graphismeLevel} aria-label={fr.graphismeLevel} onchange={(e) => settings.set("graphismeLevel", e.currentTarget.value as Level)}>
-          <option value="PS">PS</option>
-          <option value="MS">MS</option>
-          <option value="GS">GS</option>
-        </select>
-      </div>
-    </section>
-
-    {#if pdf}
-      <section>
-        <h3>{fr.prefsExport}</h3>
-        <label class="choice">
-          <input type="radio" name="export" checked={settings.preferredExport === "pdf"} onchange={() => settings.set("preferredExport", "pdf")} />
-          <span><b>{fr.prefsExportPdf}</b><small>{fr.prefsExportHint}</small></span>
-        </label>
-        <label class="choice">
-          <input type="radio" name="export" checked={settings.preferredExport === "odg"} onchange={() => settings.set("preferredExport", "odg")} />
-          <span><b>{fr.prefsExportOdg}</b></span>
-        </label>
-      </section>
-    {/if}
-
-    <section>
-      <h3>{fr.prefsHelp}</h3>
-      <label class="choice">
-        <input type="checkbox" checked={hints.enabled} onchange={() => hints.toggle()} />
-        <span><b>{fr.hintsWhileWorking}</b></span>
-      </label>
-      {#if !updates.store}
-        <label class="choice">
-          <input type="checkbox" checked={updates.consent === true} onchange={(e) => updates.setConsent(e.currentTarget.checked)} />
-          <span><b>{fr.updatesMenu}</b></span>
-        </label>
-      {/if}
-    </section>
-    <AssistantPrefs />
     </div>
-
-    <div class="buttons"><button class="primary" onclick={close}>{fr.close}</button></div>
   </div>
 </div>
 
@@ -199,181 +61,180 @@
     justify-content: center;
     z-index: 6000;
   }
+  /* Une hauteur fixe : la fenêtre ne saute pas d'une catégorie à l'autre ; seul le panneau défile. */
   .box {
+    display: flex;
+    flex-direction: column;
     background: var(--panel);
     border-radius: 12px;
-    padding: 20px 24px;
-    width: min(1320px, 96vw);
-    max-height: 92vh;
-    overflow-y: auto;
+    width: min(1100px, 96vw);
+    height: min(680px, 92vh);
     box-sizing: border-box;
     box-shadow: 0 10px 30px var(--shadow);
+    overflow: hidden;
   }
-  .sections {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(390px, 100%), 1fr));
-    gap: 4px 36px;
-    align-items: start;
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line);
   }
   h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font: 700 22px var(--title-font);
     color: var(--accent-strong);
-    margin: 0 0 8px;
+    margin: 0;
   }
-  h3 {
-    margin: 14px 0 6px;
-    font-size: 13px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+  .close {
+    display: grid;
+    place-items: center;
+    padding: 6px;
+    border-color: transparent;
+    background: transparent;
   }
-  .theme-head {
+  .body {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 250px 1fr;
+  }
+  nav {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 12px;
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
+  }
+  .search {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .cats {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 6px 0;
   }
-  .theme-head b {
-    font-weight: 500;
-  }
-  .theme-head small,
-  .theme-note {
-    color: var(--muted);
-  }
-  .theme-note {
-    margin: 4px 0 0;
-    font-size: 12.5px;
-  }
-  .themes {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-  }
-  .theme {
+  .cat {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 5px;
-    padding: 6px;
+    gap: 10px;
+    padding: 8px 10px;
+    border-color: transparent;
+    background: transparent;
+    text-align: left;
   }
-  .theme.on {
-    border: 2px solid var(--accent);
+  .cat.on {
     background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
   }
-  /* L'aperçu : le fond du thème, sa barre avec le point d'accent, et la page blanche. */
-  .swatch {
-    position: relative;
-    width: 100%;
-    height: 46px;
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid var(--line);
-  }
-  .swatch .bar {
-    position: absolute;
-    inset: 0 0 auto;
-    height: 11px;
-    border-bottom: 1px solid;
-  }
-  .swatch .dot {
-    position: absolute;
-    right: 4px;
-    top: 3px;
-    width: 12px;
-    height: 5px;
-    border-radius: 3px;
-  }
-  .swatch .paper {
-    position: absolute;
-    left: 50%;
-    top: 16px;
-    width: 20px;
-    height: 26px;
-    transform: translateX(-50%);
-    background: white;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  }
-  .theme-name {
+  .none {
+    margin: 4px 6px;
+    color: var(--muted);
     font-size: 13px;
   }
-  .choice {
+  .pane {
+    overflow-y: auto;
+    padding: 16px 28px 24px;
+  }
+  h3 {
+    margin: 0 0 10px;
+    font-size: 18px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text);
+  }
+  /* Petite fenêtre : les catégories passent en une rangée au-dessus des réglages. */
+  @media (max-width: 720px) {
+    .body {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+    }
+    nav {
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .cats {
+      flex-direction: row;
+      overflow-x: auto;
+    }
+    .cat {
+      flex: none;
+    }
+  }
+  /* Les réglages de chaque catégorie (components/prefs) partagent ces formes. */
+  .pane :global(.choice) {
     display: flex;
     gap: 10px;
     align-items: flex-start;
     padding: 6px 0;
   }
-  .choice input {
+  .pane :global(.choice input) {
     margin-top: 3px;
   }
-  .choice span {
+  .pane :global(.choice span) {
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
-  .row {
+  .pane :global(.row) {
     display: flex;
     gap: 12px;
     align-items: center;
     justify-content: space-between;
     padding: 6px 0;
   }
-  .row > span:first-child {
+  .pane :global(.row > span:first-child) {
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
-  .row b {
+  .pane :global(.row b) {
     font-weight: 500;
   }
-  .row small {
+  .pane :global(.row small) {
     color: var(--muted);
   }
-  .row.sub {
+  .pane :global(.row.sub) {
     padding-left: 26px;
   }
-  .controls {
+  .pane :global(.controls) {
     display: flex;
     gap: 6px;
     flex-shrink: 0;
   }
-  .row select {
+  .pane :global(.row select) {
     flex-shrink: 0;
     max-width: 260px;
   }
-  .seg {
+  .pane :global(.seg) {
     display: inline-flex;
     flex-shrink: 0;
   }
-  .seg button {
+  .pane :global(.seg button) {
     border-radius: 0;
     margin-left: -1px;
   }
-  .seg button:first-child {
+  .pane :global(.seg button:first-child) {
     border-radius: 6px 0 0 6px;
   }
-  .seg button:last-child {
+  .pane :global(.seg button:last-child) {
     border-radius: 0 6px 6px 0;
   }
-  .seg button.on {
+  .pane :global(.seg button.on) {
     background: var(--accent);
     border-color: var(--accent);
     color: var(--on-accent);
   }
-  .choice b {
+  .pane :global(.choice b) {
     font-weight: 500;
   }
-  .choice small {
+  .pane :global(.choice small) {
     color: var(--muted);
-  }
-  .buttons {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 16px;
-  }
-  .primary {
-    background: var(--accent);
-    color: var(--on-accent);
-    border-color: var(--accent);
-    padding: 7px 18px;
   }
 </style>

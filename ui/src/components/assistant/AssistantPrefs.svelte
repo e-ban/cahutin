@@ -96,7 +96,6 @@
 </script>
 
 <section>
-  <h3>{t.prefsTitle}</h3>
   <label class="choice">
     <input type="checkbox" checked={wanted} onchange={(e) => toggle(e.currentTarget.checked)} />
     <span><b>{t.prefsEnable}</b><small>{assistant.enabled ? t.prefsEnabledHint : wanted ? t.prefsSetupHint : t.prefsEnableHint}</small></span>
@@ -154,10 +153,6 @@
 </section>
 
 <style>
-  h3 {
-    font-size: 15px;
-    margin: 14px 0 6px;
-  }
   .choice {
     display: flex;
     gap: 10px;

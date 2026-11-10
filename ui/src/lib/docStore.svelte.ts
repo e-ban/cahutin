@@ -62,6 +62,8 @@ class Editor {
   showAbout = $state(false);
   /** Fenêtre des préférences de l'application. */
   showPreferences = $state(false);
+  /** La catégorie ouverte dans les Préférences (lib/prefsCategories.ts). */
+  prefsCategory = $state("display");
   /** Panneau « Astuces » (menu Aide). */
   showTips = $state(false);
   /** Écran d'accueil : au démarrage et pour un nouveau document. */

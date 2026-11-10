@@ -10,13 +10,16 @@ import type { AssistantDone, AssistantSettings, AssistantStep, Document, Element
 export type Outcome = "pending" | "accepted" | "refused" | "none";
 export type Entry =
   | { kind: "user"; text: string }
-  | { kind: "assistant"; text: string; steps: AssistantStep[]; outcome: Outcome }
+  | { kind: "assistant"; text: string; steps: AssistantStep[]; outcome: Outcome; suggestion?: string | null }
   | { kind: "error"; text: string };
 
 export interface Proposal {
   base: Document;
   steps: AssistantStep[];
 }
+
+/** Longueur d'un message, comme côté Rust (`agent::MAX_TEXT_CHARS`). */
+export const MAX_TEXT_CHARS = 2000;
 
 const lastDoc = (p: Proposal) => p.steps[p.steps.length - 1].document;
 
@@ -55,6 +58,9 @@ class Assistant {
   /** Échanges à renvoyer au modèle pour continuer : jusqu'à « Accepter » ou « Refuser », même sans
    *  modification (le modèle a pu poser une question). */
   #history: unknown[] = [];
+  /** La dernière demande, si elle a échoué ou été arrêtée sans rien faire : « Réessayer » la renvoie telle
+   *  quelle, avec les échanges d'avant elle (pas deux fois la même question au modèle). */
+  retryable = $state.raw<{ text: string; history: unknown[] } | null>(null);
 
   get enabled(): boolean {
     return this.settings?.enabled === true;
@@ -72,8 +78,10 @@ class Assistant {
     text = text.trim();
     if (!text || this.busy) return;
     this.view(null);
+    this.retryable = null;
     this.thread = [...this.thread, { kind: "user", text }];
     const p = this.proposal;
+    const before = this.#history;
     const steps: AssistantStep[] = [];
     let done: AssistantDone | null = null;
     this.busy = true;
@@ -105,11 +113,27 @@ class Assistant {
     const end = done as AssistantDone | null;
     if (!end) return;
     this.#history = end.history;
+    // Un message trop long échouerait encore : il reste dans le champ, à raccourcir.
+    if (end.error && !steps.length && [...text].length <= MAX_TEXT_CHARS) this.retryable = { text, history: before };
     const outcome: Outcome = steps.length ? "pending" : "none";
     // Une erreur sans rien de fait : l'erreur seule, pas « Aucune modification » avant elle.
-    const entries: Entry[] = end.error && !end.reply && !steps.length ? [] : [{ kind: "assistant", text: end.reply, steps, outcome }];
+    const entries: Entry[] = end.error && !end.reply && !steps.length ? [] : [{ kind: "assistant", text: end.reply, steps, outcome, suggestion: end.suggestion }];
     if (end.error) entries.push({ kind: "error", text: end.error });
     this.thread = [...this.thread, ...entries];
+  }
+
+  /** Renvoie la demande qui a échoué. */
+  async retry() {
+    const r = this.retryable;
+    if (!r || this.busy) return;
+    this.#history = r.history;
+    await this.send(r.text);
+  }
+
+  /** « Nouvelle conversation » : la proposition se garde ou non d'abord, puis le fil est vidé. */
+  async restart() {
+    if (this.busy || !(await this.settle())) return;
+    this.clear();
   }
 
   stop() {
@@ -130,6 +154,7 @@ class Assistant {
     this.proposal = null;
     this.viewing = null;
     this.#history = [];
+    this.retryable = null;
   }
 
   async accept() {
@@ -224,6 +249,7 @@ class Assistant {
   /** Autre document : le fil et la proposition sont oubliés. */
   clear() {
     this.#history = [];
+    this.retryable = null;
     this.thread = [];
     this.proposal = null;
     this.viewing = null;

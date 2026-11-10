@@ -47,6 +47,7 @@ const done = (reply = "C'est fait.", error: string | null = null, history: unkno
   reply,
   history,
   error,
+  suggestion: null,
 });
 
 beforeEach(() => {
@@ -325,4 +326,64 @@ test("a reply is reported by email with its request", async () => {
   await assistant.report(assistant.thread.at(-1)!);
   expect(reports).toEqual([["Mets un titre", "Voilà un titre.", ["Texte : déplacé"]]]);
   expect(editor.notice).toContain("auteur@exemple.fr");
+});
+
+test("retry resends a failed request with the exchanges from before it", async () => {
+  const earlier = [{ role: "user", content: "mets le titre en rouge" }, { role: "assistant", content: "Quel titre ?" }];
+  script.push(() => [done("Quel titre ?", null, earlier)]);
+  script.push(() => [done("", "Arrêté.", [...earlier, { role: "user", content: "le premier" }])]);
+  script.push((r) => [step(titled(r.document, "A")), done()]);
+  await assistant.send("mets le titre en rouge");
+  await assistant.send("le premier");
+  expect(assistant.retryable?.text).toBe("le premier");
+  await assistant.retry();
+  expect(sent[2].text).toBe("le premier");
+  expect(sent[2].history).toEqual(earlier);
+  expect(assistant.retryable).toBeNull();
+  expect(assistant.thread.filter((e) => e.kind === "user").map((e) => e.text)).toEqual(["mets le titre en rouge", "le premier", "le premier"]);
+});
+
+test("no retry after a success, after steps were done, or for a message too long", async () => {
+  script.push(() => [done()]);
+  await assistant.send("x");
+  expect(assistant.retryable).toBeNull();
+  script.push((r) => [step(titled(r.document, "A")), done("", "Le service a un problème.")]);
+  await assistant.send("y");
+  expect(assistant.retryable).toBeNull();
+  script.push(() => [done("", "Votre message est trop long.")]);
+  await assistant.send("a".repeat(2001));
+  expect(assistant.retryable).toBeNull();
+});
+
+test("a new conversation empties the thread, the pending proposal settled first", async () => {
+  const base = editor.doc;
+  script.push((r) => [step(titled(r.document, "A")), done()]);
+  await assistant.send("x");
+  const restarting = assistant.restart();
+  await Promise.resolve();
+  expect(modal.message).toBe("L'assistant a proposé des modifications. Les garder ?");
+  modal.answer("cancel");
+  await restarting;
+  expect(assistant.thread.length).toBe(2);
+  const again = assistant.restart();
+  await Promise.resolve();
+  modal.answer("refuse");
+  await again;
+  expect(assistant.thread).toEqual([]);
+  expect(editor.doc).toBe(base);
+  script.push(() => [done()]);
+  await assistant.send("autre chose");
+  expect(sent.at(-1)?.history).toEqual([]);
+});
+
+test("the empty panel offers ideas of requests", () => {
+  expect(fr.assistant.ideas.length).toBeGreaterThan(2);
+  for (const idea of fr.assistant.ideas) expect([...idea].length).toBeLessThan(60);
+});
+
+test("the suggestion to go on is kept with the reply", async () => {
+  script.push((r) => [step(titled(r.document, "A")), { ...(done("Titre déplacé.") as Extract<AssistantEvent, { type: "Done" }>), suggestion: "Mets le titre en bleu" }]);
+  await assistant.send("x");
+  const last = assistant.thread.at(-1);
+  expect(last?.kind === "assistant" && [last.text, last.suggestion]).toEqual(["Titre déplacé.", "Mets le titre en bleu"]);
 });

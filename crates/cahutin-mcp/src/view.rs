@@ -13,7 +13,11 @@ pub fn layout(doc: &Document, page: Option<usize>, selection: &[Id]) -> Value {
         .iter()
         .enumerate()
         .filter(|(i, _)| page.is_none_or(|p| p == *i))
-        .map(|(i, p)| page_view(doc, i, p, selection))
+        .map(|(i, p)| {
+            let mut v = page_view(doc, i, p, selection);
+            compact(&mut v);
+            v
+        })
         .collect();
     // Les noms des styles de Cahutin sont les siens ; ceux qu'a créés l'enseignant restent chez lui.
     let styles: Vec<Value> = crate::styles::of(doc).into_iter().map(|(s, builtin)| if builtin { json!({ "id": s.id, "name": s.name }) } else { json!({ "id": s.id }) }).collect();
@@ -122,6 +126,24 @@ fn element_view(doc: &Document, page: &Page, e: &Element, selected: bool) -> Val
     v
 }
 
+/// Allège la vue (chaque page est renvoyée au modèle à chaque échange) : sans les valeurs par défaut
+/// (`null`, `false`, liste vide, rotation nulle), les millimètres et les degrés arrondis au centième.
+fn compact(v: &mut Value) {
+    match v {
+        Value::Object(map) => {
+            map.retain(|k, x| {
+                compact(x);
+                if let Some(n) = x.as_f64().filter(|_| k.ends_with("_mm") || k.ends_with("_deg")) {
+                    *x = json!((n * 100.0).round() / 100.0);
+                }
+                !(x.is_null() || *x == json!(false) || x.as_array().is_some_and(Vec::is_empty) || (k == "rotation_deg" && x.as_f64() == Some(0.0)))
+            });
+        }
+        Value::Array(items) => items.iter_mut().for_each(compact),
+        _ => {}
+    }
+}
+
 fn pattern_name(p: Pattern) -> &'static str {
     match p {
         Pattern::Seyes => "seyes",
@@ -217,7 +239,7 @@ mod tests {
         assert_eq!(text["x_mm"], 10.0);
         assert_eq!(text["w_mm"], 80.0);
         assert_eq!(text["font"], "Andika");
-        assert_eq!(text["empty"], false);
+        assert!(text.get("empty").is_none(), "un champ absent vaut false : {text}");
         let photo = &page["elements"][1];
         assert_eq!(photo["type"], "photo");
         assert_eq!(photo["has_photo"], true);
@@ -331,17 +353,43 @@ mod tests {
         let v = layout(&doc, None, &[]);
         let els = &v["pages"][0]["elements"];
         assert_eq!((els[0]["outline"].clone(), els[0]["padding_mm"].clone(), els[0]["style"].clone()), (json!(true), json!(3.0), json!("titre")));
-        assert_eq!((els[1]["flip_h"].clone(), els[1]["flip_v"].clone()), (json!(false), json!(true)));
+        assert_eq!((els[1].get("flip_h"), els[1]["flip_v"].clone()), (None, json!(true)));
         assert_eq!((els[2]["flip_h"].clone(), els[2]["to_color"].clone(), els[2]["subgroups"].clone()), (json!(true), json!(true), json!(["g2"])));
-        assert_eq!(els[0]["in_grid"], false);
+        assert!(els[0].get("in_grid").is_none());
         assert_eq!(v["pages"][1]["elements"][0]["in_grid"], true);
-        assert_eq!((v["pages"][0]["format"].clone(), v["pages"][0]["landscape"].clone()), (json!("A4"), json!(false)));
+        assert_eq!((v["pages"][0]["format"].clone(), v["pages"][0].get("landscape")), (json!("A4"), None));
         assert_eq!((v["pages"][1]["format"].clone(), v["pages"][1]["landscape"].clone()), (json!("A5"), json!(true)));
         // Les styles de Cahutin avec leur nom ; ceux de l'enseignant par leur seul identifiant.
         let styles = v["text_styles"].as_array().unwrap();
         assert!(styles.contains(&json!({ "id": "titre", "name": "Titre" })), "{styles:?}");
         assert!(styles.contains(&json!({ "id": "s-perso" })), "{styles:?}");
         assert!(!v.to_string().contains("Style de"));
+    }
+
+    /// La vue ne garde que ce qui n'est pas la valeur par défaut, avec des millimètres courts.
+    #[test]
+    fn the_layout_leaves_out_default_values() {
+        let mut doc = sensitive_doc();
+        doc.pages[0].elements[0].frame.h_mm = 36.142857142857146;
+        let v = layout(&doc, None, &[]);
+        let text = v["pages"][0]["elements"][0].as_object().unwrap().clone();
+        assert_eq!(text["h_mm"], 36.14);
+        for absent in ["rotation_deg", "locked", "group", "subgroups", "flip_h", "selected", "in_grid", "fill", "border"] {
+            assert!(!text.contains_key(absent), "{absent} dans {text:?}");
+        }
+    }
+
+    /// Les modèles fournis : la vue coûte peu au modèle, qui la relit à chaque échange.
+    #[test]
+    fn a_builtin_page_stays_small() {
+        let mut doc = Document::new("x");
+        doc.pages.clear();
+        for t in templates::builtin() {
+            doc.pages.push(templates::instantiate(&t).0);
+        }
+        let all = layout(&doc, None, &[]).to_string().len();
+        // 163 Ko avant d'omettre les valeurs par défaut.
+        assert!(all < 95_000, "{all} octets pour {} pages", doc.pages.len());
     }
 
     #[test]

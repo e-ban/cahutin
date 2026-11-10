@@ -189,7 +189,7 @@ mod tests {
         let v = view::layout(&d, None, &[]);
         let els = v["pages"][0]["elements"].as_array().unwrap();
         assert_eq!(els.iter().find(|e| e["id"] == a.as_str()).unwrap()["fields"], json!(["PRENOM_2"]));
-        assert_eq!(els.iter().find(|e| e["id"] == b.as_str()).unwrap()["fields"], json!([]));
+        assert_eq!(els.iter().find(|e| e["id"] == b.as_str()).unwrap().get("fields"), None);
         assert_eq!(els[2]["fields"], json!(["prenom", "age"]));
         assert!(!v.to_string().contains("Josette"), "une invite libre ne sort pas");
         assert!(!v.to_string().contains("anniversaire {"), "ni un texte");

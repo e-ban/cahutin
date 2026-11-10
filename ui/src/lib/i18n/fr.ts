@@ -774,6 +774,8 @@ mirrorH: "Miroir gauche-droite",
   caption: "Légende",
   // Fond de page
   background: "Fond de la page",
+  pageMenu: "Page",
+  pageMenuHint: "Dupliquer, fond, format, vis-à-vis, paysage, supprimer la page",
   backgroundButton: "Fond",
   backgroundMenu: "Fond de la page…",
   backgroundColor: "Couleur",

@@ -461,6 +461,11 @@
     --ui-font: "Atkinson Hyperlegible", system-ui, sans-serif;
     --title-font: "Playwrite FR Moderne", cursive;
   }
+  /* Icônes Lucide (Icon.svelte) : posées sur la ligne du texte, jamais écrasées dans un bouton étroit. */
+  :global(svg.icon) {
+    flex: none;
+    vertical-align: -0.2em;
+  }
   /* Contraste élevé : textes noirs, bordures foncées, fonds blancs, bleu plus sombre. */
   :global(:root[data-contrast]) {
     --bg: #ffffff;

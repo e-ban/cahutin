@@ -109,8 +109,8 @@ pub fn openai_tools() -> Value {
             .map(|t| {
                 let mut parameters = t["inputSchema"].clone();
                 if t["name"] == "get_layout" {
-                    parameters["properties"]["page"]["description"] = json!("Indice de page (0 pour la première) ; absent : la page affichée");
-                    parameters["properties"]["all"] = json!({ "type": "boolean", "description": "true : tout le document, seulement si la demande porte sur plusieurs pages" });
+                    parameters["properties"]["page"]["description"] = json!("absent : la page affichée");
+                    parameters["properties"]["all"] = json!({ "type": "boolean", "description": "tout le document, seulement pour une demande sur plusieurs pages" });
                 }
                 json!({ "type": "function", "function": { "name": t["name"], "description": t["description"], "parameters": parameters } })
             })
@@ -410,6 +410,15 @@ mod tests {
         next.history = done(&events).history.clone();
         let (_, bodies) = run_script(next, vec![Ok(reply("ok"))]);
         assert!(bodies[0]["messages"].as_array().unwrap().iter().all(|m| m.get(NATIVE).is_none()));
+    }
+
+    /// La consigne et les outils repartent à chaque échange (relus en cache avec Claude, pas toujours
+    /// ailleurs) : ils étaient de 19,5 Ko avant d'être allégés.
+    #[test]
+    fn the_fixed_part_of_a_request_stays_small() {
+        let (tools, system) = (openai_tools().to_string().len(), system_prompt().len());
+        assert!(tools <= 11_200, "outils : {tools} octets");
+        assert!(tools + system <= 14_000, "outils et consigne : {} octets", tools + system);
     }
 
     #[test]

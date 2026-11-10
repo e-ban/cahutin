@@ -67,221 +67,182 @@ pub fn apply(doc: &mut Document, name: &str, args: &Value, selection: &[Id]) -> 
     }
 }
 
-/// Description des outils (format MCP : `name`, `description`, `inputSchema`).
+/// Description des outils (format MCP : `name`, `description`, `inputSchema`). Elle part avec chaque
+/// demande : courte, sans redire ce que `server::INSTRUCTIONS` pose une fois (identifiants, pages, mm,
+/// couleurs, champs de la classe).
 pub fn definitions() -> Value {
-    let id = json!({ "type": "string", "description": "Identifiant de l'élément (champ id de get_layout)" });
-    let mm = |d: &str| json!({ "type": "number", "description": d });
-    let page = json!({ "type": "integer", "description": "Indice de page (0 pour la première)" });
-    let color = json!({ "type": "string", "description": "#rrggbb" });
+    let id = json!({ "type": "string" });
+    let ids = json!({ "type": "array", "items": { "type": "string" } });
+    let num = json!({ "type": "number" });
+    let int = json!({ "type": "integer" });
+    let text = json!({ "type": "string" });
+    let boolean = json!({ "type": "boolean" });
+    let one_of = |v: &[&str]| json!({ "type": "string", "enum": v });
+    let obj = |required: &[&str], props: Value| json!({ "type": "object", "required": required, "properties": props });
+    // Un nouvel élément : sa page et son cadre, puis ses propriétés.
     let frame = |extra: Value, required: &[&str]| {
-        let mut props = json!({ "page": page, "x_mm": mm("Bord gauche"), "y_mm": mm("Bord haut"), "w_mm": mm("Largeur"), "h_mm": mm("Hauteur") });
+        let mut props = json!({ "page": int, "x_mm": num, "y_mm": num, "w_mm": num, "h_mm": num });
         props.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
         let mut req = vec!["page", "x_mm", "y_mm", "w_mm", "h_mm"];
         req.extend_from_slice(required);
-        json!({ "type": "object", "required": req, "properties": props })
+        obj(&req, props)
     };
-    let font = json!({ "type": "string" });
-    let size = json!({ "type": "number", "description": "Taille en points" });
-    let align = json!({ "type": "string", "enum": ["left", "center", "right", "justify"] });
-    let valign = json!({ "type": "string", "enum": ["top", "middle", "bottom"] });
-    let style = json!({ "type": "string", "description": "Identifiant d'un style nommé (titre, consigne, texte, prenom…)" });
-    let field = json!({ "type": "string", "description": format!("Champ rempli avec la classe : {}", template::fields_hint()) });
-    let lines = json!({ "type": "string", "enum": ["seyes", "small_squares", "lines", "dots", "none"], "description": "Lignes d'écriture sous le texte" });
+    let align = one_of(&["left", "center", "right", "justify"]);
+    let valign = one_of(&["top", "middle", "bottom"]);
     json!([
         {
             "name": "get_layout",
-            "description": "Mise en page du document : pages, puis chaque élément (texte, photo, forme, image) avec son cadre en mm, son style et s'il est sélectionné. Ni texte ni photo. Un champ absent vaut sa valeur par défaut (false, aucun, 0).",
-            "inputSchema": { "type": "object", "properties": { "page": { "type": "integer", "description": "Indice de page (0 pour la première) ; absent : toutes" } } },
+            "description": "Mise en page : pages, puis chaque élément avec son cadre, son style et s'il est sélectionné. Ni texte ni photo. Un champ absent vaut false, aucun ou 0.",
+            "inputSchema": { "type": "object", "properties": { "page": { "type": "integer", "description": "absent : toutes" } } },
         },
         {
             "name": "set_frame",
-            "description": "Déplace, redimensionne ou tourne un élément. Seules les valeurs données changent.",
-            "inputSchema": { "type": "object", "required": ["element_id"], "properties": {
-                "element_id": id, "x_mm": mm("Bord gauche"), "y_mm": mm("Bord haut"), "w_mm": mm("Largeur"), "h_mm": mm("Hauteur"), "rotation_deg": mm("Rotation en degrés"),
-            } },
+            "description": "Déplace, redimensionne ou tourne un élément ; seules les valeurs données changent.",
+            "inputSchema": obj(&["element_id"], json!({ "element_id": id, "x_mm": num, "y_mm": num, "w_mm": num, "h_mm": num, "rotation_deg": num })),
         },
         {
             "name": "set_text_style",
-            "description": "Change l'allure d'un texte (jamais son contenu) : police, taille, couleur, alignement, style nommé (text_styles de get_layout), lettres creuses, lignes d'écriture.",
-            "inputSchema": { "type": "object", "required": ["element_id"], "properties": {
-                "element_id": id, "font": font, "size_pt": size, "color": color, "align": align,
-                "valign": valign, "style": style, "outline": { "type": "boolean", "description": "Lettres creuses, à repasser" }, "writing_lines": lines,
-            } },
+            "description": "Allure d'un texte (pas son contenu). style : un des text_styles ; outline : lettres creuses ; writing_lines : lignes d'écriture.",
+            "inputSchema": obj(&["element_id"], json!({
+                "element_id": id, "font": text, "size_pt": num, "color": text, "align": align, "valign": valign, "style": text,
+                "outline": boolean, "writing_lines": one_of(&["seyes", "small_squares", "lines", "dots", "none"]),
+            })),
         },
         {
             "name": "set_look",
-            "description": "Change le remplissage, le bord et les coins d'une forme, d'une case photo ou du cadre d'un texte ; l'ombre d'une case photo.",
-            "inputSchema": { "type": "object", "required": ["element_id"], "properties": {
-                "element_id": id,
-                "fill": { "type": "string", "description": "#rrggbb, ou none pour aucun" },
-                "border_color": color, "border_width_mm": mm("Épaisseur du bord"),
-                "border_style": { "type": "string", "enum": ["solid", "dashed", "dotted", "none"] },
-                "corner_radius_mm": mm("Rayon des coins arrondis"),
-                "shadow": { "type": "boolean" },
-            } },
+            "description": "Remplissage (none : aucun), bord, coins et ombre d'une forme, d'une case photo ou du cadre d'un texte.",
+            "inputSchema": obj(&["element_id"], json!({
+                "element_id": id, "fill": text, "border_color": text, "border_width_mm": num,
+                "border_style": one_of(&["solid", "dashed", "dotted", "none"]), "corner_radius_mm": num, "shadow": boolean,
+            })),
         },
         {
             "name": "set_background",
-            "description": "Change le fond d'une page : couleur et motif d'école. Seules les valeurs données changent.",
-            "inputSchema": { "type": "object", "required": ["page"], "properties": {
-                "page": page,
-                "color": color,
-                "pattern": { "type": ["string", "null"], "enum": ["seyes", "small_squares", "lines", "dots", null] },
-            } },
+            "description": "Fond d'une page : couleur et motif ; seules les valeurs données changent.",
+            "inputSchema": obj(&["page"], json!({ "page": int, "color": text, "pattern": { "type": ["string", "null"], "enum": ["seyes", "small_squares", "lines", "dots", null] } })),
         },
         {
             "name": "add_text",
-            "description": "Ajoute un texte sur une page ; avec « field » (au lieu de « content »), une zone vide que Cahutin remplira avec la classe.",
-            "inputSchema": frame(json!({ "content": { "type": "string" }, "field": field, "style": style, "font": font, "size_pt": size, "color": color, "align": align, "valign": valign }), &["content"]),
+            "description": "Ajoute un texte ; field au lieu de content : zone remplie avec la classe.",
+            "inputSchema": frame(json!({ "content": text, "field": text, "style": text, "font": text, "size_pt": num, "color": text, "align": align }), &["content"]),
         },
         {
             "name": "set_text",
-            "description": "Remplace le texte d'un élément. Vous ne pouvez pas lire le texte actuel.",
-            "inputSchema": { "type": "object", "required": ["element_id", "content"], "properties": { "element_id": id, "content": { "type": "string" } } },
+            "description": "Remplace le texte d'un élément (vous ne lisez pas l'ancien).",
+            "inputSchema": obj(&["element_id", "content"], json!({ "element_id": id, "content": text })),
         },
         {
             "name": "add_shape",
-            "description": "Ajoute une forme sur une page.",
-            "inputSchema": frame(json!({
-                "shape": { "type": "string", "enum": ["rect", "ellipse", "line", "arrow", "star", "heart", "bubble", "cloud"] },
-                "fill": color, "border_color": color, "border_width_mm": mm("Épaisseur du bord"),
-            }), &["shape"]),
+            "description": "Ajoute une forme.",
+            "inputSchema": frame(json!({ "shape": one_of(&["rect", "ellipse", "line", "arrow", "star", "heart", "bubble", "cloud"]), "fill": text, "border_color": text, "border_width_mm": num }), &["shape"]),
         },
         {
             "name": "add_image",
-            "description": "Ajoute une image de la banque, trouvée par un mot-clé en français (« tulipe », « soleil »).",
-            "inputSchema": frame(json!({ "query": { "type": "string", "description": "Mot-clé en français" }, "to_color": { "type": "boolean", "description": "Contour noir seul, à colorier" } }), &["query"]),
+            "description": "Ajoute une image de la banque : query, mot-clé français (« tulipe ») ; to_color : contour à colorier.",
+            "inputSchema": frame(json!({ "query": text, "to_color": boolean }), &["query"]),
         },
         {
             "name": "add_photo_zone",
-            "description": "Ajoute une case photo vide, que l'utilisateur remplira.",
+            "description": "Ajoute une case photo vide.",
             "inputSchema": frame(json!({}), &[]),
         },
         {
             "name": "delete_element",
             "description": "Supprime un élément.",
-            "inputSchema": { "type": "object", "required": ["element_id"], "properties": { "element_id": id } },
+            "inputSchema": obj(&["element_id"], json!({ "element_id": id })),
         },
         {
             "name": "add_page",
-            "description": "Ajoute une page vide à la fin du document ; rend son indice.",
+            "description": "Ajoute une page vide à la fin ; rend son indice.",
             "inputSchema": { "type": "object", "properties": {} },
         },
         {
             "name": "arrange",
-            "description": "Met un élément (avec tout son groupe) devant ou derrière les autres, le duplique (rend les nouveaux identifiants) ou le retourne en miroir.",
-            "inputSchema": { "type": "object", "required": ["element_id", "action"], "properties": {
-                "element_id": id, "action": { "type": "string", "enum": ["front", "back", "duplicate", "mirror_h", "mirror_v"] },
-            } },
+            "description": "Met un élément et son groupe devant, derrière, en double (rend les id) ou en miroir.",
+            "inputSchema": obj(&["element_id", "action"], json!({ "element_id": id, "action": one_of(&["front", "back", "duplicate", "mirror_h", "mirror_v"]) })),
         },
         {
             "name": "group",
-            "description": "Groupe des éléments d'une même page, pour qu'ils se déplacent ensemble.",
-            "inputSchema": { "type": "object", "required": ["element_ids"], "properties": { "element_ids": { "type": "array", "items": { "type": "string" } } } },
+            "description": "Groupe des éléments d'une même page.",
+            "inputSchema": obj(&["element_ids"], json!({ "element_ids": ids })),
         },
         {
             "name": "ungroup",
-            "description": "Dissocie le groupe d'un élément (un seul niveau).",
-            "inputSchema": { "type": "object", "required": ["element_id"], "properties": { "element_id": id } },
+            "description": "Dissocie le groupe d'un élément (un niveau).",
+            "inputSchema": obj(&["element_id"], json!({ "element_id": id })),
         },
         {
             "name": "set_page_format",
-            "description": "Change le format d'une page (le contenu est agrandi ou réduit d'autant) ou son orientation.",
-            "inputSchema": { "type": "object", "required": ["page"], "properties": {
-                "page": page, "format": { "type": "string", "enum": ["A5", "A4", "A3"] }, "orientation": { "type": "string", "enum": ["portrait", "landscape"] },
-            } },
+            "description": "Format (le contenu suit) ou orientation d'une page.",
+            "inputSchema": obj(&["page"], json!({ "page": int, "format": one_of(&["A5", "A4", "A3"]), "orientation": one_of(&["portrait", "landscape"]) })),
         },
         {
             "name": "add_table",
-            "description": "Ajoute un tableau de cases texte vides ; rend son id et ses cases (element_id, col, row). Écrivez dans une case avec set_text.",
-            "inputSchema": frame(json!({ "cols": { "type": "integer", "description": "Colonnes (1 à 50)" }, "rows": { "type": "integer", "description": "Lignes (1 à 50)" } }), &["cols", "rows"]),
+            "description": "Ajoute un tableau de cases texte vides (1 à 50 × 50) ; rend ses cases (element_id, col, row), à remplir par set_text.",
+            "inputSchema": frame(json!({ "cols": int, "rows": int }), &["cols", "rows"]),
         },
         {
             "name": "table_edit",
-            "description": "Modifie un tableau à partir d'une de ses cases : ajoute ou retire une ligne ou une colonne, fusionne avec une autre case, sépare une case fusionnée, ou change son contenu (texte, image de la banque, photo).",
-            "inputSchema": { "type": "object", "required": ["cell_id", "action"], "properties": {
-                "cell_id": { "type": "string", "description": "Identifiant d'une case (cells de get_layout)" },
-                "action": { "type": "string", "enum": ["insert_row_above", "insert_row_below", "insert_col_left", "insert_col_right", "remove_row", "remove_col", "merge", "split", "set_content"] },
-                "other_cell_id": { "type": "string", "description": "Pour merge : l'autre case" },
-                "content": { "type": "string", "enum": ["text", "image", "photo"], "description": "Pour set_content" },
-                "query": { "type": "string", "description": "Pour une image : mot-clé en français" },
-            } },
+            "description": "Modifie un tableau depuis une case (cells) : lignes, colonnes, merge (other_cell_id), split, set_content (content, query).",
+            "inputSchema": obj(&["cell_id", "action"], json!({
+                "cell_id": id,
+                "action": one_of(&["insert_row_above", "insert_row_below", "insert_col_left", "insert_col_right", "remove_row", "remove_col", "merge", "split", "set_content"]),
+                "other_cell_id": id, "content": one_of(&["text", "image", "photo"]), "query": text,
+            })),
         },
         {
             "name": "repeat",
-            "description": "Répète un bloc (les éléments donnés, avec leurs groupes) en grille sur sa page, pour une planche d'étiquettes ou de cartes : cols × rows exemplaires, lui compris, ou fill_page pour en mettre autant que la page en tient. Chaque exemplaire forme un groupe.",
-            "inputSchema": { "type": "object", "required": ["element_ids"], "properties": {
-                "element_ids": { "type": "array", "items": { "type": "string" } },
-                "cols": { "type": "integer", "description": "1 à 20" }, "rows": { "type": "integer", "description": "1 à 20" },
-                "fill_page": { "type": "boolean" },
-                "gap_mm": mm("Espace entre les exemplaires (5 par défaut)"),
-            } },
+            "description": "Répète un bloc en grille sur sa page (planche d'étiquettes) : cols × rows (1 à 20) exemplaires, lui compris, ou fill_page ; gap_mm : 5. Un groupe par exemplaire.",
+            "inputSchema": obj(&["element_ids"], json!({ "element_ids": ids, "cols": int, "rows": int, "fill_page": boolean, "gap_mm": num })),
         },
         {
             "name": "set_template_role",
-            "description": "Rôle d'un texte ou d'une photo dans un modèle : fill (zone vidée à chaque usage), fixed (gardé tel quel et verrouillé : à faire en dernier), none (pas gardé dans le modèle). Avec « field », le texte devient ce champ de la classe, gardé tel quel ; un texte qui contient un champ n'a pas de rôle.",
-            "inputSchema": { "type": "object", "required": ["element_id", "role"], "properties": {
-                "element_id": id, "role": { "type": "string", "enum": ["fill", "fixed", "none"] }, "field": field,
-            } },
+            "description": "Rôle dans un modèle : fill (vidé à chaque usage), fixed (gardé, verrouillé : en dernier), none (pas gardé) ; field : devient ce champ.",
+            "inputSchema": obj(&["element_id", "role"], json!({ "element_id": id, "role": one_of(&["fill", "fixed", "none"]), "field": text })),
         },
         {
             "name": "page_grid",
-            "description": "Grille de cases d'une page (pour un modèle) : set la pose (cases photo vides), merge et split fusionnent ou séparent des cases, set_kind change une case en photo ou texte, remove la retire en gardant les cases.",
-            "inputSchema": { "type": "object", "required": ["page", "action"], "properties": {
-                "page": page,
-                "action": { "type": "string", "enum": ["set", "merge", "split", "set_kind", "remove"] },
-                "cols": { "type": "integer", "description": "1 à 10" }, "rows": { "type": "integer", "description": "1 à 10" },
-                "cell_id": id, "other_cell_id": id,
-                "kind": { "type": "string", "enum": ["photo", "text"] },
-            } },
+            "description": "Grille de cases d'un modèle : set (cols × rows, 1 à 10), merge, split, set_kind (kind), remove (garde les cases).",
+            "inputSchema": obj(&["page", "action"], json!({
+                "page": int, "action": one_of(&["set", "merge", "split", "set_kind", "remove"]),
+                "cols": int, "rows": int, "cell_id": id, "other_cell_id": id, "kind": one_of(&["photo", "text"]),
+            })),
         },
         {
             "name": "cut_marks",
-            "description": "Repères de découpe autour de chaque bloc donné (un groupe, ou un élément seul : groupez d'abord une étiquette) : corners (traits aux coins), dashed (pointillés et ciseaux), none (les retirer).",
-            "inputSchema": { "type": "object", "required": ["element_ids", "style"], "properties": {
-                "element_ids": { "type": "array", "items": { "type": "string" } }, "style": { "type": "string", "enum": ["corners", "dashed", "none"] },
-            } },
+            "description": "Repères de découpe autour de chaque bloc (groupez d'abord une étiquette) : corners, dashed (ciseaux), none (retire).",
+            "inputSchema": obj(&["element_ids", "style"], json!({ "element_ids": ids, "style": one_of(&["corners", "dashed", "none"]) })),
         },
         {
             "name": "add_caption",
-            "description": "Ajoute une légende sous une photo, groupée avec elle ; « content » l'écrit.",
-            "inputSchema": { "type": "object", "required": ["photo_id"], "properties": { "photo_id": id, "content": { "type": "string" } } },
+            "description": "Légende sous une photo, groupée avec elle.",
+            "inputSchema": obj(&["photo_id"], json!({ "photo_id": id, "content": text })),
         },
         {
             "name": "decor",
-            "description": "Décors : page_frame (cadre de page, style), frieze (frise le long des marges : side, motifs), block_frieze (frise autour d'un élément : element_id, motifs), remove_frieze (element_id d'une image de la frise).",
-            "inputSchema": { "type": "object", "required": ["kind"], "properties": {
-                "kind": { "type": "string", "enum": ["page_frame", "frieze", "block_frieze", "remove_frieze"] },
-                "page": page, "element_id": id,
-                "style": { "type": "string", "enum": ["thin", "thick", "rounded", "double"] },
-                "side": { "type": "string", "enum": ["top", "bottom", "around"] },
-                "motifs": { "type": "array", "items": { "type": "string" }, "description": "Mots-clés français des images, répétées dans l'ordre" },
-                "size_mm": mm("Taille des images (15 par défaut)"), "gap_mm": mm("Écart minimal (3 par défaut)"),
-            } },
+            "description": "page_frame (style), frieze (frise des marges : side, motifs), block_frieze (autour de element_id), remove_frieze (element_id d'une de ses images). motifs : mots-clés d'images ; size_mm 15, gap_mm 3.",
+            "inputSchema": obj(&["kind"], json!({
+                "kind": one_of(&["page_frame", "frieze", "block_frieze", "remove_frieze"]), "page": int, "element_id": id,
+                "style": one_of(&["thin", "thick", "rounded", "double"]), "side": one_of(&["top", "bottom", "around"]),
+                "motifs": ids, "size_mm": num, "gap_mm": num,
+            })),
         },
         {
             "name": "exercise",
-            "description": "Fiches, posées sous ce que la page contient : graphisme (lignes à repasser : motif, rows), maze (labyrinthe), symmetry (dessin à compléter : figure) ; et, à x_mm/y_mm : dotted_path (chemin à suivre entre deux images : path), start_point (point vert de départ), direction_arrow (flèche de sens). level : PS, MS ou GS.",
-            "inputSchema": { "type": "object", "required": ["kind", "page"], "properties": {
-                "kind": { "type": "string", "enum": ["graphisme", "maze", "symmetry", "dotted_path", "start_point", "direction_arrow"] },
-                "page": page, "level": { "type": "string", "enum": ["PS", "MS", "GS"] },
-                "motif": { "type": "string", "enum": ["ponts", "coupes", "vagues", "boucles", "creneaux", "dents", "traits", "ronds"] },
-                "rows": { "type": "integer" },
-                "figure": { "type": "string", "enum": ["sapin", "maison", "fusee", "bateau", "coeur"] },
-                "path": { "type": "string", "enum": ["descend", "monte", "vague", "arc"] },
-                "x_mm": mm("Bord gauche"), "y_mm": mm("Bord haut"),
-            } },
+            "description": "Fiche sous le contenu : graphisme (motif, rows), maze, symmetry (figure) ; à x_mm, y_mm : dotted_path (path), start_point, direction_arrow.",
+            "inputSchema": obj(&["kind", "page"], json!({
+                "kind": one_of(&["graphisme", "maze", "symmetry", "dotted_path", "start_point", "direction_arrow"]),
+                "page": int, "level": one_of(&["PS", "MS", "GS"]),
+                "motif": one_of(&["ponts", "coupes", "vagues", "boucles", "creneaux", "dents", "traits", "ronds"]),
+                "rows": int, "figure": one_of(&["sapin", "maison", "fusee", "bateau", "coeur"]),
+                "path": one_of(&["descend", "monte", "vague", "arc"]), "x_mm": num, "y_mm": num,
+            })),
         },
         {
             "name": SAVE_AS_TEMPLATE,
-            "description": "Enregistre une page comme modèle dans le tiroir Modèles. Seulement si l'utilisateur demande un modèle. \
-Le modèle garde les formes, les images, les zones à remplir, les éléments fixes et les textes que vous avez écrits. \
-Cahutin le remplit avec la classe : les champs entre accolades, sans accents, dans n'importe quel texte (add_text avec field, ou {prenom}, {PRENOM}, {nom}, {groupe}, {age}, {anniversaire} écrits dans un texte, \
-{anniversaires_janvier}… pour une affiche de toute la classe), et chaque case photo vide reçoit la photo de l'élève ou son symbole. \
-La date ({date}, {date_courte}, {jour_semaine}, {annee_scolaire}…) et la classe ({classe}, {niveau}, {ecole}, {enseignant}, {nombre_eleves}) s'écrivent une fois, quand une page est créée depuis le modèle. \
-Pour des étiquettes : un cadre et ses champs, groupés, puis cut_marks et repeat : un élève par bloc (class_fill de get_layout dit « sheet »). \
-Lettres mobiles : un champ {PRENOM_1}, {PRENOM_2}… par case.",
-            "inputSchema": { "type": "object", "required": ["page", "name"], "properties": { "page": page, "name": { "type": "string", "description": "Nom du modèle" } } },
+            "description": "Enregistre une page comme modèle, seulement sur demande. Cahutin le remplit avec la classe : champs, et photo ou symbole de l'élève dans chaque case photo vide. \
+Étiquettes : cadre et champs groupés, puis cut_marks et repeat (un élève par bloc). Lettres mobiles : {PRENOM_1}, {PRENOM_2}… par case.",
+            "inputSchema": obj(&["page", "name"], json!({ "page": int, "name": text })),
         },
     ])
 }
@@ -307,11 +268,11 @@ mod tests {
 
 #[cfg(test)]
 mod size {
-    /// Les descriptions des outils partent à chaque demande : un petit modèle local (Ollama, 16 000 jetons)
-    /// doit garder la place de la page et de la conversation.
+    /// Les descriptions des outils partent à chaque demande, et chaque échange les relit : un petit modèle
+    /// local (Ollama, 16 000 jetons) doit garder la place de la page et de la conversation.
     #[test]
     fn the_tool_descriptions_stay_small() {
         let n = serde_json::to_string(&super::definitions()).unwrap().len();
-        assert!(n < 18_000, "{n} octets");
+        assert!(n <= 10_500, "{n} octets");
     }
 }

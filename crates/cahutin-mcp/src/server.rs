@@ -13,7 +13,13 @@ pub const INSTRUCTIONS: &str = "Mise en page d'un document Cahutin (pages de cla
 Unités en millimètres, origine en haut à gauche de la page (A4 portrait : 210 × 297). \
 Vous ne voyez ni les textes ni les photos, seulement leurs cadres et leurs styles : « empty » dit si un texte \
 est vide, « has_photo » si une case photo est remplie. Un élément verrouillé (« locked ») ne se modifie pas. \
-Polices fournies : Andika, Atkinson Hyperlegible, OpenDyslexic, Playwrite FR Moderne (cursive).";
+Polices fournies : Andika, Atkinson Hyperlegible, OpenDyslexic, Playwrite FR Moderne (cursive). \
+Dans les outils : un élément se désigne par son id (get_layout), une page par son indice (0 pour la première), \
+un cadre par x_mm, y_mm (bord gauche, bord haut), w_mm, h_mm ; couleurs en #rrggbb, tailles de texte en points. \
+Un champ rempli avec la classe (field, sans accolades) : prenom, PRENOM, nom, groupe, age, anniversaire, \
+PRENOM_1, PRENOM_2… (une lettre), anniversaires_mars… (affiche de la classe) ; la date de la page : date, date_courte, \
+date_longue, jour_mois, jour_semaine, mois, annee, annee_scolaire, saison ; la classe : classe, niveau, nombre_eleves, \
+ecole, enseignant. Écrit dans un texte, il prend des accolades : {prenom}.";
 
 impl Server {
     /// Réponse à un message, ou rien pour une notification.
@@ -74,6 +80,14 @@ fn tools() -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Les outils ne redisent plus les champs de la classe : les consignes doivent tous les nommer.
+    #[test]
+    fn the_instructions_name_every_class_field() {
+        for k in carnet_core::fields::KEYS.iter().chain(&carnet_core::fields::DATE_KEYS).chain(&carnet_core::fields::CLASS_KEYS) {
+            assert!(INSTRUCTIONS.contains(&format!(" {k},")) || INSTRUCTIONS.contains(&format!(" {k} ")) || INSTRUCTIONS.contains(&format!(" {k}.")), "{k}");
+        }
+    }
     use carnet_core::*;
 
     fn server() -> (tempfile::TempDir, Server) {

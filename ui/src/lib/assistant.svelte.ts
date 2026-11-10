@@ -61,9 +61,9 @@ class Assistant {
   /** La dernière demande, si elle a échoué ou été arrêtée sans rien faire : « Réessayer » la renvoie telle
    *  quelle, avec les échanges d'avant elle (pas deux fois la même question au modèle). */
   retryable = $state.raw<{ text: string; history: unknown[] } | null>(null);
-  /** Ce que l'enseignante a défait depuis la dernière demande : dit au modèle avec la suivante, qui sinon
-   *  croirait ces modifications encore là. */
-  #undoneNote: string[] = [];
+  /** Combien d'étapes l'enseignante a défaites depuis la dernière demande : dit au modèle avec la suivante,
+   *  qui sinon croirait ces modifications encore là. Un nombre seulement : rien de la page ne part ainsi. */
+  #undoneCount = 0;
 
   get enabled(): boolean {
     return this.settings?.enabled === true;
@@ -88,8 +88,8 @@ class Assistant {
     const steps: AssistantStep[] = [];
     let done: AssistantDone | null = null;
     this.busy = true;
-    const note = this.#undoneNote.length ? `[Défait par l'utilisateur : ${this.#undoneNote.join(" ; ")}.]\n` : "";
-    this.#undoneNote = [];
+    const note = this.#undoneCount ? `[L'utilisateur a défait ${this.#undoneCount} des modifications proposées : relisez la page avec get_layout.]\n` : "";
+    this.#undoneCount = 0;
     const request = { document: p ? lastDoc(p) : editor.doc, page: editor.pageIndex, selection: editor.selection, history: this.#history, text: note + text };
     // Tauri livre les gros messages (chaque étape porte le document) après coup : la demande n'est finie
     // qu'à la réception de « Done », pas au retour de l'appel.
@@ -159,7 +159,7 @@ class Assistant {
     this.proposal = null;
     this.viewing = null;
     this.#history = [];
-    this.#undoneNote = [];
+    this.#undoneCount = 0;
     this.retryable = null;
   }
 
@@ -189,7 +189,7 @@ class Assistant {
           ? { ...e, steps: e.steps.map(swap) }
           : e,
     );
-    this.#undoneNote.push(step.summary.join(", "));
+    this.#undoneCount++;
     const steps = [...p.steps.slice(0, k), ...later.map(swap)];
     if (!steps.length) {
       editor.showProposal(null);
@@ -292,7 +292,7 @@ class Assistant {
   /** Autre document : le fil et la proposition sont oubliés. */
   clear() {
     this.#history = [];
-    this.#undoneNote = [];
+    this.#undoneCount = 0;
     this.retryable = null;
     this.thread = [];
     this.proposal = null;

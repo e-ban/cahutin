@@ -404,7 +404,9 @@ test("undoing one step keeps the others, and the next request says so", async ()
   expect(entry?.kind === "assistant" && entry.steps.map((s) => s.document.title)).toEqual(["A", "B sans"]);
   script.push(() => [done()]);
   await assistant.send("Et la suite ?");
-  expect(sent.at(-1)?.text).toBe("[Défait par l'utilisateur : Titre : en bleu.]\nEt la suite ?");
+  // Le modèle apprend combien d'étapes ont été défaites, jamais lesquelles : rien de la page dans la demande.
+  expect(sent.at(-1)?.text).toBe("[L'utilisateur a défait 1 des modifications proposées : relisez la page avec get_layout.]\nEt la suite ?");
+  expect(sent.at(-1)?.text).not.toContain("Titre : en bleu");
   expect(assistant.thread.some((e) => e.kind === "user" && e.text === "Et la suite ?")).toBe(true);
   await assistant.accept();
   editor.undo();

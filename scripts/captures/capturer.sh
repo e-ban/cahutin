@@ -20,7 +20,6 @@ magick -size 1200x900 gradient:'#7fb7e6-#cfe7f7' \( -size 1200x380 xc:'#6aa84f' 
   xvfb-run -a -s "-screen 0 1920x1080x24" tauri-driver --native-driver "$(command -v WebKitWebDriver)" >"$work/driver.log" 2>&1) & driver=$!
 # À la fin, tout s'arrête : serveur, pilote, application et écran virtuel, avec leurs processus enfants.
 killtree() { local c; for c in $(pgrep -P "$1"); do killtree "$c"; done; kill "$1" 2>/dev/null || true; }
-trap 'killtree $vite; killtree $driver' EXIT
+trap 'killtree $vite; killtree $driver; true' EXIT
 sleep 5
-version=$(node -p "require('$root/package.json').version.split('.').slice(0, 2).join('.')")
-PHOTO="$work/paysage.jpg" HOME_CAP="$work/home/Documents" WHATS_NEW="$version" node "$here/scenes.mjs" "$out" "$@"
+PHOTO="$work/paysage.jpg" HOME_CAP="$work/home/Documents" node "$here/scenes.mjs" "$out" "$@"

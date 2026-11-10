@@ -22,7 +22,7 @@ export const RELEASES: Release[] = [
     items: [
       {
         title: "Un nouveau visage",
-        text: "Des icônes dessinées pour Cahutin, les mêmes sur tous les ordinateurs. L'accueil se range en deux colonnes : « Commencer » un document, ou « Reprendre » un document récent. En bas de la fenêtre, toutes les commandes de la page restent visibles sur une seule ligne.",
+        text: "Des icônes livrées avec Cahutin, les mêmes sur tous les ordinateurs. L'accueil se range en deux colonnes : « Commencer » un document, ou « Reprendre » un document récent. En bas de la fenêtre, toutes les commandes de la page restent visibles sur une seule ligne.",
         image: "/nouveautes/0.16/look.webp",
       },
       {

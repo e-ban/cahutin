@@ -107,7 +107,7 @@
   // Nouvelles versions : seulement si l'utilisateur l'a accepté, au plus une fois par jour.
   void updates.checkIfDue();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
-  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath, openExampleDoc, settings, guides, classes, classLibrary, exportPdf, exportOdg } });
+  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath, openExampleDoc, settings, guides, whatsNew: WHATS_NEW, classes, classLibrary, exportPdf, exportOdg } });
 
   // Préférences d'affichage : police et couleurs de l'interface, taille des poignées, taille de tout (la
   // fenêtre zoome comme Ctrl+ dans un navigateur ; la page, en « Ajuster », reste à la largeur de l'écran).

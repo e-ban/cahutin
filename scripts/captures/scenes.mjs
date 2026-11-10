@@ -183,8 +183,9 @@ const scenes = {
   },
   // Les nouveautés de la 0.16 : 1200 × 740, comme celles des versions précédentes.
   async "nouv-look"() {
+    // L'accueil avec des documents récents, comme le verra quelqu'un qui met à jour.
+    await scenes["store-accueil"]();
     await s.size(1200, 740);
-    await run(`window.__editor.showWelcome = true;`);
     await sleep(1000);
   },
   async "nouv-themes"() {
@@ -224,10 +225,19 @@ const scenes = {
   },
 };
 
-// Une première ouverture : pas de visite guidée ni d'astuces sur les captures (le dossier personnel est neuf).
+// Une première ouverture : pas de visite guidée, d'astuces ni de nouveautés sur les captures (le dossier personnel
+// est neuf), et une classe d'exemple aux prénoms inventés, pour que le bandeau « Remplir avec … » soit le même partout.
 s = await session(APP);
 await sleep(3000);
-await s.js("localStorage.setItem('carnet.tourDone', 'true'); localStorage.setItem('carnet.hintsEnabled', 'false'); localStorage.setItem('carnet.classIntroSeen', 'true'); localStorage.setItem('carnet.whatsNewSeen', JSON.stringify(arguments[0])); localStorage.setItem('carnet.updateConsent', 'false');", [process.env.WHATS_NEW ?? '0.13']);
+await run(`
+  for (const [k, v] of [["tourDone", true], ["hintsEnabled", false], ["classIntroSeen", true], ["updateConsent", false], ["whatsNewSeen", window.__carnet.whatsNew.version]])
+    localStorage.setItem("carnet." + k, JSON.stringify(v));
+  const c = window.__carnet.classes;
+  if (!c.current) await c.createNamed("Moyenne section", "2026-2027");
+  const names = [["Léo", "MS"], ["Inès", "MS"], ["Tom", "GS"], ["Lina", "MS"], ["Noah", "GS"], ["Jade", "MS"], ["Malo", "GS"], ["Zoé", "MS"]];
+  c.update((k) => ({ ...k, students: names.map(([first_name, level], i) => ({ id: "eleve-" + i, first_name, last_name: "", level, group: i % 3 === 0 ? "Les loups" : "", photo: null, photo_allowed: true, symbol: null, birth_date: null })) }));
+  await c.flush();
+`);
 await s.end();
 
 // Une application neuve par scène : une page modifiée ferait demander « Enregistrer ? » à la suivante.

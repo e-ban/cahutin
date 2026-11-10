@@ -3,6 +3,7 @@
 # Prérequis : tauri-driver (cargo install tauri-driver), WebKitWebDriver, xvfb-run, ImageMagick, Node.
 # Usage : scripts/captures/capturer.sh <dossier de sortie> [scène…]
 #         GUIDES=1 scripts/captures/capturer.sh assets/guides [guide/image…]   (images des guides)
+# Le guide du flou demande FLOU_IMAGE : une illustration de classe (pas une vraie photo d'enfants).
 # Les images de l'assistant demandent Ollama et le modèle qwen3:4b : Ollama est lancé s'il ne tourne pas.
 # L'application tourne avec un dossier personnel jetable : ni vos documents ni vos réglages ne sont touchés.
 set -euo pipefail

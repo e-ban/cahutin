@@ -95,7 +95,11 @@ async function shot(name, crop = null) {
   mkdirSync(dst.slice(0, dst.lastIndexOf("/")), { recursive: true });
   const cropArgs = crop ? ["-crop", `${crop.w}x${crop.h}+${crop.x}+${crop.y}`, "+repage"] : [];
   execFileSync("magick", [png, ...cropArgs, "-resize", "1000x", "-quality", "82", dst]);
-  return png;
+  // Pour une animation : l'image recadrée comme l'image fixe.
+  if (!crop) return png;
+  const cropped = png.replace(/\.png$/, "-recadree.png");
+  execFileSync("magick", [png, ...cropArgs, cropped]);
+  return cropped;
 }
 
 /** Animation : des captures successives, chacune affichée `delay` centièmes de seconde. */
@@ -227,6 +231,38 @@ const scenes = {
     await chooseLibraryPhotos(2);
     await mark({ sel: ".library-page button", text: "dans le document" });
     await shot("phototheque/document");
+  },
+
+  // Flouter des visages : sur une illustration de classe (FLOU_IMAGE), jamais une vraie photo d'enfants.
+  async "flou/choisir"() {
+    await blurPhoto();
+    await mark('[data-guide="blur"]');
+    await shot("flou/choisir");
+  },
+  async "flou/accord"() {
+    await blurPhoto();
+    await click('[data-guide="blur"]');
+    await sleep(800);
+    await mark(".box .consent .buttons");
+    await shot("flou/accord", await rect(".box"));
+  },
+  async "flou/tracer"() {
+    await blurDialog();
+    const crop = await rect(".box");
+    const frames = [await shot("flou/tracer", crop)];
+    for (const i of [0, 2, 4]) {
+      await s.js("document.querySelectorAll('.box .face')[arguments[0]]?.click()", [i]);
+      await sleep(500);
+      frames.push(await shot("flou/tracer", crop));
+    }
+    await animate("flou/tracer", frames, [150, 90, 90, 250]);
+  },
+  async "flou/resultat"() {
+    await blurDialog();
+    for (const i of [0, 2, 4]) await s.js("document.querySelectorAll('.box .face')[arguments[0]]?.click()", [i]);
+    await sleep(500);
+    await mark(".box .buttons .primary");
+    await shot("flou/resultat", await rect(".box"));
   },
 
   // Étiquettes à découper
@@ -414,6 +450,37 @@ async function importedPage() {
   await sleep(800);
   await check(await run(`await window.__carnet.importFiles([arguments[0]], { fresh: true });`, [path]));
   await sleep(2500);
+}
+
+/** Le rectangle d'un élément à l'écran, pour ne capturer que lui (une fenêtre de dialogue). */
+const rect = (sel) => s.js("const r = document.querySelector(arguments[0]).getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };", [sel]);
+
+/** L'illustration de classe dans la première case photo de « Sortie à la ferme », choisie. */
+async function blurPhoto() {
+  await open("ferme");
+  const photo = await check(
+    await run(
+      `const e = window.__editor, c = window.__carnet;
+      await c.importPaths([arguments[0]], { quiet: true });
+      const meta = e.photos.at(-1)?.meta;
+      const box = e.page.elements.find((x) => x.kind.type === "Photo" && !x.kind.asset);
+      e.placePhoto(box.id, meta);
+      return box.id;`,
+      [process.env.FLOU_IMAGE],
+    ),
+  );
+  await select([photo]);
+}
+
+/** La fenêtre « Flouter des visages », le repérage accepté et fini. */
+async function blurDialog() {
+  await blurPhoto();
+  await click('[data-guide="blur"]');
+  await sleep(800);
+  await clickText(".box .consent .buttons button", "Oui");
+  await click(".box .consent .buttons .primary");
+  for (let i = 0; i < 40 && (await s.js("return !!document.querySelector('.box .busy')")); i++) await sleep(500);
+  await sleep(800);
 }
 
 /** Une page avec une seule étiquette (la première de l'exemple porte-manteaux), choisie. */

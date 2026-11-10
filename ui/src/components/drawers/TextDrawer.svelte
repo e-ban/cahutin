@@ -133,7 +133,7 @@
   .primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-weight: 600;
     padding: 8px;
   }

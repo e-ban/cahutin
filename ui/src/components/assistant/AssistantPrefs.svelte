@@ -213,14 +213,14 @@
     font-weight: 500;
   }
   .ok {
-    color: #2e7d32;
+    color: var(--ok);
   }
   .err {
-    color: #c62828;
+    color: var(--danger);
   }
   .primary {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border-color: var(--accent);
   }
   .primary:disabled {

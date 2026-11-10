@@ -41,7 +41,7 @@
   }
   .primary {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border-color: var(--accent);
   }
 </style>

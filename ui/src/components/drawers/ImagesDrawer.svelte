@@ -84,13 +84,13 @@
     padding: 7px 2px;
     font-size: 12px;
     white-space: nowrap;
-    background: white;
+    background: var(--surface);
   }
   .tabs button + button {
     border-left: 1px solid var(--line);
   }
   .tabs .on {
-    background: #e8f1fb;
+    background: var(--accent-soft);
     color: var(--accent);
     font-weight: 600;
   }

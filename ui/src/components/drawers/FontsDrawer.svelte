@@ -95,7 +95,7 @@
   .font {
     content-visibility: auto;
     contain-intrinsic-size: auto 36px;
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 7px;
     padding: 2px 6px 2px 2px;
@@ -105,7 +105,7 @@
   }
   .font.on {
     border-color: var(--accent);
-    background: #f2f8fe;
+    background: var(--accent-soft);
   }
   .name {
     flex: 1;
@@ -122,14 +122,14 @@
     font-size: 10px;
     border-radius: 8px;
     padding: 1px 6px;
-    background: #eee;
-    color: #666;
+    background: var(--bg);
+    color: var(--muted);
     border: 0;
     white-space: nowrap;
   }
   .tag.warn {
-    background: #fff1e0;
-    color: #b9770e;
+    background: var(--warn-bg);
+    color: var(--warn-text);
   }
   .del {
     border: 0;
@@ -140,8 +140,8 @@
   .explain {
     margin: 0;
     font-size: 12px;
-    background: #fff8ef;
-    border: 1px solid #f0d9a8;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
     border-radius: 6px;
     padding: 6px 8px;
   }

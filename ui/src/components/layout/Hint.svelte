@@ -64,18 +64,18 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #2d2a26;
-    color: white;
+    background: var(--text);
+    color: var(--panel);
     border-radius: 18px;
     padding: 6px 8px 6px 14px;
     font-size: 13px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 14px var(--shadow);
     white-space: nowrap;
   }
   button {
     border: 0;
     background: transparent;
-    color: #ccc;
+    color: color-mix(in srgb, var(--panel) 75%, transparent);
     padding: 0 6px;
   }
 </style>

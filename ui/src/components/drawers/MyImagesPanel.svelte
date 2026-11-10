@@ -136,14 +136,14 @@
     gap: 2px;
     padding: 4px;
     border: 1px solid var(--line);
-    background: white;
+    background: var(--surface);
   }
   .thumb {
     position: relative;
   }
   .thumb.chosen {
     border-color: var(--accent);
-    background: #e8f1fb;
+    background: var(--accent-soft);
   }
   .rank {
     position: absolute;
@@ -153,7 +153,7 @@
     height: 16px;
     border-radius: 8px;
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-size: 11px;
     line-height: 16px;
     text-align: center;
@@ -163,6 +163,8 @@
     height: 60px;
     object-fit: contain;
     display: block;
+    /* L'image reste sur du blanc, comme sur la page. */
+    background: white;
   }
   .name {
     font-size: 11px;
@@ -181,16 +183,16 @@
     padding: 0;
     border-radius: 50%;
     border: 1px solid var(--line);
-    background: white;
+    background: var(--surface);
     color: var(--muted);
     font-size: 12px;
     line-height: 16px;
   }
   .remove:hover,
   .remove:focus-visible {
-    background: #d32f2f;
-    border-color: #d32f2f;
-    color: white;
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--on-accent);
   }
   .chips {
     display: flex;
@@ -203,7 +205,7 @@
     font-size: 12px;
   }
   .chips .on {
-    background: #e8f1fb;
+    background: var(--accent-soft);
     border-color: var(--accent);
     color: var(--accent);
   }

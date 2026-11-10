@@ -103,8 +103,8 @@
     padding: 8px 28px 8px 10px;
     position: relative;
     border-radius: 8px;
-    background: #fff6e6;
-    border: 1px solid #f0c98a;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
     font-size: 13px;
   }
   .link {

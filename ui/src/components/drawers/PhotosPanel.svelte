@@ -125,22 +125,22 @@
     padding: 0;
     border-radius: 50%;
     border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.9);
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
     color: var(--muted);
     font-size: 14px;
     line-height: 18px;
   }
   .remove:hover,
   .remove:focus-visible {
-    background: #d32f2f;
-    border-color: #d32f2f;
-    color: white;
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--on-accent);
   }
   .replacing {
     margin: 0;
     padding: 6px 8px;
     border-radius: 6px;
-    background: #e8f1fb;
+    background: var(--accent-soft);
     color: var(--accent);
     font-size: 12px;
   }
@@ -177,7 +177,7 @@
     font-size: 12px;
   }
   .on {
-    background: #e8f1fb;
+    background: var(--accent-soft);
     border-color: var(--accent);
     color: var(--accent);
   }
@@ -204,7 +204,7 @@
     border-radius: 4px;
     overflow: hidden;
     aspect-ratio: 1;
-    background: #eee;
+    background: var(--bg);
     cursor: grab;
     /* Les vignettes hors de vue ne sont ni mises en page ni peintes. */
     content-visibility: auto;
@@ -223,12 +223,12 @@
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: #27ae60;
-    color: white;
+    background: var(--ok);
+    color: var(--on-accent);
     font-size: 12px;
     line-height: 18px;
     text-align: center;
-    box-shadow: 0 0 0 2px white;
+    box-shadow: 0 0 0 2px var(--surface);
   }
   .hint {
     color: var(--muted);

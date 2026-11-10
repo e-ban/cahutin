@@ -777,7 +777,7 @@
   .role button {
     border: 0;
     border-radius: 0;
-    background: white;
+    background: var(--surface);
     padding: 4px 9px;
   }
   .role button + button {
@@ -786,7 +786,7 @@
   .dropped {
     padding: 0 8px;
     font-size: 12px;
-    color: #b35c00;
+    color: var(--warn-text);
   }
   /* Miroir : le nom, puis les deux sens, réunis dans un même cadre. */
   .mirror {
@@ -818,7 +818,7 @@
     border-left: 1px solid var(--line);
   }
   .mirror button:hover {
-    background: #f3efe8;
+    background: var(--bg);
   }
   /* « Plus » est au bout de la barre : son menu s'aligne sur son bord droit, une ligne par outil. */
   .pop.more {
@@ -836,8 +836,8 @@
     justify-self: start;
   }
   .danger:not(:disabled):hover {
-    color: #c0392b;
-    background: #fdecea;
+    color: var(--danger);
+    background: var(--danger-soft);
   }
   .pop.frieze label {
     display: grid;
@@ -886,10 +886,10 @@
     flex-wrap: wrap;
     gap: 2px;
     align-items: center;
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 9px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 4px 14px var(--shadow);
     padding: 3px;
     white-space: nowrap;
     z-index: 3500; /* au-dessus des poignées Moveable (3000), sous les menus */
@@ -902,7 +902,7 @@
   }
   .ctx > button:not(:disabled):hover,
   .wrap > button:not(:disabled):hover {
-    background: #f3efe8;
+    background: var(--bg);
   }
   /* Icône et nom écrits par défaut. Avec la préférence « icônes seules » (.compact), seul le nom des outils
      disparaît (pas celui de l'action principale, .main) : au survol ou au clavier, il apparaît dans une
@@ -924,12 +924,12 @@
     border: 1px solid var(--line);
     border-bottom: 0;
     border-radius: 8px 8px 0 0;
-    background: white;
+    background: var(--surface);
     color: inherit;
     font-size: 13px;
     white-space: nowrap;
     pointer-events: none;
-    box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 -3px 8px var(--shadow);
     /* Cachée, puis montrée après l'attente choisie dans les Préférences (aucune par défaut) ; cachée aussitôt. */
     visibility: hidden;
   }
@@ -948,7 +948,7 @@
     content: "\00a0";
   }
   .on {
-    background: #e8f1fb !important;
+    background: var(--accent-soft) !important;
     color: var(--accent);
   }
   .iconbtn {
@@ -974,7 +974,7 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    border: 1px solid #ccc;
+    border: 1px solid var(--line);
     vertical-align: middle;
   }
   .wrap {
@@ -984,10 +984,10 @@
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 8px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 6px 20px var(--shadow);
     padding: 8px;
     display: flex;
     flex-direction: column;
@@ -1050,7 +1050,7 @@
     text-align: left;
   }
   .pop.list button:hover {
-    background: #eef5fc;
+    background: var(--accent-soft);
   }
   .check {
     display: flex;

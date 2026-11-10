@@ -75,7 +75,7 @@
   .preset {
     padding: 5px;
     font-size: 11px;
-    color: #666;
+    color: var(--muted);
   }
   .preset i {
     display: grid;
@@ -84,7 +84,7 @@
     margin-bottom: 3px;
   }
   .preset b {
-    background: #dbe9f7;
+    background: color-mix(in srgb, var(--accent) 25%, transparent);
     border-radius: 2px;
   }
   .custom {

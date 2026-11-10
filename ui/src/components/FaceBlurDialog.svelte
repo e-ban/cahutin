@@ -183,7 +183,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(40, 30, 20, 0.45);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -198,7 +198,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 10px 40px var(--shadow);
   }
   h2 {
     margin: 0;
@@ -256,7 +256,7 @@
     height: 22px;
     padding: 0;
     border-radius: 50%;
-    background: white;
+    background: var(--surface);
     display: grid;
     place-items: center;
   }
@@ -265,16 +265,16 @@
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(255, 255, 255, 0.9);
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
     padding: 6px 12px;
     border-radius: 6px;
   }
   .consent {
-    background: #eaf2fb;
-    border: 1px solid #c9dcf2;
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
     border-radius: 10px;
     padding: 12px 16px;
-    color: #1f3a5f;
+    color: var(--text);
   }
   .consent h3 {
     margin: 0 0 6px;
@@ -295,7 +295,7 @@
     font-size: 13px;
   }
   .error {
-    color: #c0392b;
+    color: var(--danger);
   }
   .buttons {
     display: flex;
@@ -307,7 +307,7 @@
   }
   .primary {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border-color: var(--accent);
   }
 </style>

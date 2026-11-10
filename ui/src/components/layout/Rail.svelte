@@ -37,7 +37,7 @@
   .rail {
     grid-area: rail;
     width: 68px;
-    background: white;
+    background: var(--surface);
     border-right: 1px solid var(--line);
     display: flex;
     flex-direction: column;
@@ -55,7 +55,7 @@
     border-radius: 8px;
     padding: 4px 0;
     font-size: 11px;
-    color: #555;
+    color: var(--muted);
     text-align: center;
   }
   .pill {
@@ -67,7 +67,7 @@
     border-radius: 10px;
   }
   .item:not(:disabled):hover .pill {
-    background: #f3efe8;
+    background: var(--bg);
   }
   /* Le tiroir ouvert : pastille teintée et nom en gras. */
   .item.on {
@@ -76,7 +76,7 @@
   }
   .item.on .pill,
   .item.on:not(:disabled):hover .pill {
-    background: #e8f1fb;
+    background: var(--accent-soft);
   }
   :global(:root[data-contrast]) .item.on .pill {
     outline: 2px solid var(--accent);

@@ -237,7 +237,7 @@
     background: transparent;
   }
   .filters .on {
-    background: #e8f1fb;
+    background: var(--accent-soft);
     border-color: var(--accent);
   }
   .n {
@@ -254,7 +254,7 @@
     border-radius: 8px;
   }
   .toolbar.active {
-    background: #e8f1fb;
+    background: var(--accent-soft);
   }
   .toolbar label {
     display: flex;
@@ -263,7 +263,7 @@
   }
   .primary {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border-color: var(--accent);
   }
   .plain {
@@ -281,20 +281,21 @@
     flex-direction: column;
     gap: 6px;
     padding: 8px;
-    background: white;
+    background: var(--surface);
     border: 2px solid var(--line);
     border-radius: 10px;
   }
   .card.chosen {
     border-color: var(--accent);
-    background: #f3f8fe;
+    background: var(--accent-soft);
   }
   .pic {
     position: relative;
     height: 110px;
     padding: 4px;
     border: 0;
-    background: transparent;
+    /* Les images gardent un fond blanc, comme sur la page : un dessin au trait noir reste visible en thème Nuit. */
+    background: white;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -312,7 +313,7 @@
     height: 22px;
     border-radius: 50%;
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     display: grid;
     place-items: center;
   }
@@ -325,7 +326,7 @@
   .name-input:hover,
   .name-input:focus {
     border-color: var(--line);
-    background: white;
+    background: var(--surface);
   }
   .name {
     font-size: 13px;
@@ -341,8 +342,8 @@
     gap: 2px;
     padding: 1px 2px 1px 8px;
     border-radius: 10px;
-    background: #fff6e6;
-    border: 1px solid #f0c98a;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
     font-size: 12px;
   }
   .theme button {
@@ -352,7 +353,7 @@
     display: flex;
   }
   .theme button:hover {
-    color: #d32f2f;
+    color: var(--danger);
   }
   .hint {
     color: var(--muted);
@@ -360,6 +361,6 @@
     margin: 0;
   }
   .error {
-    color: #c0392b;
+    color: var(--danger);
   }
 </style>

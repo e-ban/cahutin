@@ -29,7 +29,7 @@
     display: flex;
   }
   .on {
-    background: #e8f1fb;
+    background: var(--accent-soft);
     border-color: var(--accent);
     color: var(--accent);
   }

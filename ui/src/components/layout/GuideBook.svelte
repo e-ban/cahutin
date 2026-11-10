@@ -109,7 +109,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(40, 30, 20, 0.45);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -125,7 +125,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 10px 40px var(--shadow);
   }
   .head {
     display: flex;
@@ -153,7 +153,7 @@
     object-fit: contain;
     border-radius: 8px;
     border: 1px solid var(--line);
-    background: #f3efe8;
+    background: var(--bg);
   }
   .text {
     margin: 0;
@@ -226,7 +226,7 @@
   .primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-weight: 600;
   }
 </style>

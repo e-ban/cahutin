@@ -91,10 +91,10 @@
     display: flex;
     gap: 2px;
     align-items: center;
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 9px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 4px 14px var(--shadow);
     padding: 3px;
     white-space: nowrap;
     z-index: 3500;
@@ -105,18 +105,18 @@
     padding: 4px 8px;
   }
   button:not(:disabled):hover {
-    background: #f3efe8;
+    background: var(--bg);
   }
   .photo.on {
-    background: rgba(46, 134, 222, 0.12);
+    background: color-mix(in srgb, var(--zone-photo) 12%, transparent);
     color: var(--zone-photo);
   }
   .text.on {
-    background: rgba(230, 126, 34, 0.12);
+    background: color-mix(in srgb, var(--zone-text) 12%, transparent);
     color: var(--zone-text);
   }
   .on {
-    background: #e8f1fb;
+    background: var(--accent-soft);
   }
   .sep {
     width: 1px;

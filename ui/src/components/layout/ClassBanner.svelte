@@ -27,9 +27,9 @@
     gap: 8px;
     align-items: center;
     padding: 6px 12px;
-    background: #eaf2fb;
-    border-bottom: 1px solid #c9dcf2;
-    color: #1f3a5f;
+    background: var(--accent-soft);
+    border-bottom: 1px solid var(--line);
+    color: var(--text);
   }
   .spacer {
     flex: 1;
@@ -40,7 +40,7 @@
   .primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-weight: 600;
   }
 </style>

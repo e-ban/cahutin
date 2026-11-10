@@ -54,7 +54,7 @@
   .box {
     position: fixed;
     border: 1px solid var(--accent);
-    background: rgba(46, 134, 222, 0.1);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
     pointer-events: none;
     z-index: 3200;
   }

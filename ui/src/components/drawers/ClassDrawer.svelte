@@ -53,7 +53,7 @@
   }
   .current span,
   .class span {
-    color: #7a6f63;
+    color: var(--muted);
     font-size: 12px;
   }
   .class {
@@ -63,12 +63,12 @@
   .primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-weight: 600;
     padding: 8px;
   }
   .hint {
     font-size: 13px;
-    color: #7a6f63;
+    color: var(--muted);
   }
 </style>

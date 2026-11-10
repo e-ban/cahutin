@@ -468,7 +468,7 @@
     margin-bottom: 12px;
   }
   .on {
-    background: #e3effb;
+    background: var(--accent-soft);
     border-color: var(--accent);
   }
   .check {
@@ -486,14 +486,14 @@
     flex: 1;
   }
   .role .on {
-    background: #e8f1fb;
+    background: var(--accent-soft);
     border-color: var(--accent);
     color: var(--accent);
   }
   .dropped {
     margin: 0;
     font-size: 12px;
-    color: #b35c00;
+    color: var(--warn-text);
   }
   .row {
     display: flex;

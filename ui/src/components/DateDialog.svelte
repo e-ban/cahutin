@@ -32,7 +32,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(40, 30, 20, 0.35);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -43,7 +43,7 @@
     border-radius: 12px;
     padding: 20px 24px;
     max-width: 380px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 10px 40px var(--shadow);
   }
   h2 {
     margin: 0 0 6px;
@@ -66,6 +66,6 @@
   .primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
   }
 </style>

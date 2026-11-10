@@ -94,11 +94,11 @@
   }
   /* Catégories de la classe, en tête et colorées. */
   .chips .classe {
-    border-color: #f0c98a;
-    background: #fff6e6;
+    border-color: var(--warn-line);
+    background: var(--warn-bg);
   }
   .on {
-    background: #e8f1fb;
+    background: var(--accent-soft);
     border-color: var(--accent);
     color: var(--accent);
   }
@@ -143,9 +143,10 @@
     /* Pas de content-visibility : le WebKit de l'AppImage (2.50) ne peignait plus les vignettes. Les
        images hors de vue restent non chargées (loading="lazy"). */
   }
+  /* Le pictogramme reste sur un fond clair, même en thème sombre. */
   .thumb.chosen {
     border-color: var(--accent);
-    background: #e8f1fb;
+    background: color-mix(in srgb, var(--accent) 12%, white);
   }
   .rank {
     position: absolute;
@@ -155,7 +156,7 @@
     height: 14px;
     border-radius: 7px;
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-size: 10px;
     line-height: 14px;
     text-align: center;
@@ -164,7 +165,7 @@
     margin: 0;
     padding: 6px 8px;
     border-radius: 6px;
-    background: #e8f1fb;
+    background: var(--accent-soft);
     color: var(--accent);
     font-size: 12px;
   }

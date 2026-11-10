@@ -43,7 +43,7 @@
 
   /** Échap ferme le menu du clic droit, sinon revient aux choix, sinon ferme l'accueil. */
   function onEscape(e: KeyboardEvent) {
-    if (e.key !== "Escape" || modal.message !== null || editor.showClassPage || editor.showCollection) return;
+    if (e.key !== "Escape" || modal.message !== null || editor.showClassPage || editor.showCollection || editor.showPreferences) return;
     if (menu) menu = null;
     else if (step !== "choices") step = "choices";
     else close();
@@ -115,6 +115,7 @@
         {#if version}<small>{fr.aboutVersion(version)}</small>{/if}
       </div>
       <h1>{fr.welcomeTitle}</h1>
+      <button class="prefs" title={fr.preferencesHint} onclick={() => (editor.showPreferences = true)}><Icon name="settings" /> {fr.preferences}</button>
       {#if editor.welcomeOverDoc}
         <button class="back-doc" onclick={close}><Icon name="back" /> {fr.welcomeBackToDoc(editor.doc.title)}</button>
       {/if}
@@ -249,10 +250,13 @@
     font: 600 26px var(--ui-font);
     margin: 0 0 24px;
   }
+  .prefs {
+    background: var(--surface);
+  }
   .back-doc {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-weight: 600;
   }
   .band h1 {
@@ -371,16 +375,16 @@
     padding: 0;
     border-radius: 50%;
     border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.95);
+    background: color-mix(in srgb, var(--surface) 95%, transparent);
     color: var(--muted);
     display: grid;
     place-items: center;
   }
   .forget:hover,
   .forget:focus-visible {
-    background: #d32f2f;
-    border-color: #d32f2f;
-    color: white;
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--surface);
   }
   .recents-head {
     display: flex;
@@ -409,10 +413,10 @@
     flex-direction: column;
     min-width: 200px;
     padding: 4px;
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 8px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 6px 20px var(--shadow);
   }
   .menu button {
     text-align: left;
@@ -421,13 +425,13 @@
     padding: 7px 10px;
   }
   .menu button:hover {
-    background: #e8f1fb;
+    background: var(--accent-soft);
   }
   .menu .danger {
-    color: #c0392b;
+    color: var(--danger);
   }
   .menu .danger:hover {
-    background: #fdecea;
+    background: var(--danger-soft);
   }
   .recents .title {
     max-width: 100%;
@@ -447,14 +451,14 @@
     height: 204px;
     align-items: center;
     background: white;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 1px 4px var(--shadow);
   }
   .card.new {
     border: 2px dashed var(--accent);
   }
   .card.new .mini {
     align-items: center;
-    background: #f2f8fe;
+    background: var(--accent-soft);
   }
   .card.new small {
     color: var(--muted);

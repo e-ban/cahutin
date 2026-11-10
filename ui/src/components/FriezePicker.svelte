@@ -49,7 +49,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(40, 30, 20, 0.35);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -64,7 +64,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 10px 40px var(--shadow);
   }
   h2 {
     margin: 0;
@@ -89,8 +89,8 @@
     background: transparent;
   }
   .motif:hover {
-    border-color: #c0392b;
-    background: #fdecea;
+    border-color: var(--danger);
+    background: var(--danger-soft);
   }
   .motif img {
     width: 32px;
@@ -105,7 +105,7 @@
     height: 14px;
     border-radius: 7px;
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-size: 10px;
     line-height: 14px;
     text-align: center;
@@ -121,13 +121,13 @@
     border: 0;
     border-radius: 0;
     padding: 6px 14px;
-    background: white;
+    background: var(--surface);
   }
   .tabs button + button {
     border-left: 1px solid var(--line);
   }
   .tabs .on {
-    background: #e8f1fb;
+    background: var(--accent-soft);
     color: var(--accent);
     font-weight: 600;
   }
@@ -147,7 +147,7 @@
   }
   .primary {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border-color: var(--accent);
     padding: 8px 16px;
   }

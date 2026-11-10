@@ -373,11 +373,11 @@
     margin-bottom: 12px;
   }
   .head .danger {
-    color: #c0392b;
+    color: var(--danger);
   }
   .head .danger:hover {
-    background: #fdecea;
-    border-color: #c0392b;
+    background: var(--danger-soft);
+    border-color: var(--danger);
   }
   .head label {
     display: flex;
@@ -411,12 +411,12 @@
     resize: vertical;
   }
   .intro {
-    background: #eaf2fb;
-    border: 1px solid #c9dcf2;
+    background: var(--accent-soft);
+    border: 1px solid var(--line);
     border-radius: 10px;
     padding: 14px 20px;
     margin-bottom: 18px;
-    color: #1f3a5f;
+    color: var(--text);
     max-width: 760px;
   }
   .intro h2 {
@@ -464,7 +464,7 @@
   .primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-weight: 600;
   }
   table {

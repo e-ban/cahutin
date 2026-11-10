@@ -35,7 +35,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -46,7 +46,7 @@
     border-radius: 12px;
     padding: 20px 24px;
     max-width: 460px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 30px var(--shadow);
   }
   h2 {
     font: 700 22px var(--title-font);

@@ -95,7 +95,7 @@
   .title:hover,
   .title:focus {
     border-color: var(--line);
-    background: white;
+    background: var(--surface);
   }
   .top > button {
     display: inline-flex;
@@ -137,7 +137,7 @@
     border-radius: 0 5px 5px 0;
   }
   .pair button:not(:disabled):hover {
-    background: #eef5fc;
+    background: var(--accent-soft);
   }
   :global(:root[data-contrast]) .pair,
   :global(:root[data-contrast]) .pair button:last-child {
@@ -148,9 +148,9 @@
     background: transparent;
   }
   .tpl-on {
-    background: #fff3dd;
-    border-color: #e6a23c;
-    color: #9a6300;
+    background: var(--warn-bg);
+    border-color: var(--warn-line);
+    color: var(--text);
     font-weight: 600;
   }
   .spacer {

@@ -95,7 +95,7 @@
     display: grid;
     place-items: center;
     padding: 10px;
-    background: rgba(255, 255, 255, 0.85);
+    background: color-mix(in srgb, var(--surface) 85%, transparent);
     border-radius: 50%;
   }
   .nav:disabled {
@@ -132,14 +132,14 @@
   .kid.on {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
   }
   .hint {
     color: var(--muted);
     font-size: 13px;
   }
   .warn {
-    color: #b03a2e;
+    color: var(--danger);
     font-size: 13px;
   }
 </style>

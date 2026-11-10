@@ -44,7 +44,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.35);
+    background: var(--backdrop);
     display: grid;
     place-items: center;
     z-index: 4500; /* au-dessus de la barre flottante et des menus, sous les boîtes de dialogue */
@@ -56,7 +56,7 @@
     flex-direction: column;
     background: var(--panel);
     border-radius: 14px;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 12px 36px var(--shadow);
     font-family: var(--ui-font);
     color: var(--text);
   }
@@ -76,7 +76,7 @@
     padding: 6px 12px;
     border-radius: 8px;
     border: 1px solid var(--line);
-    background: #fff;
+    background: var(--surface);
     cursor: pointer;
   }
   .body {

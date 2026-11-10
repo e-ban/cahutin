@@ -82,6 +82,7 @@
   import { launchDocument } from "./lib/api";
   import { clearBackup } from "./lib/backupCopy";
   import { offerBackup, startBackups } from "./lib/backup";
+  import { themeVars } from "./lib/themes";
 
   editor.reset(newDocument(), null);
   editor.showWelcome = true;
@@ -114,6 +115,11 @@
     const root = document.documentElement;
     root.style.setProperty("--ui-font", `"${settings.uiFont}", system-ui, sans-serif`);
     root.toggleAttribute("data-contrast", settings.highContrast);
+    // Le thème : ses couleurs sur la racine ; un thème sombre change aussi les contrôles et barres de défilement.
+    const theme = themeVars(settings.theme, settings.highContrast);
+    for (const [name, value] of theme.vars) root.style.setProperty(name, value);
+    root.style.colorScheme = theme.dark ? "dark" : "light";
+    root.toggleAttribute("data-dark", theme.dark);
     root.toggleAttribute("data-big-handles", settings.bigHandles);
     root.toggleAttribute("data-reduce-motion", settings.reduceMotion);
     root.toggleAttribute("data-cues", settings.doubleCues);
@@ -449,6 +455,7 @@
 
 <style>
   :global(:root) {
+    /* Les couleurs du thème Papier, avant que lib/themes.ts pose celles du thème choisi. */
     --bg: #efe9df;
     --panel: #fbf8f3;
     --line: #e2d9cb;
@@ -456,6 +463,17 @@
     --muted: #8a8278;
     --accent: #2e86de;
     --accent-strong: #c0392b;
+    --surface: #ffffff;
+    --on-accent: #ffffff;
+    --accent-soft: #e8f1fb;
+    --danger: #c0392b;
+    --danger-soft: #fdecea;
+    --warn-bg: #fff4e5;
+    --warn-line: #f0b86e;
+    --warn-text: #8a4f00;
+    --ok: #2e7d32;
+    --shadow: rgba(0, 0, 0, 0.15);
+    --backdrop: rgba(40, 30, 20, 0.35);
     --zone-photo: #2e86de;
     --zone-text: #e67e22;
     --ui-font: "Atkinson Hyperlegible", system-ui, sans-serif;
@@ -466,16 +484,7 @@
     flex: none;
     vertical-align: -0.2em;
   }
-  /* Contraste élevé : textes noirs, bordures foncées, fonds blancs, bleu plus sombre. */
-  :global(:root[data-contrast]) {
-    --bg: #ffffff;
-    --panel: #ffffff;
-    --line: #5c554c;
-    --text: #000000;
-    --muted: #3a352f;
-    --accent: #0b4f99;
-    --accent-strong: #8e1d12;
-  }
+  /* Contraste élevé (ses couleurs viennent de lib/themes.ts) : des bordures plus épaisses. */
   :global(:root[data-contrast] button, :root[data-contrast] select, :root[data-contrast] input) {
     border-width: 2px;
   }
@@ -522,7 +531,7 @@
     font: inherit;
     color: inherit;
     border: 1px solid var(--line);
-    background: white;
+    background: var(--surface);
     border-radius: 6px;
     padding: 5px 10px;
   }
@@ -555,10 +564,10 @@
     bottom: 70px;
     transform: translateX(-50%);
     max-width: 640px;
-    background: #fff4e5;
-    border: 1px solid #f0b86e;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
     border-radius: 10px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 6px 24px var(--shadow);
     padding: 12px 16px;
     display: flex;
     gap: 14px;

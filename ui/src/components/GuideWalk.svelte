@@ -62,18 +62,18 @@
     position: fixed;
     border: 3px solid var(--accent);
     border-radius: 10px;
-    box-shadow: 0 0 0 4px rgba(46, 134, 222, 0.25);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
     pointer-events: none;
     z-index: 6500;
   }
   .bubble {
     position: fixed;
     width: 320px;
-    background: white;
+    background: var(--surface);
     border: 2px solid var(--accent);
     border-radius: 12px;
     padding: 12px 16px;
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 28px var(--shadow);
     z-index: 6500;
   }
   .kicker {

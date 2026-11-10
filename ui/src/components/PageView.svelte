@@ -391,7 +391,17 @@
     position: absolute;
     inset: 0;
   }
+  /* La page reste blanche, comme sur papier, quel que soit le thème : ses repères gardent les couleurs claires. */
   .page {
+    --text: #2d2a26;
+    --muted: #7d756b;
+    --line: #e2d9cb;
+    --panel: #fbf8f3;
+    --surface: #ffffff;
+    --accent: #2e86de;
+    --accent-soft: #e8f1fb;
+    color-scheme: light;
+    color: var(--text);
     position: relative;
     background: white;
     box-shadow: 0 2px 14px rgba(60, 40, 20, 0.18);

@@ -112,7 +112,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(40, 30, 20, 0.35);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -126,7 +126,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 10px 40px var(--shadow);
   }
   h2 {
     margin: 0;
@@ -169,10 +169,10 @@
   }
   .hint {
     font-size: 12px;
-    color: #7a6f63;
+    color: var(--muted);
   }
   .error {
-    color: #c0392b;
+    color: var(--danger);
   }
   .buttons {
     display: flex;
@@ -181,7 +181,7 @@
   }
   .primary {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border-color: var(--accent);
   }
 </style>

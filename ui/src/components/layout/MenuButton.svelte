@@ -130,7 +130,7 @@
   .primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-weight: 600;
   }
   .primary:not(:disabled):hover {
@@ -141,10 +141,10 @@
     top: calc(100% + 4px);
     left: 0;
     min-width: 230px;
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 8px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 6px 20px var(--shadow);
     padding: 4px;
     z-index: 4000; /* au-dessus des poignées Moveable (3000) */
   }
@@ -171,7 +171,7 @@
     color: var(--muted);
   }
   .item.active {
-    background: #eef5fc;
+    background: var(--accent-soft);
   }
   /* Icône, libellé, puis le raccourci calé à droite. */
   .item {
@@ -200,7 +200,7 @@
     color: var(--muted);
   }
   .item:not(:disabled):hover {
-    background: #eef5fc;
+    background: var(--accent-soft);
   }
   kbd {
     font: inherit;

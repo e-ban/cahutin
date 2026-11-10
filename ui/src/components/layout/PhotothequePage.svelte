@@ -353,7 +353,7 @@
     justify-content: space-between;
   }
   .filters .on {
-    background: #e8f1fb;
+    background: var(--accent-soft);
     border-color: var(--accent);
   }
   .n {
@@ -420,7 +420,7 @@
     overflow: hidden;
     border: 3px solid transparent;
     border-radius: 8px;
-    background: #ddd;
+    background: var(--line);
   }
   .thumb img {
     width: 100%;
@@ -430,29 +430,29 @@
   }
   .thumb.on {
     border-color: var(--accent);
-    box-shadow: 0 0 0 2px #fff inset;
+    box-shadow: 0 0 0 2px var(--surface) inset;
   }
   .badge {
     position: absolute;
     bottom: 4px;
     left: 4px;
-    background: rgba(255, 255, 255, 0.9);
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
     border-radius: 10px;
     padding: 0 6px;
     font-size: 12px;
   }
   .thumb.marking.on {
-    border-color: #2e8b57;
+    border-color: var(--ok);
   }
   .badge.mark {
-    background: #2e8b57;
-    color: white;
+    background: var(--ok);
+    color: var(--on-accent);
   }
   .badge.warn {
     left: auto;
     right: 4px;
-    background: #fdecea;
-    color: #b03a2e;
+    background: var(--danger-soft);
+    color: var(--danger);
   }
   .panel {
     width: 260px;
@@ -476,10 +476,10 @@
   .kid.all {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
   }
   .kid.some {
-    background: #e8f1fb;
+    background: var(--accent-soft);
     border-color: var(--accent);
     border-style: dashed;
   }
@@ -501,15 +501,15 @@
   .primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
     font-weight: 600;
   }
   .danger {
-    color: #b03a2e;
+    color: var(--danger);
   }
   .equity {
-    background: #fff6e6;
-    border: 1px solid #f0c98a;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
     border-radius: 10px;
     padding: 8px 12px;
     display: flex;
@@ -518,7 +518,7 @@
     align-items: center;
   }
   .warn-text {
-    color: #b03a2e;
+    color: var(--danger);
     font-size: 13px;
   }
   .progress {
@@ -532,6 +532,6 @@
     font-size: 13px;
   }
   .error {
-    color: #b03a2e;
+    color: var(--danger);
   }
 </style>

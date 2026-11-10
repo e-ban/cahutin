@@ -83,6 +83,7 @@
     inset: 0;
     z-index: 5500; /* au-dessus de la barre flottante et des menus, sous les boîtes de dialogue (6000) */
   }
+  /* Un voile foncé dans tous les thèmes : la zone montrée doit ressortir, même sur un thème clair. */
   .tour.dim {
     background: rgba(0, 0, 0, 0.55);
   }
@@ -101,7 +102,7 @@
     color: var(--text);
     border-radius: 12px;
     padding: 16px 18px 12px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10px 30px var(--shadow);
     font-family: var(--ui-font);
   }
   h2 {
@@ -129,7 +130,7 @@
     padding: 6px 10px;
     border-radius: 8px;
     border: 1px solid var(--line);
-    background: #fff;
+    background: var(--surface);
     cursor: pointer;
   }
   button:disabled {
@@ -139,7 +140,7 @@
   button.primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
   }
   button.link {
     border: none;

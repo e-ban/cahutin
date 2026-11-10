@@ -236,7 +236,7 @@
   .user {
     align-self: flex-end;
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border-radius: 10px 10px 2px 10px;
     padding: 6px 10px;
     margin: 0;
@@ -299,7 +299,7 @@
     color: var(--muted);
   }
   .outcome.ok {
-    color: #2e7d32;
+    color: var(--ok);
   }
   .foot {
     display: flex;
@@ -323,7 +323,7 @@
     color: var(--muted);
   }
   .error {
-    color: #c62828;
+    color: var(--danger);
     margin: 0;
   }
   .busy {
@@ -349,7 +349,7 @@
   }
   .primary {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border-color: var(--accent);
   }
   .primary:disabled {

@@ -107,10 +107,10 @@
     top: calc(100% + 4px);
     left: 0;
     width: 280px;
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 8px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 6px 20px var(--shadow);
     padding: 6px;
     z-index: 4000;
     display: flex;
@@ -146,10 +146,10 @@
     contain-intrinsic-size: auto 30px;
   }
   .list button:hover {
-    background: #eef5fc;
+    background: var(--accent-soft);
   }
   .list button.on {
-    background: #e8f1fb;
+    background: var(--accent-soft);
   }
   .name {
     flex: 1;
@@ -162,8 +162,8 @@
     font-size: 10px;
     border-radius: 8px;
     padding: 1px 6px;
-    background: #fff1e0;
-    color: #b9770e;
+    background: var(--warn-bg);
+    color: var(--warn-text);
     white-space: nowrap;
   }
   .none {

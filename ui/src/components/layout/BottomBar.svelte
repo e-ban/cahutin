@@ -211,7 +211,7 @@
   .thumb.current .num {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: var(--on-accent);
   }
   .thumb :global(.page) {
     pointer-events: none;
@@ -248,7 +248,7 @@
     color: var(--muted);
   }
   .on {
-    background: #e8f1fb;
+    background: var(--accent-soft);
     border-color: var(--accent);
   }
 </style>

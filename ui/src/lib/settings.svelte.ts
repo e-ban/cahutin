@@ -1,4 +1,5 @@
 // Préférences de l'application, gardées sur le poste (fenêtre Préférences).
+import type { ThemeId } from "./themes";
 import type { Level } from "./graphisme";
 import type { Format } from "./pageFormat";
 import { readPref, writePref } from "./prefs";
@@ -38,6 +39,8 @@ class Settings {
 
   uiScale = $state<UiScale>(readPref("uiScale", 1));
   uiFont = $state<UiFont>(readPref("uiFont", "Atkinson Hyperlegible"));
+  /** Les couleurs de l'interface autour de la page : Papier par défaut. */
+  theme = $state<ThemeId>(readPref("theme", "papier"));
   /** Textes plus foncés, bordures et sélection plus marquées, fonds blancs. */
   highContrast = $state(readPref("highContrast", false));
   /** Poignées deux fois plus grosses : écran tactile, tableau blanc, souris difficile. */
@@ -83,6 +86,7 @@ class Settings {
 type Stored =
   | "uiScale"
   | "uiFont"
+  | "theme"
   | "highContrast"
   | "bigHandles"
   | "reduceMotion"

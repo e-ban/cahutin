@@ -79,6 +79,7 @@ img { max-width: 100%; height: auto; display: block; }
 .cartes h3 { margin: 6px 0 6px; line-height: 28px; }
 .cartes p, .cartes ol { margin-bottom: 12px; }
 .pastille { display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: #eef3fb; font-size: 26px; }
+.pastille img { display: block; width: 36px; height: 36px; }
 .colle.petite { max-width: 820px; margin: calc(6 * var(--u)) auto; transform: rotate(1deg); }
 
 header .logo { display: block; width: 160px; height: 160px; margin: calc(4 * var(--u)) 0 calc(-6 * var(--u)); }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  // À propos : version, licences et mentions (OpenMoji, CLDR, polices).
+  // À propos : version, licences et mentions (OpenMoji, CLDR, Lucide, polices).
   import { getVersion } from "@tauri-apps/api/app";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
@@ -20,6 +20,7 @@
     <p>{fr.aboutNetwork}</p>
     <p>{fr.aboutOpenmoji}</p>
     <p>{fr.aboutCldr}</p>
+    <p>{fr.aboutLucide}</p>
     <p>{fr.aboutFonts}</p>
     <button onclick={() => (editor.showAbout = false)}>{fr.close}</button>
   </div>

@@ -18,6 +18,31 @@ export interface Release {
 /** De la plus récente à la plus ancienne. */
 export const RELEASES: Release[] = [
   {
+    version: "0.16",
+    items: [
+      {
+        title: "Un nouveau visage",
+        text: "Des icônes dessinées pour Cahutin, les mêmes sur tous les ordinateurs. L'accueil se range en deux colonnes : « Commencer » un document, ou « Reprendre » un document récent. En bas de la fenêtre, toutes les commandes de la page restent visibles sur une seule ligne.",
+        image: "/nouveautes/0.16/look.webp",
+      },
+      {
+        title: "Des thèmes, dont un thème sombre",
+        text: "Préférences > Affichage : Papier (les couleurs d'origine), Craie, Crayon, ou Nuit pour travailler le soir. La page, elle, reste toujours blanche, comme sur papier.",
+        image: "/nouveautes/0.16/themes.webp",
+      },
+      {
+        title: "Des préférences mieux rangées",
+        text: "Les réglages se rangent par catégories, à gauche de la fenêtre. « Chercher un réglage » trouve le bon en tapant un mot : « contraste », « sombre », « A4 »… Les Préférences s'ouvrent aussi depuis l'accueil.",
+        image: "/nouveautes/0.16/preferences.webp",
+      },
+      {
+        title: "Choisir ses élèves",
+        text: "Sur la page Ma classe, cochez des élèves pour leur donner le même niveau ou le même groupe d'un coup. « Remplir avec ma classe » permet aussi de choisir les élèves un par un.",
+        image: "/nouveautes/0.16/eleves.webp",
+      },
+    ],
+  },
+  {
     version: "0.13",
     items: [
       {

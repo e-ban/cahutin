@@ -1,11 +1,13 @@
 <script lang="ts">
-  // Écran d'accueil : un bandeau (logo, nom, version), les choix sur toute la largeur, puis les documents
-  // récents avec l'aperçu de leur première page. Le même écran sert à Fichier > Nouveau.
+  // Écran d'accueil : un bandeau (logo, nom, version), puis deux colonnes, « Commencer » un document et
+  // « Reprendre » les récents (aperçu de leur première page), et en bas « Mes ressources ». Le même écran sert à
+  // Fichier > Nouveau.
   import { getVersion } from "@tauri-apps/api/app";
   import Icon from "../Icon.svelte";
   import PageView from "../PageView.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { guides } from "../../lib/guides.svelte";
+  import { pictoUrl } from "../../lib/pictos.svelte";
   import { listExamples, openExample, previewDocument } from "../../lib/api";
   import { clearRecents, forgetRecent, freshFromHome, importFiles, openDoc, openExampleDoc, openPath, trashRecent } from "../../lib/fileActions";
   import type { Document, ExampleInfo } from "../../lib/types";
@@ -89,6 +91,9 @@
   const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 </script>
 
+<!-- Les choix de l'accueil : un pictogramme OpenMoji en couleur, le même sur tous les ordinateurs. -->
+{#snippet pic(code: string)}<img class="pic" src={pictoUrl(code)} alt="" />{/snippet}
+
 {#snippet layout(t: (typeof templates.infos)[number])}
   <button class="card" onclick={() => chooseLayout(t.id)}>
     <div class="mini">
@@ -114,45 +119,55 @@
         <button class="back-doc" onclick={close}><Icon name="back" /> {fr.welcomeBackToDoc(editor.doc.title)}</button>
       {/if}
     </header>
-    <div class="choices">
-      <button class="choice main" onclick={() => (step = "layouts")}>
-        <b><Icon name="template" size={26} /></b><span>{fr.welcomeTemplate}</span><small>{fr.welcomeTemplateSub}</small>
-      </button>
-      <button class="choice" onclick={blankPage}><b><Icon name="fileNew" size={26} /></b><span>{fr.welcomeBlank}</span><small>{fr.welcomeBlankSub}</small></button>
-      <button class="choice" onclick={() => openDoc()}><b><Icon name="folderOpen" size={26} /></b><span>{fr.welcomeResume}</span><small>{fr.welcomeResumeSub}</small></button>
-      <button class="choice" onclick={() => importFiles(undefined, { fresh: true })}><b><Icon name="import" size={26} /></b><span>{fr.welcomeImport}</span><small>{fr.welcomeImportSub}</small></button>
-      <button class="choice" onclick={showExamples}><b><Icon name="example" size={26} /></b><span>{fr.welcomeExamples}</span><small>{fr.welcomeExamplesSub}</small></button>
+    <div class="columns">
+      <!-- À gauche, pour un nouveau document : partir d'un modèle d'abord, puis les autres départs. -->
+      <section class="start" aria-labelledby="welcome-start">
+        <h2 id="welcome-start">{fr.welcomeStart}</h2>
+        <button class="choice main" onclick={() => (step = "layouts")}>
+          {@render pic("1F4D0")}<span>{fr.welcomeTemplate}</span><small>{fr.welcomeTemplateSub}</small>
+        </button>
+        <button class="choice" onclick={blankPage}>{@render pic("1F4C4")}<span>{fr.welcomeBlank}</span><small>{fr.welcomeBlankSub}</small></button>
+        <button class="choice" onclick={showExamples}>{@render pic("2728")}<span>{fr.welcomeExamples}</span><small>{fr.welcomeExamplesSub}</small></button>
+        <button class="choice" onclick={() => importFiles(undefined, { fresh: true })}>{@render pic("1F4E5")}<span>{fr.welcomeImport}</span><small>{fr.welcomeImportSub}</small></button>
+      </section>
+      <!-- À droite, pour continuer : les documents récents, puis ouvrir un autre fichier. -->
+      <section class="resume" aria-labelledby="welcome-resume">
+        <div class="recents-head">
+          <h2 id="welcome-resume">{fr.welcomeContinue}</h2>
+          {#if editor.recents.length}<button class="plain" onclick={clearRecents}>{fr.recentsClear}</button>{/if}
+        </div>
+        {#if editor.recents.length === 0}
+          <p class="hint">{fr.noRecents}</p>
+        {:else}
+          <ul class="recents">
+            {#each editor.recents as r (r.path)}
+              {@const doc = previews[r.path]}
+              <li oncontextmenu={(e) => (e.preventDefault(), (menu = { path: r.path, title: r.title, x: e.clientX, y: e.clientY }))}>
+                <button class="card" onclick={() => openPath(r.path)} title={fileName(r.path)}>
+                  <div class="mini small">
+                    {#if doc}<PageView page={doc.pages[0]} {doc} zoom={RECENT} />{:else}<span class="blank"><Icon name="document" size={40} /></span>{/if}
+                  </div>
+                  <span class="title">{r.title}</span>
+                  <small>{new Date(r.openedAt).toLocaleDateString("fr-FR")}</small>
+                </button>
+                <button class="forget" title={fr.recentForget} aria-label={`${fr.recentForget} : ${r.title}`} onclick={() => forgetRecent(r.path)}><Icon name="close" size={14} /></button>
+              </li>
+            {/each}
+          </ul>
+          <p class="hint small-hint">{fr.recentsHint}</p>
+        {/if}
+        <button class="choice" onclick={() => openDoc()}>{@render pic("1F4C2")}<span>{fr.welcomeResume}</span><small>{fr.welcomeResumeSub}</small></button>
+      </section>
     </div>
-    <!-- Ce qui sert à tous les documents, à part : la collection d'images et la classe. -->
-    <div class="choices own">
-      <button class="choice" onclick={() => (editor.showCollection = true)}><b><Icon name="collection" size={26} /></b><span>{fr.welcomeCollection}</span><small>{fr.welcomeCollectionSub}</small></button>
-      <button class="choice" onclick={() => (editor.showClassPage = true)}><b><Icon name="class" size={26} /></b><span>{fr.welcomeClass}</span><small>{fr.welcomeClassSub}</small></button>
-      <button class="choice" onclick={() => guides.show()}><b><Icon name="guide" size={26} /></b><span>{fr.welcomeGuides}</span><small>{fr.welcomeGuidesSub}</small></button>
-    </div>
-    <div class="recents-head">
-      <h2>{fr.recentDocs}</h2>
-      {#if editor.recents.length}<button class="plain" onclick={clearRecents}>{fr.recentsClear}</button>{/if}
-    </div>
-    {#if editor.recents.length === 0}
-      <p class="hint">{fr.noRecents}</p>
-    {:else}
-      <ul class="recents">
-        {#each editor.recents as r (r.path)}
-          {@const doc = previews[r.path]}
-          <li oncontextmenu={(e) => (e.preventDefault(), (menu = { path: r.path, title: r.title, x: e.clientX, y: e.clientY }))}>
-            <button class="card" onclick={() => openPath(r.path)} title={fileName(r.path)}>
-              <div class="mini small">
-                {#if doc}<PageView page={doc.pages[0]} {doc} zoom={RECENT} />{:else}<span class="blank"><Icon name="document" size={40} /></span>{/if}
-              </div>
-              <span class="title">{r.title}</span>
-              <small>{new Date(r.openedAt).toLocaleDateString("fr-FR")}</small>
-            </button>
-            <button class="forget" title={fr.recentForget} aria-label={`${fr.recentForget} : ${r.title}`} onclick={() => forgetRecent(r.path)}><Icon name="close" size={14} /></button>
-          </li>
-        {/each}
-      </ul>
-      <p class="hint small-hint">{fr.recentsHint}</p>
-    {/if}
+    <!-- Ce qui sert à tous les documents : la classe, la collection d'images, les guides. -->
+    <section class="own" aria-labelledby="welcome-own">
+      <h2 id="welcome-own">{fr.welcomeOwn}</h2>
+      <div class="own-row">
+        <button class="choice" onclick={() => (editor.showClassPage = true)}>{@render pic("1F9D2")}<span>{fr.welcomeClass}</span><small>{fr.welcomeClassSub}</small></button>
+        <button class="choice" onclick={() => (editor.showCollection = true)}>{@render pic("1F5BC")}<span>{fr.welcomeCollection}</span><small>{fr.welcomeCollectionSub}</small></button>
+        <button class="choice" onclick={() => guides.show()}>{@render pic("1F4D8")}<span>{fr.welcomeGuides}</span><small>{fr.welcomeGuidesSub}</small></button>
+      </div>
+    </section>
     {#if menu}
       {@const m = menu}
       <!-- Menu du clic droit : un clic ailleurs ou Échap le ferme. -->
@@ -247,83 +262,96 @@
     color: var(--muted);
   }
   h2 {
-    margin: 36px 0 14px;
+    margin: 0 0 12px;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
   }
-  .choices {
+  /* Deux colonnes : commencer (étroite) et reprendre (large) ; une seule quand la fenêtre est étroite. */
+  .columns {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 14px;
+    grid-template-columns: minmax(280px, 380px) 1fr;
+    gap: 36px;
+    align-items: start;
   }
-  /* Cinq choix pour un document : une rangée si la fenêtre est large, sinon deux rangées de trois places, le
-     premier choix en prenant deux. */
-  @media (max-width: 1250px) {
-    .choices {
-      grid-template-columns: repeat(3, 1fr);
-    }
-    .choice.main {
-      grid-column: span 2;
+  @media (max-width: 900px) {
+    .columns {
+      grid-template-columns: 1fr;
     }
   }
-  /* La collection, la classe et les guides : une rangée à part, plus basse, l'image à gauche du texte. */
-  .choices.own {
-    grid-template-columns: repeat(3, 1fr);
-    margin-top: 22px;
+  .start,
+  .resume {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
   }
-  .own .choice {
+  /* Un choix : le pictogramme à gauche, le nom et sa précision à droite. */
+  .choice {
     display: grid;
     grid-template-columns: auto 1fr;
     grid-template-rows: auto auto;
     column-gap: 14px;
-    row-gap: 2px;
+    row-gap: 1px;
     align-items: center;
-    text-align: left;
-    padding: 14px 20px;
-  }
-  .own .choice b {
-    grid-row: span 2;
-  }
-  .own .choice span,
-  .own .choice small {
-    justify-self: start;
-    text-align: left;
-  }
-  .choice {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    padding: 20px 10px;
+    padding: 10px 16px;
     background: var(--panel);
     border-radius: 12px;
+    text-align: left;
     font-size: 15px;
     font-weight: 600;
   }
-  /* L'icône du choix dans une pastille ronde, teintée de bleu. */
-  .choice b {
-    display: grid;
-    place-items: center;
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
-    color: var(--accent);
+  .choice .pic {
+    grid-row: span 2;
+    width: 44px;
+    height: 44px;
+  }
+  .choice span,
+  .choice small {
+    justify-self: start;
   }
   .choice small {
     color: var(--muted);
     font-weight: 400;
     font-size: 12.5px;
-    text-align: center;
   }
+  /* Partir d'un modèle : le départ conseillé, plus grand. */
   .choice.main {
+    padding: 18px 16px;
     border: 2px solid var(--accent);
-    background: #f2f8fe;
+    background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+    font-size: 17px;
+  }
+  .choice.main .pic {
+    width: 64px;
+    height: 64px;
+  }
+  .resume > .choice {
+    align-self: start;
+    margin-top: 6px;
+  }
+  .own {
+    margin-top: 36px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+  }
+  .own-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 900px) {
+    .own-row {
+      grid-template-columns: 1fr;
+    }
   }
   .recents {
     list-style: none;
     margin: 0;
     padding: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 18px;
   }
   .recents .card {

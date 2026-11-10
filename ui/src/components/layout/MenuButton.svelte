@@ -22,7 +22,6 @@
 
 <script lang="ts">
   // Bouton qui ouvre une liste de commandes ; se ferme avec Échap, un clic ailleurs ou après un choix.
-  // `up` : la liste s'ouvre au-dessus du bouton (barre du bas).
   import Icon from "../Icon.svelte";
   import { fitInWindow } from "../../lib/popover";
 
@@ -32,8 +31,7 @@
     primary = false,
     icon,
     title,
-    up = false,
-  }: { label: string; items: MenuItem[]; primary?: boolean; icon?: IconName; title?: string; up?: boolean } = $props();
+  }: { label: string; items: MenuItem[]; primary?: boolean; icon?: IconName; title?: string } = $props();
 
   let open = $state(false);
   let root = $state<HTMLElement>();
@@ -88,7 +86,7 @@
     {#if icon}<Icon name={icon} />{/if}{label}<Icon name="chevronDown" size={14} />
   </button>
   {#if open}
-    <div use:fitInWindow={4} class="list" class:right={primary} class:up role="menu">
+    <div use:fitInWindow={4} class="list" class:right={primary} role="menu">
       {#each items as item, i}
         {#if item.separator}<hr />{/if}
         {#if item.children}
@@ -153,14 +151,6 @@
   .list.right {
     left: auto;
     right: 0;
-  }
-  .list.up {
-    top: auto;
-    bottom: calc(100% + 4px);
-  }
-  .list.up .list.sub {
-    top: auto;
-    bottom: -5px;
   }
   .sub-wrap {
     position: relative;

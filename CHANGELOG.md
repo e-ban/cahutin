@@ -8,7 +8,8 @@
 - Menus : une colonne d'icônes, les raccourcis à droite, des titres de section (« Documents récents ») et des coches pour ce qui est activé.
 - Barre de l'élément : les outils sont rangés par familles, dans le même ordre pour tous les éléments (le contenu, l'apparence, la place sur la page, puis Supprimer).
 - Panneau Réglages : des titres plus calmes, plus d'air, et la valeur écrite à côté de chaque curseur.
-- Barre du bas : vignettes plus grandes avec leur numéro ; Dupliquer, Fond, Format, Vis-à-vis, Paysage et Supprimer la page sont rangés dans un menu « Page ».
+- Barre du bas : une seule ligne, plus basse ; les vignettes portent leur numéro ; les commandes de la page restent visibles, en deux groupes (Ajouter, Dupliquer, Supprimer ; Fond, format, Paysage, Vis-à-vis).
+- Accueil : deux colonnes, « Commencer » (partir d'un modèle, page vierge, exemple, importer) et « Reprendre » (les documents récents en grand, ou en ouvrir un autre), puis « Mes ressources » (Ma classe, Ma collection, Guides), avec des pictogrammes en couleur.
 - Remplir avec ma classe : « Choisir les élèves » déplie la liste de la classe, à cocher un par un, avec « Tous » et « Aucun ». Le niveau ou le groupe cochent leurs élèves d'un coup, et le nombre de pages suit.
 - Barre de l'élément : un menu qui s'ouvre sous un outil (Champ, Styles, Plus, polices…) ne dépasse plus de la fenêtre. Il s'ouvre au-dessus quand la place manque en dessous, et défile s'il est trop long.
 - Import d'un PDF : un mot ou une phrase soulignés arrivent soulignés, au lieu d'un trait à part sous le texte. Le compte rendu ne compte plus les cadres vides, et quand beaucoup de dessins manquent, il le dit sans chiffre (« comparez avec le fichier d'origine »).

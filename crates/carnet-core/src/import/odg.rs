@@ -636,9 +636,11 @@ impl<R: Read + Seek> PageReader<'_, R> {
                     self.text_box(frame, n, tb);
                 } else if n.children().any(|c| c.has_tag_name((DRAW, "image"))) {
                     self.image(frame, n.children().filter(|c| c.has_tag_name((DRAW, "image"))).collect());
-                } else {
+                } else if n.children().any(|c| c.is_element()) {
+                    // Un objet (graphique, formule) : il manquera.
                     self.skipped += 1;
                 }
+                // Un cadre vide ne montre rien : rien ne manque.
             }
             "polygon" if n.attribute((DRAW, "points")).is_some_and(is_axis_rectangle) => match frame_of(n) {
                 Some(f) => self.shape(n, f, ShapeKind::Rect),
@@ -758,6 +760,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
 
     fn finish(mut self) -> (Vec<Element>, Vec<Asset>, usize, Vec<Drawing>, usize, Vec<(String, Vec<u8>, f64)>) {
         self.attach_bullets();
+        attach_underlines(&mut self.lines, &mut self.items);
         let obstacles: Vec<Frame> = self.items.iter().filter_map(|it| if let Item::Element(e) = it { Some(e.frame) } else { None }).collect();
         let blocks = merge_lines(&obstacles, self.lines);
         let mut by_last: HashMap<usize, Element> = blocks.iter().map(|b| (b.last, block_element(b))).collect();
@@ -771,6 +774,82 @@ impl<R: Read + Seek> PageReader<'_, R> {
             .collect();
         (elements, self.assets, self.skipped, self.drawings, self.shrunk, self.pending)
     }
+}
+
+/// Plus grande épaisseur d'un trait de soulignement.
+const UNDERLINE_MAX_MM: f64 = 0.6;
+
+/// Un soulignement, dans un PDF, est un trait à part, juste sous sa ligne de texte : il devient le soulignement
+/// des mots qu'il couvre, et le trait disparaît. La place de chaque lettre est estimée d'après leur nombre (une
+/// police de l'ordinateur n'est pas mesurable ici) ; un mot est souligné si son milieu est sous le trait.
+fn attach_underlines(lines: &mut [Line], items: &mut Vec<Item>) {
+    items.retain(|it| {
+        let Item::Element(e) = it else { return true };
+        let ElementKind::Shape(s) = &e.kind else { return true };
+        let f = &e.frame;
+        let horizontal = f.rotation_deg.abs() < 0.5 || (f.rotation_deg.abs() - 180.0).abs() < 0.5;
+        let thin = s.stroke.as_ref().is_some_and(|st| st.width_mm <= UNDERLINE_MAX_MM);
+        if s.shape != ShapeKind::Line || !horizontal || !thin || f.w_mm < 1.0 {
+            return true;
+        }
+        let (x0, x1, y) = (f.x_mm, f.x_mm + f.w_mm, f.y_mm + f.h_mm / 2.0);
+        let under = lines.iter_mut().find(|l| x0 >= l.x_mm - 1.0 && x1 <= l.x_mm + l.w_mm + 1.0 && y >= l.y_mm + l.h_mm * 0.5 && y <= l.y_mm + l.h_mm + 1.0);
+        let Some(line) = under else { return true };
+        underline_span(line, x0, x1);
+        false
+    });
+}
+
+/// Deux morceaux de texte de même allure (hors soulignement) : ils se recollent.
+fn same_look(a: &Run, b: &Run) -> bool {
+    a.bold == b.bold && a.italic == b.italic && a.color == b.color && a.font == b.font && a.size_pt == b.size_pt
+}
+
+/// Souligne les mots de `line` dont le milieu tombe entre `x0` et `x1`.
+fn underline_span(line: &mut Line, x0: f64, x1: f64) {
+    let chars: usize = line.runs.iter().map(|r| r.text.chars().count()).sum();
+    if chars == 0 {
+        return;
+    }
+    let step = line.w_mm / chars as f64;
+    let mut at = 0usize;
+    let mut out: Vec<Run> = Vec::new();
+    for run in std::mem::take(&mut line.runs) {
+        // Mots et espaces, chacun à sa place sur la ligne.
+        let mut pieces: Vec<(String, bool)> = Vec::new();
+        let mut word = String::new();
+        let flush = |word: &mut String, at: &mut usize, pieces: &mut Vec<(String, bool)>| {
+            if word.is_empty() {
+                return;
+            }
+            let n = word.chars().count();
+            let mid = line.x_mm + (*at as f64 + n as f64 / 2.0) * step;
+            let is_space = word.chars().all(char::is_whitespace);
+            pieces.push((std::mem::take(word), !is_space && mid >= x0 && mid <= x1));
+            *at += n;
+        };
+        for c in run.text.chars() {
+            if c.is_whitespace() != word.chars().last().is_some_and(char::is_whitespace) && !word.is_empty() {
+                flush(&mut word, &mut at, &mut pieces);
+            }
+            word.push(c);
+        }
+        flush(&mut word, &mut at, &mut pieces);
+        // Une espace entre deux mots soulignés l'est aussi : le trait reste continu.
+        for i in 1..pieces.len().saturating_sub(1) {
+            if !pieces[i].1 && pieces[i].0.trim().is_empty() && pieces[i - 1].1 && pieces[i + 1].1 {
+                pieces[i].1 = true;
+            }
+        }
+        for (text, under) in pieces {
+            let underline = run.underline || under;
+            match out.last_mut() {
+                Some(last) if last.underline == underline && same_look(last, &run) => last.text.push_str(&text),
+                _ => out.push(Run { text, underline, ..run.clone() }),
+            }
+        }
+    }
+    line.runs = out;
 }
 
 /// Repère d'une image en attente de décodage, suivi de son rang dans la page (voir `PageReader::photo`).
@@ -1205,6 +1284,48 @@ mod tests {
         let (on, off) = dashes["d1"];
         assert!((on - 1.05).abs() < 1e-9 && (off - 1.05).abs() < 1e-9);
         assert!(!dashes.contains_key("d2"));
+    }
+
+    #[test]
+    fn an_underline_drawn_under_words_underlines_them() {
+        // Relevé d'une conversion PDF par LibreOffice : le trait est à part, juste sous la ligne.
+        let line = |x1: &str, x2: &str, y: &str| format!(r#"<draw:line draw:style-name="gr2" svg:x1="{x1}" svg:y1="{y}" svg:x2="{x2}" svg:y2="{y}"/>"#);
+        let body = [
+            text_frame("2.004cm", "2.018cm", "5.01cm", r#"<text:span text:style-name="T1">Écris ton prénom sur la ligne.</text:span>"#),
+            line("3.624cm", "4.915cm", "2.444cm"),
+            text_frame("2.004cm", "4.505cm", "4.904cm", r#"<text:span text:style-name="T1">Consigne soulignée en entier</text:span>"#),
+            line("2.003cm", "6.903cm", "4.931cm"),
+        ]
+        .concat();
+        let imported = read(&body);
+        let page = &imported.pages[0];
+        assert!(page.elements.iter().all(|e| !matches!(e.kind, ElementKind::Shape(_))), "les traits ne restent pas");
+        let runs: Vec<Vec<(String, bool)>> = texts(page).iter().map(|t| t.content.paragraphs.iter().flat_map(|p| &p.runs).map(|r| (r.text.clone(), r.underline)).collect()).collect();
+        assert_eq!(runs[0], [("Écris ton ".to_string(), false), ("prénom".to_string(), true), (" sur la ligne.".to_string(), false)]);
+        assert_eq!(runs[1], [("Consigne soulignée en entier".to_string(), true)]);
+    }
+
+    #[test]
+    fn an_empty_frame_is_not_reported_missing() {
+        let body = [
+            r#"<draw:frame draw:style-name="gr2" svg:width="3cm" svg:height="1cm" svg:x="1cm" svg:y="1cm"/>"#,
+            r#"<draw:frame draw:style-name="gr2" svg:width="3cm" svg:height="1cm" svg:x="1cm" svg:y="3cm"><draw:object xlink:href="./Object 1"/></draw:frame>"#,
+        ]
+        .concat();
+        assert_eq!(read(&body).report.skipped, 1, "seul l'objet manque");
+    }
+
+    #[test]
+    fn a_line_away_from_text_stays_a_line() {
+        let body = [
+            text_frame("2cm", "2cm", "5cm", r#"<text:span text:style-name="T1">Prénom :</text:span>"#),
+            // Une ligne d'écriture, bien plus bas : un trait à garder.
+            r#"<draw:line draw:style-name="gr2" svg:x1="2cm" svg:y1="5cm" svg:x2="12cm" svg:y2="5cm"/>"#.to_string(),
+        ]
+        .concat();
+        let page = &read(&body).pages[0];
+        assert_eq!(page.elements.iter().filter(|e| matches!(e.kind, ElementKind::Shape(_))).count(), 1);
+        assert!(texts(page)[0].content.paragraphs[0].runs.iter().all(|r| !r.underline));
     }
 
     #[test]

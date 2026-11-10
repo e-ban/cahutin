@@ -74,3 +74,8 @@ test("a welcome import keeps work done during the conversion", () => {
   expect(r.doc.pages.length).toBe(3);
   expect(r.doc.pages.slice(0, 2).map((p) => p.id)).toEqual(edited.pages.map((p) => p.id));
 });
+
+test("many drawings left out are not counted out loud", () => {
+  expect(importReportText("a.odg", report({ texts: 1, skipped: 1032 }))).toBe("a.odg : 1 page importée (1 texte). Quelques dessins n'ont pas pu être repris : comparez avec le fichier d'origine.");
+  expect(importReportText("a.odg", report({ texts: 1, skipped: 5 }))).toBe("a.odg : 1 page importée (1 texte). 5 dessins n'ont pas pu être repris.");
+});

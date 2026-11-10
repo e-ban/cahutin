@@ -208,3 +208,31 @@ fn conversion_never_fetches_linked_images() {
     server.join().unwrap();
     assert_eq!(visits.load(Ordering::SeqCst) - before, 0, "LibreOffice a téléchargé l'image liée pendant l'import");
 }
+
+/// Un mot souligné dans un PDF (un trait à part sous la ligne) arrive souligné, sans trait en plus.
+#[test]
+#[ignore]
+fn an_underlined_word_of_a_pdf_stays_underlined() {
+    let dir = tempfile::tempdir().unwrap();
+    let fodt = dir.path().join("souligne.fodt");
+    std::fs::write(
+        &fodt,
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.text">
+<office:automatic-styles><style:style style:name="U" style:family="text"><style:text-properties style:text-underline-style="solid" style:text-underline-width="auto" style:text-underline-color="font-color"/></style:style></office:automatic-styles>
+<office:body><office:text><text:p>Écris ton <text:span text:style-name="U">prénom</text:span> sur la ligne.</text:p></office:text></office:body></office:document>"#,
+    )
+    .unwrap();
+    let pdf = convert(dir.path(), &fodt, "pdf");
+    let page = &import(&pdf).pages[0];
+    assert!(page.elements.iter().all(|e| !matches!(e.kind, ElementKind::Shape(_))), "pas de trait de soulignement à part");
+    let underlined: Vec<String> = page
+        .elements
+        .iter()
+        .filter_map(|e| if let ElementKind::Text(t) = &e.kind { Some(t) } else { None })
+        .flat_map(|t| t.content.paragraphs.iter().flat_map(|p| &p.runs))
+        .filter(|r| r.underline)
+        .map(|r| r.text.clone())
+        .collect();
+    assert_eq!(underlined, ["prénom"]);
+}

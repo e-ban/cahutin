@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Import d'un PDF : un mot ou une phrase soulignés arrivent soulignés, au lieu d'un trait à part sous le texte. Le compte rendu ne compte plus les cadres vides, et quand beaucoup de dessins manquent, il le dit sans chiffre (« comparez avec le fichier d'origine »).
 - Ma collection : une image retirée apparaît tout de suite dans « Images retirées », et son compte suit, sans rouvrir la page.
 
 ## 0.15.0

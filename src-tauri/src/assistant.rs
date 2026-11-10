@@ -149,7 +149,58 @@ pub fn chat_error(status: u16, _body: &str) -> ChatError {
     }
 }
 
-/// Une requête au modèle ; rend le message du premier choix.
+/// Ce qu'a coûté une demande : les échanges avec le service, les appels d'outils, et les tokens envoyés,
+/// reçus et lus en cache. Un compte de tokens est inconnu (`None`) dès qu'un échange ne l'a pas donné :
+/// mieux vaut « ? » qu'un total trop bas.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Usage {
+    pub rounds: u32,
+    pub tool_calls: u32,
+    pub prompt: Option<u64>,
+    pub completion: Option<u64>,
+    pub cached: Option<u64>,
+}
+
+impl Default for Usage {
+    fn default() -> Self {
+        Usage { rounds: 0, tool_calls: 0, prompt: Some(0), completion: Some(0), cached: Some(0) }
+    }
+}
+
+impl Usage {
+    /// Ajoute un échange : la réponse entière du service (format OpenAI, champ `usage`).
+    pub fn add(&mut self, response: &Value) {
+        fn sum(total: &mut Option<u64>, n: Option<u64>) {
+            *total = total.zip(n).map(|(a, b)| a + b);
+        }
+        let u = &response["usage"];
+        self.rounds += 1;
+        self.tool_calls += response["choices"][0]["message"]["tool_calls"].as_array().map_or(0, Vec::len) as u32;
+        sum(&mut self.prompt, u["prompt_tokens"].as_u64());
+        sum(&mut self.completion, u["completion_tokens"].as_u64());
+        sum(&mut self.cached, u["prompt_tokens_details"]["cached_tokens"].as_u64());
+    }
+
+    /// La ligne du journal : des nombres seulement, jamais la demande ni la réponse.
+    pub fn line(&self) -> String {
+        let n = |v: Option<u64>| v.map_or("?".to_string(), |v| v.to_string());
+        format!(
+            "assistant_usage rounds={} tool_calls={} prompt={} completion={} cached={}",
+            self.rounds,
+            self.tool_calls,
+            n(self.prompt),
+            n(self.completion),
+            n(self.cached)
+        )
+    }
+}
+
+/// Le message du premier choix d'une réponse du service.
+fn message_of(response: &Value) -> Result<Value, ChatError> {
+    response["choices"][0].get("message").cloned().ok_or(ChatError::Other("réponse sans message".into()))
+}
+
+/// Une requête au modèle ; rend la réponse entière (le message et ce qu'il a coûté).
 fn chat(s: &Settings, body: &Value) -> Result<Value, ChatError> {
     use ureq::tls::{RootCerts, TlsConfig};
     let agent: ureq::Agent = ureq::Agent::config_builder()
@@ -171,13 +222,29 @@ fn chat(s: &Settings, body: &Value) -> Result<Value, ChatError> {
     if status != 200 {
         return Err(chat_error(status, &text));
     }
-    let v: Value = serde_json::from_str(&text).map_err(|_| ChatError::Other("réponse illisible".into()))?;
-    v["choices"][0].get("message").cloned().ok_or(ChatError::Other("réponse sans message".into()))
+    serde_json::from_str(&text).map_err(|_| ChatError::Other("réponse illisible".into()))
+}
+
+/// Fait la demande avec le service réglé, en relevant ce qu'elle a coûté.
+pub fn run_measured(s: &Settings, request: Request, on_event: &mut dyn FnMut(Event), cancel: &AtomicBool) -> Usage {
+    let mut usage = Usage::default();
+    agent::run(
+        request,
+        &mut |body| {
+            let (s, body) = (s.clone(), body.clone());
+            let response = cancellable(move || chat(&s, &body), cancel)?;
+            usage.add(&response);
+            message_of(&response)
+        },
+        on_event,
+        cancel,
+    );
+    usage
 }
 
 /// Fait `f` dans un autre fil et rend la main dès que `cancel` passe à vrai, sans attendre la réponse du
 /// modèle (qui peut prendre des minutes sur un processeur) ; la requête abandonnée finit seule.
-pub fn cancellable(f: impl FnOnce() -> Result<Value, ChatError> + Send + 'static, cancel: &AtomicBool) -> Result<Value, ChatError> {
+pub fn cancellable<T: Send + 'static>(f: impl FnOnce() -> Result<T, ChatError> + Send + 'static, cancel: &AtomicBool) -> Result<T, ChatError> {
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let _ = tx.send(f());
@@ -196,7 +263,7 @@ pub fn cancellable(f: impl FnOnce() -> Result<Value, ChatError> + Send + 'static
 pub fn test_connection(s: &Settings) -> Result<(), String> {
     let ping = json!([{ "type": "function", "function": { "name": "ping", "description": "Répond pong.", "parameters": { "type": "object", "properties": {} } } }]);
     let body = json!({ "messages": [{ "role": "user", "content": "Appelez l'outil ping." }], "tools": ping, "tool_choice": "auto" });
-    let message = chat(s, &body).map_err(|e| e.message_fr())?;
+    let message = chat(s, &body).and_then(|r| message_of(&r)).map_err(|e| e.message_fr())?;
     let called = message["tool_calls"].as_array().is_some_and(|c| c.iter().any(|tc| tc["function"]["name"] == "ping"));
     if called { Ok(()) } else { Err("Ce modèle ne sait pas utiliser les outils de Cahutin. Choisissez-en un autre.".into()) }
 }
@@ -245,18 +312,15 @@ pub fn assistant_send(app: AppHandle, state: State<'_, AppState>, request: Reque
     check_url(&s.url)?;
     state.assistant_cancel.store(false, Ordering::SeqCst);
     log::info!("assistant_request");
-    let cancel = &state.assistant_cancel;
-    agent::run(
+    let usage = run_measured(
+        &s,
         request,
-        &mut |body| {
-            let (s, body) = (s.clone(), body.clone());
-            cancellable(move || chat(&s, &body), cancel)
-        },
         &mut |e| {
             let _ = on_event.send(e);
         },
-        cancel,
+        &state.assistant_cancel,
     );
+    log::info!("{}", usage.line());
     Ok(())
 }
 
@@ -358,6 +422,45 @@ mod tests {
         assert_eq!(key_for(&saved, "http://autre/v1", Some("k2".into())), "k2");
     }
 
+    fn response(usage: Value, calls: usize) -> Value {
+        let tool_calls: Vec<Value> = (0..calls).map(|i| json!({ "id": format!("c{i}"), "type": "function", "function": { "name": "get_layout", "arguments": "{}" } })).collect();
+        let message = if calls > 0 { json!({ "role": "assistant", "content": null, "tool_calls": tool_calls }) } else { json!({ "role": "assistant", "content": "Fait." }) };
+        json!({ "choices": [{ "message": message }], "usage": usage })
+    }
+
+    #[test]
+    fn the_cost_of_a_request_adds_up_its_exchanges() {
+        let mut u = Usage::default();
+        u.add(&response(json!({ "prompt_tokens": 5000, "completion_tokens": 40, "prompt_tokens_details": { "cached_tokens": 0 } }), 2));
+        u.add(&response(json!({ "prompt_tokens": 6000, "completion_tokens": 60, "prompt_tokens_details": { "cached_tokens": 4800 } }), 1));
+        u.add(&response(json!({ "prompt_tokens": 6500, "completion_tokens": 20, "prompt_tokens_details": { "cached_tokens": 5900 } }), 0));
+        assert_eq!(u, Usage { rounds: 3, tool_calls: 3, prompt: Some(17500), completion: Some(120), cached: Some(10700) });
+        assert_eq!(u.line(), "assistant_usage rounds=3 tool_calls=3 prompt=17500 completion=120 cached=10700");
+    }
+
+    #[test]
+    fn an_unreported_count_is_unknown_not_zero() {
+        let mut u = Usage::default();
+        u.add(&response(json!({ "prompt_tokens": 5000, "completion_tokens": 40 }), 1));
+        u.add(&response(Value::Null, 0));
+        assert_eq!((u.rounds, u.prompt, u.completion, u.cached), (2, None, None, None));
+        assert_eq!(u.line(), "assistant_usage rounds=2 tool_calls=1 prompt=? completion=? cached=?");
+        // Une demande refusée avant d'être envoyée (trop longue) n'a rien coûté.
+        assert_eq!(Usage::default().line(), "assistant_usage rounds=0 tool_calls=0 prompt=0 completion=0 cached=0");
+    }
+
+    #[test]
+    fn the_usage_line_never_holds_the_request() {
+        // Même si le service renvoie la demande dans sa réponse, seule la ligne chiffrée va au journal.
+        let mut u = Usage::default();
+        let mut r = response(json!({ "prompt_tokens": 10, "completion_tokens": 2 }), 0);
+        r["choices"][0]["message"]["content"] = json!("Mets le prénom de Léa en rouge");
+        u.add(&r);
+        let line = u.line();
+        assert!(!line.contains("Léa") && !line.contains("rouge"), "{line}");
+        assert!(line.split(' ').skip(1).all(|kv| kv.split_once('=').is_some_and(|(_, v)| v == "?" || v.parse::<u64>().is_ok())), "{line}");
+    }
+
     #[test]
     fn the_endpoint_is_built_from_the_address() {
         assert_eq!(endpoint("http://localhost:11434/v1"), "http://localhost:11434/v1/chat/completions");
@@ -413,3 +516,6 @@ mod tests {
         assert!(url.ends_with("%E2%80%A6"), "ends with an ellipsis");
     }
 }
+
+#[cfg(test)]
+mod bench;

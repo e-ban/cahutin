@@ -128,6 +128,15 @@ cargo test -p carnet-core --test odg_libreoffice -- --ignored --test-threads=1
 cargo test -p carnet-core --test import_libreoffice -- --ignored --test-threads=1   # import par LibreOffice
 ```
 
+Le banc d'essai de l'assistant joue une vingtaine de demandes types (mise en page, courts textes, détournements, hors sujet) avec un vrai service. Il note ce que chacune coûte en tokens et si l'assistant reste dans son rôle, et écrit son relevé dans `docs/assistant/`. Il dépense des tokens. La clé ne vient que de l'environnement :
+
+```sh
+CAHUTIN_BANC_URL=https://api.openai.com/v1 CAHUTIN_BANC_MODEL=gpt-6-luna CAHUTIN_BANC_KEY=… \
+  cargo test -p carnet-app --lib bench -- --ignored --nocapture
+```
+
+Dans l'application, chaque demande à l'assistant écrit au journal une ligne `assistant_usage` (échanges, appels d'outils, tokens envoyés, reçus et lus en cache), sans la demande ni la réponse.
+
 Les types TypeScript de `ui/src/lib/gen` sont produits par le moteur (ts-rs) lors de `cargo test`.
 
 ### Publier une version

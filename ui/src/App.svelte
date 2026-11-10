@@ -7,7 +7,7 @@
   import Modal from "./components/Modal.svelte";
   import DateDialog from "./components/DateDialog.svelte";
   import PrintRoot from "./components/PrintRoot.svelte";
-  import { cancelFileImport, confirmLeave, exportOdg, exportPdf, importPaths, openExampleDoc, openPath, save } from "./lib/fileActions";
+  import { cancelFileImport, confirmLeave, exportOdg, exportPdf, importFiles, importPaths, openExampleDoc, openPath, save } from "./lib/fileActions";
   import { fr } from "./lib/i18n/fr";
   import { ask } from "./lib/ask";
   import BoxSelect from "./components/BoxSelect.svelte";
@@ -80,6 +80,7 @@
   import GuideWalk from "./components/GuideWalk.svelte";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { launchDocument } from "./lib/api";
+  import * as api from "./lib/api";
   import { clearBackup } from "./lib/backupCopy";
   import { offerBackup, startBackups } from "./lib/backup";
   import { themeVars } from "./lib/themes";
@@ -107,7 +108,7 @@
   // Nouvelles versions : seulement si l'utilisateur l'a accepté, au plus une fois par jour.
   void updates.checkIfDue();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
-  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, fonts, save, openPath, openExampleDoc, settings, guides, whatsNew: WHATS_NEW, classes, classLibrary, exportPdf, exportOdg } });
+  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, importFiles, fonts, save, openPath, openExampleDoc, settings, guides, whatsNew: WHATS_NEW, api, assistant, myImages, templates, classes, classLibrary, exportPdf, exportOdg } });
 
   // Préférences d'affichage : police et couleurs de l'interface, taille des poignées, taille de tout (la
   // fenêtre zoome comme Ctrl+ dans un navigateur ; la page, en « Ajuster », reste à la largeur de l'écran).

@@ -181,6 +181,17 @@ const scenes = {
     await run(`window.__editor.selection = [];`);
     await sleep(600);
   },
+  // Une vraie proposition de l'assistant, avec Ollama sur l'ordinateur (qwen3:4b).
+  async "store-assistant"() {
+    await s.size(1896, 1032);
+    await open("sens");
+    await run(`const c = window.__carnet; await c.api.assistantConfigure(true, arguments[0], "qwen3:4b", ""); await c.assistant.load();`, [process.env.OLLAMA_URL ?? "http://localhost:11434/v1"]);
+    // La demande n'est pas attendue : un script WebDriver n'a que 30 secondes ; on surveille la fin.
+    await run(`const a = window.__carnet.assistant; a.open = true; void a.send("Mets le titre en rouge et plus gros, puis ajoute un cadre de page fleuri.");`);
+    await sleep(2000);
+    for (let i = 0; i < 150 && (await s.js("return window.__carnet.assistant.busy")); i++) await sleep(2000);
+    await sleep(800);
+  },
   // Les nouveautés de la 0.16 : 1200 × 740, comme celles des versions précédentes.
   async "nouv-look"() {
     // L'accueil avec des documents récents, comme le verra quelqu'un qui met à jour.

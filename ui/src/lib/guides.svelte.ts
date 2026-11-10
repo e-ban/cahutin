@@ -511,7 +511,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Accepter ou refuser",
-        text: "La proposition s'affiche sur la page, entourée de pointillés, mais rien n'est encore changé. « Accepter » la garde (Ctrl+Z la défait ensuite), « Refuser » ou Ctrl+Z revient à la page d'avant. Pour n'en garder qu'une partie, « Défaire » à côté d'une modification la retire et garde les autres. Relisez les textes écrits par l'IA avant d'imprimer.",
+        text: "La proposition s'affiche sur la page, entourée de pointillés, mais rien n'est encore changé. « Accepter » la garde (Ctrl+Z la défait ensuite), « Refuser » ou Ctrl+Z revient à la page d'avant. Pour n'en garder qu'une partie, « Défaire » à côté d'une modification la retire et garde les autres ; « Rétablir » la remet. Relisez les textes écrits par l'IA avant d'imprimer.",
         image: img("assistant", "accepter"),
       },
       {

@@ -437,3 +437,60 @@ test("undoing the only step closes the proposal", async () => {
   const last = assistant.thread.at(-1);
   expect(last?.kind === "assistant" && last.outcome).toBe("refused");
 });
+
+test("restore puts back the last undone step, then the one before", async () => {
+  script.push((r) => [step(titled(r.document, "A")), step(titled(r.document, "B")), step(titled(r.document, "C")), done()]);
+  await assistant.send("x");
+  const [a, b] = assistant.proposal!.steps;
+  await assistant.undo(b);
+  const [, c] = assistant.proposal!.steps;
+  await assistant.undo(a);
+  expect(assistant.redoable).toBe(a);
+  assistant.restore();
+  expect(assistant.proposal?.steps.map((s) => s.document.title)).toEqual(["A", "C sans"]);
+  expect(assistant.proposal?.steps[1]).toBe(c);
+  expect(editor.doc.title).toBe("C sans");
+  const entry = assistant.thread.at(-1);
+  expect(entry?.kind === "assistant" && entry.undone).toEqual([b]);
+  expect(assistant.redoable).toBe(b);
+  assistant.restore();
+  expect(assistant.proposal?.steps.map((s) => s.document.title)).toEqual(["A", "B", "C"]);
+  expect(assistant.redoable).toBeNull();
+  // Plus rien de défait : le modèle n'en entend pas parler.
+  script.push(() => [done()]);
+  await assistant.send("ensuite");
+  expect(sent.at(-1)?.text).toBe("ensuite");
+});
+
+test("restore reopens a proposal closed by undoing its only step", async () => {
+  script.push((r) => [step(titled(r.document, "A")), done()]);
+  await assistant.send("x");
+  const [a] = assistant.proposal!.steps;
+  await assistant.undo(a);
+  expect(assistant.proposal).toBeNull();
+  assistant.restore();
+  expect(assistant.proposal?.steps).toEqual([a]);
+  expect(editor.doc.title).toBe("A");
+  const last = assistant.thread.at(-1);
+  expect(last?.kind === "assistant" && last.outcome).toBe("pending");
+});
+
+test("a new request, accept or refuse forgets what could be restored", async () => {
+  script.push((r) => [step(titled(r.document, "A")), step(titled(r.document, "B")), done()]);
+  await assistant.send("x");
+  await assistant.undo(assistant.proposal!.steps[0]);
+  expect(assistant.redoable).not.toBeNull();
+  script.push(() => [done()]);
+  await assistant.send("y");
+  expect(assistant.redoable).toBeNull();
+  script.push((r) => [step(titled(r.document, "C")), step(titled(r.document, "D")), done()]);
+  await assistant.send("z");
+  await assistant.undo(assistant.proposal!.steps[0]);
+  assistant.refuse();
+  expect(assistant.redoable).toBeNull();
+  script.push((r) => [step(titled(r.document, "E")), step(titled(r.document, "F")), done()]);
+  await assistant.send("w");
+  await assistant.undo(assistant.proposal!.steps[0]);
+  await assistant.accept();
+  expect(assistant.redoable).toBeNull();
+});

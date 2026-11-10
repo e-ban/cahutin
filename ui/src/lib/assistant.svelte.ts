@@ -64,6 +64,9 @@ class Assistant {
   /** Combien d'étapes l'enseignante a défaites depuis la dernière demande : dit au modèle avec la suivante,
    *  qui sinon croirait ces modifications encore là. Un nombre seulement : rien de la page ne part ainsi. */
   #undoneCount = 0;
+  /** Avant chaque « Défaire », tout ce qu'il change : « Rétablir » remet le dernier. Vidée par une nouvelle
+   *  demande, « Accepter » ou « Refuser ». */
+  redo = $state.raw<{ step: AssistantStep; proposal: Proposal; thread: Entry[]; history: unknown[]; undone: number }[]>([]);
 
   get enabled(): boolean {
     return this.settings?.enabled === true;
@@ -82,6 +85,7 @@ class Assistant {
     if (!text || this.busy) return;
     this.view(null);
     this.retryable = null;
+    this.redo = [];
     this.thread = [...this.thread, { kind: "user", text }];
     const p = this.proposal;
     const before = this.#history;
@@ -180,6 +184,7 @@ class Assistant {
       editor.notice = by ? fr.assistant.undoBlockedBy(by.summary.join(", ")) : typeof blocked?.step === "object" ? fr.assistant.undoOnlyLast : String(e);
       return;
     }
+    const threadBefore = this.thread;
     const redone = new Map(later.map((s, i) => [s, { ...s, document: docs[i] }]));
     const swap = (s: AssistantStep) => redone.get(s) ?? s;
     this.thread = this.thread.map((e) =>
@@ -189,6 +194,7 @@ class Assistant {
           ? { ...e, steps: e.steps.map(swap) }
           : e,
     );
+    this.redo = [...this.redo, { step, proposal: p, thread: threadBefore, history: this.#history, undone: this.#undoneCount }];
     this.#undoneCount++;
     const steps = [...p.steps.slice(0, k), ...later.map(swap)];
     if (!steps.length) {
@@ -200,9 +206,27 @@ class Assistant {
     this.view(null);
   }
 
+  /** La modification défaite que « Rétablir » remettrait : la dernière, s'il y en a une. */
+  get redoable(): AssistantStep | null {
+    return this.redo.at(-1)?.step ?? null;
+  }
+
+  /** Annule le dernier « Défaire » : la proposition, le fil et les échanges reviennent comme avant lui. */
+  restore() {
+    const last = this.redo.at(-1);
+    if (!last || this.busy) return;
+    this.redo = this.redo.slice(0, -1);
+    this.proposal = last.proposal;
+    this.thread = last.thread;
+    this.#history = last.history;
+    this.#undoneCount = last.undone;
+    this.view(null);
+  }
+
   async accept() {
     const p = this.proposal;
     if (!p || this.busy) return;
+    this.redo = [];
     const final = lastDoc(p);
     const written = writtenWithCopies(p, final);
     for (const s of p.steps) {
@@ -221,6 +245,7 @@ class Assistant {
 
   refuse() {
     if (!this.proposal || this.busy) return;
+    this.redo = [];
     editor.showProposal(null);
     this.#close("refused");
   }
@@ -291,6 +316,7 @@ class Assistant {
 
   /** Autre document : le fil et la proposition sont oubliés. */
   clear() {
+    this.redo = [];
     this.#history = [];
     this.#undoneCount = 0;
     this.retryable = null;

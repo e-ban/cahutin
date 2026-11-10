@@ -80,6 +80,9 @@
                     <span class="step undone">
                       {#each step.summary as line, k (k)}<s>{line}</s>{/each}
                       <small>{t.undone}</small>
+                      {#if assistant.redoable === step && !assistant.busy}
+                        <button class="ghost undo" title={t.redoHint} onclick={() => assistant.restore()}>↷ {t.redo}</button>
+                      {/if}
                     </span>
                   {:else}
                     <div class="row">

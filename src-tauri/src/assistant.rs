@@ -159,11 +159,13 @@ pub struct Usage {
     pub prompt: Option<u64>,
     pub completion: Option<u64>,
     pub cached: Option<u64>,
+    /// Tokens écrits en cache (facturés un peu plus cher, une fois) ; 0 pour un service qui ne fait pas payer l'écriture.
+    pub written: Option<u64>,
 }
 
 impl Default for Usage {
     fn default() -> Self {
-        Usage { rounds: 0, tool_calls: 0, prompt: Some(0), completion: Some(0), cached: Some(0) }
+        Usage { rounds: 0, tool_calls: 0, prompt: Some(0), completion: Some(0), cached: Some(0), written: Some(0) }
     }
 }
 
@@ -179,18 +181,33 @@ impl Usage {
         sum(&mut self.prompt, u["prompt_tokens"].as_u64());
         sum(&mut self.completion, u["completion_tokens"].as_u64());
         sum(&mut self.cached, u["prompt_tokens_details"]["cached_tokens"].as_u64());
+        let written = u["prompt_tokens"].as_u64().map(|_| u["prompt_tokens_details"]["cache_write_tokens"].as_u64().unwrap_or(0));
+        sum(&mut self.written, written);
+    }
+
+    /// Ajoute le coût d'une autre demande (une suite de conversation).
+    #[cfg(test)]
+    pub fn merge(&mut self, other: &Usage) {
+        let sum = |a: Option<u64>, b: Option<u64>| a.zip(b).map(|(a, b)| a + b);
+        self.rounds += other.rounds;
+        self.tool_calls += other.tool_calls;
+        self.prompt = sum(self.prompt, other.prompt);
+        self.completion = sum(self.completion, other.completion);
+        self.cached = sum(self.cached, other.cached);
+        self.written = sum(self.written, other.written);
     }
 
     /// La ligne du journal : des nombres seulement, jamais la demande ni la réponse.
     pub fn line(&self) -> String {
         let n = |v: Option<u64>| v.map_or("?".to_string(), |v| v.to_string());
         format!(
-            "assistant_usage rounds={} tool_calls={} prompt={} completion={} cached={}",
+            "assistant_usage rounds={} tool_calls={} prompt={} completion={} cached={} written={}",
             self.rounds,
             self.tool_calls,
             n(self.prompt),
             n(self.completion),
-            n(self.cached)
+            n(self.cached),
+            n(self.written)
         )
     }
 }
@@ -210,10 +227,18 @@ fn chat(s: &Settings, body: &Value) -> Result<Value, ChatError> {
         .tls_config(TlsConfig::builder().root_certs(RootCerts::PlatformVerifier).build())
         .build()
         .into();
-    let mut body = body.clone();
-    body["model"] = json!(s.model);
-    let mut req = agent.post(endpoint(&s.url)).header("Content-Type", "application/json");
-    if !s.api_key.is_empty() {
+    let claude = anthropic::is_anthropic(&s.url);
+    let (url, body) = if claude {
+        (anthropic::endpoint(&s.url), anthropic::request(body, &s.model))
+    } else {
+        let mut body = body.clone();
+        body["model"] = json!(s.model);
+        (endpoint(&s.url), body)
+    };
+    let mut req = agent.post(url).header("Content-Type", "application/json");
+    if claude {
+        req = req.header("anthropic-version", anthropic::VERSION).header("x-api-key", &s.api_key);
+    } else if !s.api_key.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", s.api_key));
     }
     let mut response = req.send(body.to_string()).map_err(|e| if matches!(e, ureq::Error::Timeout(_)) { ChatError::TimedOut } else { ChatError::Unreachable })?;
@@ -222,7 +247,8 @@ fn chat(s: &Settings, body: &Value) -> Result<Value, ChatError> {
     if status != 200 {
         return Err(chat_error(status, &text));
     }
-    serde_json::from_str(&text).map_err(|_| ChatError::Other("réponse illisible".into()))
+    let v: Value = serde_json::from_str(&text).map_err(|_| ChatError::Other("réponse illisible".into()))?;
+    Ok(if claude { anthropic::response(&v) } else { v })
 }
 
 /// Fait la demande avec le service réglé, en relevant ce qu'elle a coûté.
@@ -434,8 +460,12 @@ mod tests {
         u.add(&response(json!({ "prompt_tokens": 5000, "completion_tokens": 40, "prompt_tokens_details": { "cached_tokens": 0 } }), 2));
         u.add(&response(json!({ "prompt_tokens": 6000, "completion_tokens": 60, "prompt_tokens_details": { "cached_tokens": 4800 } }), 1));
         u.add(&response(json!({ "prompt_tokens": 6500, "completion_tokens": 20, "prompt_tokens_details": { "cached_tokens": 5900 } }), 0));
-        assert_eq!(u, Usage { rounds: 3, tool_calls: 3, prompt: Some(17500), completion: Some(120), cached: Some(10700) });
-        assert_eq!(u.line(), "assistant_usage rounds=3 tool_calls=3 prompt=17500 completion=120 cached=10700");
+        assert_eq!(u, Usage { rounds: 3, tool_calls: 3, prompt: Some(17500), completion: Some(120), cached: Some(10700), written: Some(0) });
+        assert_eq!(u.line(), "assistant_usage rounds=3 tool_calls=3 prompt=17500 completion=120 cached=10700 written=0");
+        // Claude dit aussi ce qu'il a écrit en cache.
+        let mut c = Usage::default();
+        c.add(&anthropic::response(&json!({ "content": [{ "type": "text", "text": "Fait." }], "usage": { "input_tokens": 50, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 8600, "output_tokens": 9 } })));
+        assert_eq!((c.prompt, c.cached, c.written), (Some(8650), Some(0), Some(8600)));
     }
 
     #[test]
@@ -444,9 +474,9 @@ mod tests {
         u.add(&response(json!({ "prompt_tokens": 5000, "completion_tokens": 40 }), 1));
         u.add(&response(Value::Null, 0));
         assert_eq!((u.rounds, u.prompt, u.completion, u.cached), (2, None, None, None));
-        assert_eq!(u.line(), "assistant_usage rounds=2 tool_calls=1 prompt=? completion=? cached=?");
+        assert_eq!(u.line(), "assistant_usage rounds=2 tool_calls=1 prompt=? completion=? cached=? written=?");
         // Une demande refusée avant d'être envoyée (trop longue) n'a rien coûté.
-        assert_eq!(Usage::default().line(), "assistant_usage rounds=0 tool_calls=0 prompt=0 completion=0 cached=0");
+        assert_eq!(Usage::default().line(), "assistant_usage rounds=0 tool_calls=0 prompt=0 completion=0 cached=0 written=0");
     }
 
     #[test]
@@ -517,5 +547,6 @@ mod tests {
     }
 }
 
+mod anthropic;
 #[cfg(test)]
 mod bench;

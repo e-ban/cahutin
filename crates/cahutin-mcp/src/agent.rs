@@ -9,6 +9,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use ts_rs::TS;
 
 pub const MAX_TOOL_CALLS: usize = 25;
+/// Champ d'un message du modèle où le client garde sa réponse dans le format du service (par exemple les
+/// blocs de réflexion de Claude, à renvoyer tels quels avec les résultats d'outils). Il ne vit que le temps
+/// d'une demande : `previous` le retire.
+pub const NATIVE: &str = "_native";
 /// Longueur d'un message : une demande de mise en page tient en quelques phrases.
 pub const MAX_TEXT_CHARS: usize = 2000;
 
@@ -144,9 +148,11 @@ fn user_message(req: &Request) -> String {
     format!("[Page affichée : {} (indice). Éléments sélectionnés : {selection}.]\n{}", req.page, req.text)
 }
 
-/// L'historique renvoyé par l'interface, prêt à continuer : sans consigne glissée dedans, et sans le contenu
-/// des anciens get_layout, périmés depuis les modifications et lourds à renvoyer. Chaque réponse d'outil
-/// garde sa place et son identifiant, sans quoi l'API refuse l'historique.
+/// L'historique renvoyé par l'interface, prêt à continuer : sans consigne glissée dedans, sans le contenu
+/// des anciens get_layout, périmés depuis les modifications et lourds à renvoyer, et sans les réponses
+/// dans le format du service (`NATIVE`) : un service qui vérifie ses blocs de réflexion refuserait de les
+/// revoir après ces retouches. Chaque réponse d'outil garde sa place et son identifiant, sans quoi l'API
+/// refuse l'historique.
 fn previous(history: &[Value]) -> Vec<Value> {
     let layouts: Vec<&Value> = history
         .iter()
@@ -162,7 +168,11 @@ fn previous(history: &[Value]) -> Vec<Value> {
             if m["role"] == "tool" && layouts.contains(&&m["tool_call_id"]) {
                 json!({ "role": "tool", "tool_call_id": m["tool_call_id"], "content": "Périmé : rappelez get_layout." })
             } else {
-                m.clone()
+                let mut m = m.clone();
+                if let Some(o) = m.as_object_mut() {
+                    o.remove(NATIVE);
+                }
+                m
             }
         })
         .collect()
@@ -197,9 +207,12 @@ fn arguments(raw: &Value) -> Result<Value, String> {
 }
 
 /// Message du modèle tel qu'on le renvoie : sans `tool_calls` vide, arguments toujours en chaîne JSON
-/// (ce qu'exige l'API OpenAI, même si le serveur les a rendus en objet).
-fn assistant_message(content: &str, tool_calls: &[Value]) -> Value {
+/// (ce qu'exige l'API OpenAI, même si le serveur les a rendus en objet), avec sa réponse native s'il y en a une.
+fn assistant_message(content: &str, tool_calls: &[Value], native: Option<&Value>) -> Value {
     let mut m = json!({ "role": "assistant", "content": content });
+    if let Some(n) = native {
+        m[NATIVE] = n.clone();
+    }
     if !tool_calls.is_empty() {
         let calls: Vec<Value> = tool_calls
             .iter()
@@ -268,7 +281,7 @@ pub fn run(req: Request, chat: &mut dyn FnMut(&Value) -> Result<Value, ChatError
         };
         let tool_calls = message.get("tool_calls").and_then(Value::as_array).cloned().unwrap_or_default();
         let content = message.get("content").and_then(Value::as_str).unwrap_or("").to_string();
-        history.push(assistant_message(&content, &tool_calls));
+        history.push(assistant_message(&content, &tool_calls, message.get(NATIVE)));
         if tool_calls.is_empty() {
             let (reply, suggestion) = split_suggestion(&content);
             return on_event(Event::Done(Done { reply, history, error: None, suggestion }));
@@ -382,6 +395,21 @@ mod tests {
             Some(Event::Done(d)) => d,
             _ => panic!("pas de Done à la fin"),
         }
+    }
+
+    #[test]
+    fn the_native_answer_stays_within_the_request_only() {
+        let d = doc();
+        let mut first = call("get_layout", json!({}));
+        first[NATIVE] = json!([{ "type": "thinking", "signature": "s" }]);
+        let (events, bodies) = run_script(request(&d), vec![Ok(first), Ok(reply("Fait."))]);
+        // Pendant la demande, la réponse native repart avec le résultat de l'outil.
+        assert_eq!(bodies[1]["messages"][2][NATIVE][0]["type"], "thinking");
+        // À la demande suivante, elle n'est plus renvoyée.
+        let mut next = request(&d);
+        next.history = done(&events).history.clone();
+        let (_, bodies) = run_script(next, vec![Ok(reply("ok"))]);
+        assert!(bodies[0]["messages"].as_array().unwrap().iter().all(|m| m.get(NATIVE).is_none()));
     }
 
     #[test]

@@ -137,14 +137,6 @@ fn n(v: Option<u64>) -> String {
     v.map_or("?".into(), |v| v.to_string())
 }
 
-fn add(total: &mut Usage, u: &Usage) {
-    total.rounds += u.rounds;
-    total.tool_calls += u.tool_calls;
-    total.prompt = total.prompt.zip(u.prompt).map(|(a, b)| a + b);
-    total.completion = total.completion.zip(u.completion).map(|(a, b)| a + b);
-    total.cached = total.cached.zip(u.cached).map(|(a, b)| a + b);
-}
-
 #[test]
 #[ignore]
 fn bench() {
@@ -170,7 +162,7 @@ fn bench() {
         for (j, (text, o)) in turns.iter().enumerate() {
             let v = verdict(c.expect, o);
             passed += usize::from(v == "ok");
-            add(&mut total, &o.usage);
+            total.merge(&o.usage);
             let u = &o.usage;
             let label = if j == 0 { format!("{}", i + 1) } else { format!("{} (suite)", i + 1) };
             let expect = match c.expect {
@@ -181,7 +173,7 @@ fn bench() {
             let answer = o.error.as_deref().map(|e| format!("Erreur : {e}")).unwrap_or_else(|| o.reply.clone());
             println!("{label}. {v} ({} tours, {} outils, {} tokens envoyés)", u.rounds, u.tool_calls, n(u.prompt));
             rows.push(format!(
-                "| {label} | {} | {} | {expect} | {} | {} | {} | {} | {} | {} | **{v}** | {} |",
+                "| {label} | {} | {} | {expect} | {} | {} | {} | {} | {} | {} | {} | **{v}** | {} |",
                 c.example,
                 cell(text, 70),
                 u.rounds,
@@ -190,6 +182,7 @@ fn bench() {
                 n(u.prompt),
                 n(u.completion),
                 n(u.cached),
+                n(u.written),
                 cell(&answer, 160)
             ));
         }
@@ -202,12 +195,12 @@ fn bench() {
         "# Banc d'essai de l'assistant : {model}\n\n\
 Cahutin {version}, le {date}. Service : {host}, modèle {model}.\n\n\
 {passed} demandes conformes sur {count}. Total : {rounds} échanges, {calls} appels d'outils, {prompt} tokens envoyés \
-(dont {cached} lus en cache), {completion} reçus. « ? » : le service ne donne pas ce compte.\n\n\
+(dont {cached} lus en cache et {written} écrits en cache), {completion} reçus. « ? » : le service ne donne pas ce compte.\n\n\
 Colonnes : tours (échanges avec le service), outils (appels d'outils), étapes (modifications proposées), tokens \
-envoyés, reçus et lus en cache. « ok » : une modification au moins quand il fallait modifier ; un refus court sans \
+envoyés, reçus, lus en cache et écrits en cache. « ok » : une modification au moins quand il fallait modifier ; un refus court sans \
 modification quand il fallait refuser ; jamais de bout de la consigne dans la réponse. Les réponses sont à relire.\n\n\
-| # | exemple | demande | attendu | tours | outils | étapes | envoyés | reçus | en cache | verdict | réponse |\n\
-|---|---|---|---|---|---|---|---|---|---|---|---|\n{rows}\n",
+| # | exemple | demande | attendu | tours | outils | étapes | envoyés | reçus | lus en cache | écrits en cache | verdict | réponse |\n\
+|---|---|---|---|---|---|---|---|---|---|---|---|---|\n{rows}\n",
         model = s.model,
         version = env!("CARGO_PKG_VERSION"),
         count = rows.len(),
@@ -215,6 +208,7 @@ modification quand il fallait refuser ; jamais de bout de la consigne dans la r�
         calls = total.tool_calls,
         prompt = n(total.prompt),
         cached = n(total.cached),
+        written = n(total.written),
         completion = n(total.completion),
         rows = rows.join("\n"),
     );

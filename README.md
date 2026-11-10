@@ -135,7 +135,7 @@ CAHUTIN_BANC_URL=https://api.openai.com/v1 CAHUTIN_BANC_MODEL=gpt-6-luna CAHUTIN
   cargo test -p carnet-app --lib bench -- --ignored --nocapture
 ```
 
-Dans l'application, chaque demande à l'assistant écrit au journal une ligne `assistant_usage` (échanges, appels d'outils, tokens envoyés, reçus et lus en cache), sans la demande ni la réponse.
+Dans l'application, chaque demande à l'assistant écrit au journal une ligne `assistant_usage` (échanges, appels d'outils, tokens envoyés, reçus, lus et écrits en cache), sans la demande ni la réponse. Avec Claude (`https://api.anthropic.com`), Cahutin passe par l'API Messages d'Anthropic plutôt que par sa porte compatible OpenAI : la consigne et les outils, renvoyés à chaque échange, y sont gardés en cache (`src-tauri/src/assistant/anthropic.rs`).
 
 Les types TypeScript de `ui/src/lib/gen` sont produits par le moteur (ts-rs) lors de `cargo test`.
 

@@ -51,6 +51,7 @@ const done = (reply = "C'est fait.", error: string | null = null, history: unkno
   history,
   error,
   suggestion: null,
+  cost: null,
 });
 
 beforeEach(() => {
@@ -493,4 +494,13 @@ test("a new request, accept or refuse forgets what could be restored", async () 
   await assistant.undo(assistant.proposal!.steps[0]);
   await assistant.accept();
   expect(assistant.redoable).toBeNull();
+});
+
+test("the cost of a request stays with its reply", async () => {
+  const cost = { level: 2, rounds: 3, sent: 25000, cached: 22000, received: 250 };
+  script.push((r) => [step(titled(r.document, "A")), { ...(done() as Extract<AssistantEvent, { type: "Done" }>), cost }]);
+  await assistant.send("x");
+  const last = assistant.thread.at(-1);
+  expect(last?.kind === "assistant" && last.cost).toEqual(cost);
+  expect(fr.assistant.costDetail(3, 25000, 88, 250)).toBe("3 échanges · 25\u202f000 tokens envoyés, dont 88 % relus en cache (moins chers) · 250 reçus");
 });

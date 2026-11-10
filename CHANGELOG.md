@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- Assistant : sous chaque réponse, « Coût ●●○ » dit si la demande était petite, moyenne ou grosse chez votre service, et un clic en donne le détail (échanges, tokens envoyés, relus en cache, reçus). Rien ne s'affiche avec un service installé sur l'ordinateur (Ollama).
 - Assistant : « ↶ Défaire » à côté d'une modification proposée la retire et garde les autres. Si une modification suivante s'appuie dessus, un message dit laquelle défaire d'abord. « ↷ Rétablir » remet la dernière modification défaite. L'assistant est prévenu, à la demande suivante, que des modifications ont été défaites.
 - Assistant avec Claude : Cahutin passe par l'API Messages d'Anthropic, qui garde en cache la consigne et la description des outils, renvoyées à chaque échange. Les demandes coûtent moins cher.
 - Assistant : la description des outils envoyée à chaque échange est plus courte (11 Ko au lieu de 17), avec tous les services ; les règles communes (identifiants, pages, couleurs, champs de la classe) sont dites une fois dans la consigne.

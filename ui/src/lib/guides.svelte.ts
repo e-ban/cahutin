@@ -506,7 +506,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Demander",
-        text: "Le bouton « ✦ Assistant », en haut, ouvre son panneau. Écrivez ce que vous voulez changer, comme à un collègue, puis « Envoyer ». Cliquez d'abord sur un élément pour le désigner. Le panneau vide propose des idées : un clic en met une dans le champ. Si la réponse n'arrive pas, « ⟳ Réessayer » renvoie la même demande. N'écrivez pas de prénom d'élève dans une demande.",
+        text: "Le bouton « ✦ Assistant », en haut, ouvre son panneau. Écrivez ce que vous voulez changer, comme à un collègue, puis « Envoyer ». Cliquez d'abord sur un élément pour le désigner. Le panneau vide propose des idées : un clic en met une dans le champ. Si la réponse n'arrive pas, « ⟳ Réessayer » renvoie la même demande. Sous chaque réponse, « Coût ●○○ » dit ce que la demande a coûté chez votre service : un point pour une petite demande, trois pour une grosse ; un clic donne le détail. N'écrivez pas de prénom d'élève dans une demande.",
         image: img("assistant", "demander"),
       },
       {

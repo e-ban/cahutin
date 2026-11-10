@@ -78,11 +78,16 @@ fn host_of(url: &str) -> Option<(bool, String)> {
     (!host.is_empty()).then_some((secure, host))
 }
 
+/// Un service installé sur cet ordinateur (Ollama) : rien n'y est facturé.
+pub fn is_local(url: &str) -> bool {
+    host_of(url).is_some_and(|(_, h)| ["localhost", "127.0.0.1", "[::1]"].contains(&h.as_str()))
+}
+
 /// Ce qui sort de l'ordinateur part chiffré : `https://`, ou `http://` vers cet ordinateur seulement.
 pub fn check_url(url: &str) -> Result<(), String> {
     match host_of(url) {
         Some((true, _)) => Ok(()),
-        Some((false, h)) if ["localhost", "127.0.0.1", "[::1]"].contains(&h.as_str()) => Ok(()),
+        Some((false, _)) if is_local(url) => Ok(()),
         _ => Err("Cette adresse n'est pas chiffrée : seule une adresse qui commence par https:// est acceptée, sauf pour un service sur cet ordinateur (localhost).".into()),
     }
 }
@@ -200,10 +205,19 @@ impl Usage {
     /// La ligne du journal : des nombres seulement, jamais la demande ni la réponse.
     /// Les tokens envoyés au prix d'un token ordinaire : un token lu en cache compte pour 0,1, un token écrit
     /// en cache pour 1,25 (tarif d'Anthropic, cache de cinq minutes). Inconnu si les tokens envoyés le sont.
-    #[cfg(test)]
     pub fn billed(&self) -> Option<u64> {
         let (cached, written) = (self.cached.unwrap_or(0), self.written.unwrap_or(0));
         self.prompt.map(|p| p.saturating_sub(cached + written) + (written * 5).div_ceil(4) + cached.div_ceil(10))
+    }
+
+    /// Le coût montré sous la réponse. Le poids compte un token reçu pour cinq envoyés (rapport des prix des
+    /// services courants). Seuils tirés du banc d'essai : un refus pèse environ 1 500, une modification avec
+    /// cache 7 000 à 17 000, sans cache 25 000 et plus.
+    pub fn cost(&self) -> Option<agent::Cost> {
+        let (billed, received) = (self.billed()?, self.completion?);
+        let weight = billed + 5 * received;
+        let level = if weight < 4_000 { 1 } else if weight < 20_000 { 2 } else { 3 };
+        Some(agent::Cost { level, rounds: self.rounds, sent: self.prompt?, cached: self.cached.unwrap_or(0), received })
     }
 
     pub fn line(&self) -> String {
@@ -349,15 +363,24 @@ pub fn assistant_send(app: AppHandle, state: State<'_, AppState>, request: Reque
     check_url(&s.url)?;
     state.assistant_cancel.store(false, Ordering::SeqCst);
     log::info!("assistant_request");
+    // La fin attend que le coût soit connu : il part avec elle.
+    let mut done = None;
     let usage = run_measured(
         &s,
         request,
-        &mut |e| {
-            let _ = on_event.send(e);
+        &mut |e| match e {
+            Event::Done(d) => done = Some(d),
+            e => {
+                let _ = on_event.send(e);
+            }
         },
         &state.assistant_cancel,
     );
     log::info!("{}", usage.line());
+    if let Some(mut d) = done {
+        d.cost = if is_local(&s.url) { None } else { usage.cost() };
+        let _ = on_event.send(Event::Done(d));
+    }
     Ok(())
 }
 
@@ -490,6 +513,21 @@ mod tests {
         assert_eq!(d.billed(), Some(50 + 860));
         // Sans compte du cache (porte compatible OpenAI), tout compte plein tarif.
         assert_eq!(u.billed(), Some(17500 - 10700 + 1070));
+    }
+
+    #[test]
+    fn the_cost_shown_is_small_medium_or_large() {
+        let usage = |prompt: u64, cached: u64, written: u64, completion: u64| Usage { rounds: 1, tool_calls: 0, prompt: Some(prompt), completion: Some(completion), cached: Some(cached), written: Some(written) };
+        // Relevés du banc : un refus, une modification avec cache, la même sans cache.
+        assert_eq!(usage(6_400, 6_273, 130, 150).cost().map(|c| c.level), Some(1));
+        assert_eq!(usage(25_000, 22_000, 3_200, 250).cost().map(|c| c.level), Some(2));
+        assert_eq!(usage(32_000, 0, 0, 600).cost().map(|c| c.level), Some(3));
+        let c = usage(25_000, 22_000, 3_200, 250).cost().unwrap();
+        assert_eq!((c.rounds, c.sent, c.cached, c.received), (1, 25_000, 22_000, 250));
+        // Sans compte des tokens, pas de coût affiché.
+        assert_eq!(Usage { prompt: None, ..usage(1, 0, 0, 1) }.cost(), None);
+        assert!(is_local("http://localhost:11434/v1") && is_local("http://127.0.0.1:8080/v1"));
+        assert!(!is_local("https://api.anthropic.com/v1"));
     }
 
     #[test]

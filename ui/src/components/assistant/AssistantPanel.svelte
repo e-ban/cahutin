@@ -11,6 +11,13 @@
   let text = $state("");
   let threadEl = $state<HTMLElement>();
   let textEl = $state<HTMLTextAreaElement>();
+  /** Les réponses dont le détail du coût est déplié. */
+  let costOpen = $state<Set<number>>(new Set());
+  const toggleCost = (i: number) => {
+    const next = new Set(costOpen);
+    if (!next.delete(i)) next.add(i);
+    costOpen = next;
+  };
   /** La suite proposée par la dernière réponse, au-dessus du champ ; cachée une fois dans le champ. */
   const next = $derived.by(() => {
     const last = assistant.thread.at(-1);
@@ -102,6 +109,15 @@
           {/if}
           {#if entry.outcome === "accepted"}<small class="outcome ok">✔ {t.accepted}</small>{/if}
           {#if entry.outcome === "refused"}<small class="outcome">✖ {t.refused}</small>{/if}
+          {#if entry.cost}
+            {@const c = entry.cost}
+            <button class="ghost cost" title={t.costHint} aria-label="{t.cost} : {t.costLevels[c.level - 1]}" aria-expanded={costOpen.has(i)} onclick={() => toggleCost(i)}>
+              {t.cost} <span class="dots">{"●".repeat(c.level)}{"○".repeat(3 - c.level)}</span> {costOpen.has(i) ? "▾" : "▸"}
+            </button>
+            {#if costOpen.has(i)}
+              <small class="cost-detail">{t.costLevels[c.level - 1]} : {t.costDetail(c.rounds, c.sent, c.sent ? Math.round((c.cached / c.sent) * 100) : 0, c.received)}</small>
+            {/if}
+          {/if}
           <!-- Une réponse déplacée se signale à l'auteur (règles du Microsoft Store sur l'IA générative). -->
           <button class="ghost report" title={t.reportHint} onclick={() => void assistant.report(entry)}>⚑ {t.report}</button>
         </div>
@@ -279,6 +295,19 @@
   }
   .outcome.ok {
     color: #2e7d32;
+  }
+  .cost {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .dots {
+    letter-spacing: 1px;
+  }
+  .cost-detail {
+    display: block;
+    color: var(--muted);
   }
   .report {
     display: block;

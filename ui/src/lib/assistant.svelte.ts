@@ -5,12 +5,12 @@ import { editor } from "./docStore.svelte";
 import { fr } from "./i18n/fr";
 import { modal } from "./modal.svelte";
 import { templates } from "./templates.svelte";
-import type { AssistantDone, AssistantSettings, AssistantStep, AssistantUndoBlocked, Document, Element } from "./types";
+import type { AssistantCost, AssistantDone, AssistantSettings, AssistantStep, AssistantUndoBlocked, Document, Element } from "./types";
 
 export type Outcome = "pending" | "accepted" | "refused" | "none";
 export type Entry =
   | { kind: "user"; text: string }
-  | { kind: "assistant"; text: string; steps: AssistantStep[]; outcome: Outcome; suggestion?: string | null; undone?: AssistantStep[] }
+  | { kind: "assistant"; text: string; steps: AssistantStep[]; outcome: Outcome; suggestion?: string | null; undone?: AssistantStep[]; cost?: AssistantCost | null }
   | { kind: "error"; text: string };
 
 export interface Proposal {
@@ -126,7 +126,7 @@ class Assistant {
     if (end.error && !steps.length && [...text].length <= MAX_TEXT_CHARS) this.retryable = { text, history: before };
     const outcome: Outcome = steps.length ? "pending" : "none";
     // Une erreur sans rien de fait : l'erreur seule, pas « Aucune modification » avant elle.
-    const entries: Entry[] = end.error && !end.reply && !steps.length ? [] : [{ kind: "assistant", text: end.reply, steps, outcome, suggestion: end.suggestion }];
+    const entries: Entry[] = end.error && !end.reply && !steps.length ? [] : [{ kind: "assistant", text: end.reply, steps, outcome, suggestion: end.suggestion, cost: end.cost }];
     if (end.error) entries.push({ kind: "error", text: end.error });
     this.thread = [...this.thread, ...entries];
   }

@@ -65,3 +65,4 @@ export type { AssistantDone } from "./gen/AssistantDone";
 export type { AssistantEvent } from "./gen/AssistantEvent";
 export type { AssistantTemplateRequest } from "./gen/AssistantTemplateRequest";
 export type { AssistantUndoBlocked } from "./gen/AssistantUndoBlocked";
+export type { AssistantCost } from "./gen/AssistantCost";

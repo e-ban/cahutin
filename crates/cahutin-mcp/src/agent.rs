@@ -57,6 +57,23 @@ pub struct Done {
     pub error: Option<String>,
     /// Une courte demande pour poursuivre, proposée par le modèle (sa ligne « Suite : »), retirée de `reply`.
     pub suggestion: Option<String>,
+    /// Ce qu'a coûté la demande, rempli par l'application (qui parle au service) ; rien pour un service
+    /// installé sur l'ordinateur, ou si le service ne donne pas ses comptes.
+    pub cost: Option<Cost>,
+}
+
+/// Le coût d'une demande : un niveau de 1 (petite) à 3 (grosse), et son détail.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export, rename = "AssistantCost")]
+pub struct Cost {
+    pub level: u8,
+    pub rounds: u32,
+    #[ts(type = "number")]
+    pub sent: u64,
+    #[ts(type = "number")]
+    pub cached: u64,
+    #[ts(type = "number")]
+    pub received: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
@@ -259,7 +276,7 @@ fn template_request(doc: &Document, args: &Value) -> Result<TemplateRequest, Str
 pub fn run(req: Request, chat: &mut dyn FnMut(&Value) -> Result<Value, ChatError>, on_event: &mut dyn FnMut(Event), cancel: &AtomicBool) {
     let system = json!({ "role": "system", "content": system_prompt() });
     let mut history = previous(&req.history);
-    let finish = |reply: String, history: Vec<Value>, error: Option<String>, on_event: &mut dyn FnMut(Event)| on_event(Event::Done(Done { reply, history, error, suggestion: None }));
+    let finish = |reply: String, history: Vec<Value>, error: Option<String>, on_event: &mut dyn FnMut(Event)| on_event(Event::Done(Done { reply, history, error, suggestion: None, cost: None }));
     if req.text.chars().count() > MAX_TEXT_CHARS {
         let error = format!("Votre message est trop long ({MAX_TEXT_CHARS} caractères au plus). Raccourcissez-le, ou faites plusieurs demandes.");
         return finish(String::new(), history, Some(error), on_event);
@@ -284,7 +301,7 @@ pub fn run(req: Request, chat: &mut dyn FnMut(&Value) -> Result<Value, ChatError
         history.push(assistant_message(&content, &tool_calls, message.get(NATIVE)));
         if tool_calls.is_empty() {
             let (reply, suggestion) = split_suggestion(&content);
-            return on_event(Event::Done(Done { reply, history, error: None, suggestion }));
+            return on_event(Event::Done(Done { reply, history, error: None, suggestion, cost: None }));
         }
         let mut stopped = false;
         for tc in &tool_calls {

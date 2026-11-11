@@ -93,8 +93,11 @@ function motifCmds(m: Motif, x: number, w: number, h: number, first: boolean): C
   }
 }
 
+/** Largeur d'un motif (son pas), en mm. */
+export const motifStep = (m: Motif, level: Level): number => STEP[m] * MOTIF_HEIGHT_MM[level];
+
 /** Les motifs `from` à `to` (exclu) d'une ligne, en mm, à partir de `x0`. */
-function cmdsFor(m: Motif, x0: number, h: number, from: number, to: number): Cmd[] {
+export function cmdsFor(m: Motif, x0: number, h: number, from: number, to: number): Cmd[] {
   const w = STEP[m] * h;
   return Array.from({ length: to - from }, (_, j) => motifCmds(m, x0 + (from + j) * w, w, h, j === 0)).flat();
 }
@@ -121,7 +124,7 @@ function pathElement(cmds: Cmd[], top: number, stroke: Stroke, group: string): E
 }
 
 /** Taille du point de départ, selon la hauteur des motifs. */
-const dotSize = (h: number) => (h < 14 ? 2.5 : 3.5);
+export const dotSize = (h: number) => (h < 14 ? 2.5 : 3.5);
 
 /** Nombre de motifs qui tiennent sur `width` mm, après le point de départ ; au moins 2. */
 export function motifCount(m: Motif, level: Level, width: number): number {

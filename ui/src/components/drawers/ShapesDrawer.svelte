@@ -5,12 +5,12 @@
   import { editor } from "../../lib/docStore.svelte";
   import { centeredFrame, shapeElement } from "../../lib/factory";
   import { settings } from "../../lib/settings.svelte";
-  import { MOTIFS, PATHS, dottedPath, graphismeRows, motifPreview, type Level, type Motif } from "../../lib/graphisme";
+  import { MOTIFS, PATHS, dottedPath, graphismeRows, motifPreview, PRESETS, type Level, type Motif, type Preset } from "../../lib/graphisme";
   import { readPref, writePref } from "../../lib/prefs";
   import { SYMMETRY_FIGURES, maze, symmetry } from "../../lib/fiches";
   import { fr } from "../../lib/i18n/fr";
   import InspectorSection from "../layout/InspectorSection.svelte";
-  import type { Element, ShapeKind } from "../../lib/types";
+  import type { Element, Guides, ShapeKind } from "../../lib/types";
 
   const shapes: { shape: ShapeKind; radius: number; label: string }[] = [
     { shape: "Rect", radius: 0, label: fr.rect },
@@ -33,10 +33,21 @@
   let rows = $state<number>(readPref("graphismeRows", 4));
   $effect(() => writePref("graphismeRows", rows));
 
+  const GUIDES: Guides[] = ["Base", "Corridor", "None"];
+  // Une valeur mémorisée inconnue (ancienne version, stockage abîmé) retombe sur le réglage par défaut.
+  const storedPreset = readPref<string>("graphismeDots", "tout");
+  const storedGuides = readPref<string>("graphismeGuides", "Base");
+  let dots = $state<Preset>(PRESETS.find((p) => p === storedPreset) ?? "tout");
+  let guides = $state<Guides>(GUIDES.find((g) => g === storedGuides) ?? "Base");
+  let arrow = $state<boolean>(readPref<boolean>("graphismeArrow", true) !== false);
+  $effect(() => writePref("graphismeDots", dots));
+  $effect(() => writePref("graphismeGuides", guides));
+  $effect(() => writePref("graphismeArrow", arrow));
+
   const pathProps = (path: string) => ({ shape: "Path" as const, path, fill: null, stroke: { width_mm: 0.6, color: "#333333" }, corner_radius_mm: 0 });
 
   function addRows(m: Motif) {
-    const els = graphismeRows(editor.page, m, level, rows);
+    const els = graphismeRows(editor.page, m, level, rows, { preset: dots, guides, arrow });
     if (!els.length) {
       editor.notice = fr.graphismeNoRoom;
       return;
@@ -107,6 +118,17 @@
   <InspectorSection id="shapes-graphisme" title={fr.graphisme} hint={fr.sectionHints.graphisme} open={false}>
     <div class="options">
       <label>{fr.graphismeRows} <input type="number" min="1" max="12" bind:value={rows} /></label>
+      <label>{fr.graphismeDots}
+        <select bind:value={dots}>
+          {#each PRESETS as p (p)}<option value={p}>{fr.presets[p]}</option>{/each}
+        </select>
+      </label>
+      <label>{fr.graphismeGuides}
+        <select bind:value={guides}>
+          {#each GUIDES as g (g)}<option value={g}>{fr.guideLines[g]}</option>{/each}
+        </select>
+      </label>
+      <label><input type="checkbox" bind:checked={arrow} /> {fr.graphismeArrow}</label>
     </div>
     <div class="grid motifs">
       {#each MOTIFS as m (m)}
@@ -189,7 +211,7 @@
     align-items: center;
     gap: 6px;
   }
-  .options input {
+  .options input[type="number"] {
     width: 4em;
     box-sizing: border-box;
   }

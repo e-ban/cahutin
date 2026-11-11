@@ -1,4 +1,7 @@
 // Tous les textes de l'interface.
+import type { Preset } from "../graphisme";
+import type { Guides } from "../types";
+
 export const fr = {
   appName: "Cahutin",
   untitled: "Sans titre",
@@ -479,7 +482,22 @@ export const fr = {
   graphismeLevel: "Section",
   graphismeRows: "Lignes",
   graphismeAdd: (motif: string) => `Ajouter des lignes de ${motif.toLowerCase()} à repasser`,
-  graphismeHint: "Un clic ajoute les lignes sous ce que la page contient déjà : un point vert pour commencer, le modèle en trait plein, puis les pointillés à repasser.",
+  graphismeHint: "Un clic ajoute les lignes sous ce que la page contient déjà : un point vert pour commencer, le modèle en trait plein, puis les pointillés à repasser. Après la pose, un clic sur un motif de la ligne sélectionnée le change : modèle, pointillés, vide.",
+  graphismeDots: "Pointillés",
+  graphismeGuides: "Lignes guides",
+  graphismeArrow: "Flèche de départ",
+  presets: <Record<Preset, string>>{
+    tout: "Toute la ligne",
+    moitie: "La moitié",
+    quelques: "Quelques-uns",
+    seul: "Aucun (l'enfant continue seul)",
+    progressif: "De moins en moins, ligne après ligne",
+  },
+  guideLines: <Record<Guides, string>>{
+    Base: "Ligne de base",
+    Corridor: "Couloir (deux lignes)",
+    None: "Aucune",
+  },
   graphismeNoRoom: "Plus de place sur la page : ajoutez une page, ou faites de la place en bas.",
   motifs: { ponts: "Ponts", coupes: "Coupes", vagues: "Vagues", boucles: "Boucles", creneaux: "Créneaux", dents: "Dents de scie", traits: "Traits", ronds: "Ronds" } as Record<string, string>,
   mazeTitle: "Labyrinthe",

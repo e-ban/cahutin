@@ -226,8 +226,11 @@
   const friezeIds = $derived(editor.selection.length > 1 ? friezeIn(editor.page, editor.selection) : null);
   const friezeNow = $derived(friezeIds ? friezeSettings(editor.page, friezeIds) : null);
 
-  // Des lignes de graphisme posées : motif, pointillés, lignes guides et flèche se règlent toutes ensemble.
-  const rows = $derived(editor.selection.length > 1 ? rowsIn(editor.page, editor.selection, editor.inside) : null);
+  // Des lignes de graphisme posées : motif, pointillés, lignes guides et flèche se règlent toutes ensemble (pas une
+  // ligne verrouillée).
+  const rows = $derived(
+    editor.selection.length > 1 && !isLockedSelection(editor.page, editor.selection, editor.inside) ? rowsIn(editor.page, editor.selection, editor.inside) : null,
+  );
   const rowsNow = $derived(rows?.length ? rowsSettings(rows) : null);
   const GUIDES: Guides[] = ["Base", "Corridor", "None"];
 

@@ -300,3 +300,33 @@ test("ghostsFor shows nothing when the selection holds something else", () => {
   const mixed = { ...out.page, elements: [...out.page.elements, other] };
   expect(ghostsFor(mixed, [...ids(out.page), other.id])).toEqual([]);
 });
+
+test("a remade row stays locked and keeps its zone flag", () => {
+  const page = withRows(1);
+  const locked = { ...page, elements: page.elements.map((e) => ({ ...e, locked: true, zone: true })) };
+  const base = rowOf(locked).baseId;
+  const remade = [
+    changeRows(locked, [base], { preset: "seul", guides: "None", arrow: false }),
+    cycleCell(locked, base, 1),
+    resizeRow(locked, base, 15, 120),
+  ];
+  for (const out of remade) {
+    expect(out.ids.length).toBeGreaterThan(0);
+    for (const e of out.page.elements) expect(e).toMatchObject({ locked: true, zone: true });
+  }
+  const open = changeRows(page, [rowOf(page).baseId], { preset: "seul" });
+  for (const e of open.page.elements) expect(e).toMatchObject({ locked: false, zone: false });
+});
+
+test("ghostsFor finds a row inside a larger group once the group is entered", () => {
+  const page = withRows(1);
+  const group = page.elements[0].group!;
+  const other: Element = { ...page.elements[1], id: "autre", group: "G", subgroups: [] };
+  const nested = { ...page, elements: [...page.elements.map((e) => ({ ...e, group: "G", subgroups: [group] })), other] };
+  const out = changeRows(nested, [rowsIn(nested, ids(page), ["G"])![0].baseId], { preset: "seul" });
+  // Dehors, la sélection s'étend au grand groupe, qui contient autre chose qu'une ligne.
+  expect(ghostsFor(out.page, out.ids)).toEqual([]);
+  const ghosts = ghostsFor(out.page, out.ids, ["G"]);
+  expect(ghosts.length).toBeGreaterThan(0);
+  expect(ghosts).toEqual(emptyCells(out.page, rowsIn(out.page, out.ids, ["G"])![0].baseId));
+});

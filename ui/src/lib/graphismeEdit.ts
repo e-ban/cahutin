@@ -43,12 +43,16 @@ function rowById(page: Page, baseId: string): RowRef | null {
  *  dans aucune ligne réglable. */
 export function rowsIn(page: Page, ids: string[], inside: string[] = []): RowRef[] | null {
   const rows = new Map<string, RowRef>();
+  // Une ligne n'est relue qu'une fois, pour le premier de ses éléments sélectionnés.
+  const seen = new Set<string>();
   for (const id of expandSelection(page, ids, inside)) {
     const e = page.elements.find((x) => x.id === id)!;
     const path = pathOf(e);
+    if (path.length && seen.has(path.join("/"))) continue;
     const base = path.length ? page.elements.find((x) => recipeOf(x) && samePath(pathOf(x), path)) : undefined;
     const row = base && rowFrom(page, base);
     if (!row) return null;
+    seen.add(path.join("/"));
     rows.set(row.baseId, row);
   }
   return [...rows.values()].sort((a, b) => a.y - b.y);
@@ -67,11 +71,12 @@ function colorsOf(page: Page, row: RowRef): RowColors {
   return { model: color("Solid") ?? r.model_color ?? DEFAULT_COLORS.model, trace: color("Dotted") ?? r.trace_color ?? DEFAULT_COLORS.trace };
 }
 
-/** La ligne refaite avec `recipe`, à `x` sur `width` mm, à la place de l'ancienne dans la page. */
+/** La ligne refaite avec `recipe`, à `x` sur `width` mm, à la place de l'ancienne dans la page. Une ligne
+ *  verrouillée (ou zone du modèle) le reste. */
 function rebuild(page: Page, row: RowRef, recipe: GraphismeRow, x = row.x, width = row.width): { page: Page; ids: string[] } {
   const base = page.elements.find((e) => e.id === row.baseId)!;
   const path = pathOf(base);
-  const made = buildRow(recipe, x, row.y, width, colorsOf(page, row), path[0]).map((e) => withPath(e, path));
+  const made = buildRow(recipe, x, row.y, width, colorsOf(page, row), path[0]).map((e) => ({ ...withPath(e, path), locked: base.locked, zone: base.zone }));
   const old = new Set(row.ids);
   const at = page.elements.findIndex((e) => old.has(e.id));
   const kept = page.elements.filter((e) => !old.has(e.id));
@@ -161,8 +166,8 @@ export function emptyCells(page: Page, baseId: string): { frame: Frame; path: st
 }
 
 /** Les motifs vides à montrer (à l'écran seulement) : ceux des lignes réglables sélectionnées ; rien si la
- *  sélection contient autre chose qu'une ligne réglable. */
-export function ghostsFor(page: Page, selection: string[]): { frame: Frame; path: string }[] {
+ *  sélection contient autre chose qu'une ligne réglable. `inside` : le groupe où l'on est entré. */
+export function ghostsFor(page: Page, selection: string[], inside: string[] = []): { frame: Frame; path: string }[] {
   if (!selection.length) return [];
-  return (rowsIn(page, selection) ?? []).flatMap((r) => emptyCells(page, r.baseId));
+  return (rowsIn(page, selection, inside) ?? []).flatMap((r) => emptyCells(page, r.baseId));
 }

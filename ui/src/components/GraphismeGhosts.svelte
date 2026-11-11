@@ -2,13 +2,15 @@
   // Les motifs vides des lignes de graphisme sélectionnées, en gris très clair : à l'écran seulement (l'impression
   // et les exports ne passent pas par là) et sans prendre les clics.
   import ShapeEl from "./elements/ShapeEl.svelte";
+  import { editor } from "../lib/docStore.svelte";
   import { ghostsFor } from "../lib/graphismeEdit";
   import { mmToPx } from "../lib/units";
   import type { Page, ShapeProps } from "../lib/types";
 
   let { page, selection, zoom }: { page: Page; selection: string[]; zoom: number } = $props();
 
-  const ghosts = $derived(ghostsFor(page, selection));
+  // Une ligne dans un plus grand groupe : seulement une fois entré dans ce groupe.
+  const ghosts = $derived(ghostsFor(page, selection, editor.inside));
   const look = (path: string): ShapeProps => ({
     shape: "Path",
     fill: null,
@@ -38,7 +40,7 @@
     z-index: 2;
   }
   /* Le trait invisible qui rend une forme vide cliquable (ShapeEl) reprend ses propres événements : on les coupe. */
-  .ghost :global(*) {
-    pointer-events: none;
+  .ghost :global(svg *) {
+    pointer-events: none !important;
   }
 </style>

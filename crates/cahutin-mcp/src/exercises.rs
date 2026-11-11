@@ -512,7 +512,7 @@ mod tests {
     }
 
     /// Compare chaque forme à ce que l'interface trace : cadre, tracé, recette, et la sorte de forme et son
-    /// trait quand la référence les donne (un ordre différent se verrait).
+    /// trait (style, couleur, épaisseur) quand la référence les donne (un ordre différent se verrait).
     fn same_as_ui(els: &[Element], key: &str) {
         let want: Vec<Value> = serde_json::from_str(&reference(key)).unwrap();
         assert_eq!(els.len(), want.len(), "{key}");
@@ -526,6 +526,13 @@ mod tests {
             if let Some(shape) = w.get("shape") {
                 assert_eq!(serde_json::to_value(s.shape).unwrap(), *shape, "{key} {i}");
                 assert_eq!(serde_json::to_value(s.stroke.as_ref().and_then(|t| t.style)).unwrap(), w["style"], "{key} {i}");
+            }
+            if let Some(color) = w.get("color") {
+                assert_eq!(serde_json::to_value(s.stroke.as_ref().map(|t| &t.color)).unwrap(), *color, "{key} {i}");
+            }
+            if let Some(width) = w.get("width_mm") {
+                let got = s.stroke.as_ref().map(|t| t.width_mm);
+                assert!(got.zip(width.as_f64()).map_or(got.is_none() && width.is_null(), |(a, b)| (a - b).abs() < 1e-9), "{key} {i} : épaisseur {got:?} au lieu de {width}");
             }
             assert_eq!(serde_json::to_value(&s.graphisme).unwrap(), w.get("graphisme").cloned().unwrap_or(Value::Null), "{key} {i}");
         }
@@ -542,6 +549,7 @@ mod tests {
             same_as_ui(&graphisme_row(m, "MS", 15.0, 25.0, 180.0, "tout", Guides::Base, true), key);
         }
         same_as_ui(&graphisme_row("vagues", "MS", 15.0, 25.0, 180.0, "moitie", Guides::Corridor, true), "ROW_vagues_moitie_couloir");
+        same_as_ui(&graphisme_row("dents", "GS", 15.0, 25.0, 180.0, "seul", Guides::None, false), "ROW_dents_gs_seul_aucune");
     }
 
     #[test]

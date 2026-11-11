@@ -9,11 +9,13 @@ import type { Element } from "./types";
 
 const FILE = fileURLToPath(new URL("../../../crates/cahutin-mcp/src/fixtures/ui_reference.txt", import.meta.url));
 
-/** Ce qui est comparé de chaque forme : sa sorte, son trait, son cadre, son tracé et la recette (les ids changent à chaque fois). */
+/** Ce qui est comparé de chaque forme : sa sorte, son trait (style, couleur, épaisseur), son cadre, son tracé et la recette
+ *  (les ids changent à chaque fois). */
 function seen(els: Element[]) {
   return els.map((e) => {
     const s = e.kind.type === "Shape" ? e.kind : null;
-    return { shape: s?.shape ?? null, style: s?.stroke?.style ?? null, frame: e.frame, path: s?.path ?? null, graphisme: s?.graphisme ?? null };
+    const stroke = s?.stroke ?? null;
+    return { shape: s?.shape ?? null, style: stroke?.style ?? null, color: stroke?.color ?? null, width_mm: stroke?.width_mm ?? null, frame: e.frame, path: s?.path ?? null, graphisme: s?.graphisme ?? null };
   });
 }
 
@@ -22,6 +24,7 @@ const ROWS: Record<string, Element[]> = {
   ROW_boucles: graphismeRow("boucles", "MS", 15, 25, 180),
   ROW_ronds: graphismeRow("ronds", "MS", 15, 25, 180),
   ROW_vagues_moitie_couloir: graphismeRow("vagues", "MS", 15, 25, 180, { preset: "moitie", guides: "Corridor" }),
+  ROW_dents_gs_seul_aucune: graphismeRow("dents", "GS", 15, 25, 180, { preset: "seul", guides: "None", arrow: false }),
 };
 
 test("l'assistant a la même référence que l'interface", () => {

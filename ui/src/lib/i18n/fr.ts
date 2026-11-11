@@ -486,6 +486,9 @@ export const fr = {
   graphismeDots: "Pointillés",
   graphismeGuides: "Lignes guides",
   graphismeArrow: "Flèche de départ",
+  graphismeMotif: "Motif",
+  graphismeEdit: "Régler les lignes",
+  graphismeEditHint: "Le motif, les pointillés, les lignes guides et la flèche de toutes les lignes choisies. Annuler revient en arrière d'un coup.",
   presets: <Record<Preset, string>>{
     tout: "Toute la ligne",
     moitie: "La moitié",

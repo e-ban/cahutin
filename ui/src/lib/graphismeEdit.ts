@@ -2,7 +2,7 @@
 // flèche, son motif ou sa largeur. Une ligne déplacée ou recolorée reste réglable ; une ligne dissociée,
 // entamée, tournée, retournée ou agrandie ne l'est plus. Refaire une ligne garde son groupe, sa place dans la
 // page et les couleurs de son modèle et de ses pointillés.
-import { DEFAULT_COLORS, MOTIFS, MOTIF_HEIGHT_MM, buildRow, cellsFor, cmdsFor, dotSize, motifCount, motifStep, pathInFrame, progressive, rowTop, type Level, type Motif, type Preset, type RowColors } from "./graphisme";
+import { DEFAULT_COLORS, MOTIFS, MOTIF_HEIGHT_MM, PRESETS, buildRow, cellsFor, cmdsFor, dotSize, motifCount, motifStep, pathInFrame, progressive, rowTop, type Level, type Motif, type Preset, type RowColors, type RowPreset } from "./graphisme";
 import { expandSelection, pathOf, withPath } from "./groups";
 import type { Cell, Element, Frame, GraphismeRow, Guides, Page } from "./types";
 
@@ -95,6 +95,16 @@ export function changeRows(page: Page, baseIds: string[], change: RowChange): { 
     ids.push(...out.ids);
   });
   return { page, ids };
+}
+
+/** Ce que les lignes ont en commun, `null` pour ce qui diffère d'une ligne à l'autre. Les pointillés se
+ *  comparent motif par motif : sur une ligne courte, deux préréglages peuvent donner les mêmes cases. */
+export function rowsSettings(rows: RowRef[]): { motif: Motif | null; preset: Preset | null; guides: Guides | null; arrow: boolean | null } {
+  const common = <T>(f: (r: RowRef) => T): T | null => (rows.length && rows.every((r) => f(r) === f(rows[0])) ? f(rows[0]) : null);
+  const gives = (r: RowRef, p: RowPreset) => cellsFor(p, r.recipe.cells.length).every((c, i) => c === r.recipe.cells[i]);
+  const progressif = rows.length >= 2 && rows.every((r, i) => gives(r, progressive(i, rows.length)));
+  const preset = progressif ? "progressif" : rows.length ? (PRESETS.find((p): p is RowPreset => p !== "progressif" && rows.every((r) => gives(r, p))) ?? null) : null;
+  return { motif: common((r) => r.recipe.motif as Motif), preset, guides: common((r) => r.recipe.guides), arrow: common((r) => r.recipe.arrow) };
 }
 
 /** La ligne posée à `x` sur `width` mm : des motifs en plus ou en moins, toujours à la même taille. */

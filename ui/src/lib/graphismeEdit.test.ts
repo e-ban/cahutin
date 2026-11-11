@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { newPage } from "./factory";
-import { MOTIF_HEIGHT_MM, buildRow, graphismeRows, motifCount, motifStep, presetOf } from "./graphisme";
-import { cellAt, changeRows, cycleCell, emptyCells, resizeRow, rowsIn } from "./graphismeEdit";
+import { MOTIF_HEIGHT_MM, PRESETS, buildRow, graphismeRows, motifCount, motifStep, presetOf } from "./graphisme";
+import { cellAt, changeRows, cycleCell, emptyCells, resizeRow, rowsIn, rowsSettings } from "./graphismeEdit";
 import { pathOf, scaleElements } from "./groups";
 import type { Cell, Element, GraphismeRow, Page } from "./types";
 
@@ -206,4 +206,58 @@ test("emptyCells gives one shape per empty motif", () => {
     expect(frame.y_mm + frame.h_mm).toBeCloseTo(row.y + MOTIF_HEIGHT_MM.MS, 1);
   });
   expect(emptyCells(page, rowOf(page).baseId)).toEqual([]);
+});
+
+test("rowsSettings gives what all the rows share, after each change", () => {
+  for (const n of [1, 2, 4]) {
+    const page = withRows(n);
+    const bases = rowsIn(page, ids(page))!.map((r) => r.baseId);
+    expect(rowsSettings(rowsIn(page, ids(page))!)).toEqual({ motif: "ponts", preset: "tout", guides: "Base", arrow: true });
+    for (const preset of PRESETS.filter((p) => n >= 2 || p !== "progressif")) {
+      const out = changeRows(page, bases, { preset, guides: "Corridor", arrow: false });
+      expect(rowsSettings(rowsIn(out.page, out.ids)!)).toEqual({ motif: "ponts", preset, guides: "Corridor", arrow: false });
+    }
+    const out = changeRows(page, bases, { motif: "boucles" });
+    expect(rowsSettings(rowsIn(out.page, out.ids)!).motif).toBe("boucles");
+  }
+});
+
+test("rowsSettings on narrow rows shows a preset that gives the same motifs", () => {
+  let page = withRows(2);
+  for (const r of rowsIn(page, ids(page))!) page = resizeRow(page, r.baseId, r.x, 12).page;
+  const rows = () => rowsIn(page, ids(page))!;
+  expect(rows().every((r) => r.recipe.cells.length === 2)).toBe(true);
+  const bases = rows().map((r) => r.baseId);
+  for (const preset of PRESETS) {
+    const out = changeRows(page, bases, { preset });
+    const got = rowsSettings(rowsIn(out.page, out.ids)!).preset!;
+    expect(got).not.toBeNull();
+    const after = rowsIn(out.page, out.ids)!;
+    after.forEach((r, i) => {
+      const want = changeRows(page, bases, { preset: got });
+      expect(r.recipe.cells).toEqual(rowsIn(want.page, want.ids)![i].recipe.cells);
+    });
+  }
+  // Deux lignes en « progressif » : la première pleine, la seconde sans pointillés.
+  const out = changeRows(page, bases, { preset: "progressif" });
+  expect(rowsSettings(rowsIn(out.page, out.ids)!).preset).toBe("progressif");
+});
+
+test("rowsSettings gives nothing for what the rows do not share", () => {
+  const page = withRows(2);
+  const [a, b] = rowsIn(page, ids(page))!;
+  const mixed = changeRows(changeRows(page, [a.baseId], { motif: "vagues", guides: "None", arrow: false }).page, [b.baseId], { preset: "moitie" }).page;
+  expect(rowsSettings(rowsIn(mixed, ids(mixed))!)).toEqual({ motif: null, preset: null, guides: null, arrow: null });
+  // Un motif changé à la main : la ligne n'a plus de préréglage.
+  const one = withRows(1);
+  const row = rowOf(one);
+  const hand = cycleCell(one, row.baseId, 1).page;
+  expect(rowsSettings(rowsIn(hand, ids(hand))!).preset).toBeNull();
+  expect(rowsSettings([])).toEqual({ motif: null, preset: null, guides: null, arrow: null });
+});
+
+test("rowsIn ignores ids that are no longer on the page", () => {
+  const page = withRows(1);
+  expect(rowsIn(page, ["gone", page.elements[0].id])).toHaveLength(1);
+  expect(rowsIn(page, ["gone"])).toEqual([]);
 });

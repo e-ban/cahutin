@@ -34,17 +34,19 @@
   import { alignUnits, arrangeUnits, expandSelection, groupOf, isLockedSelection } from "../lib/groups";
   import { blockFrieze, friezeIn, friezeMotifKeys, friezeSettings, removeFrieze, replaceFriezeMotifs, resizeFrieze } from "../lib/decor";
   import FriezePicker from "./FriezePicker.svelte";
+  import { MOTIFS, PRESETS, type Motif, type Preset } from "../lib/graphisme";
+  import { changeRows, rowsIn, rowsSettings, type RowChange } from "../lib/graphismeEdit";
   import { cutMarks, type CutStyle } from "../lib/cutMarks";
   import { friezeMotifs, resolveMotifs } from "../lib/friezeMotifs.svelte";
   import { setPictosOutline } from "../lib/pictos.svelte";
   import { ALIGNS, VALIGNS, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
-  import type { NamedTextStyle, Frame } from "../lib/types";
+  import type { NamedTextStyle, Frame, Guides } from "../lib/types";
 
   let { pageEl, stageEl }: { pageEl: HTMLElement | undefined; stageEl: HTMLElement | undefined } = $props();
 
   const ROTATION_HANDLE_GAP = 44;
 
-  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields" | "repeat" | "styles" | "frieze" | "more";
+  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields" | "repeat" | "styles" | "frieze" | "graphisme" | "more";
   let pop = $state<Pop | null>(null);
   let barEl = $state<HTMLElement>();
   let pos = $state<{ left: number; top: number } | null>(null);
@@ -224,8 +226,13 @@
   const friezeIds = $derived(editor.selection.length > 1 ? friezeIn(editor.page, editor.selection) : null);
   const friezeNow = $derived(friezeIds ? friezeSettings(editor.page, friezeIds) : null);
 
+  // Des lignes de graphisme posées : motif, pointillés, lignes guides et flèche se règlent toutes ensemble.
+  const rows = $derived(editor.selection.length > 1 ? rowsIn(editor.page, editor.selection, editor.inside) : null);
+  const rowsNow = $derived(rows?.length ? rowsSettings(rows) : null);
+  const GUIDES: Guides[] = ["Base", "Corridor", "None"];
+
   /** Outils de place sur la page dans la barre (hors « Plus ») : un trait les sépare des précédents. */
-  const hasPlace = $derived(!settings.moreMenu && (canMirror || canRotate || canFrieze || !!(friezeIds && friezeNow) || canCut));
+  const hasPlace = $derived(!settings.moreMenu && (canMirror || canRotate || canFrieze || !!(friezeIds && friezeNow) || !!rowsNow || canCut));
 
   /** Supprimer dans la barre : une photo choisie, une image ou une forme, non verrouillées (sauf en mode modèle). */
   const canDelete = $derived(
@@ -245,6 +252,20 @@
     });
     keepPop = true;
     editor.selection = [...editor.selection.filter((id) => !ids.includes(id)), ...fresh];
+  }
+
+  /** Refait toutes les lignes choisies en un seul pas (un seul « Annuler ») ; elles restent choisies. */
+  function setRows(change: RowChange) {
+    const bases = rows?.map((r) => r.baseId);
+    if (!bases?.length) return;
+    let fresh: string[] = [];
+    editor.updatePage((p) => {
+      const r = changeRows(p, bases, change);
+      fresh = r.ids;
+      return r.page;
+    });
+    keepPop = true;
+    editor.selection = fresh;
   }
 
   // Images d'une frise posée, pendant leur choix dans la fenêtre « Images de la frise ».
@@ -328,6 +349,29 @@
   </label>
   <button onclick={editFriezeMotifs}><Icon name="images" /> {fr.friezeChangeImages}</button>
   <button class="danger" title={fr.friezeDeleteHint} onclick={deleteFrieze}><Icon name="trash" /> {fr.friezeDelete}</button>
+{/snippet}
+
+<!-- Lignes de graphisme posées : une valeur que les lignes ne partagent pas n'est pas cochée. -->
+{#snippet graphismePop(now: NonNullable<typeof rowsNow>, count: number)}
+  <label>{fr.graphismeMotif}
+    <select value={now.motif ?? ""} onchange={(e) => e.currentTarget.value && setRows({ motif: e.currentTarget.value as Motif })}>
+      {#if !now.motif}<option value=""></option>{/if}
+      {#each MOTIFS as m (m)}<option value={m}>{fr.motifs[m]}</option>{/each}
+    </select>
+  </label>
+  <label>{fr.graphismeDots}
+    <select value={now.preset ?? ""} onchange={(e) => e.currentTarget.value && setRows({ preset: e.currentTarget.value as Preset })}>
+      {#if !now.preset}<option value=""></option>{/if}
+      {#each PRESETS.filter((p) => count >= 2 || p !== "progressif") as p (p)}<option value={p}>{fr.presets[p]}</option>{/each}
+    </select>
+  </label>
+  <label>{fr.graphismeGuides}
+    <select value={now.guides ?? ""} onchange={(e) => e.currentTarget.value && setRows({ guides: e.currentTarget.value as Guides })}>
+      {#if !now.guides}<option value=""></option>{/if}
+      {#each GUIDES as g (g)}<option value={g}>{fr.guideLines[g]}</option>{/each}
+    </select>
+  </label>
+  <label class="check"><input type="checkbox" checked={now.arrow === true} onchange={(e) => setRows({ arrow: e.currentTarget.checked })} /> {fr.graphismeArrow}</label>
 {/snippet}
 
 {#if friezeCodes}<FriezePicker bind:codes={friezeCodes} onclose={applyFriezeMotifs} />{/if}
@@ -640,6 +684,14 @@
           {/if}
         </div>
       {/if}
+      {#if rows && rowsNow}
+        <div class="wrap">
+          <button class:on={pop === "graphisme"} title={fr.graphismeEditHint} onclick={() => toggle("graphisme")}><Icon name="pen" /><span class="lbl"> {fr.graphismeEdit} <Icon name="chevronDown" size={14} /></span></button>
+          {#if pop === "graphisme"}
+            <div use:fitInWindow class="pop graphisme">{@render graphismePop(rowsNow, rows.length)}</div>
+          {/if}
+        </div>
+      {/if}
       {#if canCut}
         <div class="wrap">
           <button data-guide="repeat" title={fr.repeatHint} onclick={() => toggle("repeat")}><Icon name="repeat" /><span class="lbl"> {fr.repeat} <Icon name="chevronDown" size={14} /></span></button>
@@ -692,7 +744,7 @@
            réglages (taille de la frise, répéter, repères de découpe). -->
       <span class="sep"></span>
       <div class="wrap">
-        <button class:on={pop === "more" || pop === "frieze" || pop === "repeat" || pop === "cut"} aria-haspopup="menu" title={fr.moreTools} onclick={() => toggle("more")}><Icon name="more" /><span class="lbl"> {fr.moreTools} <Icon name="chevronDown" size={14} /></span></button>
+        <button class:on={pop === "more" || pop === "frieze" || pop === "graphisme" || pop === "repeat" || pop === "cut"} aria-haspopup="menu" title={fr.moreTools} onclick={() => toggle("more")}><Icon name="more" /><span class="lbl"> {fr.moreTools} <Icon name="chevronDown" size={14} /></span></button>
         {#if pop === "more"}
           {@const ph = selected?.kind.type === "Photo" && selected.kind.asset ? selected.kind : null}
           <div use:fitInWindow class="pop list more" role="menu">
@@ -713,6 +765,9 @@
             {#if friezeIds && friezeNow}
               <button role="menuitem" data-guide="frieze-size" title={fr.friezeEditHint2} onclick={() => (pop = "frieze")}><Icon name="frieze" /> {fr.friezeEdit} <Icon name="chevronRight" size={14} /></button>
             {/if}
+            {#if rows && rowsNow}
+              <button role="menuitem" title={fr.graphismeEditHint} onclick={() => (pop = "graphisme")}><Icon name="pen" /> {fr.graphismeEdit} <Icon name="chevronRight" size={14} /></button>
+            {/if}
             {#if canCut}
               <button role="menuitem" data-guide="repeat" title={fr.repeatHint} onclick={() => (pop = "repeat")}><Icon name="repeat" /> {fr.repeat} <Icon name="chevronRight" size={14} /></button>
               <button role="menuitem" data-guide="cut" title={fr.cutMarksHint} onclick={() => (pop = "cut")}><Icon name="cut" /> {fr.cutMarks} <Icon name="chevronRight" size={14} /></button>
@@ -726,6 +781,8 @@
           </div>
         {:else if pop === "frieze" && friezeNow}
           <div use:fitInWindow class="pop frieze">{@render friezePop(friezeNow)}</div>
+        {:else if pop === "graphisme" && rows && rowsNow}
+          <div use:fitInWindow class="pop graphisme">{@render graphismePop(rowsNow, rows.length)}</div>
         {:else if pop === "repeat"}
           <div use:fitInWindow class="pop repeat">
             <label>{fr.tableCols} <input type="number" min="1" max="12" bind:value={repeatCols} /></label>
@@ -850,6 +907,19 @@
     align-items: center;
     gap: 6px;
     white-space: nowrap;
+  }
+  .pop.graphisme {
+    min-width: 260px;
+  }
+  .pop.graphisme label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .pop.graphisme label.check {
+    justify-content: flex-start;
   }
   .pop.repeat {
     display: grid;

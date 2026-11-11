@@ -1,6 +1,8 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { confirmDiscardIfDirty, editor } from "./docStore.svelte";
 import { newDocument } from "./factory";
+import { graphismeRows } from "./graphisme";
+import { changeRows, rowsIn, rowsSettings } from "./graphismeEdit";
 
 beforeEach(() => editor.reset(newDocument(), null));
 
@@ -122,4 +124,28 @@ test("a notice can carry one action, dropped when another notice replaces it", (
   editor.notify("Sans action");
   expect(editor.noticeAction).toBeNull();
   editor.notice = null;
+});
+
+test("each change of placed handwriting rows is one undo step for all the rows", () => {
+  editor.updatePage((p) => ({ ...p, elements: graphismeRows(p, "ponts", "MS", 4) }));
+  const placed = editor.page;
+  // Comme la barre contextuelle : un seul updatePage par choix, puis les lignes refaites restent choisies.
+  const change = (c: Parameters<typeof changeRows>[2]) => {
+    const bases = rowsIn(editor.page, editor.selection)!.map((r) => r.baseId);
+    let fresh: string[] = [];
+    editor.updatePage((p) => {
+      const r = changeRows(p, bases, c);
+      fresh = r.ids;
+      return r.page;
+    });
+    editor.selection = fresh;
+  };
+  editor.selection = placed.elements.map((e) => e.id);
+  change({ preset: "progressif" });
+  change({ guides: "None" });
+  expect(rowsSettings(rowsIn(editor.page, editor.selection)!)).toMatchObject({ preset: "progressif", guides: "None" });
+  editor.undo();
+  expect(editor.page).not.toEqual(placed);
+  editor.undo();
+  expect(editor.page).toEqual(placed);
 });

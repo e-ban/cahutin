@@ -18,7 +18,7 @@
         </div>
       {/each}
     {:else}
-      <div class="print-page" style:page={printPageName(p.size)}>
+      <div class="print-page" style:page={printPageName(p.size)} style:--sheet-h="{p.size.height_mm}mm">
         <PageView page={p} doc={editor.doc} zoom={1} />
       </div>
     {/if}

@@ -56,6 +56,13 @@
   .print-page .page {
     box-shadow: none !important;
   }
+  /* Une page aussi haute que la feuille (297 mm = 1122,52 px) dépasse d'un demi-pixel la hauteur que WebKitGTK
+     donne à la feuille : une page blanche s'ajoutait après chaque page. Un pixel de moins, invisible, et rien ne
+     dépasse. */
+  .print-page:not(.tile) > .page {
+    height: calc(var(--sheet-h) - 1px) !important;
+    overflow: hidden;
+  }
   /* Un champ non rempli s'imprime vide (une feuille où l'enfant écrit son prénom), à la place qu'il prend à l'écran. */
   .print-root .class-field {
     display: inline;

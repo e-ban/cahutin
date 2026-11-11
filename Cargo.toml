@@ -4,7 +4,7 @@ members = ["crates/carnet-core", "crates/cahutin-mcp", "src-tauri"]
 
 [workspace.package]
 edition = "2024"
-version = "0.16.0"
+version = "0.17.0"
 license = "EUPL-1.2"
 
 # Symboles retirés. L'optimisation à l'édition de liens et le bloc de génération unique ne s'appliquent

@@ -329,7 +329,7 @@ pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
         (None, None) => None,
         (c, w) => Some(Stroke { width_mm: w.unwrap_or(0.5).clamp(0.1, 20.0), color: c.unwrap_or("#222222".into()), style: None }),
     };
-    push(doc, args, false, ElementKind::Shape(ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None }))
+    push(doc, args, false, ElementKind::Shape(ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None }))
 }
 
 /// Image de la banque trouvée par un mot-clé français ; rend aussi son nom.

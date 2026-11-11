@@ -488,7 +488,7 @@ pub fn dissolve(page: &mut Page, table: &str) -> Result<(), TableError> {
                     locked: false,
                     zone: false,
                     group: t.group.clone(),
-                    kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Line, fill: None, stroke: Some(stroke.clone()), corner_radius_mm: 0.0, path: None }),
+                    kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Line, fill: None, stroke: Some(stroke.clone()), corner_radius_mm: 0.0, path: None, graphisme: None }),
                     subgroups: Vec::new(),
                     flip_h: false, flip_v: false,
                 }

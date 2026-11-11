@@ -98,6 +98,7 @@ pub(crate) fn shape(kind: ShapeKind, f: Frame, fill: Option<&str>, stroke: Optio
             stroke: stroke.map(|(width_mm, color)| Stroke { width_mm, color: color.into(), style: None }),
             corner_radius_mm,
             path: None,
+            graphisme: None,
         }),
     )
 }

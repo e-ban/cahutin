@@ -33,7 +33,7 @@ pub(crate) fn element(id: Id, frame: Frame, group: Option<Id>, kind: ElementKind
 }
 
 pub(crate) fn shape(group: &Id, frame: Frame, shape: ShapeKind, stroke: Option<Stroke>) -> Element {
-    element(new_id(), frame, Some(group.clone()), ElementKind::Shape(ShapeProps { shape, fill: None, stroke, corner_radius_mm: 0.0, path: None }))
+    element(new_id(), frame, Some(group.clone()), ElementKind::Shape(ShapeProps { shape, fill: None, stroke, corner_radius_mm: 0.0, path: None, graphisme: None }))
 }
 
 fn frame(x_mm: f64, y_mm: f64, w_mm: f64, h_mm: f64) -> Frame {
@@ -197,7 +197,7 @@ const FRIEZE_GAP_MM: f64 = 3.0;
 fn border(size: carnet_core::PageSize, inset: f64, width_mm: f64, corner_radius_mm: f64, group: Option<Id>) -> Element {
     let f = frame(inset, inset, size.width_mm - 2.0 * inset, size.height_mm - 2.0 * inset);
     let stroke = Some(Stroke { width_mm, color: FRAME_COLOR.into(), style: None });
-    element(new_id(), f, group, ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke, corner_radius_mm, path: None }))
+    element(new_id(), f, group, ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke, corner_radius_mm, path: None, graphisme: None }))
 }
 
 /// Positions régulières de `size` sur une longueur, la première au début, la dernière à la fin (`spread`).

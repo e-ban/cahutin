@@ -48,8 +48,8 @@ pub fn renew_ids(page: &mut Page) {
 /// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau, lettres creuses ; 5 : photo en
 /// miroir, lignes d'écriture, styles nommés ; 6 : image à colorier ou en couleur de peau, tracé libre, groupe dans
 /// un groupe ; 7 : miroir d'un élément autre qu'une photo, ou de haut en bas ; 8 : champs de la classe sans
-/// accents, `{prenom}`).
-pub const FORMAT_VERSION: u32 = 8;
+/// accents, `{prenom}` ; 9 : recette des lignes de graphisme).
+pub const FORMAT_VERSION: u32 = 9;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -453,6 +453,40 @@ pub struct ShapeProps {
     #[serde(default)]
     #[ts(optional = nullable)]
     pub path: Option<String>,
+    /// Recette d'une ligne de graphisme réglable (motif, niveau, cases, repères, flèche) ; absente pour les
+    /// autres formes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub graphisme: Option<GraphismeRow>,
+}
+
+/// Recette d'une ligne de graphisme : de quoi la reconstruire quand on règle ses cases ou ses repères.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export)]
+pub struct GraphismeRow {
+    pub motif: String,
+    pub level: String,
+    pub cells: Vec<Cell>,
+    pub guides: Guides,
+    pub arrow: bool,
+}
+
+/// Une case d'une ligne de graphisme : modèle plein, modèle en pointillés à repasser, ou case vide.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export)]
+pub enum Cell {
+    Model,
+    Dotted,
+    Empty,
+}
+
+/// Repères d'écriture d'une ligne de graphisme.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export)]
+pub enum Guides {
+    Base,
+    Corridor,
+    None,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
@@ -562,6 +596,7 @@ mod tests {
                 stroke: None,
                 corner_radius_mm: 0.0,
                 path: None,
+                graphisme: None,
             }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
@@ -594,6 +629,57 @@ mod tests {
         let d = sample_document();
         let v = serde_json::to_value(&d.pages[0].elements[1]).unwrap();
         assert_eq!(v["kind"]["type"], "Text");
+    }
+
+    fn path_shape(graphisme: Option<GraphismeRow>) -> ShapeProps {
+        ShapeProps {
+            shape: ShapeKind::Path,
+            fill: None,
+            stroke: None,
+            corner_radius_mm: 0.0,
+            path: Some("M 0 0 L 1000 1000".into()),
+            graphisme,
+        }
+    }
+
+    #[test]
+    fn shape_props_keep_their_graphisme_recipe() {
+        let recipe = GraphismeRow {
+            motif: "ponts".into(),
+            level: "MS".into(),
+            cells: vec![Cell::Model, Cell::Dotted, Cell::Empty],
+            guides: Guides::Corridor,
+            arrow: true,
+        };
+        let props = path_shape(Some(recipe));
+        let json = serde_json::to_string(&props).unwrap();
+        let back: ShapeProps = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, props);
+    }
+
+    #[test]
+    fn a_version_8_document_still_reads() {
+        let mut d = Document::new("Ancien");
+        d.pages[0].elements.push(Element {
+            id: new_id(),
+            frame: Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 10.0, h_mm: 10.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Shape(path_shape(None)),
+            subgroups: Vec::new(),
+            flip_h: false,
+            flip_v: false,
+        });
+        let mut v = serde_json::to_value(&d).unwrap();
+        v["format_version"] = 8.into();
+        assert!(v["pages"][0]["elements"][0]["kind"].get("graphisme").is_none());
+        let json = v.to_string();
+        let d: Document = serde_json::from_str(&json).unwrap();
+        let ElementKind::Shape(s) = &d.pages[0].elements[0].kind else { panic!("pas une forme") };
+        assert_eq!(s.graphisme, None);
+        let again = serde_json::to_value(&d).unwrap();
+        assert!(again["pages"][0]["elements"][0]["kind"].get("graphisme").is_none());
     }
 
     #[test]

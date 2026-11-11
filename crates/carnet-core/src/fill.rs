@@ -431,7 +431,7 @@ mod tests {
         let mut p = Page::new(A4_PORTRAIT);
         for (x, y) in [(10.0, 10.0), (110.0, 10.0), (10.0, 60.0), (110.0, 60.0)] {
             let mut r = text(None, "", false, frame(x, y, 90.0, 40.0));
-            r.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0, path: None });
+            r.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None });
             p.elements.push(r);
             p.elements.push(text(None, "{prenom}", false, frame(x + 5.0, y + 5.0, 80.0, 15.0)));
         }
@@ -636,7 +636,7 @@ mod tests {
                 locked: false,
                 zone: false,
                 group: None,
-                kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 3.0, path: None }),
+                kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 3.0, path: None, graphisme: None }),
                 subgroups: Vec::new(),
                 flip_h: false, flip_v: false,
             });

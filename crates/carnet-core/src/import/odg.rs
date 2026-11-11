@@ -377,7 +377,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
             (g.fill, g.stroke)
         };
         let corner_radius_mm = if shape == ShapeKind::Rect { attr_mm(n, DRAW, "corner-radius").unwrap_or(0.0) } else { 0.0 };
-        self.items.push(Item::Element(Box::new(element(frame, ElementKind::Shape(ShapeProps { shape, fill, stroke, corner_radius_mm, path: None })))));
+        self.items.push(Item::Element(Box::new(element(frame, ElementKind::Shape(ShapeProps { shape, fill, stroke, corner_radius_mm, path: None, graphisme: None })))));
     }
 
     fn text_box(&mut self, frame: Frame, frame_node: Node, text_box: Node) {

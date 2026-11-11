@@ -337,7 +337,7 @@ mod tests {
             locked: false,
             zone: false,
             group: None,
-            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Path, fill: None, stroke: Some(Stroke { width_mm: 0.8, color: "#9e9e9e".into(), style: Some(StrokeStyle::Dotted) }), corner_radius_mm: 0.0, path: Some(path.into()) }),
+            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Path, fill: None, stroke: Some(Stroke { width_mm: 0.8, color: "#9e9e9e".into(), style: Some(StrokeStyle::Dotted) }), corner_radius_mm: 0.0, path: Some(path.into()), graphisme: None }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
         };
@@ -496,7 +496,7 @@ mod tests {
             locked: false,
             zone: false,
             group: None,
-            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: stroke(style), corner_radius_mm: 0.0, path: None }),
+            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: stroke(style), corner_radius_mm: 0.0, path: None, graphisme: None }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
         };
@@ -722,6 +722,7 @@ mod tests {
                 stroke: Some(Stroke { width_mm: 1.0, color: "#333333".into(), style: None }),
                 corner_radius_mm: 0.0,
                 path: None,
+                graphisme: None,
             }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
@@ -746,6 +747,18 @@ mod tests {
         assert!(content.contains("draw:marker-end="), "{content}");
         assert!(content.contains(r#"draw:marker-end-width="4.000mm""#), "{content}");
         assert!(e.xml("styles.xml").contains("<draw:marker "));
+    }
+
+    #[test]
+    fn a_line_without_stroke_exports() {
+        let mut el = shape_el(ShapeKind::Line, frame(10.0, 20.0, 60.0, 8.0));
+        if let ElementKind::Shape(s) = &mut el.kind {
+            s.stroke = None;
+        }
+        let mut e = export(&doc_with(vec![el]), &AssetStore::default());
+        let content = e.xml("content.xml");
+        let styles = e.xml("styles.xml");
+        assert!(content.contains("draw:stroke=\"none\"") || styles.contains("draw:stroke=\"none\""), "{content}");
     }
 
     #[test]

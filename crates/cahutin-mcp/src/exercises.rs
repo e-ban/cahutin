@@ -27,7 +27,7 @@ fn stroke(width_mm: f64, color: &str, style: StrokeStyle) -> Option<Stroke> {
 }
 
 fn shape(shape: ShapeKind, frame: Frame, fill: Option<&str>, stroke: Option<Stroke>, path: Option<String>, group: Option<&Id>) -> Element {
-    element(new_id(), frame, group.cloned(), ElementKind::Shape(ShapeProps { shape, fill: fill.map(str::to_string), stroke, corner_radius_mm: 0.0, path }))
+    element(new_id(), frame, group.cloned(), ElementKind::Shape(ShapeProps { shape, fill: fill.map(str::to_string), stroke, corner_radius_mm: 0.0, path, graphisme: None }))
 }
 
 fn frame(x_mm: f64, y_mm: f64, w_mm: f64, h_mm: f64) -> Frame {

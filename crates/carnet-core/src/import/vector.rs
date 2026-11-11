@@ -129,7 +129,7 @@ impl Drawing {
             s
         });
         let frame = Frame { x_mm: x0, y_mm: y0, w_mm: w, h_mm: h, rotation_deg: 0.0 };
-        Some((frame, ShapeProps { shape: ShapeKind::Path, fill: self.fill_hex.clone(), stroke, corner_radius_mm: 0.0, path: Some(path) }))
+        Some((frame, ShapeProps { shape: ShapeKind::Path, fill: self.fill_hex.clone(), stroke, corner_radius_mm: 0.0, path: Some(path), graphisme: None }))
     }
 
     /// Le motif de pointillé du document (trait, espace, en mm).

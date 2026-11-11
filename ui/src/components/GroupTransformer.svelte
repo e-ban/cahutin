@@ -1,7 +1,9 @@
 <script lang="ts">
   // Poignées d'un groupe ou d'une sélection de plusieurs éléments : déplacer, agrandir (proportionnel,
-  // depuis les coins ; un tableau s'étire librement, aussi par les bords) et tourner autour du centre. Pendant le geste seul le DOM bouge ;
-  // à la fin, une seule modification du document (un pas d'annulation).
+  // depuis les coins ; un tableau s'étire librement, aussi par les bords ; une ligne de graphisme s'allonge par ses
+  // côtés) et tourner autour du centre. Un clic sur un motif d'une ligne de graphisme change ce motif. Pendant le
+  // geste seul le DOM bouge ; à la fin, une seule modification du document (un pas d'annulation).
+  import { cellAt, cycleCell, resizeRow, rowsIn, stretchRow } from "../lib/graphismeEdit";
   import { inTableGroup, resizeTable, selectedTable } from "../lib/table";
   import Moveable from "moveable";
   import { onDestroy, tick } from "svelte";
@@ -34,6 +36,12 @@
   // Tableau sélectionné en entier : il s'étire librement.
   const table = $derived(ids ? selectedTable(editor.page, ids) : undefined);
 
+  // Une seule ligne de graphisme réglable, sélectionnée en entier : elle s'allonge par ses côtés, sans se déformer.
+  const row = $derived.by(() => {
+    const rows = ids ? rowsIn(editor.page, ids, editor.inside) : null;
+    return rows?.length === 1 && rows[0].ids.length === ids!.length ? rows[0] : null;
+  });
+
   function begin(targets: HTMLElement[]) {
     if (!ids) return;
     editor.gesture = true;
@@ -51,6 +59,19 @@
     const { box } = g;
     if (table?.kind.type === "Table" && g.w_px > 0) {
       stretchTable(g, table.id, table.kind.cols.length, table.kind.rows.length, k);
+      return;
+    }
+    if (row && g.w_px > 0) {
+      // Des motifs en plus ou en moins, à la même taille ; le côté opposé ne bouge pas.
+      const to = stretchRow(row, box, g.w_px / k, g.dir);
+      if (!to) return;
+      let fresh: string[] = [];
+      editor.updatePage((p) => {
+        const out = resizeRow(p, row.baseId, to.x, to.width);
+        fresh = out.ids;
+        return out.page;
+      });
+      if (fresh.length) editor.selection = fresh;
       return;
     }
     const changed = g.dx !== 0 || g.dy !== 0 || Math.abs(g.factor - 1) > 0.001 || Math.abs(g.deg) > 0.05;
@@ -91,16 +112,40 @@
     editor.updatePage((p) => resizeTable(p, id, frame));
   }
 
+  /** Un clic sur un motif d'une ligne de graphisme sélectionnée le fait passer à l'état suivant (modèle,
+   *  pointillés, vide). `false` si le clic ne tombe sur aucun motif. */
+  function turnCell(input: MouseEvent): boolean {
+    const rows = ids && pageEl ? rowsIn(editor.page, ids, editor.inside) : null;
+    if (!rows || !ids || !pageEl) return false;
+    const r = pageEl.getBoundingClientRect();
+    const k = PX_PER_MM * zoom;
+    const [x, y] = [(input.clientX - r.left) / k, (input.clientY - r.top) / k];
+    for (const line of rows) {
+      const i = cellAt(editor.page, line.baseId, x, y);
+      if (i === null) continue;
+      let fresh: string[] = [];
+      editor.updatePage((p) => {
+        const out = cycleCell(p, line.baseId, i);
+        fresh = out.ids;
+        return out.page;
+      });
+      // La ligne est refaite : les autres lignes restent sélectionnées avec elle.
+      editor.selection = [...ids.filter((id) => !line.ids.includes(id)), ...fresh];
+      return true;
+    }
+    return false;
+  }
+
   function create(targets: HTMLElement[]): Moveable {
     const m = new Moveable(pageEl!, {
       target: targets,
       className: "cahutin-group",
       draggable: true,
       resizable: true,
-      // Un tableau ne tourne pas : sa grille et son export restent droits.
-      rotatable: !ids?.some((id) => inTableGroup(editor.page, id)),
-      keepRatio: !table,
-      renderDirections: table ? ["nw", "n", "ne", "w", "e", "sw", "s", "se"] : ["nw", "ne", "sw", "se"],
+      // Un tableau ne tourne pas : sa grille et son export restent droits. Une ligne de graphisme non plus.
+      rotatable: !row && !ids?.some((id) => inTableGroup(editor.page, id)),
+      keepRatio: !table && !row,
+      renderDirections: row ? ["w", "e"] : table ? ["nw", "n", "ne", "w", "e", "sw", "s", "se"] : ["nw", "ne", "sw", "se"],
       snappable: true,
       isDisplaySnapDigit: false,
       snapThreshold: 6,
@@ -148,6 +193,7 @@
       .on("clickGroup", (ev) => {
         if (ev.isDouble) return;
         const input = ev.inputEvent as MouseEvent;
+        if (!input.shiftKey && turnCell(input)) return;
         const id = document.elementsFromPoint(input.clientX, input.clientY).map((n) => n.closest<HTMLElement>(".element")).find((n) => n && pageEl?.contains(n))?.dataset.id ?? null;
         if (id && ids?.includes(id)) return;
         onpick(id, input.shiftKey);

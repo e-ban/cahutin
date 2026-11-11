@@ -115,6 +115,18 @@ export function resizeRow(page: Page, baseId: string, x: number, width: number):
   return rebuild(page, row, { ...row.recipe, cells }, x, width);
 }
 
+/** La place de la ligne étirée par un côté (`dir[0]` : -1 à gauche, 1 à droite) quand le cadre des poignées, `box`,
+ *  passe à `w_mm` de large : le côté opposé ne bouge pas, et il reste la place de deux motifs. `null` si
+ *  rien ne change. */
+export function stretchRow(row: RowRef, box: { x_mm: number; w_mm: number }, w_mm: number, dir: number[]): { x: number; width: number } | null {
+  const level = row.recipe.level as Level;
+  const min = dotSize(MOTIF_HEIGHT_MM[level]) + 2 + 2 * motifStep(row.recipe.motif as Motif, level);
+  // Le cadre des poignées peut déborder de la ligne (la flèche) : seul l'écart compte.
+  const width = Math.max(min, Math.round((row.width + w_mm - box.w_mm) * 10) / 10);
+  if (Math.abs(width - row.width) < 0.05) return null;
+  return { x: dir[0] < 0 ? row.x + row.width - width : row.x, width };
+}
+
 /** Le numéro du motif de la ligne sous le point (`x_mm`, `y_mm`), ou `null` s'il n'y en a pas. */
 export function cellAt(page: Page, baseId: string, x_mm: number, y_mm: number): number | null {
   const row = rowById(page, baseId);

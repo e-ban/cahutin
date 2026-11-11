@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { newPage } from "./factory";
 import { MOTIF_HEIGHT_MM, PRESETS, buildRow, graphismeRows, motifCount, motifStep, presetOf } from "./graphisme";
-import { cellAt, changeRows, cycleCell, emptyCells, resizeRow, rowsIn, rowsSettings } from "./graphismeEdit";
+import { cellAt, changeRows, cycleCell, emptyCells, resizeRow, rowsIn, rowsSettings, stretchRow } from "./graphismeEdit";
 import { pathOf, scaleElements } from "./groups";
 import type { Cell, Element, GraphismeRow, Page } from "./types";
 
@@ -161,6 +161,24 @@ test("resizeRow keeps at least two motifs", () => {
   const page = withRows(1);
   const out = resizeRow(page, rowOf(page).baseId, 15, 5);
   expect(rowOf(out.page, out.ids).recipe.cells).toHaveLength(2);
+});
+
+test("stretchRow moves only the side pulled, never below two motifs", () => {
+  const row = rowOf(withRows(1));
+  // Le cadre des poignées déborde à gauche de la ligne (la flèche) : seul l'écart compte.
+  const box = { x_mm: row.x - 1, w_mm: row.width + 1 };
+  expect(stretchRow(row, box, box.w_mm - 30, [1, 0])).toEqual({ x: row.x, width: row.width - 30 });
+  const left = stretchRow(row, box, box.w_mm + 10.04, [-1, 0])!;
+  expect(left).toEqual({ x: row.x - 10, width: row.width + 10 });
+  expect(left.x + left.width).toBeCloseTo(row.x + row.width);
+  // Pas bougé : rien à refaire.
+  expect(stretchRow(row, box, box.w_mm + 0.01, [1, 0])).toBeNull();
+  // Trop courte : deux motifs, le bord opposé reste en place.
+  const min = 3.5 + 2 + 2 * motifStep("ponts", "MS");
+  const tiny = stretchRow(row, box, 1, [-1, 0])!;
+  expect(tiny.width).toBeCloseTo(min);
+  expect(tiny.x + tiny.width).toBeCloseTo(row.x + row.width);
+  expect(motifCount("ponts", "MS", tiny.width)).toBe(2);
 });
 
 test("cellAt and cycleCell turn one motif", () => {

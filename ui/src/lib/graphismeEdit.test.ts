@@ -16,8 +16,12 @@ const isBase = (e: Element) => e.kind.type === "Shape" && !!e.kind.graphisme;
 const mapBase = (p: Page, f: (e: Element) => Element): Page => ({ ...p, elements: p.elements.map((e) => (isBase(e) ? f(e) : e)) });
 const recipeWith = (p: Page, r: Partial<GraphismeRow>) =>
   mapBase(p, (e) => (e.kind.type === "Shape" ? { ...e, kind: { ...e.kind, graphisme: { ...e.kind.graphisme!, ...r } } } : e));
+const GREEN = "#2e9d4a";
+/** La flèche de départ : le tracé vert. */
+const isArrow = (e: Element) => e.kind.type === "Shape" && e.kind.shape === "Path" && e.kind.stroke?.color === GREEN;
+/** Les couleurs des tracés des motifs (pas de la flèche). */
 const strokes = (p: Page, style: string) =>
-  p.elements.flatMap((e) => (e.kind.type === "Shape" && e.kind.shape === "Path" && e.kind.stroke?.style === style ? [e.kind.stroke.color] : []));
+  p.elements.flatMap((e) => (e.kind.type === "Shape" && e.kind.shape === "Path" && !isArrow(e) && e.kind.stroke?.style === style ? [e.kind.stroke.color] : []));
 
 test("rowsIn finds the rows of a selection, top to bottom", () => {
   const page = withRows(2);
@@ -76,7 +80,7 @@ test("changeRows keeps the model and dotted colours", () => {
   const recolored = {
     ...page,
     elements: page.elements.map((e) =>
-      e.kind.type === "Shape" && e.kind.shape === "Path" && e.kind.stroke
+      e.kind.type === "Shape" && e.kind.shape === "Path" && e.kind.stroke && !isArrow(e)
         ? { ...e, kind: { ...e.kind, stroke: { ...e.kind.stroke, color: e.kind.stroke.style === "Dotted" ? "#0000ff" : "#ff0000" } } }
         : e,
     ),
@@ -89,6 +93,43 @@ test("changeRows keeps the model and dotted colours", () => {
   const kept = preset(preset(recolored, "moitie"), "tout");
   expect(strokes(kept, "Solid")).toEqual(["#ff0000"]);
   expect(strokes(kept, "Dotted")).toEqual(["#0000ff"]);
+});
+
+test("the start arrow is not taken for the model: a red model stays red, the arrow stays green", () => {
+  const page = withRows(1);
+  // Le modèle recoloré en rouge, la flèche (un tracé plein lui aussi) laissée verte.
+  const red = {
+    ...page,
+    elements: page.elements.map((e) =>
+      e.kind.type === "Shape" && e.kind.shape === "Path" && e.kind.stroke?.style === "Solid" && !isArrow(e) ? { ...e, kind: { ...e.kind, stroke: { ...e.kind.stroke, color: "#ff0000" } } } : e,
+    ),
+  };
+  expect(red.elements.filter(isArrow)).toHaveLength(1);
+  for (const preset of ["seul", "moitie", "tout"] as const) {
+    const out = changeRows(red, [rowOf(red).baseId], { preset }).page;
+    expect(strokes(out, "Solid"), preset).toEqual(["#ff0000"]);
+    expect(out.elements.filter(isArrow), preset).toHaveLength(1);
+  }
+});
+
+test("a row saved with the old arrow shape stays editable and gets the new arrow", () => {
+  const page = withRows(1);
+  // Avant, la flèche était une forme « Arrow » posée juste après le point.
+  const at = page.elements.findIndex(isArrow);
+  const arrow = page.elements[at];
+  if (arrow.kind.type !== "Shape") throw new Error("flèche");
+  const oldArrow: Element = { ...arrow, frame: { x_mm: 17, y_mm: 50, w_mm: 7.2, h_mm: 3, rotation_deg: -90 }, kind: { ...arrow.kind, shape: "Arrow", stroke: { width_mm: 0.8, color: GREEN, style: "Solid" } } };
+  delete (oldArrow.kind as { path?: string }).path;
+  const old = { ...page, elements: page.elements.map((e, i) => (i === at ? oldArrow : e)) };
+  const row = rowOf(old);
+  expect(row.ids).toContain(oldArrow.id);
+  expect(rowsSettings([row]).arrow).toBe(true);
+  const out = changeRows(old, [row.baseId], { preset: "moitie" });
+  const made = out.page.elements;
+  expect(made.some((e) => e.kind.type === "Shape" && e.kind.shape === "Arrow")).toBe(false);
+  expect(made.filter(isArrow)).toHaveLength(1);
+  expect(strokes(out.page, "Solid")).toEqual(["#333333"]);
+  expect(rowOf(out.page, out.ids).ids).toHaveLength(made.length);
 });
 
 test("changeRows keeps the row where it was moved", () => {

@@ -154,15 +154,33 @@ fn path_in_frame(cmds: &[Cmd], top: f64) -> (Frame, String) {
     (frame(round2(x0), round2(top + y0), round2(w), round2(h)), path)
 }
 
-/// Les points d'un tracé en mm, chaque courbe prise en 16 points (`samples`).
-fn samples(cmds: &[Cmd]) -> Vec<(f64, f64)> {
+type Pt = (f64, f64);
+
+fn dist(a: Pt, b: Pt) -> f64 {
+    (a.0 - b.0).hypot(a.1 - b.1)
+}
+
+/// La longueur d'une suite de points (`lengthOf`).
+fn length_of(c: &[Pt]) -> f64 {
+    c.windows(2).map(|w| dist(w[1], w[0])).sum()
+}
+
+/// Les points d'un tracé en mm, chaque courbe prise en 16 points, chaque segment tous les 0,5 mm (`samples`).
+fn samples(cmds: &[Cmd]) -> Vec<Pt> {
     let mut out = Vec::new();
     let mut cur = (0.0, 0.0);
     for c in cmds {
         match *c {
-            Cmd::M(x, y) | Cmd::L(x, y) => {
+            Cmd::M(x, y) => {
                 cur = (x, y);
                 out.push(cur);
+            }
+            Cmd::L(x, y) => {
+                let n = ((x - cur.0).hypot(y - cur.1) / 0.5).ceil().max(1.0) as usize;
+                for i in 1..=n {
+                    out.push((cur.0 + (x - cur.0) * i as f64 / n as f64, cur.1 + (y - cur.1) * i as f64 / n as f64));
+                }
+                cur = (x, y);
             }
             Cmd::C(a, b, cc, d, e, f) => {
                 for i in 1..=16 {
@@ -174,6 +192,158 @@ fn samples(cmds: &[Cmd]) -> Vec<(f64, f64)> {
             }
         }
     }
+    out
+}
+
+/// L'écart entre un trait et les deux premiers motifs.
+fn clearance(c: &[Pt], near: &[Pt]) -> f64 {
+    c.iter().map(|&a| near.iter().map(|&b| dist(a, b)).fold(f64::INFINITY, f64::min)).fold(f64::INFINITY, f64::min)
+}
+
+/// La flèche de départ, en mm (`startArrow`) : un trait fin qui suit le début du geste à côté du tracé, et sa
+/// pointe ouverte. `first` : les points du premier motif, `near` : ceux des deux premiers, `top` : le haut de la ligne.
+fn start_arrow(first: &[Pt], near: &[Pt], h: f64, dot: f64, top: f64) -> Vec<Cmd> {
+    use std::f64::consts::PI;
+    let p0 = first[0];
+    let arm = (0.16 * h).clamp(1.6, 2.4);
+    let ang = PI * 0.2;
+    // Du côté gauche du geste ; pour un geste à plat, du côté loin du milieu du motif.
+    let flip = |n: Pt| if n.0.abs() > 0.3 { n.0 > 0.0 } else { (n.1 > 0.0) != (p0.1 > top + h / 2.0) };
+    // Le début du geste, de 0,8 mm après le départ jusqu'à `len` le long du tracé, décalé à côté de lui.
+    let build = |len: f64| -> (Vec<Pt>, f64) {
+        let mut path: Vec<Pt> = Vec::new();
+        let mut acc = 0.0;
+        for i in 1..first.len() {
+            acc += dist(first[i], first[i - 1]);
+            if acc >= 0.8 {
+                path.push(first[i]);
+            }
+            if acc >= len {
+                break;
+            }
+        }
+        let seg: Vec<Pt> = std::iter::once(p0).chain(path.iter().copied()).collect();
+        let last = path[path.len() - 1];
+        let tl = (last.0 - p0.0).hypot(last.1 - p0.1);
+        let t = ((last.0 - p0.0) / tl, (last.1 - p0.1) / tl);
+        let side = if flip((t.1, -t.0)) { -1.0 } else { 1.0 };
+        let normal_at = |i: usize| {
+            let (a, b) = (seg[i.saturating_sub(1)], seg[(i + 1).min(seg.len() - 1)]);
+            let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+            let l = dx.hypot(dy);
+            let l = if l == 0.0 { 1.0 } else { l };
+            (dy / l, -dx / l)
+        };
+        let offset = |s: f64, off: f64| -> Vec<Pt> {
+            path.iter()
+                .enumerate()
+                .map(|(j, p)| {
+                    let n = normal_at(j + 1);
+                    (p.0 + s * n.0 * off, p.1 + s * n.1 * off)
+                })
+                .collect()
+        };
+        // Trop près du tracé : il s'écarte de 0,5 mm à la fois, 3 mm au plus, puis essaie l'autre côté.
+        let (mut best, mut best_cl) = (Vec::new(), -1.0);
+        for s in [side, -side] {
+            for k in 0..=6 {
+                let c = offset(s, dot / 2.0 + 1.5 + 0.5 * k as f64);
+                let cl = clearance(&c, near);
+                if cl > best_cl {
+                    (best, best_cl) = (c, cl);
+                }
+                if cl >= 1.8 {
+                    break;
+                }
+            }
+            if best_cl >= 1.8 {
+                break;
+            }
+        }
+        (best, best_cl)
+    };
+    let base = (0.6 * h).clamp(6.0, 10.0);
+    let mut pick = build(base);
+    // Trop court pour se voir derrière la pointe : un peu plus loin le long du tracé.
+    for extra in [2.0, 4.0, 6.0] {
+        if length_of(&pick.0) >= 2.5 * arm {
+            break;
+        }
+        let b = build(base + extra);
+        if b.1 >= 1.8 && length_of(&b.0) > length_of(&pick.0) {
+            pick = b;
+        }
+    }
+    // Combien le trait tourne en tout.
+    let turn = |c: &[Pt]| {
+        let mut tot = 0.0;
+        for i in 2..c.len() {
+            let a = (c[i - 1].1 - c[i - 2].1).atan2(c[i - 1].0 - c[i - 2].0);
+            let b = (c[i].1 - c[i - 1].1).atan2(c[i].0 - c[i - 1].0);
+            let mut d = b - a;
+            while d > PI {
+                d -= 2.0 * PI;
+            }
+            while d < -PI {
+                d += 2.0 * PI;
+            }
+            tot += d.abs();
+        }
+        tot
+    };
+    let mut curve = pick.0;
+    // Toujours trop court, ou le début tourne trop serré (boucles des petits motifs) : une flèche droite le long
+    // du premier geste, vers le point du tracé à 0,35 hauteur du départ.
+    if length_of(&curve) < 2.5 * arm || turn(&curve) > PI * 0.6 {
+        let mut q = first[first.len() - 1];
+        let mut acc = 0.0;
+        for i in 1..first.len() {
+            acc += dist(first[i], first[i - 1]);
+            if acc >= 0.35 * h {
+                q = first[i];
+                break;
+            }
+        }
+        let v = (q.0 - p0.0, q.1 - p0.1);
+        let vl = v.0.hypot(v.1);
+        let chord = (v.0 / vl, v.1 / vl);
+        let mut n = (chord.1, -chord.0);
+        if flip(n) {
+            n = (-n.0, -n.1);
+        }
+        let len = (0.45 * h).clamp(5.0, 8.0);
+        let line = |nn: Pt, off: f64| -> Vec<Pt> {
+            let c = (p0.0 + nn.0 * off + chord.0 * (len / 2.0 + 0.5), p0.1 + nn.1 * off + chord.1 * (len / 2.0 + 0.5));
+            (0..9).map(|i| (c.0 + chord.0 * len * (i as f64 / 8.0 - 0.5), c.1 + chord.1 * len * (i as f64 / 8.0 - 0.5))).collect()
+        };
+        let mut best_cl = -1.0;
+        curve = line(n, dot / 2.0 + 2.0);
+        for nn in [n, (-n.0, -n.1)] {
+            for k in 0..=6 {
+                let c = line(nn, dot / 2.0 + 2.0 + 0.5 * k as f64);
+                let cl = clearance(&c, near);
+                if cl > best_cl {
+                    (curve, best_cl) = (c, cl);
+                }
+                if cl >= 1.8 {
+                    break;
+                }
+            }
+            if best_cl >= 1.8 {
+                break;
+            }
+        }
+    }
+    // La pointe ouverte, au bout du trait, dans le sens de sa fin.
+    let e = curve[curve.len() - 1];
+    let d = curve[curve.len().saturating_sub(3)];
+    let dl = (e.0 - d.0).hypot(e.1 - d.1);
+    let back = (-(e.0 - d.0) / dl, -(e.1 - d.1) / dl);
+    let rot = |a: f64| (back.0 * a.cos() - back.1 * a.sin(), back.0 * a.sin() + back.1 * a.cos());
+    let (l1, l2) = (rot(ang), rot(-ang));
+    let mut out = vec![Cmd::M(curve[0].0, curve[0].1)];
+    out.extend(curve[1..].iter().map(|p| Cmd::L(p.0, p.1)));
+    out.extend([Cmd::M(e.0 + l1.0 * arm, e.1 + l1.1 * arm), Cmd::L(e.0, e.1), Cmd::L(e.0 + l2.0 * arm, e.1 + l2.1 * arm)]);
     out
 }
 
@@ -225,63 +395,15 @@ fn build_row(r: &GraphismeRow, x: f64, y: f64, width: f64) -> Vec<Element> {
         out.push(line_at(y - 1.0));
     }
     // Le point de départ, juste où le crayon se pose : au début du modèle.
-    let p: Vec<(f64, f64)> = samples(&cmds_for(m, start, h, 0, 1)).into_iter().map(|(a, b)| (a, b + y)).collect();
+    let p: Vec<Pt> = samples(&cmds_for(m, start, h, 0, 1)).into_iter().map(|(a, b)| (a, b + y)).collect();
     let p0 = p[0];
     out.push(shape(ShapeKind::Ellipse, frame(round2(p0.0 - dot / 2.0), round2(p0.1 - dot / 2.0), dot, dot), Some(START_COLOR), None, None, Some(&group)));
-    // La flèche, à côté du point, montre le sens du premier geste.
+    // La flèche, un trait fin à côté du point, suit le début du geste.
     if r.arrow {
-        // Le sens : vers le point du tracé à 0,35 hauteur du départ.
-        let mut q = p[p.len() - 1];
-        let mut acc = 0.0;
-        for i in 1..p.len() {
-            acc += (p[i].0 - p[i - 1].0).hypot(p[i].1 - p[i - 1].1);
-            if acc >= 0.35 * h {
-                q = p[i];
-                break;
-            }
-        }
-        let l = (q.0 - p0.0).hypot(q.1 - p0.1);
-        let t = ((q.0 - p0.0) / l, (q.1 - p0.1) / l);
-        // Du côté gauche du geste ; pour un geste à plat, du côté loin du milieu du motif.
-        let mut n = (t.1, -t.0);
-        if if n.0.abs() > 0.3 { n.0 > 0.0 } else { (n.1 > 0.0) != (p0.1 > y + h / 2.0) } {
-            n = (-n.0, -n.1);
-        }
-        let len = (0.45 * h).clamp(5.0, 8.0);
-        let mut off = dot / 2.0 + 2.0;
-        let two: Vec<(f64, f64)> = samples(&cmds_for(m, start, h, 0, 2)).into_iter().map(|(a, b)| (a, b + y)).collect();
-        let place = |v: (f64, f64), o: f64| (p0.0 + v.0 * o + t.0 * (len / 2.0 + 0.5), p0.1 + v.1 * o + t.1 * (len / 2.0 + 0.5));
-        // L'écart entre la flèche et les deux premiers motifs.
-        let clearance = |c: (f64, f64)| {
-            [-0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0]
-                .iter()
-                .flat_map(|k| two.iter().map(move |&(a, b)| (a - (c.0 + t.0 * len * k)).hypot(b - (c.1 + t.1 * len * k))))
-                .fold(f64::INFINITY, f64::min)
-        };
-        // Trop près du tracé : de l'autre côté, si la place y est plus large.
-        if clearance(place(n, off)) < 2.5 {
-            let o = (-n.0, -n.1);
-            if clearance(place(o, off)) > clearance(place(n, off)) {
-                n = o;
-            }
-        }
-        // Encore trop près : la flèche s'écarte du tracé, de 0,5 mm à la fois, 3 mm au plus.
-        let mut best = clearance(place(n, off));
-        let mut o = off;
-        for _ in 0..6 {
-            if best >= 2.0 {
-                break;
-            }
-            o += 0.5;
-            let c = clearance(place(n, o));
-            if c > best {
-                (best, off) = (c, o);
-            }
-        }
-        let (cx, cy) = place(n, off);
-        let rotation_deg = js_round(t.1.atan2(t.0).to_degrees() * 10.0) / 10.0;
-        let f = Frame { rotation_deg, ..frame(round2(cx - len / 2.0), round2(cy - 1.5), round2(len), 3.0) };
-        out.push(shape(ShapeKind::Arrow, f, None, stroke(0.8, START_COLOR, StrokeStyle::Solid), None, Some(&group)));
+        let near: Vec<Pt> = samples(&cmds_for(m, start, h, 0, 2)).into_iter().map(|(a, b)| (a, b + y)).collect();
+        let (f, path) = path_in_frame(&start_arrow(&p, &near, h, dot, y), 0.0);
+        let width = if r.level == "PS" { 0.8 } else { 0.7 };
+        out.push(shape(ShapeKind::Path, f, None, stroke(width, START_COLOR, StrokeStyle::Solid), Some(path), Some(&group)));
     }
     // Un tracé par suite de cases de même sorte ; les cases vides ne dessinent rien.
     let mut from = 0;
@@ -609,6 +731,23 @@ mod tests {
         }
         same_as_ui(&graphisme_row("vagues", "MS", 15.0, 25.0, 180.0, "moitie", Guides::Corridor, true), "ROW_vagues_moitie_couloir");
         same_as_ui(&graphisme_row("dents", "GS", 15.0, 25.0, 180.0, "seul", Guides::None, false), "ROW_dents_gs_seul_aucune");
+    }
+
+    #[test]
+    fn the_start_arrow_is_a_thin_green_path_with_an_open_head() {
+        for level in ["PS", "MS", "GS"] {
+            for m in MOTIFS {
+                let row = graphisme_row(m, level, 15.0, 25.0, 180.0, "tout", Guides::Base, true);
+                let ElementKind::Shape(s) = &row[2].kind else { panic!("{m} {level}") };
+                assert_eq!((s.shape, s.fill.is_none()), (ShapeKind::Path, true), "{m} {level}");
+                let st = s.stroke.as_ref().unwrap();
+                assert_eq!((st.color.as_str(), st.style, st.width_mm), (START_COLOR, Some(StrokeStyle::Solid), if level == "PS" { 0.8 } else { 0.7 }), "{m} {level}");
+                // Le trait puis la pointe : deux morceaux, tous deux acceptés tels quels par l'ODG.
+                let path = s.path.as_deref().unwrap();
+                assert!(carnet_core::shapes::valid_path(path), "{m} {level} : {path}");
+                assert_eq!(path.matches('M').count(), 2, "{m} {level}");
+            }
+        }
     }
 
     #[test]

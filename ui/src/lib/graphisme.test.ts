@@ -13,7 +13,7 @@ test("every motif makes a grouped row: start point, model, dotted rest, baseline
     const [base, point, arrow, model, rest] = row;
     expect(base.kind).toMatchObject({ type: "Shape", shape: "Line" });
     expect(point.kind).toMatchObject({ type: "Shape", shape: "Ellipse", fill: "#2e9d4a" });
-    expect(arrow.kind).toMatchObject({ type: "Shape", shape: "Arrow", stroke: { width_mm: 0.8, color: "#2e9d4a" } });
+    expect(arrow.kind).toMatchObject({ type: "Shape", shape: "Path", fill: null, stroke: { width_mm: 0.7, color: "#2e9d4a", style: "Solid" } });
     for (const p of [model, rest]) {
       if (p.kind.type !== "Shape") throw new Error(m);
       expect(p.kind.shape).toBe("Path");
@@ -55,7 +55,8 @@ const D: Cell = "Dotted";
 const E: Cell = "Empty";
 const times = (c: Cell, n: number): Cell[] => Array(n).fill(c);
 const shapeOf = (e: Element) => (e.kind.type === "Shape" ? e.kind : null);
-const paths = (row: Element[]) => row.filter((e) => shapeOf(e)?.shape === "Path");
+/** Les tracés des motifs (pas la flèche, verte). */
+const paths = (row: Element[]) => row.filter((e) => shapeOf(e)?.shape === "Path" && shapeOf(e)?.stroke?.color !== "#2e9d4a");
 
 test("cellsFor gives the presets", () => {
   expect(cellsFor("tout", 10)).toEqual([M, ...times(D, 9)]);
@@ -79,7 +80,7 @@ test("presetOf recognises presets and hand edits", () => {
 
 test("a default row keeps today's layout, plus the arrow", () => {
   const row = graphismeRow("ponts", "MS", 15, 40, 180);
-  expect(row.map((e) => shapeOf(e)?.shape)).toEqual(["Line", "Ellipse", "Arrow", "Path", "Path"]);
+  expect(row.map((e) => shapeOf(e)?.shape)).toEqual(["Line", "Ellipse", "Path", "Path", "Path"]);
   expect(new Set(row.map((e) => e.group)).size).toBe(1);
   const base = shapeOf(row[0])!;
   expect(base.graphisme).toMatchObject({ motif: "ponts", level: "MS", guides: "Base", arrow: true });
@@ -87,10 +88,10 @@ test("a default row keeps today's layout, plus the arrow", () => {
   expect(row[0].frame).toEqual({ x_mm: 15, y_mm: 40 + 16 - 1, w_mm: 180, h_mm: 2, rotation_deg: 0 });
   expect(shapeOf(row[3])!.stroke).toMatchObject({ style: "Solid", color: "#333333" });
   expect(shapeOf(row[4])!.stroke).toMatchObject({ style: "Dotted", color: "#9e9e9e" });
-  // La flèche : 3 mm de haut, entre 5 et 8 mm de long.
-  const arrow = row[2].frame;
-  expect(arrow.w_mm).toBeCloseTo(0.45 * 16);
-  expect(arrow.h_mm).toBe(3);
+  // La flèche : un trait fin vert, plus épais pour les petits.
+  expect(shapeOf(row[2])!.stroke).toEqual({ width_mm: 0.7, color: "#2e9d4a", style: "Solid" });
+  expect(shapeOf(row[2])!.path).toMatch(PATH_RE);
+  expect(shapeOf(graphismeRow("ponts", "PS", 15, 40, 180)[2])!.stroke!.width_mm).toBe(0.8);
   // Seule la ligne de base porte la recette.
   for (const e of row.slice(1)) expect(shapeOf(e)?.graphisme).toBeUndefined();
 });
@@ -112,7 +113,8 @@ test("the corridor adds a top line", () => {
   expect(lines.map((e) => e.frame.y_mm)).toContain(39);
   expect(lines.filter((e) => shapeOf(e)?.graphisme)).toHaveLength(1);
   const noArrow = graphismeRow("dents", "MS", 15, 40, 180, { arrow: false });
-  expect(noArrow.some((e) => shapeOf(e)?.shape === "Arrow")).toBe(false);
+  expect(noArrow.some((e) => shapeOf(e)?.stroke?.color === "#2e9d4a")).toBe(false);
+  expect(noArrow).toHaveLength(4);
 });
 
 test("hand-made cells make one path per run", () => {
@@ -135,13 +137,17 @@ test("circles turn the writing way", () => {
 });
 
 type P = [number, number];
-/** Les points d'un tracé en mm, chaque courbe prise en 16 points, descendus de `top`. */
+/** Les points d'un tracé en mm, chaque courbe prise en 16 points, chaque segment tous les 0,5 mm, descendus de `top`. */
 function samples(cmds: ReturnType<typeof cmdsFor>, top: number): P[] {
   const out: P[] = [];
   let cur: P = [0, 0];
   for (const c of cmds) {
-    if (c[0] !== "C") cur = [c[1], c[2]];
-    else {
+    if (c[0] === "M") cur = [c[1], c[2]];
+    else if (c[0] === "L") {
+      const n = Math.max(1, Math.ceil(Math.hypot(c[1] - cur[0], c[2] - cur[1]) / 0.5));
+      for (let i = 1; i < n; i++) out.push([cur[0] + ((c[1] - cur[0]) * i) / n, cur[1] + ((c[2] - cur[1]) * i) / n]);
+      cur = [c[1], c[2]];
+    } else if (c[0] === "C") {
       const [, a, b, cc, d, e, f] = c;
       for (let i = 1; i <= 16; i++) {
         const t = i / 16, u = 1 - t;
@@ -154,13 +160,33 @@ function samples(cmds: ReturnType<typeof cmdsFor>, top: number): P[] {
   }
   return out.map(([x, y]) => [x, y + top]);
 }
+/** Les morceaux (après chaque M) d'un tracé posé dans `frame`, en mm. */
+function pieces(e: Element): P[][] {
+  const s = shapeOf(e)!;
+  const f = e.frame;
+  const t = s.path!.split(" ");
+  const out: P[][] = [];
+  for (let i = 0; i < t.length; i += 3) {
+    const p: P = [f.x_mm + (Number(t[i + 1]) / 1000) * f.w_mm, f.y_mm + (Number(t[i + 2]) / 1000) * f.h_mm];
+    if (t[i] === "M") out.push([p]);
+    else out[out.length - 1].push(p);
+  }
+  return out;
+}
 const LEVELS = ["PS", "MS", "GS"] as const;
 /** Le point, la flèche et le début du tracé d'une ligne posée en (15, 40). */
 function startOf(m: Motif, level: (typeof LEVELS)[number]) {
   const row = graphismeRow(m, level, 15, 40, 180);
   const h = MOTIF_HEIGHT_MM[level];
   const start = 15 + dotSize(h) + 2;
-  return { dot: row[1].frame, arrow: row[2].frame, first: samples(cmdsFor(m, start, h, 0, 1), 40), two: samples(cmdsFor(m, start, h, 0, 2), 40) };
+  return { dot: row[1].frame, arrow: row[2], first: samples(cmdsFor(m, start, h, 0, 1), 40), two: samples(cmdsFor(m, start, h, 0, 2), 40) };
+}
+const len = (c: P[]) => c.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - c[i][0], q[1] - c[i][1]), 0);
+/** Le sens de la fin de la flèche : du point deux avant la pointe à la pointe. */
+function endDir(arrow: Element): P {
+  const [shaft] = pieces(arrow);
+  const [e, d] = [shaft[shaft.length - 1], shaft[Math.max(0, shaft.length - 3)]];
+  return [e[0] - d[0], e[1] - d[1]];
 }
 
 test("the start dot sits on the first point of the model", () => {
@@ -173,28 +199,43 @@ test("the start dot sits on the first point of the model", () => {
     }
 });
 
-test("the arrow stays clear of the first two motifs", () => {
+test("the arrow is a thin green line beside the first two motifs, long enough, with an open head at its end", () => {
   for (const level of LEVELS)
     for (const m of MOTIFS) {
       const { arrow, two } = startOf(m, level);
-      const [cx, cy] = [arrow.x_mm + arrow.w_mm / 2, arrow.y_mm + arrow.h_mm / 2];
-      const r = (arrow.rotation_deg * Math.PI) / 180;
-      const [tx, ty] = [Math.cos(r), Math.sin(r)];
+      const at = `${m} ${level}`;
+      expect(arrow.kind, at).toMatchObject({ type: "Shape", shape: "Path", fill: null, stroke: { color: "#2e9d4a", style: "Solid" } });
+      expect(shapeOf(arrow)!.path, at).toMatch(PATH_RE);
+      const [shaft, head] = pieces(arrow);
+      expect(head, at).toHaveLength(3);
+      const h = MOTIF_HEIGHT_MM[level];
+      const arm = Math.min(2.4, Math.max(1.6, 0.16 * h));
+      // Le trait est assez long pour se voir derrière la pointe, même en grande section.
+      expect(len(shaft), at).toBeGreaterThanOrEqual(2.5 * arm - 0.05);
+      // La pointe est au bout du trait, ses deux branches de la longueur prévue.
+      const tip = shaft[shaft.length - 1];
+      expect(Math.hypot(head[1][0] - tip[0], head[1][1] - tip[1]), at).toBeLessThan(0.05);
+      for (const b of [head[0], head[2]]) expect(Math.hypot(b[0] - tip[0], b[1] - tip[1]), at).toBeCloseTo(arm, 1);
+      // Loin des deux premiers motifs.
       let near = Infinity;
-      for (let k = -0.5; k <= 1; k += 0.125) {
-        const [ax, ay] = [cx + tx * arrow.w_mm * k, cy + ty * arrow.w_mm * k];
-        for (const [x, y] of two) near = Math.min(near, Math.hypot(x - ax, y - ay));
-      }
-      expect(near, `${m} ${level}`).toBeGreaterThanOrEqual(2);
+      for (const [x, y] of shaft) for (const [u, v] of two) near = Math.min(near, Math.hypot(x - u, y - v));
+      expect(near, at).toBeGreaterThanOrEqual(1.7);
     }
 });
 
 test("the arrow follows the first gesture", () => {
   for (const level of LEVELS) {
-    // Vers le haut, vers le bas, vers la gauche : à 25 degrés près.
-    expect(Math.abs(startOf("ponts", level).arrow.rotation_deg + 90), level).toBeLessThan(25);
-    expect(Math.abs(startOf("coupes", level).arrow.rotation_deg - 90), level).toBeLessThan(25);
-    expect(180 - Math.abs(startOf("ronds", level).arrow.rotation_deg), level).toBeLessThan(25);
+    const dir = (m: Motif) => endDir(startOf(m, level).arrow);
+    for (const m of ["ponts", "creneaux"] as Motif[]) {
+      const [dx, dy] = dir(m);
+      expect(dy < 0 && Math.abs(dy) > Math.abs(dx), `${m} ${level} ${dx} ${dy}`).toBe(true);
+    }
+    for (const m of ["coupes", "traits"] as Motif[]) {
+      const [dx, dy] = dir(m);
+      expect(dy > 0 && Math.abs(dy) > Math.abs(dx), `${m} ${level} ${dx} ${dy}`).toBe(true);
+    }
+    expect(dir("ronds")[0], `ronds ${level}`).toBeLessThan(0);
+    expect(dir("boucles")[0], `boucles ${level}`).toBeGreaterThan(0);
   }
 });
 

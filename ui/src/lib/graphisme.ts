@@ -120,24 +120,153 @@ function pathElement(cmds: Cmd[], top: number, stroke: Stroke, group: string): E
   return { ...shapeElement("Path", frame, null, stroke, path), group };
 }
 
-/** Les points d'un tracé en mm, chaque courbe prise en 16 points. */
-function samples(cmds: Cmd[]): [number, number][] {
-  const out: [number, number][] = [];
-  let cur: [number, number] = [0, 0];
+type Pt = [number, number];
+const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const lengthOf = (c: Pt[]) => c.slice(1).reduce((s, q, i) => s + dist(q, c[i]), 0);
+
+/** Les points d'un tracé en mm, chaque courbe prise en 16 points, chaque segment tous les 0,5 mm. */
+function samples(cmds: Cmd[]): Pt[] {
+  const out: Pt[] = [];
+  let cur: Pt = [0, 0];
   for (const c of cmds) {
-    if (c[0] === "C") {
+    if (c[0] === "M") {
+      cur = [c[1], c[2]];
+      out.push(cur);
+    } else if (c[0] === "L") {
+      const n = Math.max(1, Math.ceil(Math.hypot(c[1] - cur[0], c[2] - cur[1]) / 0.5));
+      for (let i = 1; i <= n; i++) out.push([cur[0] + ((c[1] - cur[0]) * i) / n, cur[1] + ((c[2] - cur[1]) * i) / n]);
+      cur = [c[1], c[2]];
+    } else if (c[0] === "C") {
       const [, a, b, cc, d, e, f] = c;
       for (let i = 1; i <= 16; i++) {
         const t = i / 16, u = 1 - t;
         out.push([u * u * u * cur[0] + 3 * u * u * t * a + 3 * u * t * t * cc + t * t * t * e, u * u * u * cur[1] + 3 * u * u * t * b + 3 * u * t * t * d + t * t * t * f]);
       }
       cur = [e, f];
-    } else {
-      cur = [c[1], c[2]];
-      out.push(cur);
     }
   }
   return out;
+}
+
+/** La flèche de départ, en mm : un trait fin qui suit le début du geste à côté du tracé, et sa pointe ouverte.
+ *  `first` : les points du premier motif, `near` : ceux des deux premiers (à ne pas toucher), `top` : le haut de la ligne. */
+function startArrow(first: Pt[], near: Pt[], h: number, dot: number, top: number): Cmd[] {
+  const p0 = first[0];
+  const arm = Math.min(2.4, Math.max(1.6, 0.16 * h));
+  const ang = Math.PI * 0.2;
+  // L'écart entre un trait et les deux premiers motifs.
+  const clear = (c: Pt[]) => Math.min(...c.map((a) => Math.min(...near.map((b) => dist(a, b)))));
+  // Du côté gauche du geste ; pour un geste à plat, du côté loin du milieu du motif.
+  const flip = (n: number[]) => (Math.abs(n[0]) > 0.3 ? n[0] > 0 : n[1] > 0 !== p0[1] > top + h / 2);
+  // Le début du geste, de 0,8 mm après le départ jusqu'à `len` le long du tracé, décalé à côté de lui.
+  const build = (len: number): { curve: Pt[]; cl: number } => {
+    const path: Pt[] = [];
+    let acc = 0;
+    for (let i = 1; i < first.length; i++) {
+      acc += dist(first[i], first[i - 1]);
+      if (acc >= 0.8) path.push(first[i]);
+      if (acc >= len) break;
+    }
+    const seg = [p0, ...path];
+    const last = path[path.length - 1];
+    const tl = Math.hypot(last[0] - p0[0], last[1] - p0[1]);
+    const t = [(last[0] - p0[0]) / tl, (last[1] - p0[1]) / tl];
+    const side = flip([t[1], -t[0]]) ? -1 : 1;
+    const normalAt = (i: number) => {
+      const [a, b] = [seg[Math.max(0, i - 1)], seg[Math.min(seg.length - 1, i + 1)]];
+      const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+      const l = Math.hypot(dx, dy) || 1;
+      return [dy / l, -dx / l];
+    };
+    const offset = (s: number, off: number) =>
+      path.map((p, j): Pt => {
+        const n = normalAt(j + 1);
+        return [p[0] + s * n[0] * off, p[1] + s * n[1] * off];
+      });
+    // Trop près du tracé : il s'écarte de 0,5 mm à la fois, 3 mm au plus, puis essaie l'autre côté.
+    let best: Pt[] = [];
+    let bestCl = -1;
+    for (const s of [side, -side]) {
+      for (let k = 0; k <= 6; k++) {
+        const c = offset(s, dot / 2 + 1.5 + 0.5 * k);
+        const cl = clear(c);
+        if (cl > bestCl) [best, bestCl] = [c, cl];
+        if (cl >= 1.8) break;
+      }
+      if (bestCl >= 1.8) break;
+    }
+    return { curve: best, cl: bestCl };
+  };
+  const base = Math.min(10, Math.max(6, 0.6 * h));
+  let pick = build(base);
+  // Trop court pour se voir derrière la pointe : un peu plus loin le long du tracé.
+  for (const extra of [2, 4, 6]) {
+    if (lengthOf(pick.curve) >= 2.5 * arm) break;
+    const b = build(base + extra);
+    if (b.cl >= 1.8 && lengthOf(b.curve) > lengthOf(pick.curve)) pick = b;
+  }
+  // Combien le trait tourne en tout.
+  const turn = (c: Pt[]) => {
+    let tot = 0;
+    for (let i = 2; i < c.length; i++) {
+      const a = Math.atan2(c[i - 1][1] - c[i - 2][1], c[i - 1][0] - c[i - 2][0]);
+      const b = Math.atan2(c[i][1] - c[i - 1][1], c[i][0] - c[i - 1][0]);
+      let d = b - a;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      tot += Math.abs(d);
+    }
+    return tot;
+  };
+  let curve = pick.curve;
+  // Toujours trop court, ou le début tourne trop serré (boucles des petits motifs) : une flèche droite le long
+  // du premier geste, vers le point du tracé à 0,35 hauteur du départ.
+  if (lengthOf(curve) < 2.5 * arm || turn(curve) > Math.PI * 0.6) {
+    let q = first[first.length - 1];
+    let acc = 0;
+    for (let i = 1; i < first.length; i++) {
+      acc += dist(first[i], first[i - 1]);
+      if (acc >= 0.35 * h) {
+        q = first[i];
+        break;
+      }
+    }
+    const v = [q[0] - p0[0], q[1] - p0[1]];
+    const vl = Math.hypot(v[0], v[1]);
+    const chord = [v[0] / vl, v[1] / vl];
+    let n = [chord[1], -chord[0]];
+    if (flip(n)) n = [-n[0], -n[1]];
+    const len = Math.min(8, Math.max(5, 0.45 * h));
+    const line = (nn: number[], off: number): Pt[] => {
+      const c = [p0[0] + nn[0] * off + chord[0] * (len / 2 + 0.5), p0[1] + nn[1] * off + chord[1] * (len / 2 + 0.5)];
+      return Array.from({ length: 9 }, (_, i): Pt => [c[0] + chord[0] * len * (i / 8 - 0.5), c[1] + chord[1] * len * (i / 8 - 0.5)]);
+    };
+    let bestCl = -1;
+    curve = line(n, dot / 2 + 2);
+    for (const nn of [n, [-n[0], -n[1]]]) {
+      for (let k = 0; k <= 6; k++) {
+        const c = line(nn, dot / 2 + 2 + 0.5 * k);
+        const cl = clear(c);
+        if (cl > bestCl) [curve, bestCl] = [c, cl];
+        if (cl >= 1.8) break;
+      }
+      if (bestCl >= 1.8) break;
+    }
+  }
+  // La pointe ouverte, au bout du trait, dans le sens de sa fin.
+  const e = curve[curve.length - 1];
+  const d = curve[Math.max(0, curve.length - 3)];
+  const dl = Math.hypot(e[0] - d[0], e[1] - d[1]);
+  const back = [-(e[0] - d[0]) / dl, -(e[1] - d[1]) / dl];
+  const rot = (a: number) => [back[0] * Math.cos(a) - back[1] * Math.sin(a), back[0] * Math.sin(a) + back[1] * Math.cos(a)];
+  const [l1, l2] = [rot(ang), rot(-ang)];
+  return [
+    ["M", curve[0][0], curve[0][1]],
+    ...curve.slice(1).map((p): Cmd => ["L", p[0], p[1]]),
+    ["M", e[0] + l1[0] * arm, e[1] + l1[1] * arm],
+    ["L", e[0], e[1]],
+    ["L", e[0] + l2[0] * arm, e[1] + l2[1] * arm],
+  ];
 }
 
 /** Taille du point de départ, selon la hauteur des motifs. */
@@ -183,48 +312,14 @@ export function buildRow(r: GraphismeRow, x: number, y: number, width: number, c
   const out: Element[] = [base];
   if (r.guides === "Corridor") out.push(lineAt(y - 1));
   // Le point de départ, juste où le crayon se pose : au début du modèle.
-  const p = samples(cmdsFor(m, start, h, 0, 1)).map(([a, b]): [number, number] => [a, b + y]);
+  const p = samples(cmdsFor(m, start, h, 0, 1)).map(([a, b]): Pt => [a, b + y]);
   const p0 = p[0];
   out.push(shapeElement("Ellipse", { x_mm: round2(p0[0] - dot / 2), y_mm: round2(p0[1] - dot / 2), w_mm: dot, h_mm: dot, rotation_deg: 0 }, START_COLOR, null));
-  // La flèche, à côté du point, montre le sens du premier geste.
+  // La flèche, un trait fin à côté du point, suit le début du geste.
   if (r.arrow) {
-    // Le sens : vers le point du tracé à 0,35 hauteur du départ.
-    let q = p[p.length - 1];
-    let acc = 0;
-    for (let i = 1; i < p.length; i++) {
-      acc += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
-      if (acc >= 0.35 * h) {
-        q = p[i];
-        break;
-      }
-    }
-    const l = Math.hypot(q[0] - p0[0], q[1] - p0[1]);
-    const t = [(q[0] - p0[0]) / l, (q[1] - p0[1]) / l];
-    // Du côté gauche du geste ; pour un geste à plat, du côté loin du milieu du motif.
-    let n = [t[1], -t[0]];
-    if (Math.abs(n[0]) > 0.3 ? n[0] > 0 : n[1] > 0 !== p0[1] > y + h / 2) n = [-n[0], -n[1]];
-    const len = Math.min(8, Math.max(5, 0.45 * h));
-    let off = dot / 2 + 2;
-    const two = samples(cmdsFor(m, start, h, 0, 2)).map(([a, b]): [number, number] => [a, b + y]);
-    const place = (v: number[], o = off) => [p0[0] + v[0] * o + t[0] * (len / 2 + 0.5), p0[1] + v[1] * o + t[1] * (len / 2 + 0.5)];
-    // L'écart entre la flèche et les deux premiers motifs.
-    const clearance = (c: number[]) => Math.min(...[-0.5, -0.25, 0, 0.25, 0.5, 0.75, 1].flatMap((k) => two.map(([a, b]) => Math.hypot(a - (c[0] + t[0] * len * k), b - (c[1] + t[1] * len * k)))));
-    // Trop près du tracé : de l'autre côté, si la place y est plus large.
-    if (clearance(place(n)) < 2.5) {
-      const o = [-n[0], -n[1]];
-      if (clearance(place(o)) > clearance(place(n))) n = o;
-    }
-    // Encore trop près : la flèche s'écarte du tracé, de 0,5 mm à la fois, 3 mm au plus.
-    let best = clearance(place(n));
-    for (let i = 1, o = off; i <= 6 && best < 2; i++) {
-      o += 0.5;
-      const c = clearance(place(n, o));
-      if (c > best) [best, off] = [c, o];
-    }
-    const [cx, cy] = place(n);
-    const rotation_deg = Math.round((Math.atan2(t[1], t[0]) * 180) / Math.PI * 10) / 10;
-    const frame = { x_mm: round2(cx - len / 2), y_mm: round2(cy - 1.5), w_mm: round2(len), h_mm: 3, rotation_deg };
-    out.push(shapeElement("Arrow", frame, null, { width_mm: 0.8, color: START_COLOR, style: "Solid" }));
+    const near = samples(cmdsFor(m, start, h, 0, 2)).map(([a, b]): Pt => [a, b + y]);
+    const { frame, path } = pathInFrame(startArrow(p, near, h, dot, y), 0);
+    out.push(shapeElement("Path", frame, null, { width_mm: r.level === "PS" ? 0.8 : 0.7, color: START_COLOR, style: "Solid" }, path));
   }
   // Un tracé par suite de cases de même sorte ; les cases vides ne dessinent rien.
   for (let from = 0; from < r.cells.length; ) {

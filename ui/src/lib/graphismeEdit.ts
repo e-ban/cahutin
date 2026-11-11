@@ -58,11 +58,15 @@ export function rowsIn(page: Page, ids: string[], inside: string[] = []): RowRef
 }
 
 /** Les couleurs de la ligne : celles de son premier tracé plein et de son premier pointillé, sinon celles
- *  gardées dans la recette. */
+ *  gardées dans la recette. La flèche de départ, posée juste après le point, est un tracé plein elle aussi :
+ *  elle ne compte pas. */
 function colorsOf(page: Page, row: RowRef): RowColors {
+  const members = page.elements.filter((e) => row.ids.includes(e.id));
+  const dot = members.findIndex((e) => e.kind.type === "Shape" && e.kind.shape === "Ellipse");
+  const arrow = row.recipe.arrow ? members[dot + 1] : undefined;
   const color = (style: "Solid" | "Dotted") => {
-    for (const e of page.elements) {
-      if (row.ids.includes(e.id) && e.kind.type === "Shape" && e.kind.shape === "Path" && e.kind.stroke?.style === style) return e.kind.stroke.color;
+    for (const e of members) {
+      if (e !== arrow && e.kind.type === "Shape" && e.kind.shape === "Path" && e.kind.stroke?.style === style) return e.kind.stroke.color;
     }
     return null;
   };

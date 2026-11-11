@@ -44,7 +44,8 @@
   $effect(() => writePref("graphismeGuides", guides));
   $effect(() => writePref("graphismeArrow", arrow));
 
-  const pathProps = (path: string) => ({ shape: "Path" as const, path, fill: null, stroke: { width_mm: 0.6, color: "#333333" }, corner_radius_mm: 0 });
+  // Aperçus dans la couleur du texte du tiroir : lisibles avec tous les thèmes, le sombre compris.
+  const pathProps = (path: string) => ({ shape: "Path" as const, path, fill: null, stroke: { width_mm: 0.6, color: "currentColor" }, corner_radius_mm: 0 });
 
   function addRows(m: Motif) {
     const els = graphismeRows(editor.page, m, level, rows, { preset: dots, guides, arrow });
@@ -172,7 +173,7 @@
       {#each PATHS as p (p.id)}
         <button onclick={() => addPath(p.path, p.w_mm, p.h_mm)}>
           <span class="preview" style:width="{p.w_mm * 0.5}px" style:height="{p.h_mm * 0.5}px">
-            <ShapeEl props={{ ...pathProps(p.path), stroke: { width_mm: 1.2, color: "#555555", style: "Dotted" } }} frame={{ x_mm: 0, y_mm: 0, w_mm: p.w_mm, h_mm: p.h_mm, rotation_deg: 0 }} zoom={0.5 / 3.7795} />
+            <ShapeEl props={{ ...pathProps(p.path), stroke: { width_mm: 1.2, color: "currentColor", style: "Dotted" } }} frame={{ x_mm: 0, y_mm: 0, w_mm: p.w_mm, h_mm: p.h_mm, rotation_deg: 0 }} zoom={0.5 / 3.7795} />
           </span>
           {fr.pathNames[p.id]}
         </button>

@@ -48,7 +48,8 @@ pub fn renew_ids(page: &mut Page) {
 /// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau, lettres creuses ; 5 : photo en
 /// miroir, lignes d'écriture, styles nommés ; 6 : image à colorier ou en couleur de peau, tracé libre, groupe dans
 /// un groupe ; 7 : miroir d'un élément autre qu'une photo, ou de haut en bas ; 8 : champs de la classe sans
-/// accents, `{prenom}` ; 9 : recette des lignes de graphisme).
+/// accents, `{prenom}` ; 9 : recette des lignes de graphisme, lue seulement : `native::written_version` n'écrit
+/// jamais plus de 8, une version plus ancienne voit des lignes ordinaires).
 pub const FORMAT_VERSION: u32 = 9;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 

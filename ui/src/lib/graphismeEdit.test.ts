@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { newPage } from "./factory";
 import { MOTIF_HEIGHT_MM, PRESETS, buildRow, graphismeRows, motifCount, motifStep, presetOf } from "./graphisme";
-import { cellAt, changeRows, cycleCell, emptyCells, motifsStart, resizeRow, rowsIn, rowsSettings, stretchRow } from "./graphismeEdit";
+import { cellAt, changeRows, cycleCell, emptyCells, ghostsFor, motifsStart, resizeRow, rowsIn, rowsSettings, stretchRow } from "./graphismeEdit";
 import { pathOf, scaleElements } from "./groups";
 import type { Cell, Element, GraphismeRow, Page } from "./types";
 
@@ -278,4 +278,25 @@ test("rowsIn ignores ids that are no longer on the page", () => {
   const page = withRows(1);
   expect(rowsIn(page, ["gone", page.elements[0].id])).toHaveLength(1);
   expect(rowsIn(page, ["gone"])).toEqual([]);
+});
+
+test("ghostsFor shows the empty motifs of the selected rows only", () => {
+  const page = withRows(2);
+  const bases = rowsIn(page, ids(page))!.map((r) => r.baseId);
+  const out = changeRows(page, bases, { preset: "seul" });
+  const all = ghostsFor(out.page, ids(out.page));
+  expect(all.length).toBe(rowsIn(out.page, ids(out.page))!.map((r) => emptyCells(out.page, r.baseId).length).reduce((a, b) => a + b, 0));
+  expect(all.length).toBeGreaterThan(0);
+  const first = rowsIn(out.page, ids(out.page))![0];
+  expect(ghostsFor(out.page, first.ids)).toEqual(emptyCells(out.page, first.baseId));
+  expect(ghostsFor(out.page, [])).toEqual([]);
+  expect(ghostsFor(page, ids(page))).toEqual([]);
+});
+
+test("ghostsFor shows nothing when the selection holds something else", () => {
+  const page = withRows(1);
+  const out = changeRows(page, [rowOf(page).baseId], { preset: "seul" });
+  const other: Element = { ...out.page.elements[0], id: "other", kind: { type: "Shape", ...(out.page.elements[0].kind as any), graphisme: null, path: null } as any };
+  const mixed = { ...out.page, elements: [...out.page.elements, other] };
+  expect(ghostsFor(mixed, [...ids(out.page), "other"])).toEqual([]);
 });

@@ -1,6 +1,7 @@
 <script lang="ts">
   import PhotoEl from "./elements/PhotoEl.svelte";
   import ShapeEl from "./elements/ShapeEl.svelte";
+  import GraphismeGhosts from "./GraphismeGhosts.svelte";
   import TableEl from "./elements/TableEl.svelte";
   import TextEl from "./elements/TextEl.svelte";
   import { dragCrop, photoTrims, wheelCrop, withTrims, type Trims } from "../lib/crop";
@@ -377,6 +378,7 @@
       {/if}
     </div>
   {/each}
+  {#if selection.length}<GraphismeGhosts {page} {selection} {zoom} />{/if}
   {#if pageHasPictos(page)}
     {@const f = creditFrame(page.size)}
     <!-- Mention de licence OpenMoji : même cadre et même police que dans l'ODG, aussi à l'impression. -->

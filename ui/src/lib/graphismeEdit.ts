@@ -159,3 +159,10 @@ export function emptyCells(page: Page, baseId: string): { frame: Frame; path: st
   const start = row.x + motifsStart(row.recipe.level as Level);
   return row.recipe.cells.flatMap((c, i) => (c === "Empty" ? [pathInFrame(cmdsFor(row.recipe.motif as Motif, start, h, i, i + 1), row.y)] : []));
 }
+
+/** Les motifs vides à montrer (à l'écran seulement) : ceux des lignes réglables sélectionnées ; rien si la
+ *  sélection contient autre chose qu'une ligne réglable. */
+export function ghostsFor(page: Page, selection: string[]): { frame: Frame; path: string }[] {
+  if (!selection.length) return [];
+  return (rowsIn(page, selection) ?? []).flatMap((r) => emptyCells(page, r.baseId));
+}

@@ -37,4 +37,8 @@
     pointer-events: none;
     z-index: 2;
   }
+  /* Le trait invisible qui rend une forme vide cliquable (ShapeEl) reprend ses propres événements : on les coupe. */
+  .ghost :global(*) {
+    pointer-events: none;
+  }
 </style>

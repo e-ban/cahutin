@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { newPage } from "./factory";
+import { newPage, shapeElement } from "./factory";
 import { MOTIF_HEIGHT_MM, PRESETS, buildRow, graphismeRows, motifCount, motifStep, presetOf } from "./graphisme";
 import { cellAt, changeRows, cycleCell, emptyCells, ghostsFor, motifsStart, resizeRow, rowsIn, rowsSettings, stretchRow } from "./graphismeEdit";
 import { pathOf, scaleElements } from "./groups";
@@ -296,7 +296,7 @@ test("ghostsFor shows the empty motifs of the selected rows only", () => {
 test("ghostsFor shows nothing when the selection holds something else", () => {
   const page = withRows(1);
   const out = changeRows(page, [rowOf(page).baseId], { preset: "seul" });
-  const other: Element = { ...out.page.elements[0], id: "other", kind: { type: "Shape", ...(out.page.elements[0].kind as any), graphisme: null, path: null } as any };
+  const other = shapeElement(out.page, "Rect");
   const mixed = { ...out.page, elements: [...out.page.elements, other] };
-  expect(ghostsFor(mixed, [...ids(out.page), "other"])).toEqual([]);
+  expect(ghostsFor(mixed, [...ids(out.page), other.id])).toEqual([]);
 });

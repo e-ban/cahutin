@@ -3,7 +3,7 @@
 //! `fixtures/ui_reference.txt` garde ce que l'interface trace, et les tests le comparent.
 
 use crate::decor::element;
-use carnet_core::{Document, Element, ElementKind, Frame, Id, ImageProps, Page, ShapeKind, ShapeProps, Stroke, StrokeStyle, new_id};
+use carnet_core::{Cell, Document, Element, ElementKind, Frame, GraphismeRow, Guides, Id, ImageProps, Page, ShapeKind, ShapeProps, Stroke, StrokeStyle, new_id};
 use serde_json::{Value, json};
 
 const MARGIN_MM: f64 = 15.0;
@@ -12,6 +12,12 @@ const START_COLOR: &str = "#2e9d4a";
 const LOOP_STEPS: usize = 24;
 const LOOP_K: f64 = 2.2;
 const MOTIFS: [&str; 8] = ["ponts", "coupes", "vagues", "boucles", "creneaux", "dents", "traits", "ronds"];
+const MODEL_COLOR: &str = "#333333";
+const TRACE_COLOR: &str = "#9e9e9e";
+/// Préréglages d'une ligne (`PRESETS`), de « tout » en pointillés à « seul » (le modèle seul).
+const PRESETS: [&str; 5] = ["tout", "moitie", "quelques", "seul", "progressif"];
+/// Repères d'écriture, comme l'assistant les nomme.
+const GUIDES: [(&str, Guides); 3] = [("base", Guides::Base), ("couloir", Guides::Corridor), ("aucune", Guides::None)];
 
 /// `Math.round` de JavaScript (demi vers le haut), pour tracer au même point près que l'interface.
 fn js_round(v: f64) -> f64 {
@@ -110,12 +116,13 @@ fn motif_cmds(m: &str, x: f64, w: f64, h: f64, first: bool) -> Vec<Cmd> {
         _ => {
             let r = h * 0.45;
             let (cx, cy, c) = (x + w / 2.0, h / 2.0, r * 0.5523);
+            // Dans le sens de l'écriture : haut, gauche, bas, droite, haut.
             out.extend([
                 Cmd::M(cx, cy - r),
-                Cmd::C(cx + c, cy - r, cx + r, cy - c, cx + r, cy),
-                Cmd::C(cx + r, cy + c, cx + c, cy + r, cx, cy + r),
-                Cmd::C(cx - c, cy + r, cx - r, cy + c, cx - r, cy),
-                Cmd::C(cx - r, cy - c, cx - c, cy - r, cx, cy - r),
+                Cmd::C(cx - c, cy - r, cx - r, cy - c, cx - r, cy),
+                Cmd::C(cx - r, cy + c, cx - c, cy + r, cx, cy + r),
+                Cmd::C(cx + c, cy + r, cx + r, cy + c, cx + r, cy),
+                Cmd::C(cx + r, cy - c, cx + c, cy - r, cx, cy - r),
             ]);
         }
     }
@@ -147,26 +154,103 @@ fn path_in_frame(cmds: &[Cmd], top: f64) -> (Frame, String) {
     (frame(round2(x0), round2(top + y0), round2(w), round2(h)), path)
 }
 
-/// Une ligne de graphisme : ligne de base, point de départ, modèle en trait plein, suite à repasser.
-fn graphisme_row(m: &str, level: &str, x: f64, y: f64, width: f64) -> Vec<Element> {
+/// Sens du premier geste de chaque motif, pour la flèche de départ, en degrés (`ARROW_DEG`).
+fn arrow_deg(m: &str) -> f64 {
+    match m {
+        "ponts" | "boucles" => -70.0,
+        "coupes" => 70.0,
+        "vagues" | "dents" => -45.0,
+        "creneaux" => -90.0,
+        "traits" => 90.0,
+        _ => 180.0,
+    }
+}
+
+/// Taille du point de départ (`dotSize`).
+fn dot_size(h: f64) -> f64 {
+    if h < 14.0 { 2.5 } else { 3.5 }
+}
+
+/// Nombre de motifs qui tiennent sur `width` mm après le point de départ, au moins 2 (`motifCount`).
+fn motif_count(m: &str, level: &str, width: f64) -> usize {
     let h = height(level);
-    let dot = if h < 14.0 { 2.5 } else { 3.5 };
+    (((width - dot_size(h) - 2.0) / (step(m) * h)).floor() as usize).max(2)
+}
+
+/// Les cases d'une ligne de `n` motifs : le modèle, des pointillés, puis des cases vides (`cellsFor`).
+fn cells_for(preset: &str, n: usize) -> Vec<Cell> {
+    let dotted = match preset {
+        "moitie" => (n - 1) / 2,
+        "quelques" => if n < 8 { 2 } else { 3 },
+        "seul" => 0,
+        _ => n - 1,
+    }
+    .min(n - 1);
+    (0..n).map(|i| if i == 0 { Cell::Model } else if i <= dotted { Cell::Dotted } else { Cell::Empty }).collect()
+}
+
+/// Préréglage de la ligne `row` sur `rows` : de « tout » à « seul » (`progressive`).
+fn progressive(row: usize, rows: usize) -> &'static str {
+    if rows <= 1 { "tout" } else { PRESETS[js_round(row as f64 * 3.0 / (rows - 1) as f64) as usize] }
+}
+
+/// Une ligne de graphisme faite selon sa recette (`buildRow`) : ligne de base (qui porte la recette), ligne du
+/// haut si couloir, point de départ, flèche, puis un tracé par suite de cases de même sorte ; un seul groupe.
+fn build_row(r: &GraphismeRow, x: f64, y: f64, width: f64) -> Vec<Element> {
+    let m = r.motif.as_str();
+    let h = height(&r.level);
+    let dot = dot_size(h);
     let start = x + dot + 2.0;
-    let count = (((x + width - start) / (step(m) * h)).floor() as usize).max(2);
     let group = new_id();
+    let line = if r.guides == Guides::None { None } else { stroke(0.3, "#d0d0d0", StrokeStyle::Solid) };
+    let line_at = |top: f64| shape(ShapeKind::Line, frame(x, top, width, 2.0), None, line.clone(), None, Some(&group));
+    let mut base = line_at(y + h - 1.0);
+    // La recette garde aussi les couleurs : une ligne sans pointillés se souvient de la leur.
+    if let ElementKind::Shape(s) = &mut base.kind {
+        s.graphisme = Some(GraphismeRow { model_color: Some(MODEL_COLOR.into()), trace_color: Some(TRACE_COLOR.into()), ..r.clone() });
+    }
+    let mut out = vec![base];
+    if r.guides == Guides::Corridor {
+        out.push(line_at(y - 1.0));
+    }
     let first_y = match m {
         "coupes" | "traits" | "ronds" => 0.0,
         "vagues" => h / 2.0,
         _ => h,
     };
-    let (model, model_path) = path_in_frame(&cmds_for(m, start, h, 0, 1), y);
-    let (trace, trace_path) = path_in_frame(&cmds_for(m, start, h, 1, count), y);
-    vec![
-        shape(ShapeKind::Line, frame(x, y + h - 1.0, width, 2.0), None, stroke(0.3, "#d0d0d0", StrokeStyle::Solid), None, Some(&group)),
-        shape(ShapeKind::Ellipse, frame(x, y + first_y - dot / 2.0, dot, dot), Some(START_COLOR), None, None, Some(&group)),
-        shape(ShapeKind::Path, model, None, stroke(1.0, "#333333", StrokeStyle::Solid), Some(model_path), Some(&group)),
-        shape(ShapeKind::Path, trace, None, stroke(1.0, "#9e9e9e", StrokeStyle::Dotted), Some(trace_path), Some(&group)),
-    ]
+    let (cx, cy) = (x + dot / 2.0, y + first_y);
+    out.push(shape(ShapeKind::Ellipse, frame(x, cy - dot / 2.0, dot, dot), Some(START_COLOR), None, None, Some(&group)));
+    if r.arrow {
+        let f = Frame { rotation_deg: arrow_deg(m), ..frame(cx - 3.0, cy - 4.0 - 1.5, 6.0, 3.0) };
+        out.push(shape(ShapeKind::Arrow, f, None, stroke(0.8, START_COLOR, StrokeStyle::Solid), None, Some(&group)));
+    }
+    // Un tracé par suite de cases de même sorte ; les cases vides ne dessinent rien.
+    let mut from = 0;
+    while from < r.cells.len() {
+        let cell = r.cells[from];
+        let mut to = from + 1;
+        while to < r.cells.len() && r.cells[to] == cell {
+            to += 1;
+        }
+        let look = match cell {
+            Cell::Model => stroke(1.0, MODEL_COLOR, StrokeStyle::Solid),
+            Cell::Dotted => stroke(1.0, TRACE_COLOR, StrokeStyle::Dotted),
+            Cell::Empty => None,
+        };
+        if look.is_some() {
+            let (f, path) = path_in_frame(&cmds_for(m, start, h, from, to), y);
+            out.push(shape(ShapeKind::Path, f, None, look, Some(path), Some(&group)));
+        }
+        from = to;
+    }
+    out
+}
+
+/// Une ligne de graphisme de `width` mm à partir de (`x`, `y`), avec un préréglage (`graphismeRow`).
+#[allow(clippy::too_many_arguments)]
+fn graphisme_row(m: &str, level: &str, x: f64, y: f64, width: f64, preset: &str, guides: Guides, arrow: bool) -> Vec<Element> {
+    let cells = cells_for(preset, motif_count(m, level, width));
+    build_row(&GraphismeRow { motif: m.into(), level: level.into(), cells, guides, arrow, model_color: None, trace_color: None }, x, y, width)
 }
 
 /// Haut de la place libre : sous le plus bas des éléments de la page.
@@ -363,19 +447,32 @@ pub fn exercise(doc: &mut Document, args: &Value) -> Result<Value, String> {
             if !MOTIFS.contains(&m) {
                 return Err(format!("motif inconnu : {m} ({})", MOTIFS.join(", ")));
             }
+            let dots = args.get("dots").and_then(Value::as_str).unwrap_or("tout");
+            if !PRESETS.contains(&dots) {
+                return Err(format!("pointillés inconnus : {dots} ({})", PRESETS.join(", ")));
+            }
+            let g = args.get("guides").and_then(Value::as_str).unwrap_or("base");
+            let guides = GUIDES.iter().find(|(name, _)| *name == g).map(|(_, v)| *v).ok_or(format!("repères inconnus : {g} (base, couloir, aucune)"))?;
+            let arrow = match args.get("arrow") {
+                None => true,
+                Some(v) => v.as_bool().ok_or("« arrow » : true ou false")?,
+            };
             let rows = args.get("rows").and_then(Value::as_u64).unwrap_or(4).clamp(1, 12) as usize;
             let h = height(level);
             let gap = h.max(12.0);
             let width = page.size.width_mm - 2.0 * MARGIN_MM;
-            let mut out = Vec::new();
+            // « Progressif » se répartit sur les lignes qui tiennent sur la page.
+            let mut ys = Vec::new();
             let mut y = free_top(page);
-            for _ in 0..rows {
-                if y + h > page.size.height_mm - MARGIN_MM {
-                    break;
-                }
-                out.extend(graphisme_row(m, level, MARGIN_MM, y, width));
+            while ys.len() < rows && y + h <= page.size.height_mm - MARGIN_MM {
+                ys.push(y);
                 y += h + gap;
             }
+            let out: Vec<Element> = ys
+                .iter()
+                .enumerate()
+                .flat_map(|(i, &y)| graphisme_row(m, level, MARGIN_MM, y, width, if dots == "progressif" { progressive(i, ys.len()) } else { dots }, guides, arrow))
+                .collect();
             (!out.is_empty()).then_some(out)
         }
         "maze" => {
@@ -414,19 +511,23 @@ mod tests {
         include_str!("fixtures/ui_reference.txt").lines().find_map(|l| l.strip_prefix(&prefix)).unwrap().to_string()
     }
 
+    /// Compare chaque forme à ce que l'interface trace : cadre, tracé, recette, et la sorte de forme et son
+    /// trait quand la référence les donne (un ordre différent se verrait).
     fn same_as_ui(els: &[Element], key: &str) {
         let want: Vec<Value> = serde_json::from_str(&reference(key)).unwrap();
         assert_eq!(els.len(), want.len(), "{key}");
-        for (e, w) in els.iter().zip(&want) {
-            for k in ["x_mm", "y_mm", "w_mm", "h_mm"] {
+        for (i, (e, w)) in els.iter().zip(&want).enumerate() {
+            for k in ["x_mm", "y_mm", "w_mm", "h_mm", "rotation_deg"] {
                 let got = serde_json::to_value(e.frame).unwrap()[k].as_f64().unwrap();
-                assert!((got - w["frame"][k].as_f64().unwrap()).abs() < 1e-9, "{key} {k} : {got} au lieu de {}", w["frame"][k]);
+                assert!((got - w["frame"][k].as_f64().unwrap()).abs() < 1e-9, "{key} {i} {k} : {got} au lieu de {}", w["frame"][k]);
             }
-            let path = match &e.kind {
-                ElementKind::Shape(s) => s.path.clone(),
-                _ => None,
-            };
-            assert_eq!(path.as_deref(), w["path"].as_str(), "{key}");
+            let ElementKind::Shape(s) = &e.kind else { panic!("{key} {i} : pas une forme") };
+            assert_eq!(s.path.as_deref(), w["path"].as_str(), "{key} {i}");
+            if let Some(shape) = w.get("shape") {
+                assert_eq!(serde_json::to_value(s.shape).unwrap(), *shape, "{key} {i}");
+                assert_eq!(serde_json::to_value(s.stroke.as_ref().and_then(|t| t.style)).unwrap(), w["style"], "{key} {i}");
+            }
+            assert_eq!(serde_json::to_value(&s.graphisme).unwrap(), w.get("graphisme").cloned().unwrap_or(Value::Null), "{key} {i}");
         }
     }
 
@@ -438,8 +539,9 @@ mod tests {
     #[test]
     fn graphisme_rows_are_drawn_like_the_ui() {
         for (m, key) in [("ponts", "ROW_ponts"), ("boucles", "ROW_boucles"), ("ronds", "ROW_ronds")] {
-            same_as_ui(&graphisme_row(m, "MS", 15.0, 25.0, 180.0), key);
+            same_as_ui(&graphisme_row(m, "MS", 15.0, 25.0, 180.0, "tout", Guides::Base, true), key);
         }
+        same_as_ui(&graphisme_row("vagues", "MS", 15.0, 25.0, 180.0, "moitie", Guides::Corridor, true), "ROW_vagues_moitie_couloir");
     }
 
     #[test]
@@ -451,18 +553,65 @@ mod tests {
     fn exercises_go_below_the_page_content_in_one_group_each() {
         let mut d = Document::new("x");
         let out = exercise(&mut d, &json!({ "kind": "graphisme", "page": 0, "motif": "vagues", "level": "MS", "rows": 3 })).unwrap();
-        assert_eq!(out["element_ids"].as_array().unwrap().len(), 12);
+        assert_eq!(out["element_ids"].as_array().unwrap().len(), 15);
         let groups: std::collections::HashSet<_> = d.pages[0].elements.iter().map(|e| e.group.clone().unwrap()).collect();
         assert_eq!(groups.len(), 3);
         exercise(&mut d, &json!({ "kind": "maze", "page": 0, "level": "PS", "seed": 7 })).unwrap();
-        let maze = &d.pages[0].elements[12];
-        assert!(maze.frame.y_mm > d.pages[0].elements[11].frame.y_mm, "sous les lignes");
-        let images: Vec<&str> = d.pages[0].elements[13..].iter().map(|e| match &e.kind { ElementKind::Image(i) => i.code.as_str(), _ => "" }).collect();
+        let maze = &d.pages[0].elements[15];
+        assert!(maze.frame.y_mm > d.pages[0].elements[14].frame.y_mm, "sous les lignes");
+        let images: Vec<&str> = d.pages[0].elements[16..].iter().map(|e| match &e.kind { ElementKind::Image(i) => i.code.as_str(), _ => "" }).collect();
         assert_eq!(images, ["1F424", "1F414"]);
         // Plus de place : le message de l'interface.
         let err = exercise(&mut d, &json!({ "kind": "symmetry", "page": 0, "figure": "sapin", "level": "PS" })).unwrap_err();
         assert!(err.starts_with("Plus de place sur la page"), "{err}");
         assert!(exercise(&mut d, &json!({ "kind": "graphisme", "page": 0, "motif": "spirales", "level": "MS" })).unwrap_err().contains("ponts"));
+    }
+
+    /// Les recettes des lignes posées sur la page 0, dans l'ordre.
+    fn recipes(d: &Document) -> Vec<GraphismeRow> {
+        d.pages[0].elements.iter().filter_map(|e| match &e.kind { ElementKind::Shape(s) => s.graphisme.clone(), _ => None }).collect()
+    }
+
+    fn dotted_cells(r: &GraphismeRow) -> usize {
+        r.cells.iter().filter(|c| **c == Cell::Dotted).count()
+    }
+
+    #[test]
+    fn exercise_takes_dots_guides_and_arrow() {
+        let mut d = Document::new("x");
+        exercise(&mut d, &json!({ "kind": "graphisme", "page": 0, "motif": "ponts", "level": "MS", "rows": 4, "dots": "progressif", "guides": "couloir", "arrow": false })).unwrap();
+        let rs = recipes(&d);
+        assert_eq!(rs.len(), 4);
+        let dots: Vec<usize> = rs.iter().map(dotted_cells).collect();
+        assert!(dots.windows(2).all(|w| w[0] > w[1]), "{dots:?}");
+        assert_eq!(dots[3], 0, "la dernière ligne : le modèle seul");
+        assert!(rs.iter().all(|r| r.guides == Guides::Corridor && !r.arrow));
+        assert_eq!((rs[0].model_color.as_deref(), rs[0].trace_color.as_deref()), (Some("#333333"), Some("#9e9e9e")));
+        let shapes: Vec<ShapeKind> = d.pages[0].elements.iter().filter_map(|e| match &e.kind { ElementKind::Shape(s) => Some(s.shape), _ => None }).collect();
+        assert_eq!(shapes.iter().filter(|s| **s == ShapeKind::Line).count(), 8, "ligne de base et ligne du haut");
+        assert!(!shapes.contains(&ShapeKind::Arrow));
+        // « Progressif » se répartit sur les lignes qui tiennent : 5 en PS sur une page A4, la dernière seule.
+        let mut d = Document::new("x");
+        exercise(&mut d, &json!({ "kind": "graphisme", "page": 0, "motif": "ponts", "level": "PS", "rows": 12, "dots": "progressif", "guides": "aucune" })).unwrap();
+        let rs = recipes(&d);
+        assert_eq!((rs.len(), dotted_cells(&rs[4])), (5, 0));
+        let ElementKind::Shape(base) = &d.pages[0].elements[0].kind else { unreachable!() };
+        assert_eq!((base.shape, base.stroke.is_none(), rs[0].arrow), (ShapeKind::Line, true, true));
+    }
+
+    #[test]
+    fn exercise_refuses_unknown_dots() {
+        let mut d = Document::new("x");
+        let base = json!({ "kind": "graphisme", "page": 0, "motif": "ponts" });
+        let with = |k: &str, v: Value| {
+            let mut a = base.clone();
+            a[k] = v;
+            a
+        };
+        assert!(exercise(&mut d, &with("dots", json!("beaucoup"))).unwrap_err().contains("tout, moitie, quelques, seul, progressif"));
+        assert!(exercise(&mut d, &with("guides", json!("Corridor"))).unwrap_err().contains("base, couloir, aucune"));
+        assert!(exercise(&mut d, &with("arrow", json!("oui"))).is_err());
+        assert!(d.pages[0].elements.is_empty());
     }
 
     #[test]

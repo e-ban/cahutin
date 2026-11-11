@@ -229,12 +229,13 @@ pub fn definitions() -> Value {
         },
         {
             "name": "exercise",
-            "description": "Fiche sous le contenu : graphisme (motif, rows), maze, symmetry (figure) ; à x_mm, y_mm : dotted_path (path), start_point, direction_arrow.",
+            "description": "Fiche sous le contenu : graphisme (motif, rows, dots, guides, arrow), maze, symmetry (figure) ; à x_mm, y_mm : dotted_path (path), start_point, direction_arrow.",
             "inputSchema": obj(&["kind", "page"], json!({
                 "kind": one_of(&["graphisme", "maze", "symmetry", "dotted_path", "start_point", "direction_arrow"]),
                 "page": int, "level": one_of(&["PS", "MS", "GS"]),
                 "motif": one_of(&["ponts", "coupes", "vagues", "boucles", "creneaux", "dents", "traits", "ronds"]),
-                "rows": int, "figure": one_of(&["sapin", "maison", "fusee", "bateau", "coeur"]),
+                "rows": int, "dots": one_of(&["tout", "moitie", "quelques", "seul", "progressif"]),
+                "guides": one_of(&["base", "couloir", "aucune"]), "arrow": boolean, "figure": one_of(&["sapin", "maison", "fusee", "bateau", "coeur"]),
                 "path": one_of(&["descend", "monte", "vague", "arc"]), "x_mm": num, "y_mm": num,
             })),
         },

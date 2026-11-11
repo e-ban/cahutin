@@ -430,12 +430,13 @@ mod tests {
     }
 
     /// La consigne et les outils repartent à chaque échange (relus en cache avec Claude, pas toujours
-    /// ailleurs) : ils étaient de 19,5 Ko avant d'être allégés.
+    /// ailleurs) : ils étaient de 19,5 Ko avant d'être allégés. Les réglages des lignes de graphisme (dots,
+    /// guides, arrow) ont demandé un peu de place.
     #[test]
     fn the_fixed_part_of_a_request_stays_small() {
         let (tools, system) = (openai_tools().to_string().len(), system_prompt().len());
-        assert!(tools <= 11_200, "outils : {tools} octets");
-        assert!(tools + system <= 14_000, "outils et consigne : {} octets", tools + system);
+        assert!(tools <= 11_400, "outils : {tools} octets");
+        assert!(tools + system <= 14_100, "outils et consigne : {} octets", tools + system);
     }
 
     #[test]

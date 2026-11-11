@@ -236,7 +236,8 @@ fn generated(set: &[&Element], size: carnet_core::PageSize) -> Option<String> {
     if set.iter().any(|e| image(e, "1F424")) && set.iter().any(|e| image(e, "1F414")) {
         return Some("Nouveau labyrinthe".into());
     }
-    if set.len() == 4 && set.iter().any(|e| path_colored(e, "#9e9e9e")) {
+    // Une ligne de graphisme porte sa recette sur sa ligne de base.
+    if set.iter().any(|e| matches!(&e.kind, ElementKind::Shape(s) if s.graphisme.is_some())) {
         return Some("Nouvelle ligne de graphisme".into());
     }
     None

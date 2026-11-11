@@ -4,8 +4,9 @@
 ## Non publié
 
 - Fiches de graphisme : dans le tiroir Formes > Graphisme, « Pointillés » (toute la ligne, la moitié, quelques-uns ou aucun, pour que l'enfant continue seul ; ou « De moins en moins, ligne après ligne »), « Lignes guides » (ligne de base, couloir de deux lignes ou aucune) et « Flèche de départ », qui montre dans quel sens commencer.
-- Lignes de graphisme déjà posées : on les sélectionne, une ou plusieurs à la fois, pour changer le motif, les pointillés, les lignes guides ou la flèche. Un clic sur un motif le fait passer de modèle à pointillés, puis à vide. On élargit ou on rétrécit une ligne par ses côtés, sans que ses motifs changent de taille. Les motifs vides apparaissent en gris clair à l'écran tant que la ligne est sélectionnée, jamais à l'impression.
+- Lignes de graphisme déjà posées : on les sélectionne, une ou plusieurs à la fois, pour changer le motif, les pointillés, les lignes guides ou la flèche. On élargit ou on rétrécit une ligne par ses côtés, sans que ses motifs changent de taille. Les motifs vides apparaissent en gris clair à l'écran tant que la ligne est sélectionnée, jamais à l'impression.
 - Graphisme : les ronds se tracent dans le sens de l'écriture.
+- Graphisme : le point vert est posé juste là où le crayon commence le tracé, et la flèche, à côté, suit le sens du premier geste.
 - Assistant : il pose les mêmes lignes de graphisme (pointillés, lignes guides, flèche de départ).
 
 ## 0.16.0

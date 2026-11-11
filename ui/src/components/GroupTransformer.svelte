@@ -1,9 +1,9 @@
 <script lang="ts">
   // Poignées d'un groupe ou d'une sélection de plusieurs éléments : déplacer, agrandir (proportionnel,
   // depuis les coins ; un tableau s'étire librement, aussi par les bords ; une ligne de graphisme s'allonge par ses
-  // côtés) et tourner autour du centre. Un clic sur un motif d'une ligne de graphisme change ce motif. Pendant le
-  // geste seul le DOM bouge ; à la fin, une seule modification du document (un pas d'annulation).
-  import { cellAt, cycleCell, resizeRow, rowsIn, stretchRow } from "../lib/graphismeEdit";
+  // côtés) et tourner autour du centre. Pendant le geste seul le DOM bouge ; à la fin, une seule modification
+  // du document (un pas d'annulation).
+  import { resizeRow, rowsIn, stretchRow } from "../lib/graphismeEdit";
   import { inTableGroup, resizeTable, selectedTable } from "../lib/table";
   import Moveable from "moveable";
   import { onDestroy, tick } from "svelte";
@@ -24,15 +24,6 @@
   /** Plus petite case d'un tableau étiré (mm). */
   const MIN_CELL_MM = 5;
 
-  /** Un clic sur un motif attend ce délai (ms) avant de le changer : un double-clic, qui entre dans le groupe, ne
-   *  le change pas. */
-  const DOUBLE_CLICK_MS = 250;
-  let pendingTurn: ReturnType<typeof setTimeout> | null = null;
-  function cancelTurn() {
-    if (pendingTurn) clearTimeout(pendingTurn);
-    pendingTurn = null;
-  }
-
   const inGrid = (id: string) => !!editor.page.grid?.cells.some((c) => c.element_id === id);
 
   const ids = $derived.by(() => {
@@ -52,8 +43,6 @@
   });
 
   function begin(targets: HTMLElement[]) {
-    // Un geste commencé pendant le délai d'un clic sur un motif : le motif ne change pas.
-    cancelTurn();
     if (!ids) return;
     editor.gesture = true;
     const frames = editor.page.elements.filter((e) => ids.includes(e.id)).map((e) => e.frame);
@@ -125,43 +114,6 @@
     editor.updatePage((p) => resizeTable(p, id, frame));
   }
 
-  /** Un clic sur un motif d'une ligne de graphisme sélectionnée le fait passer à l'état suivant (modèle,
-   *  pointillés, vide), après le délai d'un double-clic. `false` si le clic ne tombe sur aucun motif. */
-  function turnCell(input: MouseEvent): boolean {
-    // Lue une fois : après la modification, la sélection perd les éléments refaits, et `ids` avec elle.
-    const sel = ids;
-    const rows = sel && pageEl ? rowsIn(editor.page, sel, editor.inside) : null;
-    if (!rows || !sel || !pageEl) return false;
-    const r = pageEl.getBoundingClientRect();
-    const k = PX_PER_MM * zoom;
-    const [x, y] = [(input.clientX - r.left) / k, (input.clientY - r.top) / k];
-    for (const line of rows) {
-      const i = cellAt(editor.page, line.baseId, x, y);
-      if (i === null) continue;
-      cancelTurn();
-      pendingTurn = setTimeout(() => {
-        pendingTurn = null;
-        let fresh: string[] = [];
-        editor.updatePage((p) => {
-          const out = cycleCell(p, line.baseId, i);
-          fresh = out.ids;
-          return out.page;
-        });
-        // La ligne est refaite : les autres lignes restent sélectionnées avec elle.
-        editor.selection = [...sel.filter((id) => !line.ids.includes(id)), ...fresh];
-      }, DOUBLE_CLICK_MS);
-      return true;
-    }
-    return false;
-  }
-
-  // Le document ou la sélection change avant la fin du délai : le motif ne change pas (aussi à la fermeture).
-  $effect(() => {
-    void editor.doc;
-    void editor.selection;
-    return cancelTurn;
-  });
-
   function create(targets: HTMLElement[]): Moveable {
     const m = new Moveable(pageEl!, {
       target: targets,
@@ -217,12 +169,8 @@
       // La zone du groupe recouvre la boîte englobante : un clic sur un autre élément (ou sur la page)
       // dessous le sélectionne. Le double-clic est traité par la page.
       .on("clickGroup", (ev) => {
+        if (ev.isDouble) return;
         const input = ev.inputEvent as MouseEvent;
-        // Le second clic d'un double-clic (`detail` : nombre de clics) : le motif ne change pas, on entre dans le groupe.
-        if (ev.isDouble || input.detail > 1) {
-          cancelTurn();
-          if (ev.isDouble) return;
-        } else if (!input.shiftKey && turnCell(input)) return;
         const id = document.elementsFromPoint(input.clientX, input.clientY).map((n) => n.closest<HTMLElement>(".element")).find((n) => n && pageEl?.contains(n))?.dataset.id ?? null;
         if (id && ids?.includes(id)) return;
         onpick(id, input.shiftKey);
@@ -276,7 +224,6 @@
     window.removeEventListener("keydown", onKey);
     window.removeEventListener("keyup", onKey);
     window.removeEventListener("blur", onBlur);
-    cancelTurn();
     moveable?.destroy();
   });
 

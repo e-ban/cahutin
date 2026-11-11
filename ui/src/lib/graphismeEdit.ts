@@ -13,7 +13,6 @@ export type RowRef = { baseId: string; recipe: GraphismeRow; x: number; y: numbe
 export type RowChange = { preset?: Preset; guides?: Guides; arrow?: boolean; motif?: Motif };
 
 const LEVELS: Level[] = ["PS", "MS", "GS"];
-const NEXT: Record<Cell, Cell> = { Model: "Dotted", Dotted: "Empty", Empty: "Model" };
 const samePath = (a: string[], b: string[]) => a.length === b.length && a.every((g, i) => g === b[i]);
 const recipeOf = (e: Element) => (e.kind.type === "Shape" ? e.kind.graphisme ?? null : null);
 
@@ -133,27 +132,6 @@ export function stretchRow(row: RowRef, box: { x_mm: number; w_mm: number }, w_m
   const width = Math.max(min, Math.round((row.width + w_mm - box.w_mm) * 10) / 10);
   if (Math.abs(width - row.width) < 0.05) return null;
   return { x: dir[0] < 0 ? row.x + row.width - width : row.x, width };
-}
-
-/** Le numéro du motif de la ligne sous le point (`x_mm`, `y_mm`), ou `null` s'il n'y en a pas. */
-export function cellAt(page: Page, baseId: string, x_mm: number, y_mm: number): number | null {
-  const row = rowById(page, baseId);
-  if (!row) return null;
-  const level = row.recipe.level as Level;
-  const h = MOTIF_HEIGHT_MM[level];
-  // Du haut de la ligne à la ligne de base, avec 2 mm de marge.
-  if (y_mm < row.y - 2 || y_mm > row.y + h + 2) return null;
-  const start = row.x + motifsStart(row.recipe.level as Level);
-  const i = Math.floor((x_mm - start) / motifStep(row.recipe.motif as Motif, level));
-  return x_mm >= start && i < row.recipe.cells.length ? i : null;
-}
-
-/** Le motif `index` passe à l'état suivant : modèle, pointillés, vide, modèle. */
-export function cycleCell(page: Page, baseId: string, index: number): { page: Page; ids: string[] } {
-  const row = rowById(page, baseId);
-  if (!row || index < 0 || index >= row.recipe.cells.length) return { page, ids: row?.ids ?? [] };
-  const cells = row.recipe.cells.map((c, i) => (i === index ? NEXT[c] : c));
-  return rebuild(page, row, { ...row.recipe, cells });
 }
 
 /** Le tracé de chaque motif vide de la ligne, là où il serait dessiné (pour le montrer à l'écran). */

@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { newPage, shapeElement } from "./factory";
 import { MOTIF_HEIGHT_MM, PRESETS, buildRow, graphismeRows, motifCount, motifStep, presetOf } from "./graphisme";
-import { cellAt, changeRows, cycleCell, emptyCells, ghostsFor, motifsStart, resizeRow, rowsIn, rowsSettings, stretchRow } from "./graphismeEdit";
+import { changeRows, emptyCells, ghostsFor, motifsStart, resizeRow, rowsIn, rowsSettings, stretchRow } from "./graphismeEdit";
 import { pathOf, scaleElements } from "./groups";
 import type { Cell, Element, GraphismeRow, Page } from "./types";
 
@@ -181,33 +181,6 @@ test("stretchRow moves only the side pulled, never below two motifs", () => {
   expect(motifCount("ponts", "MS", tiny.width)).toBe(2);
 });
 
-test("cellAt and cycleCell turn one motif", () => {
-  const page = withRows(1);
-  const row = rowOf(page);
-  const h = MOTIF_HEIGHT_MM.MS;
-  const start = row.x + motifsStart("MS");
-  const step = motifStep("ponts", "MS");
-  expect(cellAt(page, row.baseId, start + 2.5 * step, row.y + h / 2)).toBe(2);
-  expect(cellAt(page, row.baseId, start + 2.5 * step, row.y + h + 1)).toBe(2);
-  expect(cellAt(page, row.baseId, start + 2.5 * step, row.y - 10)).toBeNull();
-  expect(cellAt(page, row.baseId, row.x + 1, row.y + h / 2)).toBeNull();
-  expect(cellAt(page, row.baseId, start + (row.recipe.cells.length + 0.5) * step, row.y + h / 2)).toBeNull();
-  expect(cellAt(page, "inconnu", start, row.y)).toBeNull();
-  let cur = page;
-  let base = row.baseId;
-  const seen: Cell[] = [];
-  for (let i = 0; i < 3; i++) {
-    const out = cycleCell(cur, base, 2);
-    cur = out.page;
-    const r = rowOf(cur, out.ids);
-    base = r.baseId;
-    seen.push(r.recipe.cells[2]);
-    expect(r.recipe.cells.filter((_, j) => j !== 2)).toEqual(row.recipe.cells.filter((_, j) => j !== 2));
-  }
-  expect(seen).toEqual(["Empty", "Model", "Dotted"]);
-  expect(rowOf(cur).recipe.cells).toEqual(row.recipe.cells);
-});
-
 test("emptyCells gives one shape per empty motif", () => {
   const page = withRows(1);
   const out = changeRows(page, [rowOf(page).baseId], { preset: "seul" });
@@ -267,9 +240,9 @@ test("rowsSettings gives nothing for what the rows do not share", () => {
   const mixed = changeRows(changeRows(page, [a.baseId], { motif: "vagues", guides: "None", arrow: false }).page, [b.baseId], { preset: "moitie" }).page;
   expect(rowsSettings(rowsIn(mixed, ids(mixed))!)).toEqual({ motif: null, preset: null, guides: null, arrow: null });
   // Un motif changé à la main : la ligne n'a plus de préréglage.
-  const one = withRows(1);
-  const row = rowOf(one);
-  const hand = cycleCell(one, row.baseId, 1).page;
+  const one = newPage();
+  const cells: Cell[] = ["Model", "Empty", ...Array(motifCount("ponts", "MS", 180) - 2).fill("Dotted")];
+  const hand = { ...one, elements: buildRow({ motif: "ponts", level: "MS", cells, guides: "Base", arrow: true }, 15, 40, 180) };
   expect(rowsSettings(rowsIn(hand, ids(hand))!).preset).toBeNull();
   expect(rowsSettings([])).toEqual({ motif: null, preset: null, guides: null, arrow: null });
 });
@@ -307,7 +280,7 @@ test("a remade row stays locked and keeps its zone flag", () => {
   const base = rowOf(locked).baseId;
   const remade = [
     changeRows(locked, [base], { preset: "seul", guides: "None", arrow: false }),
-    cycleCell(locked, base, 1),
+    changeRows(locked, [base], { motif: "vagues" }),
     resizeRow(locked, base, 15, 120),
   ];
   for (const out of remade) {

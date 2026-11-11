@@ -482,7 +482,7 @@ export const fr = {
   graphismeLevel: "Section",
   graphismeRows: "Lignes",
   graphismeAdd: (motif: string) => `Ajouter des lignes de ${motif.toLowerCase()} à repasser`,
-  graphismeHint: "Un clic ajoute les lignes sous ce que la page contient déjà : un point vert pour commencer, le modèle en trait plein, puis les pointillés à repasser. Après la pose, un clic sur un motif de la ligne sélectionnée le change : modèle, pointillés, vide.",
+  graphismeHint: "Un clic ajoute les lignes sous ce que la page contient déjà : un point vert pour commencer, le modèle en trait plein, puis les pointillés à repasser.",
   graphismeDots: "Pointillés",
   graphismeGuides: "Lignes guides",
   graphismeArrow: "Flèche de départ",

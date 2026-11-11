@@ -52,6 +52,8 @@
   });
 
   function begin(targets: HTMLElement[]) {
+    // Un geste commencé pendant le délai d'un clic sur un motif : le motif ne change pas.
+    cancelTurn();
     if (!ids) return;
     editor.gesture = true;
     const frames = editor.page.elements.filter((e) => ids.includes(e.id)).map((e) => e.frame);

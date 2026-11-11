@@ -1,9 +1,10 @@
-// Lignes de graphisme à repasser : un point vert de départ, le premier motif en trait plein (le modèle), la
-// suite en pointillés gris, sur une ligne de base légère. Chaque ligne est un groupe de formes ; les motifs
+// Lignes de graphisme à repasser : un point vert de départ et sa flèche, puis des motifs en trait plein (le
+// modèle), en pointillés gris (à repasser) ou laissés vides (à faire seul), sur une ligne de base légère.
+// La ligne de base garde la recette de la ligne (motif, niveau, cases, repères, flèche) pour la refaire. Chaque ligne est un groupe de formes ; les motifs
 // sont des tracés libres (forme « Path »), calculés en mm puis ramenés au carré 0..1000 de leur cadre.
 // Copié pour l'assistant dans crates/cahutin-mcp/src/exercises.rs : changer les deux ensemble.
 import { newId } from "./factory";
-import type { Element, Frame, Page, ShapeKind, Stroke } from "./types";
+import type { Cell, Element, Frame, GraphismeRow, Guides, Page, ShapeKind, Stroke } from "./types";
 
 /** Une forme posée dans `frame`. */
 function shapeElement(shape: ShapeKind, frame: Frame, fill: string | null, stroke: Stroke | null, path?: string): Element {
@@ -26,9 +27,21 @@ const MARGIN_MM = 15;
 const LOOP_STEPS = 24;
 const LOOP_K = 2.2;
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const MODEL: Stroke = { width_mm: 1, color: "#333333", style: "Solid" };
-const TRACE: Stroke = { width_mm: 1, color: "#9e9e9e", style: "Dotted" };
 const START_COLOR = "#2e9d4a";
+
+/** Couleurs des motifs d'une ligne : le modèle en trait plein, la suite en pointillés. */
+export type RowColors = { model: string; trace: string };
+export const DEFAULT_COLORS: RowColors = { model: "#333333", trace: "#9e9e9e" };
+
+/** Préréglages d'une ligne : combien de motifs en pointillés après le modèle ; « progressif » les fait
+ *  passer de « tout » à « seul » d'une ligne à l'autre. */
+export type Preset = "tout" | "moitie" | "quelques" | "seul" | "progressif";
+export type RowPreset = Exclude<Preset, "progressif">;
+export const PRESETS: Preset[] = ["tout", "moitie", "quelques", "seul", "progressif"];
+const ROW_PRESETS: RowPreset[] = ["tout", "moitie", "quelques", "seul"];
+
+/** Sens du premier geste de chaque motif, pour la flèche de départ (en degrés). */
+const ARROW_DEG: Record<Motif, number> = { ponts: -70, coupes: 70, vagues: -45, boucles: -70, creneaux: -90, dents: -45, traits: 90, ronds: 180 };
 
 type Cmd = ["M" | "L", number, number] | ["C", number, number, number, number, number, number];
 
@@ -68,12 +81,13 @@ function motifCmds(m: Motif, x: number, w: number, h: number, first: boolean): C
     case "ronds": {
       const r = h * 0.45;
       const [cx, cy, c] = [x + w / 2, h / 2, r * 0.5523];
+      // Dans le sens de l'écriture : haut, gauche, bas, droite, haut.
       return [
         ["M", cx, cy - r],
-        ["C", cx + c, cy - r, cx + r, cy - c, cx + r, cy],
-        ["C", cx + r, cy + c, cx + c, cy + r, cx, cy + r],
-        ["C", cx - c, cy + r, cx - r, cy + c, cx - r, cy],
-        ["C", cx - r, cy - c, cx - c, cy - r, cx, cy - r],
+        ["C", cx - c, cy - r, cx - r, cy - c, cx - r, cy],
+        ["C", cx - r, cy + c, cx - c, cy + r, cx, cy + r],
+        ["C", cx + c, cy + r, cx + r, cy + c, cx + r, cy],
+        ["C", cx + r, cy - c, cx + c, cy - r, cx, cy - r],
       ];
     }
   }
@@ -106,38 +120,93 @@ function pathElement(cmds: Cmd[], top: number, stroke: Stroke, group: string): E
   return { ...shapeElement("Path", frame, null, stroke, path), group };
 }
 
-/** Une ligne de graphisme de `width` mm à partir de (`x`, `y`) : point de départ, modèle, suite à repasser,
- *  ligne de base ; un seul groupe. */
-export function graphismeRow(m: Motif, level: Level, x: number, y: number, width: number): Element[] {
+/** Taille du point de départ, selon la hauteur des motifs. */
+const dotSize = (h: number) => (h < 14 ? 2.5 : 3.5);
+
+/** Nombre de motifs qui tiennent sur `width` mm, après le point de départ ; au moins 2. */
+export function motifCount(m: Motif, level: Level, width: number): number {
   const h = MOTIF_HEIGHT_MM[level];
-  const dot = h < 14 ? 2.5 : 3.5;
+  return Math.max(2, Math.floor((width - dotSize(h) - 2) / (STEP[m] * h)));
+}
+
+/** Les cases d'une ligne de `n` motifs : le modèle, puis des pointillés, puis des cases vides. */
+export function cellsFor(p: RowPreset, n: number): Cell[] {
+  const dotted = { tout: n - 1, moitie: Math.floor((n - 1) / 2), quelques: n < 8 ? 2 : 3, seul: 0 }[p];
+  const d = Math.min(dotted, n - 1);
+  return Array.from({ length: n }, (_, i): Cell => (i === 0 ? "Model" : i <= d ? "Dotted" : "Empty"));
+}
+
+/** Préréglage de la ligne `row` sur `rows` : de « tout » à « seul ». */
+export function progressive(row: number, rows: number): RowPreset {
+  return rows <= 1 ? "tout" : ROW_PRESETS[Math.round((row * 3) / (rows - 1))];
+}
+
+/** Le préréglage qui donne ces cases, ou `null` si elles ont été réglées à la main. */
+export function presetOf(cells: Cell[]): RowPreset | null {
+  const same = (a: Cell[]) => a.length === cells.length && a.every((c, i) => c === cells[i]);
+  return ROW_PRESETS.find((p) => same(cellsFor(p, cells.length))) ?? null;
+}
+
+/** Une ligne de graphisme de `width` mm à partir de (`x`, `y`), faite selon sa recette : ligne de base (qui
+ *  porte la recette), ligne du haut si couloir, point de départ, flèche, puis un tracé par suite de motifs de
+ *  même sorte ; un seul groupe. */
+export function buildRow(r: GraphismeRow, x: number, y: number, width: number, colors: RowColors = DEFAULT_COLORS, group: string = newId()): Element[] {
+  const m = r.motif as Motif;
+  const h = MOTIF_HEIGHT_MM[r.level as Level];
+  const dot = dotSize(h);
   const start = x + dot + 2;
-  const count = Math.max(2, Math.floor((x + width - start) / (STEP[m] * h)));
-  const group = newId();
-  const base = shapeElement("Line", { x_mm: x, y_mm: y + h - 1, w_mm: width, h_mm: 2, rotation_deg: 0 }, null, { width_mm: 0.3, color: "#d0d0d0", style: "Solid" });
+  const line: Stroke | null = r.guides === "None" ? null : { width_mm: 0.3, color: "#d0d0d0", style: "Solid" };
+  const lineAt = (top: number) => shapeElement("Line", { x_mm: x, y_mm: top, w_mm: width, h_mm: 2, rotation_deg: 0 }, null, line);
+  const base = lineAt(y + h - 1);
+  if (base.kind.type === "Shape") base.kind.graphisme = r;
+  const out: Element[] = [base];
+  if (r.guides === "Corridor") out.push(lineAt(y - 1));
   // Le point de départ, à gauche du premier motif, à l'endroit où le crayon se pose.
   const firstY = m === "coupes" || m === "traits" || m === "ronds" ? 0 : m === "vagues" ? h / 2 : h;
-  const point = shapeElement("Ellipse", { x_mm: x, y_mm: y + firstY - dot / 2, w_mm: dot, h_mm: dot, rotation_deg: 0 }, START_COLOR, null);
-  return [
-    { ...base, group },
-    { ...point, group },
-    pathElement(cmdsFor(m, start, h, 0, 1), y, MODEL, group),
-    pathElement(cmdsFor(m, start, h, 1, count), y, TRACE, group),
-  ];
+  const [cx, cy] = [x + dot / 2, y + firstY];
+  out.push(shapeElement("Ellipse", { x_mm: x, y_mm: cy - dot / 2, w_mm: dot, h_mm: dot, rotation_deg: 0 }, START_COLOR, null));
+  // La flèche au-dessus du point montre le sens du premier geste.
+  if (r.arrow) {
+    const frame = { x_mm: cx - 3, y_mm: cy - 4 - 1.5, w_mm: 6, h_mm: 3, rotation_deg: ARROW_DEG[m] };
+    out.push(shapeElement("Arrow", frame, null, { width_mm: 0.8, color: START_COLOR, style: "Solid" }));
+  }
+  // Un tracé par suite de cases de même sorte ; les cases vides ne dessinent rien.
+  for (let from = 0; from < r.cells.length; ) {
+    const cell = r.cells[from];
+    let to = from + 1;
+    while (to < r.cells.length && r.cells[to] === cell) to++;
+    if (cell === "Model") out.push(pathElement(cmdsFor(m, start, h, from, to), y, { width_mm: 1, color: colors.model, style: "Solid" }, group));
+    if (cell === "Dotted") out.push(pathElement(cmdsFor(m, start, h, from, to), y, { width_mm: 1, color: colors.trace, style: "Dotted" }, group));
+    from = to;
+  }
+  return out.map((e) => ({ ...e, group }));
+}
+
+/** Une ligne de graphisme de `width` mm à partir de (`x`, `y`), avec un préréglage : par défaut le modèle puis
+ *  des pointillés jusqu'au bout, la ligne de base et la flèche. */
+export function graphismeRow(m: Motif, level: Level, x: number, y: number, width: number, opts: { preset?: RowPreset; guides?: Guides; arrow?: boolean } = {}): Element[] {
+  const cells = cellsFor(opts.preset ?? "tout", motifCount(m, level, width));
+  return buildRow({ motif: m, level, cells, guides: opts.guides ?? "Base", arrow: opts.arrow ?? true }, x, y, width);
 }
 
 /** Des lignes de graphisme sur la largeur de la page, sous ce qui y est déjà, autant que demandé et que la page
- *  en contient. */
-export function graphismeRows(page: Page, m: Motif, level: Level, rows: number): Element[] {
+ *  en contient. « Progressif » se répartit sur les lignes réellement posées. */
+export function graphismeRows(page: Page, m: Motif, level: Level, rows: number, opts: { preset?: Preset; guides?: Guides; arrow?: boolean } = {}): Element[] {
   const h = MOTIF_HEIGHT_MM[level];
   const gap = Math.max(12, h);
   const below = Math.max(MARGIN_MM + 10, ...page.elements.map((e) => e.frame.y_mm + e.frame.h_mm + 8));
   const width = page.size.width_mm - 2 * MARGIN_MM;
-  const out: Element[] = [];
-  for (let i = 0, y = below; i < rows && y + h <= page.size.height_mm - MARGIN_MM; i++, y += h + gap) {
-    out.push(...graphismeRow(m, level, MARGIN_MM, y, width));
-  }
-  return out;
+  const ys: number[] = [];
+  for (let i = 0, y = below; i < rows && y + h <= page.size.height_mm - MARGIN_MM; i++, y += h + gap) ys.push(y);
+  return ys.flatMap((y, i) => {
+    const preset = opts.preset === "progressif" ? progressive(i, ys.length) : opts.preset;
+    return graphismeRow(m, level, MARGIN_MM, y, width, { ...opts, preset });
+  });
+}
+
+/** Le haut d'une ligne (son `y`), retrouvé à partir de sa ligne de base. */
+export function rowTop(base: Element, r: GraphismeRow): number {
+  return base.frame.y_mm - MOTIF_HEIGHT_MM[r.level as Level] + 1;
 }
 
 /** Chemins en pointillés à étirer entre deux images (« relie le poussin à sa maman »). */

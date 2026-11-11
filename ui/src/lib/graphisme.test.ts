@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { newPage } from "./factory";
-import { MOTIFS, MOTIF_HEIGHT_MM, PATHS, buildRow, cellsFor, graphismeRow, graphismeRows, motifCount, pathInFrame, presetOf, progressive, type RowPreset } from "./graphisme";
+import { MOTIFS, MOTIF_HEIGHT_MM, PATHS, buildRow, cellsFor, cmdsFor, dotSize, graphismeRow, graphismeRows, motifCount, pathInFrame, presetOf, progressive, type Motif, type RowPreset } from "./graphisme";
 import type { Cell, Element } from "./types";
 
 const PATH_RE = /^M( -?\d+){2}(( [ML]( -?\d+){2})|( C( -?\d+){6})|( Z))*$/;
@@ -87,13 +87,10 @@ test("a default row keeps today's layout, plus the arrow", () => {
   expect(row[0].frame).toEqual({ x_mm: 15, y_mm: 40 + 16 - 1, w_mm: 180, h_mm: 2, rotation_deg: 0 });
   expect(shapeOf(row[3])!.stroke).toMatchObject({ style: "Solid", color: "#333333" });
   expect(shapeOf(row[4])!.stroke).toMatchObject({ style: "Dotted", color: "#9e9e9e" });
-  // La flèche : 6 x 3 mm, centrée sur le point, 4 mm au-dessus.
-  const [point, arrow] = [row[1].frame, row[2].frame];
-  expect(arrow.w_mm).toBe(6);
+  // La flèche : 3 mm de haut, entre 5 et 8 mm de long.
+  const arrow = row[2].frame;
+  expect(arrow.w_mm).toBeCloseTo(0.45 * 16);
   expect(arrow.h_mm).toBe(3);
-  expect(arrow.x_mm + 3).toBeCloseTo(point.x_mm + point.w_mm / 2);
-  expect(arrow.y_mm + 1.5).toBeCloseTo(point.y_mm + point.h_mm / 2 - 4);
-  expect(arrow.rotation_deg).toBe(-70);
   // Seule la ligne de base porte la recette.
   for (const e of row.slice(1)) expect(shapeOf(e)?.graphisme).toBeUndefined();
 });
@@ -135,6 +132,70 @@ test("circles turn the writing way", () => {
   const startX = Number(nums[1]);
   const c = nums.indexOf("C");
   expect(Number(nums[c + 5])).toBeLessThan(startX);
+});
+
+type P = [number, number];
+/** Les points d'un tracé en mm, chaque courbe prise en 16 points, descendus de `top`. */
+function samples(cmds: ReturnType<typeof cmdsFor>, top: number): P[] {
+  const out: P[] = [];
+  let cur: P = [0, 0];
+  for (const c of cmds) {
+    if (c[0] !== "C") cur = [c[1], c[2]];
+    else {
+      const [, a, b, cc, d, e, f] = c;
+      for (let i = 1; i <= 16; i++) {
+        const t = i / 16, u = 1 - t;
+        out.push([u * u * u * cur[0] + 3 * u * u * t * a + 3 * u * t * t * cc + t * t * t * e, u * u * u * cur[1] + 3 * u * u * t * b + 3 * u * t * t * d + t * t * t * f]);
+      }
+      cur = [e, f];
+      continue;
+    }
+    out.push(cur);
+  }
+  return out.map(([x, y]) => [x, y + top]);
+}
+const LEVELS = ["PS", "MS", "GS"] as const;
+/** Le point, la flèche et le début du tracé d'une ligne posée en (15, 40). */
+function startOf(m: Motif, level: (typeof LEVELS)[number]) {
+  const row = graphismeRow(m, level, 15, 40, 180);
+  const h = MOTIF_HEIGHT_MM[level];
+  const start = 15 + dotSize(h) + 2;
+  return { dot: row[1].frame, arrow: row[2].frame, first: samples(cmdsFor(m, start, h, 0, 1), 40), two: samples(cmdsFor(m, start, h, 0, 2), 40) };
+}
+
+test("the start dot sits on the first point of the model", () => {
+  for (const level of LEVELS)
+    for (const m of MOTIFS) {
+      const { dot, first } = startOf(m, level);
+      expect(dot.w_mm).toBe(dotSize(MOTIF_HEIGHT_MM[level]));
+      expect(Math.abs(dot.x_mm + dot.w_mm / 2 - first[0][0]), `${m} ${level}`).toBeLessThan(0.01);
+      expect(Math.abs(dot.y_mm + dot.h_mm / 2 - first[0][1]), `${m} ${level}`).toBeLessThan(0.01);
+    }
+});
+
+test("the arrow stays clear of the first two motifs", () => {
+  for (const level of LEVELS)
+    for (const m of MOTIFS) {
+      const { arrow, two } = startOf(m, level);
+      const [cx, cy] = [arrow.x_mm + arrow.w_mm / 2, arrow.y_mm + arrow.h_mm / 2];
+      const r = (arrow.rotation_deg * Math.PI) / 180;
+      const [tx, ty] = [Math.cos(r), Math.sin(r)];
+      let near = Infinity;
+      for (let k = -0.5; k <= 1; k += 0.125) {
+        const [ax, ay] = [cx + tx * arrow.w_mm * k, cy + ty * arrow.w_mm * k];
+        for (const [x, y] of two) near = Math.min(near, Math.hypot(x - ax, y - ay));
+      }
+      expect(near, `${m} ${level}`).toBeGreaterThanOrEqual(2);
+    }
+});
+
+test("the arrow follows the first gesture", () => {
+  for (const level of LEVELS) {
+    // Vers le haut, vers le bas, vers la gauche : à 25 degrés près.
+    expect(Math.abs(startOf("ponts", level).arrow.rotation_deg + 90), level).toBeLessThan(25);
+    expect(Math.abs(startOf("coupes", level).arrow.rotation_deg - 90), level).toBeLessThan(25);
+    expect(180 - Math.abs(startOf("ronds", level).arrow.rotation_deg), level).toBeLessThan(25);
+  }
 });
 
 test("buildRow keeps its colours in a copy of the recipe", () => {

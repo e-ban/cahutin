@@ -40,9 +40,6 @@ export type RowPreset = Exclude<Preset, "progressif">;
 export const PRESETS: Preset[] = ["tout", "moitie", "quelques", "seul", "progressif"];
 const ROW_PRESETS: RowPreset[] = ["tout", "moitie", "quelques", "seul"];
 
-/** Sens du premier geste de chaque motif, pour la flèche de départ (en degrés). */
-const ARROW_DEG: Record<Motif, number> = { ponts: -70, coupes: 70, vagues: -45, boucles: -70, creneaux: -90, dents: -45, traits: 90, ronds: 180 };
-
 type Cmd = ["M" | "L", number, number] | ["C", number, number, number, number, number, number];
 
 /** Le motif numéro `i` (à partir de 0), en mm : `x` son bord gauche, `h` sa hauteur, la ligne de base en `h`.
@@ -123,6 +120,26 @@ function pathElement(cmds: Cmd[], top: number, stroke: Stroke, group: string): E
   return { ...shapeElement("Path", frame, null, stroke, path), group };
 }
 
+/** Les points d'un tracé en mm, chaque courbe prise en 16 points. */
+function samples(cmds: Cmd[]): [number, number][] {
+  const out: [number, number][] = [];
+  let cur: [number, number] = [0, 0];
+  for (const c of cmds) {
+    if (c[0] === "C") {
+      const [, a, b, cc, d, e, f] = c;
+      for (let i = 1; i <= 16; i++) {
+        const t = i / 16, u = 1 - t;
+        out.push([u * u * u * cur[0] + 3 * u * u * t * a + 3 * u * t * t * cc + t * t * t * e, u * u * u * cur[1] + 3 * u * u * t * b + 3 * u * t * t * d + t * t * t * f]);
+      }
+      cur = [e, f];
+    } else {
+      cur = [c[1], c[2]];
+      out.push(cur);
+    }
+  }
+  return out;
+}
+
 /** Taille du point de départ, selon la hauteur des motifs. */
 export const dotSize = (h: number) => (h < 14 ? 2.5 : 3.5);
 
@@ -165,13 +182,48 @@ export function buildRow(r: GraphismeRow, x: number, y: number, width: number, c
   if (base.kind.type === "Shape") base.kind.graphisme = { ...r, model_color: colors.model, trace_color: colors.trace };
   const out: Element[] = [base];
   if (r.guides === "Corridor") out.push(lineAt(y - 1));
-  // Le point de départ, à gauche du premier motif, à l'endroit où le crayon se pose.
-  const firstY = m === "coupes" || m === "traits" || m === "ronds" ? 0 : m === "vagues" ? h / 2 : h;
-  const [cx, cy] = [x + dot / 2, y + firstY];
-  out.push(shapeElement("Ellipse", { x_mm: x, y_mm: cy - dot / 2, w_mm: dot, h_mm: dot, rotation_deg: 0 }, START_COLOR, null));
-  // La flèche au-dessus du point montre le sens du premier geste.
+  // Le point de départ, juste où le crayon se pose : au début du modèle.
+  const p = samples(cmdsFor(m, start, h, 0, 1)).map(([a, b]): [number, number] => [a, b + y]);
+  const p0 = p[0];
+  out.push(shapeElement("Ellipse", { x_mm: round2(p0[0] - dot / 2), y_mm: round2(p0[1] - dot / 2), w_mm: dot, h_mm: dot, rotation_deg: 0 }, START_COLOR, null));
+  // La flèche, à côté du point, montre le sens du premier geste.
   if (r.arrow) {
-    const frame = { x_mm: cx - 3, y_mm: cy - 4 - 1.5, w_mm: 6, h_mm: 3, rotation_deg: ARROW_DEG[m] };
+    // Le sens : vers le point du tracé à 0,35 hauteur du départ.
+    let q = p[p.length - 1];
+    let acc = 0;
+    for (let i = 1; i < p.length; i++) {
+      acc += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
+      if (acc >= 0.35 * h) {
+        q = p[i];
+        break;
+      }
+    }
+    const l = Math.hypot(q[0] - p0[0], q[1] - p0[1]);
+    const t = [(q[0] - p0[0]) / l, (q[1] - p0[1]) / l];
+    // Du côté gauche du geste ; pour un geste à plat, du côté loin du milieu du motif.
+    let n = [t[1], -t[0]];
+    if (Math.abs(n[0]) > 0.3 ? n[0] > 0 : n[1] > 0 !== p0[1] > y + h / 2) n = [-n[0], -n[1]];
+    const len = Math.min(8, Math.max(5, 0.45 * h));
+    let off = dot / 2 + 2;
+    const two = samples(cmdsFor(m, start, h, 0, 2)).map(([a, b]): [number, number] => [a, b + y]);
+    const place = (v: number[], o = off) => [p0[0] + v[0] * o + t[0] * (len / 2 + 0.5), p0[1] + v[1] * o + t[1] * (len / 2 + 0.5)];
+    // L'écart entre la flèche et les deux premiers motifs.
+    const clearance = (c: number[]) => Math.min(...[-0.5, -0.25, 0, 0.25, 0.5, 0.75, 1].flatMap((k) => two.map(([a, b]) => Math.hypot(a - (c[0] + t[0] * len * k), b - (c[1] + t[1] * len * k)))));
+    // Trop près du tracé : de l'autre côté, si la place y est plus large.
+    if (clearance(place(n)) < 2.5) {
+      const o = [-n[0], -n[1]];
+      if (clearance(place(o)) > clearance(place(n))) n = o;
+    }
+    // Encore trop près : la flèche s'écarte du tracé, de 0,5 mm à la fois, 3 mm au plus.
+    let best = clearance(place(n));
+    for (let i = 1, o = off; i <= 6 && best < 2; i++) {
+      o += 0.5;
+      const c = clearance(place(n, o));
+      if (c > best) [best, off] = [c, o];
+    }
+    const [cx, cy] = place(n);
+    const rotation_deg = Math.round((Math.atan2(t[1], t[0]) * 180) / Math.PI * 10) / 10;
+    const frame = { x_mm: round2(cx - len / 2), y_mm: round2(cy - 1.5), w_mm: round2(len), h_mm: 3, rotation_deg };
     out.push(shapeElement("Arrow", frame, null, { width_mm: 0.8, color: START_COLOR, style: "Solid" }));
   }
   // Un tracé par suite de cases de même sorte ; les cases vides ne dessinent rien.

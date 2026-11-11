@@ -154,16 +154,27 @@ fn path_in_frame(cmds: &[Cmd], top: f64) -> (Frame, String) {
     (frame(round2(x0), round2(top + y0), round2(w), round2(h)), path)
 }
 
-/// Sens du premier geste de chaque motif, pour la flèche de départ, en degrés (`ARROW_DEG`).
-fn arrow_deg(m: &str) -> f64 {
-    match m {
-        "ponts" | "boucles" => -70.0,
-        "coupes" => 70.0,
-        "vagues" | "dents" => -45.0,
-        "creneaux" => -90.0,
-        "traits" => 90.0,
-        _ => 180.0,
+/// Les points d'un tracé en mm, chaque courbe prise en 16 points (`samples`).
+fn samples(cmds: &[Cmd]) -> Vec<(f64, f64)> {
+    let mut out = Vec::new();
+    let mut cur = (0.0, 0.0);
+    for c in cmds {
+        match *c {
+            Cmd::M(x, y) | Cmd::L(x, y) => {
+                cur = (x, y);
+                out.push(cur);
+            }
+            Cmd::C(a, b, cc, d, e, f) => {
+                for i in 1..=16 {
+                    let t = i as f64 / 16.0;
+                    let u = 1.0 - t;
+                    out.push((u * u * u * cur.0 + 3.0 * u * u * t * a + 3.0 * u * t * t * cc + t * t * t * e, u * u * u * cur.1 + 3.0 * u * u * t * b + 3.0 * u * t * t * d + t * t * t * f));
+                }
+                cur = (e, f);
+            }
+        }
     }
+    out
 }
 
 /// Taille du point de départ (`dotSize`).
@@ -213,15 +224,63 @@ fn build_row(r: &GraphismeRow, x: f64, y: f64, width: f64) -> Vec<Element> {
     if r.guides == Guides::Corridor {
         out.push(line_at(y - 1.0));
     }
-    let first_y = match m {
-        "coupes" | "traits" | "ronds" => 0.0,
-        "vagues" => h / 2.0,
-        _ => h,
-    };
-    let (cx, cy) = (x + dot / 2.0, y + first_y);
-    out.push(shape(ShapeKind::Ellipse, frame(x, cy - dot / 2.0, dot, dot), Some(START_COLOR), None, None, Some(&group)));
+    // Le point de départ, juste où le crayon se pose : au début du modèle.
+    let p: Vec<(f64, f64)> = samples(&cmds_for(m, start, h, 0, 1)).into_iter().map(|(a, b)| (a, b + y)).collect();
+    let p0 = p[0];
+    out.push(shape(ShapeKind::Ellipse, frame(round2(p0.0 - dot / 2.0), round2(p0.1 - dot / 2.0), dot, dot), Some(START_COLOR), None, None, Some(&group)));
+    // La flèche, à côté du point, montre le sens du premier geste.
     if r.arrow {
-        let f = Frame { rotation_deg: arrow_deg(m), ..frame(cx - 3.0, cy - 4.0 - 1.5, 6.0, 3.0) };
+        // Le sens : vers le point du tracé à 0,35 hauteur du départ.
+        let mut q = p[p.len() - 1];
+        let mut acc = 0.0;
+        for i in 1..p.len() {
+            acc += (p[i].0 - p[i - 1].0).hypot(p[i].1 - p[i - 1].1);
+            if acc >= 0.35 * h {
+                q = p[i];
+                break;
+            }
+        }
+        let l = (q.0 - p0.0).hypot(q.1 - p0.1);
+        let t = ((q.0 - p0.0) / l, (q.1 - p0.1) / l);
+        // Du côté gauche du geste ; pour un geste à plat, du côté loin du milieu du motif.
+        let mut n = (t.1, -t.0);
+        if if n.0.abs() > 0.3 { n.0 > 0.0 } else { (n.1 > 0.0) != (p0.1 > y + h / 2.0) } {
+            n = (-n.0, -n.1);
+        }
+        let len = (0.45 * h).clamp(5.0, 8.0);
+        let mut off = dot / 2.0 + 2.0;
+        let two: Vec<(f64, f64)> = samples(&cmds_for(m, start, h, 0, 2)).into_iter().map(|(a, b)| (a, b + y)).collect();
+        let place = |v: (f64, f64), o: f64| (p0.0 + v.0 * o + t.0 * (len / 2.0 + 0.5), p0.1 + v.1 * o + t.1 * (len / 2.0 + 0.5));
+        // L'écart entre la flèche et les deux premiers motifs.
+        let clearance = |c: (f64, f64)| {
+            [-0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0]
+                .iter()
+                .flat_map(|k| two.iter().map(move |&(a, b)| (a - (c.0 + t.0 * len * k)).hypot(b - (c.1 + t.1 * len * k))))
+                .fold(f64::INFINITY, f64::min)
+        };
+        // Trop près du tracé : de l'autre côté, si la place y est plus large.
+        if clearance(place(n, off)) < 2.5 {
+            let o = (-n.0, -n.1);
+            if clearance(place(o, off)) > clearance(place(n, off)) {
+                n = o;
+            }
+        }
+        // Encore trop près : la flèche s'écarte du tracé, de 0,5 mm à la fois, 3 mm au plus.
+        let mut best = clearance(place(n, off));
+        let mut o = off;
+        for _ in 0..6 {
+            if best >= 2.0 {
+                break;
+            }
+            o += 0.5;
+            let c = clearance(place(n, o));
+            if c > best {
+                (best, off) = (c, o);
+            }
+        }
+        let (cx, cy) = place(n, off);
+        let rotation_deg = js_round(t.1.atan2(t.0).to_degrees() * 10.0) / 10.0;
+        let f = Frame { rotation_deg, ..frame(round2(cx - len / 2.0), round2(cy - 1.5), round2(len), 3.0) };
         out.push(shape(ShapeKind::Arrow, f, None, stroke(0.8, START_COLOR, StrokeStyle::Solid), None, Some(&group)));
     }
     // Un tracé par suite de cases de même sorte ; les cases vides ne dessinent rien.

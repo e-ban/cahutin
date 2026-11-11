@@ -161,7 +161,8 @@ export function buildRow(r: GraphismeRow, x: number, y: number, width: number, c
   const line: Stroke | null = r.guides === "None" ? null : { width_mm: 0.3, color: "#d0d0d0", style: "Solid" };
   const lineAt = (top: number) => shapeElement("Line", { x_mm: x, y_mm: top, w_mm: width, h_mm: 2, rotation_deg: 0 }, null, line);
   const base = lineAt(y + h - 1);
-  if (base.kind.type === "Shape") base.kind.graphisme = r;
+  // La recette garde aussi les couleurs : une ligne sans pointillés se souvient de la leur.
+  if (base.kind.type === "Shape") base.kind.graphisme = { ...r, model_color: colors.model, trace_color: colors.trace };
   const out: Element[] = [base];
   if (r.guides === "Corridor") out.push(lineAt(y - 1));
   // Le point de départ, à gauche du premier motif, à l'endroit où le crayon se pose.

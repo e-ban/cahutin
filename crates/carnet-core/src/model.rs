@@ -469,6 +469,14 @@ pub struct GraphismeRow {
     pub cells: Vec<Cell>,
     pub guides: Guides,
     pub arrow: bool,
+    /// Couleur du modèle, gardée pour une nouvelle mise en forme ; absente : couleur par défaut.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub model_color: Option<String>,
+    /// Couleur des pointillés, gardée même quand la ligne n'en montre plus ; absente : couleur par défaut.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub trace_color: Option<String>,
 }
 
 /// Une case d'une ligne de graphisme : modèle plein, modèle en pointillés à repasser, ou case vide.
@@ -650,6 +658,8 @@ mod tests {
             cells: vec![Cell::Model, Cell::Dotted, Cell::Empty],
             guides: Guides::Corridor,
             arrow: true,
+            model_color: Some("#ff0000".into()),
+            trace_color: None,
         };
         let props = path_shape(Some(recipe));
         let json = serde_json::to_string(&props).unwrap();

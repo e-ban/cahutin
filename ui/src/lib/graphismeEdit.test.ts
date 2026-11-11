@@ -82,10 +82,10 @@ test("changeRows keeps the model and dotted colours", () => {
     ),
   };
   const preset = (p: Page, preset: "seul" | "tout" | "moitie") => changeRows(p, [rowOf(p).baseId], { preset }).page;
-  // Le modèle garde sa couleur même quand il n'y a plus de pointillés.
+  // Les deux couleurs restent, même après un passage sans pointillés.
   const back = preset(preset(recolored, "seul"), "tout");
   expect(strokes(back, "Solid")).toEqual(["#ff0000"]);
-  // Les pointillés gardent la leur tant qu'il en reste un pour la dire.
+  expect(strokes(back, "Dotted")).toEqual(["#0000ff"]);
   const kept = preset(preset(recolored, "moitie"), "tout");
   expect(strokes(kept, "Solid")).toEqual(["#ff0000"]);
   expect(strokes(kept, "Dotted")).toEqual(["#0000ff"]);

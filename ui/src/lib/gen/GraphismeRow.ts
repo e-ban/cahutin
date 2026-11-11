@@ -5,4 +5,12 @@ import type { Guides } from "./Guides";
 /**
  * Recette d'une ligne de graphisme : de quoi la reconstruire quand on règle ses cases ou ses repères.
  */
-export type GraphismeRow = { motif: string, level: string, cells: Array<Cell>, guides: Guides, arrow: boolean, };
+export type GraphismeRow = { motif: string, level: string, cells: Array<Cell>, guides: Guides, arrow: boolean, 
+/**
+ * Couleur du modèle, gardée pour une nouvelle mise en forme ; absente : couleur par défaut.
+ */
+model_color?: string, 
+/**
+ * Couleur des pointillés, gardée même quand la ligne n'en montre plus ; absente : couleur par défaut.
+ */
+trace_color?: string, };

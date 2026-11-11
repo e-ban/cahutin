@@ -51,7 +51,8 @@ export function rowsIn(page: Page, ids: string[], inside: string[] = []): RowRef
   return [...rows.values()].sort((a, b) => a.y - b.y);
 }
 
-/** Les couleurs de la ligne : celles de son premier tracé plein et de son premier pointillé. */
+/** Les couleurs de la ligne : celles de son premier tracé plein et de son premier pointillé, sinon celles
+ *  gardées dans la recette. */
 function colorsOf(page: Page, row: RowRef): RowColors {
   const color = (style: "Solid" | "Dotted") => {
     for (const e of page.elements) {
@@ -59,7 +60,8 @@ function colorsOf(page: Page, row: RowRef): RowColors {
     }
     return null;
   };
-  return { model: color("Solid") ?? DEFAULT_COLORS.model, trace: color("Dotted") ?? DEFAULT_COLORS.trace };
+  const r = row.recipe;
+  return { model: color("Solid") ?? r.model_color ?? DEFAULT_COLORS.model, trace: color("Dotted") ?? r.trace_color ?? DEFAULT_COLORS.trace };
 }
 
 /** La ligne refaite avec `recipe`, à `x` sur `width` mm, à la place de l'ancienne dans la page. */

@@ -136,3 +136,10 @@ test("circles turn the writing way", () => {
   const c = nums.indexOf("C");
   expect(Number(nums[c + 5])).toBeLessThan(startX);
 });
+
+test("buildRow keeps its colours in a copy of the recipe", () => {
+  const r = { motif: "ponts", level: "MS", cells: cellsFor("seul", 4), guides: "Base" as const, arrow: true };
+  const [base] = buildRow(r, 15, 40, 180, { model: "#ff0000", trace: "#0000ff" });
+  expect(base.kind).toMatchObject({ graphisme: { ...r, model_color: "#ff0000", trace_color: "#0000ff" } });
+  expect(r).not.toHaveProperty("model_color");
+});

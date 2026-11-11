@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { newPage } from "./factory";
 import { MOTIF_HEIGHT_MM, PRESETS, buildRow, graphismeRows, motifCount, motifStep, presetOf } from "./graphisme";
-import { cellAt, changeRows, cycleCell, emptyCells, resizeRow, rowsIn, rowsSettings, stretchRow } from "./graphismeEdit";
+import { cellAt, changeRows, cycleCell, emptyCells, motifsStart, resizeRow, rowsIn, rowsSettings, stretchRow } from "./graphismeEdit";
 import { pathOf, scaleElements } from "./groups";
 import type { Cell, Element, GraphismeRow, Page } from "./types";
 
@@ -174,7 +174,7 @@ test("stretchRow moves only the side pulled, never below two motifs", () => {
   // Pas bougé : rien à refaire.
   expect(stretchRow(row, box, box.w_mm + 0.01, [1, 0])).toBeNull();
   // Trop courte : deux motifs, le bord opposé reste en place.
-  const min = 3.5 + 2 + 2 * motifStep("ponts", "MS");
+  const min = motifsStart("MS") + 2 * motifStep("ponts", "MS");
   const tiny = stretchRow(row, box, 1, [-1, 0])!;
   expect(tiny.width).toBeCloseTo(min);
   expect(tiny.x + tiny.width).toBeCloseTo(row.x + row.width);
@@ -185,7 +185,7 @@ test("cellAt and cycleCell turn one motif", () => {
   const page = withRows(1);
   const row = rowOf(page);
   const h = MOTIF_HEIGHT_MM.MS;
-  const start = row.x + 3.5 + 2;
+  const start = row.x + motifsStart("MS");
   const step = motifStep("ponts", "MS");
   expect(cellAt(page, row.baseId, start + 2.5 * step, row.y + h / 2)).toBe(2);
   expect(cellAt(page, row.baseId, start + 2.5 * step, row.y + h + 1)).toBe(2);
@@ -216,7 +216,7 @@ test("emptyCells gives one shape per empty motif", () => {
   const shapes = emptyCells(out.page, row.baseId);
   expect(shapes).toHaveLength(n - 1);
   const step = motifStep("ponts", "MS");
-  const start = row.x + 3.5 + 2;
+  const start = row.x + motifsStart("MS");
   shapes.forEach(({ frame, path }, i) => {
     expect(path).toMatch(/^M /);
     expect(frame.x_mm).toBeCloseTo(start + (i + 1) * step, 1);

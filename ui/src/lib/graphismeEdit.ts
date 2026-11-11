@@ -17,6 +17,9 @@ const NEXT: Record<Cell, Cell> = { Model: "Dotted", Dotted: "Empty", Empty: "Mod
 const samePath = (a: string[], b: string[]) => a.length === b.length && a.every((g, i) => g === b[i]);
 const recipeOf = (e: Element) => (e.kind.type === "Shape" ? e.kind.graphisme ?? null : null);
 
+/** Où commence le premier motif, en mm depuis le bord gauche de la ligne : après le point de départ. */
+export const motifsStart = (level: Level): number => dotSize(MOTIF_HEIGHT_MM[level]) + 2;
+
 /** La ligne réglable dont `base` est la ligne de base, ou `null` si elle ne l'est pas (ou plus). */
 function rowFrom(page: Page, base: Element): RowRef | null {
   const r = recipeOf(base);
@@ -120,7 +123,7 @@ export function resizeRow(page: Page, baseId: string, x: number, width: number):
  *  rien ne change. */
 export function stretchRow(row: RowRef, box: { x_mm: number; w_mm: number }, w_mm: number, dir: number[]): { x: number; width: number } | null {
   const level = row.recipe.level as Level;
-  const min = dotSize(MOTIF_HEIGHT_MM[level]) + 2 + 2 * motifStep(row.recipe.motif as Motif, level);
+  const min = motifsStart(level) + 2 * motifStep(row.recipe.motif as Motif, level);
   // Le cadre des poignées peut déborder de la ligne (la flèche) : seul l'écart compte.
   const width = Math.max(min, Math.round((row.width + w_mm - box.w_mm) * 10) / 10);
   if (Math.abs(width - row.width) < 0.05) return null;
@@ -135,7 +138,7 @@ export function cellAt(page: Page, baseId: string, x_mm: number, y_mm: number): 
   const h = MOTIF_HEIGHT_MM[level];
   // Du haut de la ligne à la ligne de base, avec 2 mm de marge.
   if (y_mm < row.y - 2 || y_mm > row.y + h + 2) return null;
-  const start = row.x + dotSize(h) + 2;
+  const start = row.x + motifsStart(row.recipe.level as Level);
   const i = Math.floor((x_mm - start) / motifStep(row.recipe.motif as Motif, level));
   return x_mm >= start && i < row.recipe.cells.length ? i : null;
 }
@@ -153,6 +156,6 @@ export function emptyCells(page: Page, baseId: string): { frame: Frame; path: st
   const row = rowById(page, baseId);
   if (!row) return [];
   const h = MOTIF_HEIGHT_MM[row.recipe.level as Level];
-  const start = row.x + dotSize(h) + 2;
+  const start = row.x + motifsStart(row.recipe.level as Level);
   return row.recipe.cells.flatMap((c, i) => (c === "Empty" ? [pathInFrame(cmdsFor(row.recipe.motif as Motif, start, h, i, i + 1), row.y)] : []));
 }

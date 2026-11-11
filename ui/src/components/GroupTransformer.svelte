@@ -193,7 +193,8 @@
       .on("clickGroup", (ev) => {
         if (ev.isDouble) return;
         const input = ev.inputEvent as MouseEvent;
-        if (!input.shiftKey && turnCell(input)) return;
+        // Le second clic d'un double-clic ne change pas le motif une seconde fois (`detail` : nombre de clics).
+        if (!input.shiftKey && input.detail <= 1 && turnCell(input)) return;
         const id = document.elementsFromPoint(input.clientX, input.clientY).map((n) => n.closest<HTMLElement>(".element")).find((n) => n && pageEl?.contains(n))?.dataset.id ?? null;
         if (id && ids?.includes(id)) return;
         onpick(id, input.shiftKey);

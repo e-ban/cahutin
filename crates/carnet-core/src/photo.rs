@@ -371,7 +371,7 @@ fn import_with(data: &[u8], frame_aspect: Option<f64>) -> Result<Asset, ImportEr
     let main = fit(&img, MAX_LONG_EDGE_PX);
     let thumb = fit(&main, THUMB_LONG_EDGE_PX);
     Ok(Asset {
-        meta: AssetMeta { id: new_id(), width_px: main.width(), height_px: main.height(), mime },
+        meta: AssetMeta { id: new_id(), width_px: main.width(), height_px: main.height(), mime, taken: None },
         bytes: Arc::new(encode(&main, mime)?),
         thumb: Arc::new(encode(&thumb, mime)?),
     })
@@ -398,7 +398,7 @@ pub(crate) fn asset_from_image(img: &DynamicImage, mime: Mime) -> Result<Asset, 
     let main = fit(img, MAX_LONG_EDGE_PX);
     let thumb = fit(&main, THUMB_LONG_EDGE_PX);
     Ok(Asset {
-        meta: AssetMeta { id: new_id(), width_px: main.width(), height_px: main.height(), mime },
+        meta: AssetMeta { id: new_id(), width_px: main.width(), height_px: main.height(), mime, taken: None },
         bytes: Arc::new(encode(&main, mime)?),
         thumb: Arc::new(encode(&thumb, mime)?),
     })
@@ -406,7 +406,10 @@ pub(crate) fn asset_from_image(img: &DynamicImage, mime: Mime) -> Result<Asset, 
 
 pub fn import_path(path: &Path) -> Result<Asset, ImportError> {
     let data = std::fs::read(path).map_err(|_| ImportError::Io)?;
-    import_bytes(&data)
+    let mut asset = import_bytes(&data)?;
+    // Lue avant que l'import retire les métadonnées : les photos du tiroir se rangent par jour.
+    asset.meta.taken = crate::phototheque::taken_of(path, &data);
+    Ok(asset)
 }
 
 /// Images d'un dossier, sans les sous-dossiers, triées par nom. Les HEIC sont listés pour être signalés.
@@ -476,6 +479,12 @@ mod tests {
     }
 
     const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+
+    #[test]
+    fn import_path_keeps_the_capture_day() {
+        let a = import_path(&Path::new(FIXTURES).join("date.jpg")).unwrap();
+        assert_eq!(a.meta.taken.as_deref(), Some("2026-10-14"));
+    }
 
     #[test]
     fn large_photo_is_downscaled() {

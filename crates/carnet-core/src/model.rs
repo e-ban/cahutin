@@ -50,7 +50,7 @@ pub fn renew_ids(page: &mut Page) {
 /// un groupe ; 7 : miroir d'un élément autre qu'une photo, ou de haut en bas ; 8 : champs de la classe sans
 /// accents, `{prenom}` ; 9 : recette des lignes de graphisme, lue seulement : `native::written_version` n'écrit
 /// jamais plus de 8, une version plus ancienne voit des lignes ordinaires).
-pub const FORMAT_VERSION: u32 = 9;
+pub const FORMAT_VERSION: u32 = 10;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -105,6 +105,12 @@ pub struct AssetMeta {
     pub width_px: u32,
     pub height_px: u32,
     pub mime: Mime,
+    /// Jour de la prise de vue (« 2026-10-14 ») : celui de l'appareil, sinon celui du fichier. Absent des
+    /// documents d'avant la version 10 ; une version plus ancienne l'ignore, d'où aucune règle dans
+    /// `written_version`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub taken: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
@@ -612,9 +618,16 @@ mod tests {
         });
         d.assets.insert(
             "a1".into(),
-            AssetMeta { id: "a1".into(), width_px: 4000, height_px: 3000, mime: Mime::Jpeg },
+            AssetMeta { id: "a1".into(), width_px: 4000, height_px: 3000, mime: Mime::Jpeg, taken: None },
         );
         d
+    }
+
+    #[test]
+    fn asset_meta_without_taken_reads_as_none_and_is_not_written() {
+        let m: AssetMeta = serde_json::from_str(r#"{"id":"a","width_px":4,"height_px":3,"mime":"Jpeg"}"#).unwrap();
+        assert_eq!(m.taken, None);
+        assert!(!serde_json::to_string(&m).unwrap().contains("taken"));
     }
 
     #[test]

@@ -36,7 +36,7 @@ pub struct ClassPhoto {
 
 impl ClassPhoto {
     pub fn meta(&self) -> AssetMeta {
-        AssetMeta { id: self.id.clone(), width_px: self.width_px, height_px: self.height_px, mime: self.mime }
+        AssetMeta { id: self.id.clone(), width_px: self.width_px, height_px: self.height_px, mime: self.mime, taken: self.taken.clone() }
     }
 }
 
@@ -90,11 +90,16 @@ pub fn capture_date(data: &[u8]) -> Option<String> {
     class::ymd(&date).map(|_| date)
 }
 
+/// Jour de la prise de vue d'un fichier : celui de l'appareil (EXIF), sinon sa date de modification.
+pub fn taken_of(path: &Path, data: &[u8]) -> Option<String> {
+    capture_date(data).or_else(|| std::fs::metadata(path).and_then(|m| m.modified()).ok().map(|t| iso(class::date_of(t))))
+}
+
 /// Une photo du disque, importée dans la photothèque : ses fichiers écrits, son entrée rendue (l'index
 /// n'est pas encore enregistré).
 pub fn add_file(dir: &Path, path: &Path) -> Result<ClassPhoto, ImportError> {
     let data = std::fs::read(path).map_err(|_| ImportError::Io)?;
-    let taken = capture_date(&data).or_else(|| std::fs::metadata(path).and_then(|m| m.modified()).ok().map(|t| iso(class::date_of(t))));
+    let taken = taken_of(path, &data);
     let asset = photo::import_bytes(&data)?;
     add_asset(dir, &asset, taken)
 }

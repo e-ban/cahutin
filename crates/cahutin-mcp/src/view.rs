@@ -186,7 +186,7 @@ mod tests {
     /// Un document plein de données personnelles : textes, invite, photo, image de fond d'un texte.
     fn sensitive_doc() -> Document {
         let mut doc = Document::new("Cahier de Léa");
-        doc.assets.insert("piege-asset-id".into(), AssetMeta { id: "piege-asset-id".into(), width_px: 400, height_px: 300, mime: Mime::Jpeg });
+        doc.assets.insert("piege-asset-id".into(), AssetMeta { id: "piege-asset-id".into(), width_px: 400, height_px: 300, mime: Mime::Jpeg, taken: None });
         let page = &mut doc.pages[0];
         page.elements.push(Element {
             id: "t1".into(),

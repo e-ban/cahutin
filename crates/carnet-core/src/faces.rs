@@ -131,7 +131,10 @@ pub fn blur_regions(asset: &Asset, zones: &[FaceBox]) -> Result<Asset, ImportErr
             }
         }
     }
-    asset_from_image(&DynamicImage::ImageRgba8(out), asset.meta.mime)
+    let mut blurred = asset_from_image(&DynamicImage::ImageRgba8(out), asset.meta.mime)?;
+    // La photo floutée reste celle du même jour.
+    blurred.meta.taken = asset.meta.taken.clone();
+    Ok(blurred)
 }
 
 /// Chaque bloc prend la couleur moyenne de ses pixels.
@@ -204,6 +207,14 @@ mod tests {
         // Un coin loin du visage : inchangé, au réencodage JPEG près.
         let diff = (0..20u32).flat_map(|y| (0..20u32).map(move |x| (x, y))).map(|(x, y)| (before.get_pixel(x, y)[1] as i32 - after.get_pixel(x, y)[1] as i32).abs()).max().unwrap();
         assert!(diff <= 12, "coin changé de {diff}");
+    }
+
+    #[test]
+    fn blurred_asset_keeps_the_capture_day() {
+        let mut a = fixture("faces-apollo11.jpg");
+        a.meta.taken = Some("2026-10-14".into());
+        let out = blur_regions(&a, &[FaceBox { x: 0.4, y: 0.2, w: 0.1, h: 0.15 }]).unwrap();
+        assert_eq!(out.meta.taken.as_deref(), Some("2026-10-14"));
     }
 
     #[test]

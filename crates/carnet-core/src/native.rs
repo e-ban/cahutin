@@ -526,6 +526,14 @@ mod tests {
         assert_eq!(written_version(&doc), 4);
     }
 
+    /// La date de prise de vue est ignorée par une version plus ancienne : elle ne relève pas la version écrite.
+    #[test]
+    fn a_capture_day_does_not_raise_the_written_version() {
+        let mut doc = Document::new("v");
+        doc.assets.insert("a".into(), AssetMeta { id: "a".into(), width_px: 4, height_px: 3, mime: Mime::Jpeg, taken: Some("2026-10-14".into()) });
+        assert_eq!(written_version(&doc), 1);
+    }
+
     #[test]
     fn written_version_is_2_only_with_images() {
         let mut doc = Document::new("v");
@@ -618,9 +626,9 @@ mod tests {
     }
 
     #[test]
-    fn newer_than_9_is_refused() {
+    fn newer_than_10_is_refused() {
         let mut doc = Document::new("futur");
-        doc.format_version = 10;
+        doc.format_version = 11;
         let json = serde_json::to_vec(&doc).unwrap();
         let mut buf = Cursor::new(Vec::new());
         {
@@ -631,7 +639,7 @@ mod tests {
         }
         buf.set_position(0);
         let err = load(buf).err().unwrap();
-        assert_eq!(err, NativeError::NewerVersion(10));
+        assert_eq!(err, NativeError::NewerVersion(11));
         assert!(err.message_fr().contains("plus récente"));
         assert!(err.message_fr().contains("mettez Cahutin à jour"), "dire quoi faire");
     }

@@ -134,7 +134,7 @@ mod tests {
         let mut out = Cursor::new(Vec::new());
         RgbImage::from_pixel(w, h, Rgb([90, 140, 200])).write_to(&mut out, ImageFormat::Jpeg).unwrap();
         let bytes = Arc::new(out.into_inner());
-        Asset { meta: AssetMeta { id: new_id(), width_px: w, height_px: h, mime: Mime::Jpeg }, thumb: bytes.clone(), bytes }
+        Asset { meta: AssetMeta { id: new_id(), width_px: w, height_px: h, mime: Mime::Jpeg, taken: None }, thumb: bytes.clone(), bytes }
     }
 
     fn photo(asset: Option<&str>, f: Frame, radius: f64) -> Element {

@@ -4,6 +4,7 @@
 //! Aucun visage n'est reconnu : les élèves présents sont choisis à la main.
 
 pub mod index;
+pub mod originals;
 pub mod scan;
 pub mod thumbs;
 

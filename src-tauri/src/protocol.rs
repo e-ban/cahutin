@@ -8,15 +8,37 @@ use crate::state::AppState;
 use carnet_core::phototheque::thumbs;
 use carnet_core::{Mime, fonts};
 use std::borrow::Cow;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Sender, channel};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::OnceLock;
 use tauri::http::{Request, Response, StatusCode, header};
 use tauri::{AppHandle, Manager, Runtime, UriSchemeContext, UriSchemeResponder};
 
 pub const SCHEME: &str = "carnet-asset";
 
-type Job = Box<dyn FnOnce() + Send>;
+type Body = Response<Cow<'static, [u8]>>;
+
+/// Une demande pour le fil de travail : le travail qui fait la réponse, et l'envoi de la réponse.
+struct Job {
+    work: Box<dyn FnOnce() -> Body + Send>,
+    reply: Box<dyn FnOnce(Body) + Send>,
+}
+
+/// La boucle du fil de travail : chaque demande reçoit une réponse, et le fil survit à une demande qui
+/// échoue (un décodeur qui panique sur un fichier abîmé, un verrou empoisonné) ; elle reçoit alors une erreur.
+fn run_jobs(jobs: Receiver<Job>) {
+    let mut failures = 0u64;
+    for Job { work, reply } in jobs {
+        let response = catch_unwind(AssertUnwindSafe(work)).unwrap_or_else(|_| {
+            failures += 1;
+            log::error!("library_job_panicked count={failures}");
+            server_error()
+        });
+        // Une réponse qui ne peut pas partir (page fermée) n'arrête pas le fil non plus.
+        let _ = catch_unwind(AssertUnwindSafe(|| reply(response)));
+    }
+}
 
 /// Fil de travail de la photothèque : lire une photo ou faire sa vignette prend du temps, jamais sur le
 /// fil de l'interface. Un seul fil, qui sert les demandes dans l'ordre : jamais des centaines de photos
@@ -25,25 +47,27 @@ fn library_jobs() -> &'static Sender<Job> {
     static JOBS: OnceLock<Sender<Job>> = OnceLock::new();
     JOBS.get_or_init(|| {
         let (tx, rx) = channel::<Job>();
-        std::thread::spawn(move || {
-            for job in rx {
-                job();
-            }
-        });
+        std::thread::spawn(move || run_jobs(rx));
         tx
     })
 }
 
-/// Protocole asynchrone : les routes `lib/` sont servies par les fils de travail, les autres tout de suite.
+fn server_error() -> Body {
+    Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(Cow::Borrowed(&[][..])).unwrap()
+}
+
+/// Protocole asynchrone : les routes `lib/` sont servies par le fil de travail, les autres tout de suite.
 pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>>, responder: UriSchemeResponder) {
     let path = request.uri().path().trim_start_matches('/');
     if let Some(rest) = path.strip_prefix("lib/") {
         let app = ctx.app_handle().clone();
         let rest = rest.to_string();
-        let job: Job = Box::new(move || responder.respond(library_response(&app.state::<AppState>(), &rest)));
-        // Sans fil de travail, la réponse se fait ici plutôt que jamais.
+        let job = Job { work: Box::new(move || library_response(&app.state::<AppState>(), &rest)), reply: Box::new(move |r| responder.respond(r)) };
+        // Le fil de travail ne s'arrête pas (voir `run_jobs`). S'il avait disparu malgré tout, la demande
+        // reçoit une erreur : le travail ne se fait jamais sur le fil de l'interface.
         if let Err(e) = library_jobs().send(job) {
-            (e.0)();
+            log::error!("library_worker_gone");
+            (e.0.reply)(server_error());
         }
         return;
     }
@@ -295,6 +319,22 @@ mod tests {
         assert_eq!(r.headers()[header::CONTENT_TYPE], "image/webp");
         assert!(r.body().starts_with(b"RIFF"));
         assert_eq!(library_response(&state, "inconnue").status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn a_job_that_panics_gets_an_error_and_the_worker_keeps_serving() {
+        let (jobs, rx) = channel::<Job>();
+        std::thread::spawn(move || run_jobs(rx));
+        let (replies, answers) = channel::<StatusCode>();
+        let send = |work: Box<dyn FnOnce() -> Body + Send>| {
+            let replies = replies.clone();
+            jobs.send(Job { work, reply: Box::new(move |r| replies.send(r.status()).unwrap()) }).unwrap();
+        };
+        send(Box::new(|| panic!("décodeur en panne")));
+        send(Box::new(not_found));
+        let wait = std::time::Duration::from_secs(5);
+        assert_eq!(answers.recv_timeout(wait), Ok(StatusCode::INTERNAL_SERVER_ERROR), "la demande qui a échoué reçoit une erreur");
+        assert_eq!(answers.recv_timeout(wait), Ok(StatusCode::NOT_FOUND), "la suivante est encore servie");
     }
 
     #[test]

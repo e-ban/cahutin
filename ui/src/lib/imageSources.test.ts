@@ -69,6 +69,15 @@ test("photothèque sans classe ouverte : un message, pas de grille", () => {
   expect(v.empty).toBe(fr.libraryNoClass);
 });
 
+test("photothèque : Toutes et À trier en tête, hors des rubriques (ce ne sont pas des périodes)", () => {
+  const v = libraryView([cp("x", "2026-10-05")], [student("e1", "Léo")], "year|all", today, true);
+  expect(v.filters.slice(0, 2).map((f) => [f.id, f.heading ?? null])).toEqual([
+    ["year|all", null],
+    ["all|untagged", null],
+  ]);
+  expect(v.filters.slice(2, 6).every((f) => f.heading === fr.libraryPeriod)).toBe(true);
+});
+
 test("photothèque : les photos d'un enfant, et l'avertissement sans autorisation", () => {
   const students = [student("e1", "Léo"), student("e2", "Inès", false)];
   const photos = [cp("x", "2026-10-05", ["e1"]), cp("y", "2026-10-06", ["e1", "e2"]), cp("z", "2026-10-06", [])];

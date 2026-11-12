@@ -89,15 +89,15 @@ export function libraryView(photos: ClassPhoto[], students: Student[], filterId:
   const sorted = [...students].sort((a, b) => (names.get(a.id) ?? "").localeCompare(names.get(b.id) ?? "", "fr", { sensitivity: "base" }));
   const toSort = filterLibrary(photos, { period: "all", untagged: true }, today).length;
   const current = filter.untagged ? `all|untagged` : filter.student ? `${p}|student:${filter.student}` : filter.tag ? `${p}|tag:${filter.tag}` : `${p}|all`;
+  // « Toutes » et « À trier » en tête, sans rubrique (comme pour les photos du document), puis les rubriques.
   // Choisir une période garde « Toutes » ; la période est rappelée par son bouton allumé.
+  const on = (f: Omit<WideFilter, "on">): WideFilter => ({ ...f, on: f.id === current });
   const filters: WideFilter[] = [
+    on({ id: `${p}|all`, label: `${fr.libraryAll} (${filterLibrary(photos, { period: p }, today).length})` }),
+    on({ id: "all|untagged", label: `${fr.libraryToSort} (${toSort})` }),
     ...PERIODS.map((x) => ({ id: `period:${x}`, label: fr.libraryPeriods[x], heading: fr.libraryPeriod, on: x === p && !filter.untagged })),
-    ...[
-      { id: `${p}|all`, label: `${fr.libraryAll} (${filterLibrary(photos, { period: p }, today).length})` },
-      { id: "all|untagged", label: `${fr.libraryToSort} (${toSort})` },
-      ...sorted.map((s) => ({ id: `${p}|student:${s.id}`, label: `${names.get(s.id)} (${counts.get(s.id) ?? 0})`, heading: fr.libraryChildren })),
-      ...tagsOf(photos).map((t) => ({ id: `${p}|tag:${t}`, label: t, heading: fr.libraryActivities })),
-    ].map((f) => ({ ...f, on: f.id === current })),
+    ...sorted.map((s) => on({ id: `${p}|student:${s.id}`, label: `${names.get(s.id)} (${counts.get(s.id) ?? 0})`, heading: fr.libraryChildren })),
+    ...tagsOf(photos).map((t) => on({ id: `${p}|tag:${t}`, label: t, heading: fr.libraryActivities })),
   ];
   const nameOf = (id: string) => names.get(id) ?? "?";
   const groups = libraryByDay(filterLibrary(photos, filter, today)).map((d) => ({

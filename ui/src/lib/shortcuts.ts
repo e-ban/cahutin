@@ -33,10 +33,10 @@ export function shortcutAction(ev: KeyInfo): ShortcutAction | null {
   return actions[k] ?? null;
 }
 
-// Sous l'écran d'accueil, le panneau Astuces, la classe ou la photothèque, la page n'est pas visible :
-// rien ne doit la modifier.
+// Sous l'écran d'accueil, le panneau Astuces, la classe, la photothèque ou la vue agrandie du tiroir Images, la
+// page n'est pas visible : rien ne doit la modifier.
 function pageHidden(): boolean {
-  return editor.showWelcome || editor.showTips || editor.showClassPage || editor.showPhototheque || editor.showCollection || editor.showPreferences;
+  return editor.showWelcome || editor.showTips || editor.showClassPage || editor.showPhototheque || editor.showCollection || editor.showPreferences || editor.imagesWide;
 }
 
 /** Pixels de molette pour un cran de zoom : le pincement du pavé tactile envoie beaucoup de petits pas. */

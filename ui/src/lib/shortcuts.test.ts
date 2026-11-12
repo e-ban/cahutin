@@ -84,6 +84,13 @@ test("editing shortcuts do nothing under the welcome screen or a dialog", async 
   expect(editor.page.elements).toHaveLength(1);
   modal.answer("ok");
 
+  // La vue agrandie du tiroir Images couvre la page : la page ne bouge pas.
+  editor.openImagesWide();
+  editor.selection = [el.id];
+  press("Delete");
+  expect(editor.page.elements).toHaveLength(1);
+  editor.closeImagesWide();
+
   editor.selection = [el.id];
   press("Delete");
   expect(editor.page.elements).toHaveLength(0);

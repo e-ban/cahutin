@@ -257,6 +257,19 @@ test("clicking the same picture twice puts the second beside the first, not hidd
   expect(b.y_mm - a.y_mm).toBe(8);
 });
 
+test("ajouter plusieurs images : la première remplace la photo choisie (Remplacer), les autres s'ajoutent", async () => {
+  const { useImages, usePhoto } = await import("./editActions");
+  editor.reset(newDocument("plusieurs"), null);
+  const m = (id: string) => ({ id, width_px: 400, height_px: 300, mime: "Jpeg" as const });
+  usePhoto(m("ancienne"));
+  editor.replacingPhoto = true;
+  useImages([m("a"), m("b"), m("c")]);
+  const assets = editor.page.elements.map((e) => (e.kind.type === "Photo" ? e.kind.asset : null));
+  expect(assets).toEqual(["a", "b", "c"]);
+  expect(editor.replacingPhoto).toBe(false);
+  editor.replacingPhoto = false;
+});
+
 test("a quarter turn turns one element in place, and a group around its centre", async () => {
   const { rotateSelection } = await import("./editActions");
   const shape = (id: string, x: number, group?: string): Element => ({

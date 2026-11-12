@@ -316,6 +316,20 @@ export function addPhotoAt(meta: AssetMeta, xMm: number, yMm: number) {
   editor.selection = [id];
 }
 
+/** Plusieurs images d'un coup (vue agrandie du tiroir Images) : la première remplit la case choisie (ou
+ *  remplace la photo, après « Remplacer ») ; les suivantes sont posées à côté, sans rien remplacer. Un seul
+ *  avis pour les enfants sans autorisation photo de toutes ces images. */
+export function useImages(metas: AssetMeta[]) {
+  metas.forEach((m, i) => {
+    usePhoto(m, { warn: false });
+    if (i === 0) {
+      editor.selection = [];
+      editor.replacingPhoto = false;
+    }
+  });
+  warnConsent(metas.map((m) => m.id));
+}
+
 /** Image de fond du cadre du texte sélectionné (une photo de la photothèque), ou aucune. */
 export function setFrameImage(meta: AssetMeta | null) {
   const e = editor.selected;
@@ -327,8 +341,8 @@ export function setFrameImage(meta: AssetMeta | null) {
 
 /** Clic sur une vignette du tiroir Photos : remplit la case photo choisie (ou remplace la photo, après
  *  « Remplacer »), sinon pose la photo au centre de la page, à ses proportions. */
-export function usePhoto(meta: AssetMeta) {
-  warnConsent(meta.id);
+export function usePhoto(meta: AssetMeta, { warn = true }: { warn?: boolean } = {}) {
+  if (warn) warnConsent(meta.id);
   const e = editor.selected;
   // Une case photo à remplir (vide, ou case d'un modèle) se remplit ; une photo déjà posée n'est remplacée que sur
   // demande (« Remplacer ») : sinon un clic pose une photo de plus.

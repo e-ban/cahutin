@@ -29,9 +29,10 @@
     transition: width 0.15s ease, margin-right 0.15s ease;
   }
   /* Plus large que sa colonne : la marge négative rend la différence, la page ne bouge pas. */
+  /* Au-dessus des barres flottantes de la page (3500), sous les menus et les boîtes de dialogue (4000 et plus). */
   .drawer.wide {
     position: relative;
-    z-index: 40;
+    z-index: 3600;
     width: var(--wide-w);
     margin-right: calc(260px - var(--wide-w));
     box-shadow: 6px 0 18px rgb(0 0 0 / 0.18);

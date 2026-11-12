@@ -47,6 +47,12 @@ test("photos du document : tout est placé", () => {
   expect(v.empty).toBe(fr.photosAllPlaced);
 });
 
+test("listes vides : des messages qui ne citent pas de bouton absent de la vue agrandie", () => {
+  const d = doc([[]]);
+  expect(photosView([], d, d.pages[0], "all").empty).toBe(fr.imagesNoPhotos);
+  expect(libraryView([], [], "year|all", today, true).empty).toBe(fr.imagesLibraryEmpty);
+});
+
 test("photos du document : un dossier disparu revient à Toutes", () => {
   const d = doc([[]]);
   expect(photosView([lp("a", null)], d, d.pages[0], "folder:Piscine").filters.find((f) => f.on)?.id).toBe("all");

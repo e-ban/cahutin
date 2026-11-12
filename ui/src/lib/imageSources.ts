@@ -62,7 +62,7 @@ export function photosView(photos: LibraryPhoto[], doc: Document, page: Page, fi
     title: d.day ? fr.libraryDayShort(d.day) : fr.photosNoDate,
     items: d.photos.map((p) => ({ key: p.meta.id, url: assetUrl(p.meta.id, true), title: "", badge: pageBadge(pages.get(p.meta.id) ?? []), warn: null })),
   }));
-  const empty = groups.length ? null : photos.length === 0 ? fr.noPhotosYet : filter.kind === "unused" ? fr.photosAllPlaced : filter.kind === "page" ? fr.photosNoneOnPage : fr.libraryNoneHere;
+  const empty = groups.length ? null : photos.length === 0 ? fr.imagesNoPhotos : filter.kind === "unused" ? fr.photosAllPlaced : filter.kind === "page" ? fr.photosNoneOnPage : fr.libraryNoneHere;
   return { filters, groups, empty };
 }
 
@@ -113,7 +113,7 @@ export function libraryView(photos: ClassPhoto[], students: Student[], filterId:
       };
     }),
   }));
-  return { filters, groups, empty: groups.length ? null : photos.length ? fr.libraryNoneHere : fr.libraryEmpty };
+  return { filters, groups, empty: groups.length ? null : photos.length ? fr.libraryNoneHere : fr.imagesLibraryEmpty };
 }
 
 // Collection : « all », « theme:<thème> », « none » (sans thème).

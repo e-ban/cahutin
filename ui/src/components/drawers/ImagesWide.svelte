@@ -6,7 +6,7 @@
   import { classes } from "../../lib/classStore.svelte";
   import { CLASS_PHOTO_MIME, ASSET_MIME, MY_IMAGE_MIME } from "../../lib/dnd";
   import { editor } from "../../lib/docStore.svelte";
-  import { usePhoto } from "../../lib/editActions";
+  import { useImages } from "../../lib/editActions";
   import { fr } from "../../lib/i18n/fr";
   import { libraryView, mineView, photosView, type Source, type WideFilter } from "../../lib/imageSources";
   import { myImages } from "../../lib/myImages.svelte";
@@ -43,6 +43,9 @@
   let busy = $state(false);
 
   myImages.load();
+  // Un glisser annulé avant l'image suivante ne doit pas laisser le tiroir réduit à la prochaine ouverture.
+  ondrag(false);
+  let held = false;
   // La photothèque de la classe courante, chargée si besoin (comme la page Photothèque).
   $effect(() => {
     const path = classes.current?.path;
@@ -105,12 +108,7 @@
     if (busy) return;
     busy = true;
     try {
-      const metas = await metasOf(selected);
-      metas.forEach((m, i) => {
-        usePhoto(m);
-        // La première remplit la case photo choisie, s'il y en a une ; les suivantes sont posées à côté.
-        if (i === 0) editor.selection = [];
-      });
+      useImages(await metasOf(selected));
       selected = [];
       editor.closeImagesWide();
     } catch (e) {
@@ -179,9 +177,11 @@
                   e.dataTransfer?.setData(MIME[source], it.key);
                   if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
                   // Le tiroir se replie à l'image suivante, sans retirer l'image tenue de la page.
-                  requestAnimationFrame(() => ondrag(true));
+                  held = true;
+                  requestAnimationFrame(() => held && ondrag(true));
                 }}
                 ondragend={() => {
+                  held = false;
                   ondrag(false);
                   editor.closeImagesWide();
                 }}

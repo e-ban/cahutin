@@ -4,7 +4,7 @@ import { photothequeAdd, photothequeOpen, photothequeRemove, photothequeTag, pho
 import { classes } from "./classStore.svelte";
 import { editor } from "./docStore.svelte";
 import { fr } from "./i18n/fr";
-import { displayNames, withoutConsent } from "./phototheque";
+import { displayNames, missingConsent } from "./phototheque";
 import type { AssetMeta, ClassPhoto, TagChange } from "./types";
 
 class ClassLibrary {
@@ -59,12 +59,11 @@ class ClassLibrary {
 
 export const classLibrary = new ClassLibrary();
 
-/** Une photo de la photothèque posée sur la page : si elle montre un enfant sans autorisation, on le dit
- *  (la flouter avant d'imprimer). */
-export function warnConsent(assetId: string) {
-  const p = classLibrary.photos.find((x) => x.id === assetId);
+/** Des photos de la photothèque posées sur la page : si elles montrent des enfants sans autorisation, on le dit
+ *  en un seul avis (les flouter avant d'imprimer). */
+export function warnConsent(assetIds: string | string[]) {
   const students = classes.current?.class.students ?? [];
-  const missing = p ? withoutConsent(p, students) : [];
+  const missing = missingConsent(classLibrary.photos, students, [assetIds].flat());
   const names = displayNames(students);
   if (missing.length) editor.notice = fr.libraryPlacedNoConsent(missing.map((s) => names.get(s.id) ?? s.first_name));
 }

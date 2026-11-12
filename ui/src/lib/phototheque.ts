@@ -77,6 +77,12 @@ export function withoutConsent(p: ClassPhoto, students: Student[]): Student[] {
   return students.filter((s) => p.students.includes(s.id) && !s.photo_allowed);
 }
 
+/** Les élèves sans autorisation présents sur au moins une des photos `ids`, chacun une fois. */
+export function missingConsent(photos: ClassPhoto[], students: Student[], ids: string[]): Student[] {
+  const shown = photos.filter((p) => ids.includes(p.id));
+  return students.filter((s) => !s.photo_allowed && shown.some((p) => p.students.includes(s.id)));
+}
+
 /** Pour chaque élève, présent sur toutes les photos choisies, sur une partie, ou sur aucune. */
 export function presence(photos: ClassPhoto[], studentId: string): "all" | "some" | "none" {
   const n = photos.filter((p) => p.students.includes(studentId)).length;

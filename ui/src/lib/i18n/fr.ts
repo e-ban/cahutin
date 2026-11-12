@@ -399,6 +399,8 @@ export const fr = {
   imagesThemes: "Thèmes",
   imagesChooseDay: "Choisir tout ce groupe (un second clic le retire)",
   librarySortLink: "Trier et étiqueter…",
+  imagesNoPhotos: "Ce document n'a pas encore de photos. « Réduire », puis « Photos » ou « Dossier » pour en ajouter.",
+  imagesLibraryEmpty: "La photothèque de la classe est vide. « Trier et étiqueter… » pour y ajouter des photos.",
   photosUnusedHint: "La photo posée quitte la liste « Non placées » : elle est sur la page.",
   thumbSize: "Taille des vignettes",
   thumbSmall: "Petites",

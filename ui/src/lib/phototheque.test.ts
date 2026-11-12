@@ -1,10 +1,17 @@
 import { expect, test } from "vitest";
-import { byDay, countsByStudent, displayNames, filterLibrary, periodStart, presence, studentsBehind, tagsOf, withoutConsent } from "./phototheque";
+import { byDay, countsByStudent, displayNames, filterLibrary, periodStart, presence, studentsBehind, tagsOf, missingConsent, withoutConsent } from "./phototheque";
 import type { ClassPhoto, Student } from "./types";
 
 const photo = (id: string, taken: string, students: string[] = [], tags: string[] = []): ClassPhoto => ({ id, width_px: 10, height_px: 10, mime: "Jpeg", taken, added: "2026-10-31", students, tags });
 const student = (id: string, allowed = true): Student => ({ id, first_name: id, last_name: "", level: null, group: "", photo: null, photo_allowed: allowed, symbol: null });
 const today = new Date("2026-10-31T12:00:00Z");
+
+test("missingConsent réunit les enfants sans autorisation de plusieurs photos, une fois chacun", () => {
+  const students = [student("Léo"), student("Inès", false), student("Tom", false)];
+  const photos = [photo("x", "2026-10-05", ["Inès"]), photo("y", "2026-10-05", ["Léo"]), photo("z", "2026-10-06", ["Tom", "Inès"])];
+  expect(missingConsent(photos, students, ["x", "y", "z"]).map((s) => s.id)).toEqual(["Inès", "Tom"]);
+  expect(missingConsent(photos, students, ["y"])).toEqual([]);
+});
 
 test("periods follow the school year", () => {
   expect(periodStart("month", today)).toBe("2026-10-01");

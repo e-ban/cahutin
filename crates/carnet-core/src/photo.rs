@@ -347,13 +347,18 @@ pub fn import_bytes(data: &[u8]) -> Result<Asset, ImportError> {
 /// LibreOffice n'applique pas l'étiquette à une image qui remplit une forme : l'image brute est souvent la bonne,
 /// mais pas toujours.
 fn import_with(data: &[u8], frame_aspect: Option<f64>) -> Result<Asset, ImportError> {
+    let img = decode_upright(data, frame_aspect)?;
+    let mime = if has_transparency(&img) { Mime::Png } else { Mime::Jpeg };
+    asset_from_image(&img, mime)
+}
+
+/// L'image décodée et redressée (dessin SVG rendu) : le début commun de l'import et de la vignette.
+fn decode_upright(data: &[u8], frame_aspect: Option<f64>) -> Result<DynamicImage, ImportError> {
     if is_heic(data) {
         return Err(ImportError::Heic);
     }
     if is_svg(data) {
-        let img = render_svg(data)?;
-        let mime = if has_transparency(&img) { Mime::Png } else { Mime::Jpeg };
-        return asset_from_image(&img, mime);
+        return render_svg(data);
     }
     let mut reader = ImageReader::new(Cursor::new(data)).with_guessed_format().map_err(|_| ImportError::Io)?;
     if reader.format().is_none() {
@@ -366,15 +371,16 @@ fn import_with(data: &[u8], frame_aspect: Option<f64>) -> Result<Asset, ImportEr
     if frame_aspect.is_none_or(|a| oriented_fits(img.width(), img.height(), orientation, a)) {
         img.apply_orientation(orientation);
     }
+    Ok(img)
+}
 
+/// Seulement la vignette d'un fichier (`THUMB_LONG_EDGE_PX`, orientée comme à l'import) : ni réduction à
+/// `MAX_LONG_EDGE_PX`, ni image complète encodée, ni date lue. Pour remplir le cache de la photothèque.
+pub fn thumbnail_of(path: &Path) -> Result<(Vec<u8>, Mime), ImportError> {
+    let data = std::fs::read(path).map_err(|_| ImportError::Io)?;
+    let img = decode_upright(&data, None)?;
     let mime = if has_transparency(&img) { Mime::Png } else { Mime::Jpeg };
-    let main = fit(&img, MAX_LONG_EDGE_PX);
-    let thumb = fit(&main, THUMB_LONG_EDGE_PX);
-    Ok(Asset {
-        meta: AssetMeta { id: new_id(), width_px: main.width(), height_px: main.height(), mime, taken: None },
-        bytes: Arc::new(encode(&main, mime)?),
-        thumb: Arc::new(encode(&thumb, mime)?),
-    })
+    Ok((encode(&fit(&img, THUMB_LONG_EDGE_PX), mime)?, mime))
 }
 
 fn decode_limits() -> image::Limits {
@@ -498,6 +504,21 @@ mod tests {
     fn small_photo_is_not_upscaled() {
         let a = import_bytes(&jpeg(800, 600)).unwrap();
         assert_eq!((a.meta.width_px, a.meta.height_px), (800, 600));
+    }
+
+    /// La vignette seule a l'orientation et la taille de celle de l'import, sans passer par lui.
+    #[test]
+    fn thumbnail_of_is_oriented_like_the_import() {
+        let path = Path::new(FIXTURES).join("orientation6.jpg");
+        let (bytes, mime) = thumbnail_of(&path).unwrap();
+        let imported = import_path(&path).unwrap();
+        assert_eq!(mime, imported.meta.mime);
+        assert_eq!(decoded_dims(&bytes), (20, 40));
+        assert_eq!(decoded_dims(&bytes), decoded_dims(&imported.thumb));
+        let big = tempfile::tempdir().unwrap().keep().join("big.jpg");
+        std::fs::write(&big, jpeg(1200, 800)).unwrap();
+        assert_eq!(decoded_dims(&thumbnail_of(&big).unwrap().0), (256, 171));
+        assert_eq!(thumbnail_of(&big.with_extension("absent")).unwrap_err(), ImportError::Io);
     }
 
     #[test]

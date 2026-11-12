@@ -3,12 +3,11 @@
 //! avec la taille ou la date du fichier, donc une photo modifiée a une nouvelle vignette.
 
 use super::{ClassPhoto, Phototheque};
-use crate::fsutil::write_atomically;
 use crate::model::Mime;
 use crate::photo::{Asset, ImportError};
 use std::collections::HashSet;
-use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 const THUMBS_DIR: &str = ".vignettes";
 
@@ -23,17 +22,24 @@ pub fn thumb(library_dir: &Path, p: &ClassPhoto) -> Result<PathBuf, ImportError>
     if path.is_file() {
         return Ok(path);
     }
-    // Même import qu'une photo du tiroir : la vignette est déjà réduite et orientée comme elle.
-    let asset = crate::photo::import_path(Path::new(&p.path))?;
-    let bytes = if asset.meta.mime == Mime::Jpeg {
-        asset.thumb.to_vec()
+    let (thumb, mime) = crate::photo::thumbnail_of(Path::new(&p.path))?;
+    let bytes = if mime == Mime::Jpeg {
+        thumb
     } else {
         // Une photo transparente a une vignette PNG ; le cache ne garde que des JPEG.
-        let img = image::load_from_memory(&asset.thumb).map_err(|_| ImportError::Decode)?;
+        let img = image::load_from_memory(&thumb).map_err(|_| ImportError::Decode)?;
         crate::photo::encode(&img, Mime::Jpeg)?
     };
     std::fs::create_dir_all(&dir).map_err(|_| ImportError::Storage)?;
-    write_atomically(&path, |f| f.write_all(&bytes)).map_err(|_| ImportError::Storage)?;
+    // Fichier temporaire propre à cet appel : deux appels en même temps pour la même photo n'écrivent
+    // jamais le même fichier, et le dernier renommage pose un fichier entier.
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let tmp = dir.join(format!("{}.{}-{}.tmp", thumb_name(p), std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed)));
+    let written = std::fs::write(&tmp, &bytes).and_then(|_| std::fs::rename(&tmp, &path));
+    if written.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(ImportError::Storage);
+    }
     Ok(path)
 }
 
@@ -128,6 +134,28 @@ mod tests {
         lib.photos.clear();
         assert_eq!(stale_thumbs(&library, &lib), vec![t]);
         assert!(stale_thumbs(&library.join("absent"), &lib).is_empty());
+    }
+
+    #[test]
+    fn two_threads_making_the_same_thumbnail_both_get_a_whole_file() {
+        let (_tmp, library, _folder, lib) = setup();
+        let p = &lib.photos[0];
+        let paths: Vec<PathBuf> = std::thread::scope(|s| {
+            let hs: Vec<_> = (0..4).map(|_| s.spawn(|| thumb(&library, p).unwrap())).collect();
+            hs.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        assert!(paths.iter().all(|t| *t == paths[0]));
+        assert_eq!(dims(&paths[0]), (256, 192));
+        assert!(stale_thumbs(&library, &lib).is_empty(), "aucun fichier temporaire ne reste");
+    }
+
+    #[test]
+    fn leftover_temporary_files_are_listed_as_stale() {
+        let (_tmp, library, _folder, lib) = setup();
+        thumb(&library, &lib.photos[0]).unwrap();
+        let leftover = library.join(".vignettes").join("x-1-2.jpg.99-0.tmp");
+        std::fs::write(&leftover, b"x").unwrap();
+        assert_eq!(stale_thumbs(&library, &lib), vec![leftover]);
     }
 
     #[test]

@@ -75,7 +75,7 @@ async function mesurer(scene, taille, corps, seuil, { prealable = false } = {}) 
 const attendre = (ms) => `await new Promise((r) => setTimeout(r, ${ms}));`;
 
 async function tiroir() {
-  if (!TIROIR.length || !["tiroir-import", "tiroir-ouvrir", "tiroir-filtre", "tiroir-defiler"].some(voulue)) return;
+  if (!TIROIR.length || !["tiroir-import", "tiroir-ouvrir", "tiroir-filtre", "tiroir-defiler", "agrandi-ouvrir"].some(voulue)) return;
   await run(`
     const e = window.__editor, c = window.__carnet;
     e.showPreferences = false; e.drawer = null; e.selection = [];
@@ -138,6 +138,15 @@ async function tiroir() {
       window.__fait = true;
     }, () => window.__fait);`,
     { gel: SEUIL_GEL_MS },
+  );
+  // La vue agrandie du tiroir Images (étape 3), sur les mêmes photos.
+  await mesurer(
+    "agrandi-ouvrir",
+    TIROIR.at(-1),
+    `const e = window.__editor; e.closeImagesWide(); ${attendre(500)}
+    const r = await window.__mesure(() => e.openImagesWide(), () => window.__vignettesPretes(".wide .groups", ${TIROIR.at(-1)}));
+    e.closeImagesWide(); return r;`,
+    { ms: SEUIL_MS },
   );
 }
 

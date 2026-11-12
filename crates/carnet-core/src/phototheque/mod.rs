@@ -4,11 +4,14 @@
 //! Aucun visage n'est reconnu : les élèves présents sont choisis à la main.
 
 pub mod index;
+pub mod scan;
 
 use crate::class;
 use crate::model::Id;
 pub use index::*;
+pub use scan::{ScanReport, follow, scan, unfollow};
 use serde::{Deserialize, Serialize};
+use std::io::{BufRead, Seek};
 use std::path::Path;
 use ts_rs::TS;
 
@@ -18,23 +21,41 @@ fn iso((y, m, d): (i32, u32, u32)) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
-/// Date de prise de vue écrite par l'appareil (EXIF), lue avant que l'import retire les métadonnées.
-pub fn capture_date(data: &[u8]) -> Option<String> {
-    let exif = exif::Reader::new().read_from_container(&mut std::io::Cursor::new(data)).ok()?;
+/// Date de prise de vue écrite par l'appareil (EXIF), lue dans un flux : seul l'en-tête est lu.
+fn capture_date_from(source: &mut (impl BufRead + Seek)) -> Option<String> {
+    let exif = exif::Reader::new().read_from_container(source).ok()?;
     let field = exif.get_field(exif::Tag::DateTimeOriginal, exif::In::PRIMARY).or_else(|| exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY))?;
     let text = field.display_value().to_string();
     let date = text.get(..10)?.replace(':', "-");
     class::ymd(&date).map(|_| date)
 }
 
-/// Jour de la prise de vue d'un fichier : celui de l'appareil (EXIF), sinon sa date de modification.
-pub fn taken_of(path: &Path, data: &[u8]) -> Option<String> {
-    capture_date(data).or_else(|| std::fs::metadata(path).and_then(|m| m.modified()).ok().map(|t| iso(class::date_of(t))))
+/// Date de prise de vue écrite par l'appareil (EXIF), lue avant que l'import retire les métadonnées.
+pub fn capture_date(data: &[u8]) -> Option<String> {
+    capture_date_from(&mut std::io::Cursor::new(data))
 }
 
-/// Les photos retirées de l'index. Leurs fichiers ne sont pas touchés.
-pub fn remove(lib: &mut Phototheque, ids: &[Id]) {
-    lib.photos.retain(|p| !ids.contains(&p.id));
+fn file_date(path: &Path) -> Option<String> {
+    std::fs::metadata(path).and_then(|m| m.modified()).ok().map(|t| iso(class::date_of(t)))
+}
+
+/// Jour de la prise de vue d'un fichier : celui de l'appareil (EXIF), sinon sa date de modification.
+pub fn taken_of(path: &Path, data: &[u8]) -> Option<String> {
+    capture_date(data).or_else(|| file_date(path))
+}
+
+/// Comme `taken_of`, sans lire toute la photo : seul l'en-tête du fichier est lu.
+pub fn taken_of_file(path: &Path) -> Option<String> {
+    let exif_date = std::fs::File::open(path).ok().and_then(|f| capture_date_from(&mut std::io::BufReader::new(f)));
+    exif_date.or_else(|| file_date(path))
+}
+
+/// Masque ou réaffiche des photos : elles restent dans l'index (étiquettes gardées) et leurs fichiers
+/// ne sont pas touchés.
+pub fn hide(lib: &mut Phototheque, ids: &[Id], hidden: bool) {
+    for p in lib.photos.iter_mut().filter(|p| ids.contains(&p.id)) {
+        p.hidden = hidden;
+    }
 }
 
 /// Changement d'étiquettes sur plusieurs photos à la fois.
@@ -90,7 +111,7 @@ mod tests {
     }
 
     #[test]
-    fn photos_are_tagged_and_removed() {
+    fn photos_are_tagged_and_hidden() {
         let mut lib = Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![photo("a"), photo("b")] };
         let ids: Vec<Id> = vec!["a".into(), "b".into()];
         tag(&mut lib, &ids, &TagChange { add_students: vec!["lea".into(), "noe".into()], add_tags: vec![" Sortie à la ferme ".into(), "".into()], ..Default::default() });
@@ -98,8 +119,11 @@ mod tests {
         assert_eq!(lib.photos[0].students, ["lea", "noe"]);
         assert_eq!(lib.photos[1].students, ["lea"]);
         assert_eq!(lib.photos[1].tags, ["Sortie à la ferme"]);
-        remove(&mut lib, &ids[..1]);
-        assert_eq!(lib.photos.len(), 1);
+        hide(&mut lib, &ids[..1], true);
+        assert_eq!(lib.photos.len(), 2);
+        assert!(lib.photos[0].hidden && !lib.photos[1].hidden);
+        hide(&mut lib, &ids[..1], false);
+        assert!(!lib.photos[0].hidden);
     }
 
     #[test]
@@ -109,5 +133,6 @@ mod tests {
         let data = std::fs::read(&path).unwrap();
         assert_eq!(capture_date(&data).as_deref(), Some("2026-10-14"));
         assert_eq!(taken_of(&path, &data).as_deref(), Some("2026-10-14"));
+        assert_eq!(taken_of_file(&path).as_deref(), Some("2026-10-14"));
     }
 }

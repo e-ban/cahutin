@@ -1,21 +1,36 @@
 <script lang="ts">
   import GuideLink from "../GuideLink.svelte";
   import Icon from "../Icon.svelte";
-  // Photothèque de la classe : toutes les photos de l'année, à trier (garder, supprimer), à étiqueter
-  // (élèves présents, activités), à retrouver (par enfant, par activité, par période) et à poser dans le
-  // document. Un bandeau signale les enfants peu photographiés et une pastille les photos d'un enfant
-  // sans autorisation (à flouter avant de servir).
+  // Photothèque de la classe : les photos des dossiers suivis (rien n'est copié), à trier (garder, retirer), à
+  // étiqueter (élèves présents, activités), à retrouver (par enfant, par activité, par dossier, par période) et
+  // à poser dans le document. Un bandeau signale les enfants peu photographiés et une pastille les photos d'un
+  // enfant sans autorisation (à flouter avant de servir). Un autre bandeau propose de retrouver les originaux
+  // des photos copiées par une version précédente.
   import { open } from "@tauri-apps/plugin-dialog";
-  import { classPhotoUrl, listImportableIn } from "../../lib/api";
+  import { classPhotoUrl } from "../../lib/api";
   import { ask } from "../../lib/ask";
   import { classes } from "../../lib/classStore.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
-  import { byDay, countsByStudent, displayNames, filterLibrary, presence, studentsBehind, tagsOf, withoutConsent, type LibraryFilter, type Period } from "../../lib/phototheque";
+  import {
+    baseName,
+    byDay,
+    countsByStudent,
+    displayNames,
+    filterLibrary,
+    folderCounts,
+    oldCopies,
+    photoVersion,
+    presence,
+    studentsBehind,
+    tagsOf,
+    withoutConsent,
+    type LibraryFilter,
+    type Period,
+  } from "../../lib/phototheque";
   import { classLibrary } from "../../lib/phototheque.svelte";
   import PhotoViewer from "./PhotoViewer.svelte";
 
-  const EXTENSIONS = ["jpg", "jpeg", "png", "webp", "JPG", "JPEG", "PNG", "WEBP"];
   const PERIODS: Period[] = ["month", "trimester", "year", "all"];
   /** Enfants nommés dans le bandeau d'équité avant « et N autres ». */
   const BEHIND_SHOWN = 6;
@@ -30,6 +45,10 @@
   // Mode « un enfant, puis ses photos » : chaque clic sur une photo l'y ajoute ou l'en retire.
   let marking = $state<string | null>(null);
   let allBehind = $state(false);
+  // « Plus tard » : le bandeau des anciennes copies ne revient qu'à la prochaine ouverture de la page.
+  let migrationLater = $state(false);
+  // Recherche des originaux en cours (le bouton attend).
+  let searching = $state(false);
 
   const today = new Date();
   // Par ordre alphabétique, pour retrouver vite un prénom parmi 40.
@@ -37,13 +56,20 @@
   // Deux « Anna » se distinguent par l'initiale de leur nom, partout sur la page.
   const names = $derived(displayNames(students));
   const nameOf = (id: string) => names.get(id) ?? "?";
-  const shown = $derived(filterLibrary(classLibrary.photos, filter, today));
+  // Seules les photos ni retirées ni absentes sont montrées et comptées.
+  const photos = $derived(classLibrary.visible);
+  const shown = $derived(filterLibrary(photos, filter, today));
   const days = $derived(byDay(shown));
-  const counts = $derived(countsByStudent(classLibrary.photos, students, filter.period, today));
+  const counts = $derived(countsByStudent(photos, students, filter.period, today));
   const behind = $derived(studentsBehind(counts));
-  const tags = $derived(tagsOf(classLibrary.photos));
-  const toSort = $derived(filterLibrary(classLibrary.photos, { period: "all", untagged: true }, today).length);
-  const chosen = $derived(classLibrary.photos.filter((p) => selected.includes(p.id)));
+  const tags = $derived(tagsOf(photos));
+  const folders = $derived(folderCounts(filterLibrary(photos, { period: filter.period }, today)));
+  const toSort = $derived(filterLibrary(photos, { period: "all", untagged: true }, today).length);
+  // Une photo choisie puis retirée, ou dont le dossier n'est plus suivi, quitte le choix d'elle-même.
+  const chosen = $derived(photos.filter((p) => selected.includes(p.id)));
+  const chosenIds = () => chosen.map((p) => p.id);
+  const copies = $derived(oldCopies(classLibrary.photos).length);
+  const busy = $derived(searching || !!classLibrary.scanning);
 
   // Ouverte pour la classe courante ; rechargée si l'on change de classe.
   $effect(() => {
@@ -58,25 +84,36 @@
     editor.showPhototheque = false;
   }
 
-  async function addFiles() {
-    const picked = await open({ multiple: true, filters: [{ name: "Images", extensions: EXTENSIONS }] });
-    if (picked) await addPaths(Array.isArray(picked) ? picked : [picked]);
-  }
-  async function addFolder() {
+  /** Un dossier suivi : ses photos arrivent au fil du parcours, quelle que soit leur date. */
+  async function follow() {
     const dir = await open({ directory: true });
-    if (typeof dir === "string") await addPaths(await listImportableIn(dir));
+    if (typeof dir !== "string") return;
+    // Des photos de l'an dernier doivent se voir aussi : toutes les périodes, pendant que la grille se remplit.
+    filter = { period: "all" };
+    await run(() => classLibrary.follow(dir));
   }
-  /** Un lot arrive dans « À trier », photo après photo ; à la fin il est choisi (si l'on n'a rien choisi
-   *  entre-temps) : on indique tout de suite qui est dessus. */
-  async function addPaths(paths: string[]) {
+  async function unfollow(folder: string) {
+    await run(() => classLibrary.unfollow(folder));
+  }
+
+  /** Les originaux des anciennes copies : on dit combien sont retrouvés, puis on demande avant la corbeille. */
+  async function findOriginals() {
     error = null;
-    if (!paths.length) return;
-    filter = { period: "all", untagged: true };
+    searching = true;
     try {
-      const added = await classLibrary.add(paths);
-      if (!selected.length && !marking) selected = added;
+      const report = await classLibrary.findOriginals();
+      const n = report.matches.length;
+      if (n === 0) {
+        editor.notice = fr.libraryOriginalsNone;
+        return;
+      }
+      if (!(await ask(fr.libraryOriginalsFound(n, report.unmatched.length), fr.yes, fr.no))) return;
+      await classLibrary.applyOriginals(report.matches);
+      editor.notice = fr.libraryOriginalsDone(n);
     } catch (e) {
       error = String(e);
+    } finally {
+      searching = false;
     }
   }
 
@@ -127,26 +164,27 @@
   /** Un enfant sur toutes les photos choisies : on l'en retire ; sinon on l'y ajoute. */
   async function toggleStudent(id: string) {
     const all = presence(chosen, id) === "all";
-    await run(() => classLibrary.tag(selected, all ? { remove_students: [id] } : { add_students: [id] }));
+    await run(() => classLibrary.tag(chosenIds(), all ? { remove_students: [id] } : { add_students: [id] }));
   }
   async function toggleTag(t: string) {
     const all = chosen.every((p) => p.tags.includes(t));
-    await run(() => classLibrary.tag(selected, all ? { remove_tags: [t] } : { add_tags: [t] }));
+    await run(() => classLibrary.tag(chosenIds(), all ? { remove_tags: [t] } : { add_tags: [t] }));
   }
   async function addTag() {
     const t = newTag.trim();
     if (!t) return;
-    await run(() => classLibrary.tag(selected, { add_tags: [t] }));
+    await run(() => classLibrary.tag(chosenIds(), { add_tags: [t] }));
     newTag = "";
   }
-  async function removeChosen() {
-    if (!(await ask(fr.libraryDeleteConfirm(selected.length), fr.libraryTrash))) return;
-    await run(() => classLibrary.remove(selected));
+  /** « Retirer » : plus montrées ici, aucun fichier touché ; l'avis propose « Annuler ». */
+  async function hideChosen() {
+    const ids = chosenIds();
+    await run(() => classLibrary.hide(ids));
     selected = [];
   }
   async function useChosen() {
     await run(async () => {
-      const n = (await classLibrary.useInDocument(selected)).length;
+      const n = (await classLibrary.useInDocument(chosenIds())).length;
       editor.notice = fr.libraryUsed(n);
       editor.openImages("photos");
       close();
@@ -169,8 +207,7 @@
     <button class="back" onclick={close}><Icon name="back" /> {fr.classPageBack}</button>
     <h1><Icon name="images" size={24} /> {fr.libraryTitle}{#if classes.current}{` · ${classes.current.class.name}`}{/if}</h1>
     {#if classes.current}
-      <button data-guide="library-add" onclick={addFiles}><Icon name="add" /> {fr.addPhotosButton}</button>
-      <button onclick={addFolder}><Icon name="folder" /> {fr.addFolderButton}</button>
+      <button data-guide="library-add" onclick={follow}><Icon name="folder" /> {fr.addFolder}</button>
     {/if}
     <GuideLink id="phototheque" />
   </div>
@@ -178,11 +215,22 @@
   {#if !classes.current}
     <p class="hint">{fr.libraryNoClass}</p>
   {:else}
-    {#if classLibrary.progress}
-      {@const p = classLibrary.progress}
-      <div class="progress" role="status"><span>{fr.importProgress(p.done, p.total)}</span><progress max={p.total} value={p.done}></progress></div>
+    {#if classLibrary.scanning}
+      <div class="progress" role="status"><span>{fr.libraryScanning(classLibrary.scanning.found)}</span><progress></progress></div>
     {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
+    {#each classLibrary.missingFolders as path (path)}
+      <p class="note" role="note" title={path}><Icon name="warning" /> {fr.libraryFolderMissing(baseName(path))}</p>
+    {/each}
+    {#if copies && !migrationLater}
+      <div class="note migration" role="note">
+        <p>{fr.libraryMigration}</p>
+        <div class="row">
+          <button class="primary" disabled={busy} onclick={findOriginals}>{searching ? fr.librarySearching : fr.libraryFindOriginals}</button>
+          <button onclick={() => (migrationLater = true)}>{fr.libraryLater}</button>
+        </div>
+      </div>
+    {/if}
     {#if behind.length}
       <p class="equity" role="note">
         {fr.libraryBehind(filter.period)}
@@ -199,7 +247,7 @@
             {#each PERIODS as p (p)}<option value={p}>{fr.libraryPeriods[p]}</option>{/each}
           </select>
         </label>
-        <button class:on={!filter.student && !filter.tag && !filter.untagged} onclick={() => (filter = { period: filter.period })}>{fr.libraryAll} ({classLibrary.photos.length})</button>
+        <button class:on={!filter.student && !filter.tag && !filter.untagged && !filter.folder} onclick={() => (filter = { period: filter.period })}>{fr.libraryAll} ({photos.length})</button>
         <button class:on={!!filter.untagged} onclick={() => (filter = { period: "all", untagged: true })}>{fr.libraryToSort} ({toSort})</button>
         <h3>{fr.libraryChildren}</h3>
         {#each students as s (s.id)}
@@ -212,10 +260,28 @@
           <h3>{fr.libraryActivities}</h3>
           {#each tags as t (t)}<button class:on={filter.tag === t} onclick={() => (filter = { period: filter.period, tag: t })}>{t}</button>{/each}
         {/if}
+        {#if folders.length > 1}
+          <h3>{fr.imagesFolders}</h3>
+          {#each folders as f (f.folder)}
+            <button class="child" class:on={filter.folder === f.folder} onclick={() => (filter = { period: filter.period, folder: f.folder })}>
+              <span>{f.folder}</span><span class="n">{f.count}</span>
+            </button>
+          {/each}
+        {/if}
+        {#if classLibrary.folders.length}
+          <h3>{fr.libraryFollowed}</h3>
+          {#each classLibrary.folders as f (f.path)}
+            <div class="followed" title={f.path}>
+              <span class:gone={f.missing}><Icon name={f.missing ? "warning" : "folder"} size={14} /> {baseName(f.path)}</span>
+              <button class="link" onclick={() => unfollow(f.path)}>{fr.libraryUnfollow}</button>
+            </div>
+          {/each}
+        {/if}
+        {#if copies}<button class="link" disabled={busy} onclick={findOriginals}>{searching ? fr.librarySearching : fr.libraryFindOriginals}</button>{/if}
       </aside>
 
       <section class="photos" aria-label={fr.libraryTitle}>
-        {#if classLibrary.photos.length}
+        {#if photos.length}
           <div class="toolbar">
             <label>
               {fr.libraryMark}
@@ -230,7 +296,7 @@
           </div>
         {/if}
         {#if shown.length === 0}
-          <p class="hint">{classLibrary.photos.length ? fr.libraryNoneHere : fr.libraryEmpty}</p>
+          <p class="hint">{photos.length ? fr.libraryNoneHere : classLibrary.scanning ? "" : fr.libraryEmpty}</p>
         {/if}
         <div class="days">
         {#each days as d (d.day)}
@@ -251,7 +317,7 @@
                 ondblclick={() => (viewing = { ids: shown.map((x) => x.id), start: shown.indexOf(p) })}
                 title={p.students.map(nameOf).join(", ")}
               >
-                <img src={classPhotoUrl(p.id)} alt="" loading="lazy" draggable="false" />
+                <img src={classPhotoUrl(p.id, true, photoVersion(p))} alt="" loading="lazy" draggable="false" />
                 {#if marking && on}<span class="badge mark"><Icon name="check" size={12} /> {nameOf(marking)}</span>{:else if p.students.length}<span class="badge"><Icon name="users" size={12} /> {p.students.length}</span>{/if}
                 {#if missing.length}<span class="badge warn" title={fr.libraryNoConsent(missing.map((s) => nameOf(s.id)))}><Icon name="ban" size={12} /> {missing.length}</span>{/if}
               </button>
@@ -285,7 +351,7 @@
           {#if chosen.some((p) => withoutConsent(p, students).length)}<p class="warn-text">{fr.libraryBlurFirst}</p>{/if}
           <div class="actions">
             <button class="primary" onclick={useChosen}>{fr.libraryUse(chosen.length)}</button>
-            <button class="danger" onclick={removeChosen}><Icon name="trash" /> {fr.libraryTrash}</button>
+            <button onclick={hideChosen} title={fr.libraryHideHint}><Icon name="eyeOff" /> {fr.libraryHide}</button>
           </div>
         </aside>
       {/if}
@@ -504,8 +570,39 @@
     color: var(--on-accent);
     font-weight: 600;
   }
-  .danger {
-    color: var(--danger);
+  .followed {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 13px;
+    padding: 2px 0;
+  }
+  .followed span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .gone {
+    color: var(--muted);
+  }
+  .link:disabled {
+    color: var(--muted);
+    cursor: default;
+  }
+  .note {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin: 0 0 10px;
+  }
+  .migration p {
+    margin: 0 0 8px;
+  }
+  .row {
+    display: flex;
+    gap: 8px;
   }
   .equity {
     background: var(--warn-bg);

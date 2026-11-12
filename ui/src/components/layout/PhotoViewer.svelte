@@ -5,7 +5,7 @@
   import Icon from "../Icon.svelte";
   import { classPhotoUrl } from "../../lib/api";
   import { fr } from "../../lib/i18n/fr";
-  import { dayOf, withoutConsent } from "../../lib/phototheque";
+  import { dayOf, photoVersion, withoutConsent } from "../../lib/phototheque";
   import { classLibrary } from "../../lib/phototheque.svelte";
   import type { Student } from "../../lib/types";
 
@@ -43,7 +43,7 @@
 
 <div class="viewer" role="dialog" aria-modal="true" aria-label={fr.libraryViewer}>
   <div class="image">
-    {#if photo}<img src={classPhotoUrl(photo.id, false)} alt="" />{/if}
+    {#if photo}<img src={classPhotoUrl(photo.id, false, photoVersion(photo))} alt="" />{/if}
     <button class="nav prev" disabled={i === 0} aria-label={fr.libraryPrev} onclick={() => go(-1)}><Icon name="chevronLeft" size={32} /></button>
     <button class="nav next" disabled={i === ids.length - 1} aria-label={fr.libraryNext} onclick={() => go(1)}><Icon name="chevronRight" size={32} /></button>
   </div>

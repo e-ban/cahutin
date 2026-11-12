@@ -5,7 +5,7 @@ import { assetUrl, classPhotoUrl, myImageUrl } from "./api";
 import { fr } from "./i18n/fr";
 import { displayName, filterByTheme, themeCounts, type ThemeFilter } from "./myImages";
 import { assetsOnPage, byDay, elementAssets, filterPhotos, folderChips, pageBadge, shownFilter, usedAssetIds, type LibraryPhoto, type PhotoFilter } from "./photoLibrary";
-import { byDay as libraryByDay, countsByStudent, displayNames, filterLibrary, tagsOf, withoutConsent, type LibraryFilter, type Period } from "./phototheque";
+import { byDay as libraryByDay, countsByStudent, displayNames, filterLibrary, folderCounts, photoVersion, tagsOf, visiblePhotos, withoutConsent, type LibraryFilter, type Period } from "./phototheque";
 import type { ClassPhoto, Document, MyImage, Page, Student } from "./types";
 
 export type Source = "photos" | "library" | "mine";
@@ -66,29 +66,35 @@ export function photosView(photos: LibraryPhoto[], doc: Document, page: Page, fi
   return { filters, groups, empty };
 }
 
-// Photothèque : « <période>|<filtre> », filtre « all », « untagged », « student:<id> » ou « tag:<activité> ».
+// Photothèque : « <période>|<filtre> », filtre « all », « untagged », « student:<id> », « tag:<activité> » ou
+// « folder:<dossier> ».
 
 const PERIODS: Period[] = ["month", "trimester", "year", "all"];
 
 function libraryFilterOf(id: string): LibraryFilter {
   if (id.startsWith("period:")) return libraryFilterOf(`${id.slice("period:".length)}|all`);
-  const [p, f = "all"] = id.split("|");
+  // Coupé à la première barre seulement : un nom d'activité ou de dossier peut en contenir.
+  const bar = id.indexOf("|");
+  const [p, f] = bar < 0 ? [id, "all"] : [id.slice(0, bar), id.slice(bar + 1)];
   const period = (PERIODS as string[]).includes(p) ? (p as Period) : "year";
   if (f === "untagged") return { period: "all", untagged: true };
   if (f.startsWith("student:")) return { period, student: f.slice("student:".length) };
   if (f.startsWith("tag:")) return { period, tag: f.slice("tag:".length) };
+  if (f.startsWith("folder:")) return { period, folder: f.slice("folder:".length) };
   return { period };
 }
 
-export function libraryView(photos: ClassPhoto[], students: Student[], filterId: string, today: Date, hasClass: boolean): WideView {
+export function libraryView(all: ClassPhoto[], students: Student[], filterId: string, today: Date, hasClass: boolean): WideView {
   if (!hasClass) return { filters: [], groups: [], empty: fr.libraryNoClass };
+  // Les photos retirées ou absentes restent dans l'index, mais ne sont ni montrées ni comptées.
+  const photos = visiblePhotos(all);
   const filter = libraryFilterOf(filterId);
   const p = filter.period;
   const names = displayNames(students);
   const counts = countsByStudent(photos, students, p, today);
   const sorted = [...students].sort((a, b) => (names.get(a.id) ?? "").localeCompare(names.get(b.id) ?? "", "fr", { sensitivity: "base" }));
   const toSort = filterLibrary(photos, { period: "all", untagged: true }, today).length;
-  const current = filter.untagged ? `all|untagged` : filter.student ? `${p}|student:${filter.student}` : filter.tag ? `${p}|tag:${filter.tag}` : `${p}|all`;
+  const current = filter.untagged ? `all|untagged` : filter.student ? `${p}|student:${filter.student}` : filter.tag ? `${p}|tag:${filter.tag}` : filter.folder ? `${p}|folder:${filter.folder}` : `${p}|all`;
   // « Toutes » et « À trier » en tête, sans rubrique (comme pour les photos du document), puis les rubriques.
   // Choisir une période garde « Toutes » ; la période est rappelée par son bouton allumé.
   const on = (f: Omit<WideFilter, "on">): WideFilter => ({ ...f, on: f.id === current });
@@ -98,6 +104,9 @@ export function libraryView(photos: ClassPhoto[], students: Student[], filterId:
     ...PERIODS.map((x) => ({ id: `period:${x}`, label: fr.libraryPeriods[x], heading: fr.libraryPeriod, on: x === p && !filter.untagged })),
     ...sorted.map((s) => on({ id: `${p}|student:${s.id}`, label: `${names.get(s.id)} (${counts.get(s.id) ?? 0})`, heading: fr.libraryChildren })),
     ...tagsOf(photos).map((t) => on({ id: `${p}|tag:${t}`, label: t, heading: fr.libraryActivities })),
+    ...folderCounts(filterLibrary(photos, { period: p }, today)).map((c) =>
+      on({ id: `${p}|folder:${c.folder}`, label: `${c.folder} (${c.count})`, heading: fr.imagesFolders }),
+    ),
   ];
   const nameOf = (id: string) => names.get(id) ?? "?";
   const groups = libraryByDay(filterLibrary(photos, filter, today)).map((d) => ({
@@ -106,7 +115,7 @@ export function libraryView(photos: ClassPhoto[], students: Student[], filterId:
       const missing = withoutConsent(ph, students);
       return {
         key: ph.id,
-        url: classPhotoUrl(ph.id),
+        url: classPhotoUrl(ph.id, true, photoVersion(ph)),
         title: ph.students.map(nameOf).join(", "),
         badge: ph.students.length ? String(ph.students.length) : null,
         warn: missing.length ? fr.libraryNoConsent(missing.map((s) => nameOf(s.id))) : null,

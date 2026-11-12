@@ -1,8 +1,25 @@
 import { expect, test } from "vitest";
-import { byDay, countsByStudent, displayNames, filterLibrary, periodStart, presence, studentsBehind, tagsOf, missingConsent, withoutConsent } from "./phototheque";
+import { baseName, byDay, upsertPhotos, countsByStudent, displayNames, filterLibrary, folderCounts, isOldCopy, oldCopies, periodStart, presence, studentsBehind, tagsOf, missingConsent, visiblePhotos, withoutConsent } from "./phototheque";
 import type { ClassPhoto, Student } from "./types";
 
-const photo = (id: string, taken: string, students: string[] = [], tags: string[] = []): ClassPhoto => ({ id, width_px: 10, height_px: 10, mime: "Jpeg", taken, added: "2026-10-31", students, tags });
+const photo = (id: string, taken: string, students: string[] = [], tags: string[] = [], more: Partial<ClassPhoto> = {}): ClassPhoto => ({
+  id,
+  width_px: 10,
+  height_px: 10,
+  mime: "Jpeg",
+  taken,
+  added: "2026-10-31",
+  students,
+  tags,
+  path: `/photos/IMG_${id}.jpg`,
+  folder: "Photos",
+  size: 100,
+  modified: 1,
+  fingerprint: "0",
+  hidden: false,
+  missing: false,
+  ...more,
+});
 const student = (id: string, allowed = true): Student => ({ id, first_name: id, last_name: "", level: null, group: "", photo: null, photo_allowed: allowed, symbol: null });
 const today = new Date("2026-10-31T12:00:00Z");
 
@@ -59,4 +76,47 @@ test("children with the same first name are told apart by their last name", () =
 test("photos are grouped by day, in the order given", () => {
   const photos = [photo("a", "2026-10-14"), photo("b", "2026-10-14"), photo("c", "2026-10-02")];
   expect(byDay(photos).map((d) => [d.day, d.photos.map((p) => p.id)])).toEqual([["2026-10-14", ["a", "b"]], ["2026-10-02", ["c"]]]);
+});
+
+test("seules les photos ni retirées ni absentes sont montrées", () => {
+  const photos = [photo("a", "2026-10-05"), photo("b", "2026-10-05", [], [], { hidden: true }), photo("c", "2026-10-05", [], [], { missing: true })];
+  expect(visiblePhotos(photos).map((p) => p.id)).toEqual(["a"]);
+});
+
+test("filtre par dossier, et nombre de photos de chaque dossier, par ordre alphabétique", () => {
+  const photos = [
+    photo("a", "2026-10-14", [], [], { folder: "Sortie | ferme" }),
+    photo("b", "2026-10-12", [], [], { folder: "Atelier" }),
+    photo("c", "2026-10-10", [], [], { folder: "Sortie | ferme" }),
+  ];
+  expect(filterLibrary(photos, { period: "all", folder: "Sortie | ferme" }, today).map((p) => p.id)).toEqual(["a", "c"]);
+  expect(filterLibrary(photos, { period: "all", folder: null }, today).map((p) => p.id)).toEqual(["a", "b", "c"]);
+  expect(folderCounts(photos)).toEqual([
+    { folder: "Atelier", count: 1 },
+    { folder: "Sortie | ferme", count: 2 },
+  ]);
+});
+
+test("le nom d'un dossier ou d'un fichier, sous Windows comme ailleurs", () => {
+  expect(baseName("/home/anne/Images/Sortie")).toBe("Sortie");
+  expect(baseName("C:\\Users\\anne\\Images\\Sortie\\")).toBe("Sortie");
+  expect(baseName("D:\\photo.jpg")).toBe("photo.jpg");
+});
+
+test("une ancienne copie porte pour nom l'identifiant de la photo", () => {
+  const copy = photo("3f2a", "2026-10-05", [], [], { path: "/Documents/Cahutin/Photos/MS/3f2a.jpg" });
+  const winCopy = photo("9b", "2026-10-05", [], [], { path: "C:\\Cahutin\\Photos\\MS\\9b.webp" });
+  const original = photo("3f2b", "2026-10-05", [], [], { path: "/Images/3f2b-ferme.jpg" });
+  const hiddenCopy = photo("77", "2026-10-05", [], [], { path: "/Photos/MS/77.jpg", hidden: true });
+  expect([copy, winCopy, original].map(isOldCopy)).toEqual([true, true, false]);
+  expect(oldCopies([copy, winCopy, original, hiddenCopy]).map((p) => p.id)).toEqual(["3f2a", "9b"]);
+});
+
+test("un lot reçu pendant le parcours remplace les photos connues et ajoute les nouvelles", () => {
+  const photos = [photo("a", "2026-10-05"), photo("b", "2026-10-06")];
+  const moved = photo("a", "2026-10-05", [], [], { path: "/ailleurs/IMG_a.jpg" });
+  const out = upsertPhotos(photos, [photo("c", "2026-10-07"), moved]);
+  expect(out.map((p) => p.id)).toEqual(["a", "b", "c"]);
+  expect(out[0].path).toBe("/ailleurs/IMG_a.jpg");
+  expect(photos[0].path).toBe("/photos/IMG_a.jpg");
 });

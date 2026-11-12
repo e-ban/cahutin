@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AssistantEvent, AssistantRequest, AssistantSettings, AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind, ClassPhotoAdded, Phototheque, TagChange, MyImage, MyImagesAdded, MyImageKept, ReportMail, BackupOffer, RestoredDocument } from "./types";
+import type { AssistantEvent, AssistantRequest, AssistantSettings, AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind, Match, OriginalsReport, Phototheque, ScanEvent, ScanReport, TagChange, MyImage, MyImagesAdded, MyImageKept, ReportMail, BackupOffer, RestoredDocument } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -8,13 +8,20 @@ export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => v
   onProgress.onmessage = onOutcome;
   return invoke<void>("import_photos", { paths, onProgress });
 }
-export function photothequeAdd(paths: string[], onOutcome: (o: ClassPhotoAdded) => void): Promise<Phototheque> {
-  const onProgress = new Channel<ClassPhotoAdded>();
-  onProgress.onmessage = onOutcome;
-  return invoke<Phototheque>("phototheque_add", { paths, onProgress });
-}
+/** L'index tel qu'il est enregistré, tout de suite, sans parcourir le disque. */
 export const photothequeOpen = (classPath: string) => invoke<Phototheque>("phototheque_open", { classPath });
-export const photothequeRemove = (ids: string[]) => invoke<Phototheque>("phototheque_remove", { ids });
+/** Parcourt les dossiers suivis ; `onEvent` reçoit les photos au fil de l'eau, puis l'index complet. */
+export function photothequeScan(onEvent: (e: ScanEvent) => void): Promise<ScanReport> {
+  const onProgress = new Channel<ScanEvent>();
+  onProgress.onmessage = onEvent;
+  return invoke<ScanReport>("phototheque_scan", { onProgress });
+}
+/** Suit un dossier, sans le parcourir : `photothequeScan` ensuite. */
+export const photothequeFollow = (folder: string) => invoke<Phototheque>("phototheque_follow", { folder });
+export const photothequeUnfollow = (folder: string) => invoke<Phototheque>("phototheque_unfollow", { folder });
+export const photothequeHide = (ids: string[], hidden: boolean) => invoke<Phototheque>("phototheque_hide", { ids, hidden });
+export const photothequeFindOriginals = () => invoke<OriginalsReport>("phototheque_find_originals");
+export const photothequeApplyOriginals = (matches: Match[]) => invoke<Phototheque>("phototheque_apply_originals", { matches });
 export const photothequeTag = (ids: string[], change: TagChange) => invoke<Phototheque>("phototheque_tag", { ids, change });
 export const photothequeUse = (ids: string[]) => invoke<AssetMeta[]>("phototheque_use", { ids });
 export const myImagesList = () => invoke<MyImage[]>("my_images_list");
@@ -111,8 +118,9 @@ const assetBase = () => (navigator.userAgent.includes("Windows") ? "http://carne
 /** Une image de « Mes images », telle qu'elle est dans le dossier. */
 export const myImageUrl = (name: string) => `${assetBase()}/mine/${encodeURIComponent(name)}`;
 
-export function classPhotoUrl(id: string, thumb = true): string {
-  return `${assetBase()}/lib/${id}${thumb ? "/thumb" : ""}`;
+/** `version` (`photoVersion`) : une photo changée sur le disque, ou sa vignette refaite, est rechargée. */
+export function classPhotoUrl(id: string, thumb = true, version?: string): string {
+  return `${assetBase()}/lib/${id}${thumb ? "/thumb" : ""}${version ? `?v=${version}` : ""}`;
 }
 
 export function assetUrl(id: string, thumb = false): string {

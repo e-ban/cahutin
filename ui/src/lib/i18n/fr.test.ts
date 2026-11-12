@@ -25,11 +25,45 @@ test("the welcome screen starts from a template, not only a life book", () => {
   expect(fr.chooseTemplate).toBe("Choisissez un modèle");
 });
 
-/** Les photos retirées de la photothèque vont dans la corbeille de l'ordinateur, et la question le dit. */
-test("removing class photos says they go to the computer's trash", () => {
-  expect(fr.libraryTrash).toBe("Mettre à la corbeille");
-  expect(fr.libraryDeleteConfirm(3)).toBe("Mettre ces 3 photos à la corbeille de l'ordinateur ? Vous pourrez les récupérer depuis la corbeille.");
-  expect(fr.libraryDeleteConfirm(1)).toBe("Mettre cette photo à la corbeille de l'ordinateur ? Vous pourrez la récupérer depuis la corbeille.");
+/** « Retirer » ne touche à aucun fichier : il masque la photo dans la photothèque, et le message le dit. */
+test("hiding class photos says the files stay on the computer", () => {
+  expect(fr.libraryHide).toBe("Retirer");
+  expect(fr.libraryHidden(1)).toBe("1 photo retirée de la photothèque. Le fichier reste sur l'ordinateur.");
+  expect(fr.libraryHidden(3)).toBe("3 photos retirées de la photothèque. Les fichiers restent sur l'ordinateur.");
+});
+
+/** Dossiers suivis : la recherche au fil de l'eau, l'oubli d'un dossier, un dossier introuvable. */
+test("followed folders speak plainly, singular and plural", () => {
+  expect(fr.libraryScanning(0)).toBe("Recherche des photos…");
+  expect(fr.libraryScanning(1)).toBe("Recherche des photos : 1 trouvée…");
+  expect(fr.libraryScanning(42)).toBe("Recherche des photos : 42 trouvées…");
+  expect(fr.libraryUnfollowConfirm("Sortie")).toBe(
+    "Ne plus suivre « Sortie » ? Les photos restent sur l'ordinateur ; les élèves et activités indiqués pour elles seront oubliés.",
+  );
+  expect(fr.libraryFolderMissing("Clé USB")).toContain("« Clé USB »");
+  expect(fr.libraryEmpty).toContain("« Ajouter un dossier »");
+  expect(fr.libraryEmpty).not.toContain("Ajouter des photos");
+});
+
+/** Migration : les copies d'une version précédente, rapprochées de leurs originaux. */
+test("the migration banner and its result", () => {
+  expect(fr.libraryMigration).toBe(
+    "Vos photos ont été copiées dans Cahutin par une version précédente. Indiquez les dossiers où sont vos originaux, puis « Retrouver les originaux » : Cahutin y reportera les enfants et activités.",
+  );
+  expect(fr.libraryFindOriginals).toBe("Retrouver les originaux");
+  expect(fr.libraryLater).toBe("Plus tard");
+  expect(fr.libraryOriginalsFound(12, 3)).toBe(
+    "12 photos retrouvées, 3 non retrouvées. Mettre les 12 copies à la corbeille ? Les enfants et activités sont reportés sur les originaux.",
+  );
+  expect(fr.libraryOriginalsFound(1, 1)).toBe(
+    "1 photo retrouvée, 1 non retrouvée. Mettre la copie à la corbeille ? Les enfants et activités sont reportés sur les originaux.",
+  );
+  expect(fr.libraryOriginalsFound(2, 0)).toBe(
+    "2 photos retrouvées, 0 non retrouvée. Mettre les 2 copies à la corbeille ? Les enfants et activités sont reportés sur les originaux.",
+  );
+  expect(fr.libraryOriginalsNone).toContain("rien n'a changé");
+  expect(fr.libraryOriginalsDone(1)).toBe("1 copie mise à la corbeille de l'ordinateur. Les enfants et activités sont sur l'original.");
+  expect(fr.libraryOriginalsDone(4)).toBe("4 copies mises à la corbeille de l'ordinateur. Les enfants et activités sont sur les originaux.");
 });
 
 /** La question avant de quitter un document le nomme, et son retour ne s'appelle pas « Annuler ». */

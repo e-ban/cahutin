@@ -481,23 +481,43 @@ export const fr = {
   libraryToSort: "À trier",
   libraryChildren: "Enfants",
   libraryActivities: "Activités",
-  libraryEmpty: "Aucune photo pour l'instant : « Ajouter des photos » ou « Ajouter un dossier ».",
+  libraryEmpty: "Aucune photo pour l'instant : « Ajouter un dossier » pour montrer ici les photos d'un dossier de l'ordinateur.",
+  libraryFollowed: "Dossiers suivis",
+  libraryUnfollow: "Ne plus suivre",
+  libraryUnfollowConfirm: (name: string) =>
+    `Ne plus suivre « ${name} » ? Les photos restent sur l'ordinateur ; les élèves et activités indiqués pour elles seront oubliés.`,
+  libraryScanning: (n: number) => (n === 0 ? "Recherche des photos…" : n > 1 ? `Recherche des photos : ${n} trouvées…` : "Recherche des photos : 1 trouvée…"),
+  libraryFolderMissing: (name: string) => `Le dossier « ${name} » est introuvable (une clé USB débranchée ?). Ses photos sont gardées : elles reviendront avec lui.`,
+  libraryHide: "Retirer",
+  libraryHideHint: "Ne plus montrer ces photos ici. Les fichiers ne sont pas touchés.",
+  libraryHidden: (n: number) =>
+    n > 1 ? `${n} photos retirées de la photothèque. Les fichiers restent sur l'ordinateur.` : "1 photo retirée de la photothèque. Le fichier reste sur l'ordinateur.",
+  libraryMigration:
+    "Vos photos ont été copiées dans Cahutin par une version précédente. Indiquez les dossiers où sont vos originaux, puis « Retrouver les originaux » : Cahutin y reportera les enfants et activités.",
+  libraryFindOriginals: "Retrouver les originaux",
+  libraryLater: "Plus tard",
+  librarySearching: "Recherche des originaux…",
+  libraryOriginalsFound: (n: number, m: number) =>
+    `${n > 1 ? `${n} photos retrouvées` : `${n} photo retrouvée`}, ${m > 1 ? `${m} non retrouvées` : `${m} non retrouvée`}. ${n > 1 ? `Mettre les ${n} copies à la corbeille ?` : "Mettre la copie à la corbeille ?"} Les enfants et activités sont reportés sur les originaux.`,
+  libraryOriginalsNone:
+    "Aucun original retrouvé dans les dossiers suivis : rien n'a changé. Ajoutez le dossier où sont vos originaux, puis « Retrouver les originaux ».",
+  libraryOriginalsDone: (n: number) =>
+    n > 1
+      ? `${n} copies mises à la corbeille de l'ordinateur. Les enfants et activités sont sur les originaux.`
+      : "1 copie mise à la corbeille de l'ordinateur. Les enfants et activités sont sur l'original.",
+  yes: "Oui",
+  no: "Non",
   libraryNoneHere: "Aucune photo ici.",
   libraryChosen: (n: number) => (n > 1 ? `${n} photos choisies` : "1 photo choisie"),
   libraryWhoHint: "Qui est sur ces photos ? Cliquez sur les prénoms.",
   libraryNewTag: "Nouvelle activité (sortie, atelier…)",
   libraryUse: (n: number) => (n > 1 ? `Mettre ces ${n} photos dans le document` : "Mettre dans le document"),
   libraryUsed: (n: number) => (n > 1 ? `${n} photos ajoutées au tiroir Photos du document` : "Photo ajoutée au tiroir Photos du document"),
-  libraryDeleteConfirm: (n: number) =>
-    n > 1
-      ? `Mettre ces ${n} photos à la corbeille de l'ordinateur ? Vous pourrez les récupérer depuis la corbeille.`
-      : "Mettre cette photo à la corbeille de l'ordinateur ? Vous pourrez la récupérer depuis la corbeille.",
-  libraryTrash: "Mettre à la corbeille",
   libraryBehind: (period: string) => `Peu de photos ${period === "month" ? "ce mois-ci" : period === "trimester" ? "ces trois mois" : period === "year" ? "cette année" : ""} :`,
   libraryNoConsent: (names: string[] | string) => `Sans autorisation photo : ${[names].flat().join(", ")}. À flouter avant de servir.`,
   libraryNoConsentHint: "Pas d'autorisation photo",
   libraryBlurFirst: "Certaines photos montrent un enfant sans autorisation : floutez son visage (bouton « Flouter » de la photo) avant d'imprimer.",
-  libraryPrivacy: "Les photos restent sur l'ordinateur, dans Documents/Cahutin/Photos, sans lieu ni appareil. Supprimez le dossier en fin d'année.",
+  libraryPrivacy: "Les photos restent dans leurs dossiers, sur l'ordinateur : Cahutin ne les copie pas. Il n'en garde que de petites vignettes, dans Documents/Cahutin/Photos.",
   pictoOutline: "À colorier (contour noir)",
   pictoOutlineShort: "À colorier",
   pictoOutlineHint: "Les images en contour noir seul, à colorier ou à repasser.",

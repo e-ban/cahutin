@@ -33,6 +33,8 @@ export interface LibraryFilter {
   tag?: string | null;
   /** Seulement les photos où aucun élève n'est indiqué (le tri à faire). */
   untagged?: boolean;
+  /** Un dossier (celui de la photo, `ClassPhoto.folder`). */
+  folder?: string | null;
 }
 
 /** Les photos retenues, de la plus récente à la plus ancienne. */
@@ -43,8 +45,49 @@ export function filterLibrary(photos: ClassPhoto[], f: LibraryFilter, today: Dat
     .filter((p) => !f.student || p.students.includes(f.student))
     .filter((p) => !f.tag || p.tags.includes(f.tag))
     .filter((p) => !f.untagged || p.students.length === 0)
+    .filter((p) => !f.folder || p.folder === f.folder)
     .sort((a, b) => dayOf(b).localeCompare(dayOf(a)));
 }
+
+/** Les photos montrées : ni retirées (« Retirer »), ni absentes (clé USB débranchée, fichier déplacé hors des
+ *  dossiers suivis). Les autres restent dans l'index, avec leurs élèves et activités. */
+export const visiblePhotos = (photos: ClassPhoto[]) => photos.filter((p) => !p.hidden && !p.missing);
+
+/** Nombre de photos de chaque dossier, par ordre alphabétique. */
+export function folderCounts(photos: ClassPhoto[]): { folder: string; count: number }[] {
+  const n = new Map<string, number>();
+  for (const p of photos) n.set(p.folder, (n.get(p.folder) ?? 0) + 1);
+  return [...n.entries()].sort(([a], [b]) => a.localeCompare(b, "fr")).map(([folder, count]) => ({ folder, count }));
+}
+
+/** Un lot de photos reçu pendant un parcours : celles déjà là sont remplacées (même identifiant, même place),
+ *  les nouvelles ajoutées à la fin. */
+export function upsertPhotos(photos: ClassPhoto[], batch: ClassPhoto[]): ClassPhoto[] {
+  const incoming = new Map(batch.map((p) => [p.id, p]));
+  const out = photos.map((p) => {
+    const next = incoming.get(p.id);
+    if (!next) return p;
+    incoming.delete(p.id);
+    return next;
+  });
+  return [...out, ...incoming.values()];
+}
+
+/** Version du fichier d'une photo, pour son adresse : une photo changée sur le disque est rechargée. */
+export const photoVersion = (p: ClassPhoto) => `${p.size}-${p.modified}`;
+
+/** Le dernier nom d'un chemin (dossier ou fichier), avec « / » comme avec « \ ». */
+export const baseName = (path: string) => path.split(/[\\/]+/).filter(Boolean).at(-1) ?? path;
+
+/** Une copie faite par une version précédente : le fichier porte pour nom l'identifiant de la photo. */
+export function isOldCopy(p: ClassPhoto): boolean {
+  const name = baseName(p.path);
+  const dot = name.lastIndexOf(".");
+  return dot > 0 && dot < name.length - 1 && name.slice(0, dot) === p.id;
+}
+
+/** Les anciennes copies encore montrées : celles dont il reste à retrouver l'original. */
+export const oldCopies = (photos: ClassPhoto[]) => visiblePhotos(photos).filter(isOldCopy);
 
 /** Nombre de photos de chaque élève sur la période. */
 export function countsByStudent(photos: ClassPhoto[], students: Student[], period: Period, today: Date): Map<string, number> {

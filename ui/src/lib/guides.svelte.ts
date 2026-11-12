@@ -240,10 +240,10 @@ export const GUIDES: Guide[] = [
       },
       {
         target: '[data-guide="library-add"]',
-        title: "Ajoutez des photos",
-        text: "« Photos » ou « Dossier ». S'il y en a déjà, passez à l'étape suivante.",
-        baseline: () => classLibrary.photos.length,
-        done: (base) => classLibrary.photos.length > base,
+        title: "Ajoutez un dossier de photos",
+        text: "« Ajouter un dossier », puis choisissez le dossier où sont vos photos. S'il y en a déjà, passez à l'étape suivante.",
+        baseline: () => classLibrary.visible.length,
+        done: (base) => classLibrary.visible.length > base,
       },
       {
         target: ".library-page .days",

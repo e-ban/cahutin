@@ -60,7 +60,24 @@ test("photos du document : un dossier disparu revient à Toutes", () => {
 
 const student = (id: string, first_name: string, photo_allowed = true): Student =>
   ({ id, first_name, last_name: "", level: "MS", group: "", photo: null, photo_allowed, symbol: null, birth_date: null }) as Student;
-const cp = (id: string, taken: string, students: string[] = [], tags: string[] = []): ClassPhoto => ({ id, width_px: 4, height_px: 3, mime: "Jpeg", taken, added: taken, students, tags });
+const cp = (id: string, taken: string, students: string[] = [], tags: string[] = [], more: Partial<ClassPhoto> = {}): ClassPhoto => ({
+  id,
+  width_px: 4,
+  height_px: 3,
+  mime: "Jpeg",
+  taken,
+  added: taken,
+  students,
+  tags,
+  path: `/Images/${id}-photo.jpg`,
+  folder: "Images",
+  size: 1200,
+  modified: 1700000000,
+  fingerprint: "0",
+  hidden: false,
+  missing: false,
+  ...more,
+});
 const today = new Date("2026-11-12T12:00:00Z");
 
 test("photothèque sans classe ouverte : un message, pas de grille", () => {
@@ -86,6 +103,30 @@ test("photothèque : les photos d'un enfant, et l'avertissement sans autorisatio
   expect(v.groups[0].items[0].warn).toBe(fr.libraryNoConsent(["Inès"]));
   expect(v.groups[0].items[0].badge).toBe("2");
   expect(v.filters.find((f) => f.id === "year|student:e1")?.on).toBe(true);
+});
+
+test("photothèque : les photos retirées ou absentes ne sont ni montrées ni comptées", () => {
+  const photos = [cp("x", "2026-10-05"), cp("h", "2026-10-05", [], [], { hidden: true }), cp("m", "2026-10-05", [], [], { missing: true })];
+  const v = libraryView(photos, [], "year|all", today, true);
+  expect(v.groups.flatMap((g) => g.items.map((i) => i.key))).toEqual(["x"]);
+  expect(v.filters[0].label).toBe(`${fr.libraryAll} (1)`);
+  expect(libraryView([photos[1], photos[2]], [], "year|all", today, true).empty).toBe(fr.imagesLibraryEmpty);
+});
+
+test("photothèque : la rubrique Dossiers filtre par dossier, même avec une barre dans son nom", () => {
+  const photos = [cp("a", "2026-10-05", [], [], { folder: "Sortie | ferme" }), cp("b", "2026-10-06", [], [], { folder: "Atelier" }), cp("c", "2026-10-07", [], [], { folder: "Sortie | ferme" })];
+  const v = libraryView(photos, [], "year|folder:Sortie | ferme", today, true);
+  const folders = v.filters.filter((f) => f.heading === fr.imagesFolders);
+  expect(folders.map((f) => [f.id, f.label, f.on])).toEqual([
+    ["year|folder:Atelier", "Atelier (1)", false],
+    ["year|folder:Sortie | ferme", "Sortie | ferme (2)", true],
+  ]);
+  expect(v.groups.flatMap((g) => g.items.map((i) => i.key))).toEqual(["c", "a"]);
+});
+
+test("photothèque : l'adresse d'une vignette change avec le fichier, pour être rechargée", () => {
+  const v = libraryView([cp("x", "2026-10-05")], [], "year|all", today, true);
+  expect(v.groups[0].items[0].url).toMatch(/\/lib\/x\/thumb\?v=1200-1700000000$/);
 });
 
 const img = (name: string, themes: string[]): MyImage => ({ name, size: 1, modified: 1, themes });

@@ -2,6 +2,7 @@
 // arrière-plan, les dossiers suivis, les étiquettes, « Retirer », les originaux des anciennes copies, et le
 // passage d'une photo dans le document.
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
+import { untrack } from "svelte";
 import {
   photothequeApplyOriginals,
   photothequeFindOriginals,
@@ -65,6 +66,19 @@ class ClassLibrary {
     this.scanning = { found: 0 };
     this.scan().catch((e) => {
       if (token === this.#opening) editor.notice = String(e);
+    });
+  }
+
+  /** La photothèque déjà chargée est rouverte (page, ou vue agrandie du tiroir) : un parcours, pour montrer les
+   *  photos ajoutées depuis dans les dossiers suivis ; rien si une ouverture ou un parcours est en cours. Lue
+   *  hors suivi, pour qu'un `$effect` qui l'appelle ne se relance pas à chaque lot reçu. */
+  refresh() {
+    untrack(() => {
+      if (this.#pending || this.#scans > 0 || !this.classPath) return;
+      const token = this.#opening;
+      this.scan().catch((e) => {
+        if (token === this.#opening) editor.notice = String(e);
+      });
     });
   }
 

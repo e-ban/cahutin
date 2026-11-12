@@ -46,10 +46,13 @@
   // Un glisser annulé avant l'image suivante ne doit pas laisser le tiroir réduit à la prochaine ouverture.
   ondrag(false);
   let held = false;
-  // La photothèque de la classe courante, chargée si besoin (comme la page Photothèque).
+  // La photothèque de la classe courante, chargée si besoin (comme la page Photothèque) ; déjà chargée, un
+  // parcours montre les photos ajoutées depuis dans les dossiers suivis.
   $effect(() => {
     const path = classes.current?.path;
-    if (source === "library" && path && path !== classLibrary.classPath) classLibrary.open(path).catch((e) => (editor.notice = String(e)));
+    if (source !== "library" || !path) return;
+    if (path !== classLibrary.classPath) classLibrary.open(path).catch((e) => (editor.notice = String(e)));
+    else classLibrary.refresh();
   });
 
   const students = $derived(classes.current?.class.students ?? []);

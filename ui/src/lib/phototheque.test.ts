@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { baseName, byDay, upsertPhotos, countsByStudent, displayNames, filterLibrary, folderCounts, isOldCopy, oldCopies, periodStart, presence, studentsBehind, tagsOf, missingConsent, visiblePhotos, withoutConsent } from "./phototheque";
+import { baseName, byDay, foldersWithOldCopies, upsertPhotos, countsByStudent, displayNames, filterLibrary, folderCounts, isOldCopy, oldCopies, periodStart, presence, studentsBehind, tagsOf, missingConsent, visiblePhotos, withoutConsent } from "./phototheque";
 import type { ClassPhoto, Student } from "./types";
 
 const photo = (id: string, taken: string, students: string[] = [], tags: string[] = [], more: Partial<ClassPhoto> = {}): ClassPhoto => ({
@@ -110,6 +110,16 @@ test("une ancienne copie porte pour nom l'identifiant de la photo", () => {
   const hiddenCopy = photo("77", "2026-10-05", [], [], { path: "/Photos/MS/77.jpg", hidden: true });
   expect([copy, winCopy, original].map(isOldCopy)).toEqual([true, true, false]);
   expect(oldCopies([copy, winCopy, original, hiddenCopy]).map((p) => p.id)).toEqual(["3f2a", "9b"]);
+});
+
+test("le dossier des anciennes copies ne peut pas être oublié tant qu'il en reste", () => {
+  const folders = ["/Documents/Cahutin/Photos/MS", "/Documents/Cahutin/Photos/MS-ferme", "C:\\Images"];
+  const copy = photo("3f2a", "2026-10-05", [], [], { path: "/Documents/Cahutin/Photos/MS/3f2a.jpg" });
+  const original = photo("b1", "2026-10-05", [], [], { path: "/Documents/Cahutin/Photos/MS-ferme/IMG_1.jpg" });
+  const winCopy = photo("9b", "2026-10-05", [], [], { path: "C:\\Images\\9b.jpg" });
+  expect(foldersWithOldCopies([copy, original, winCopy], folders)).toEqual(["/Documents/Cahutin/Photos/MS", "C:\\Images"]);
+  // Migration faite : les copies sont retirées, le dossier peut de nouveau être oublié.
+  expect(foldersWithOldCopies([{ ...copy, hidden: true }, original], folders)).toEqual([]);
 });
 
 test("un lot reçu pendant le parcours remplace les photos connues et ajoute les nouvelles", () => {

@@ -19,6 +19,7 @@
     displayNames,
     filterLibrary,
     folderCounts,
+    foldersWithOldCopies,
     oldCopies,
     photoVersion,
     presence,
@@ -69,15 +70,26 @@
   const chosen = $derived(photos.filter((p) => selected.includes(p.id)));
   const chosenIds = () => chosen.map((p) => p.id);
   const copies = $derived(oldCopies(classLibrary.photos).length);
+  // Le dossier des anciennes copies reste suivi tant que la migration n'est pas faite (sinon leurs enfants et
+  // activités seraient perdus) : pas de « Ne plus suivre » pour lui d'ici là.
+  const keep = $derived(
+    copies
+      ? foldersWithOldCopies(
+          classLibrary.photos,
+          classLibrary.folders.map((f) => f.path),
+        )
+      : [],
+  );
   const busy = $derived(searching || !!classLibrary.scanning);
 
-  // Ouverte pour la classe courante ; rechargée si l'on change de classe.
+  // Ouverte pour la classe courante ; rechargée si l'on change de classe. Déjà chargée, la page rouverte
+  // parcourt les dossiers suivis : les photos ajoutées depuis (celles de la semaine) apparaissent.
   $effect(() => {
     const path = classes.current?.path;
     if (path && path !== classLibrary.classPath) {
       selected = [];
       classLibrary.open(path).catch((e) => (error = String(e)));
-    }
+    } else if (path) classLibrary.refresh();
   });
 
   function close() {
@@ -273,7 +285,7 @@
           {#each classLibrary.folders as f (f.path)}
             <div class="followed" title={f.path}>
               <span class:gone={f.missing}><Icon name={f.missing ? "warning" : "folder"} size={14} /> {baseName(f.path)}</span>
-              <button class="link" onclick={() => unfollow(f.path)}>{fr.libraryUnfollow}</button>
+              {#if !keep.includes(f.path)}<button class="link" onclick={() => unfollow(f.path)}>{fr.libraryUnfollow}</button>{/if}
             </div>
           {/each}
         {/if}

@@ -89,6 +89,14 @@ export function isOldCopy(p: ClassPhoto): boolean {
 /** Les anciennes copies encore montrées : celles dont il reste à retrouver l'original. */
 export const oldCopies = (photos: ClassPhoto[]) => visiblePhotos(photos).filter(isOldCopy);
 
+/** Les dossiers suivis (chemins) qui contiennent encore des anciennes copies montrées : les oublier avant la
+ *  migration ferait perdre les enfants et activités à reporter sur les originaux. */
+export function foldersWithOldCopies(photos: ClassPhoto[], folders: string[]): string[] {
+  const copies = oldCopies(photos);
+  const inside = (path: string, folder: string) => path.startsWith(folder) && /^[\\/]/.test(path.slice(folder.replace(/[\\/]+$/, "").length));
+  return folders.filter((f) => copies.some((p) => inside(p.path, f)));
+}
+
 /** Nombre de photos de chaque élève sur la période. */
 export function countsByStudent(photos: ClassPhoto[], students: Student[], period: Period, today: Date): Map<string, number> {
   const inPeriod = filterLibrary(photos, { period }, today);

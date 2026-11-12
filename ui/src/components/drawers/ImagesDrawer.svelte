@@ -49,8 +49,13 @@
 
 <Drawer title={fr.images} wide={editor.imagesWide && !dragging}>
   {#if editor.imagesWide}
-    <ImagesWide ondrag={(d) => (dragging = d)} />
-  {:else}
+    <!-- Pendant un glisser, la vue agrandie reste dans la page (l'image tenue en fait partie : la retirer
+         annulerait le glisser) mais ne se voit plus ; le tiroir montre son contenu habituel. -->
+    <div class="wide-host" class:held={dragging}>
+      <ImagesWide ondrag={(d) => (dragging = d)} />
+    </div>
+  {/if}
+  {#if !editor.imagesWide || dragging}
   {#if !editor.templateMode && !editor.replacingPictos}
     <button class="expand" title={fr.imagesWideHint} onclick={() => editor.openImagesWide()}><Icon name="images" /> {fr.imagesWide}</button>
   {/if}
@@ -81,6 +86,21 @@
 </Drawer>
 
 <style>
+  .wide-host {
+    display: contents;
+  }
+  /* Hors de la vue, sans place ni clic, mais toujours dans la page. */
+  .wide-host.held {
+    display: block;
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
   .expand {
     padding: 6px;
     font-weight: 600;

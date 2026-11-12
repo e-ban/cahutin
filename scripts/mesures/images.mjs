@@ -176,9 +176,15 @@ async function phototheque() {
     await mesurer(
       "phototheque-enfant",
       n,
-      `window.__marquerChargees(".library-page .photos");
-      const r = await window.__mesure(() => document.querySelector(".library-page .filters .child").click(),
-        () => window.__vignettesPretes(".library-page .photos", ${Math.ceil(n / 5)}));
+      // Les photos de l'enfant sont souvent déjà chargées (le navigateur charge d'avance autour de l'écran) :
+      // prêt quand la grille ne montre plus qu'elles (chaque vignette nomme ses élèves dans son infobulle), et que
+      // celles qui sont visibles sont chargées. Le compte attendu n'est pas recalculé ici : la période affichée
+      // en écarte certaines.
+      `const grille = () => [...document.querySelectorAll(".library-page .photos .thumb")];
+      const r = await window.__mesure(() => document.querySelector(".library-page .filters .child").click(), () => {
+        const g = grille();
+        return g.length > 0 && g.every((t) => t.title.split(", ").includes("Adèle")) && window.__vignettesPretes(".library-page .photos", g.length);
+      });
       document.querySelector(".library-page .filters > button").click(); return r;`,
       { ms: SEUIL_MS },
     );

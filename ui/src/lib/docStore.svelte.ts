@@ -308,6 +308,22 @@ class Editor {
     if (pagesUsing(this.doc, id).length) this.commit(withoutAsset(this.doc, id));
   }
 
+  /** Retire du tiroir toutes les photos posées nulle part (ni photo ni fond de cadre) et oublie leurs chemins
+   *  en attente ; le document n'est pas touché. Rend les photos retirées, pour « Annuler ». */
+  removeUnusedPhotos(): LibraryPhoto[] {
+    const used = usedAssetIds(this.doc);
+    const gone = this.photos.filter((p) => !used.has(p.meta.id));
+    const paths = new Set(gone.map((p) => p.path).filter(Boolean));
+    this.photos = this.photos.filter((p) => used.has(p.meta.id));
+    this.carriedPending = this.carriedPending.filter((path) => !paths.has(path));
+    return gone;
+  }
+
+  /** Remet dans le tiroir des photos retirées (« Annuler »). */
+  restorePhotos(photos: LibraryPhoto[]) {
+    this.addPhotos(photos);
+  }
+
   /** Document ouvert : la photothèque devient la sienne (ses photos, puis ses photos en attente). */
   replaceLibrary(photos: LibraryPhoto[]) {
     this.photos = [];

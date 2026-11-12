@@ -1,10 +1,38 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { confirmDiscardIfDirty, editor } from "./docStore.svelte";
-import { newDocument } from "./factory";
+import { newDocument, photoZoneElement } from "./factory";
+import { pendingPaths } from "./photoLibrary";
 import { graphismeRows } from "./graphisme";
 import { changeRows, rowsIn, rowsSettings } from "./graphismeEdit";
 
 beforeEach(() => editor.reset(newDocument(), null));
+
+/** Un tiroir de trois photos ; « a » est posée sur la page, « b » et « c » ne le sont pas. */
+function drawerWithOnePlaced() {
+  const meta = (id: string) => ({ id, width_px: 40, height_px: 30, mime: "Jpeg" as const });
+  editor.replaceLibrary(["a", "b", "c"].map((id) => ({ meta: meta(id), path: `/photos/${id}.jpg`, folder: "Ferme" })));
+  editor.carriedPending = ["/photos/b.jpg"];
+  const box = photoZoneElement(editor.page);
+  if (box.kind.type !== "Photo") throw new Error("case photo attendue");
+  const placed = { ...box, kind: { ...box.kind, asset: "a" } };
+  editor.updatePage((p) => ({ ...p, elements: [...p.elements, placed] }), [meta("a")]);
+}
+
+test("retirer les non placées garde les photos posées", () => {
+  drawerWithOnePlaced();
+  const gone = editor.removeUnusedPhotos();
+  expect(gone.map((p) => p.meta.id)).toEqual(["b", "c"]);
+  expect(editor.photos.map((p) => p.meta.id)).toEqual(["a"]);
+  expect(editor.carriedPending).toEqual([]);
+  expect(pendingPaths(editor.photos, editor.doc, editor.carriedPending)).toEqual([]);
+});
+
+test("annuler le retrait remet les photos, et l'enregistrement garde leurs chemins", () => {
+  drawerWithOnePlaced();
+  editor.restorePhotos(editor.removeUnusedPhotos());
+  expect(editor.photos.map((p) => p.meta.id).sort()).toEqual(["a", "b", "c"]);
+  expect(pendingPaths(editor.photos, editor.doc, editor.carriedPending)).toEqual(["/photos/b.jpg", "/photos/c.jpg"]);
+});
 
 test("isDirty", () => {
   expect(editor.dirty).toBe(false);

@@ -38,7 +38,7 @@ pub fn run() {
                 .rotation_strategy(RotationStrategy::KeepOne)
                 .build(),
         )
-        .register_uri_scheme_protocol(protocol::SCHEME, protocol::handle)
+        .register_asynchronous_uri_scheme_protocol(protocol::SCHEME, protocol::handle)
         .setup(|app| {
             let data = app.path().app_data_dir()?;
             if let Some(old) = data.parent().map(|p| p.join(legacy::LEGACY_IDENTIFIER)) {
@@ -129,10 +129,14 @@ pub fn run() {
             images_commands::my_images_rename,
             images_commands::my_images_theme,
             phototheque_commands::phototheque_open,
-            phototheque_commands::phototheque_add,
-            phototheque_commands::phototheque_remove,
+            phototheque_commands::phototheque_scan,
+            phototheque_commands::phototheque_follow,
+            phototheque_commands::phototheque_unfollow,
+            phototheque_commands::phototheque_hide,
             phototheque_commands::phototheque_tag,
             phototheque_commands::phototheque_use,
+            phototheque_commands::phototheque_find_originals,
+            phototheque_commands::phototheque_apply_originals,
             commands::photo_detect_faces,
             commands::photo_blur,
             commands::table_add,

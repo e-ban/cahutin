@@ -4,7 +4,7 @@
 
 use super::INDEX_FILE;
 use crate::fsutil::write_atomically;
-use crate::model::{AssetMeta, Id, Mime, is_safe_id};
+use crate::model::{Id, Mime, is_safe_id};
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 use std::path::Path;
@@ -55,12 +55,6 @@ pub struct ClassPhoto {
     /// Fichier absent au dernier parcours.
     #[serde(default)]
     pub missing: bool,
-}
-
-impl ClassPhoto {
-    pub fn meta(&self) -> AssetMeta {
-        AssetMeta { id: self.id.clone(), width_px: self.width_px, height_px: self.height_px, mime: self.mime, taken: self.taken.clone() }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default, TS)]
@@ -142,12 +136,17 @@ fn convert_v1(dir: &Path, old: PhototequeV1) -> Phototheque {
     Phototheque { format_version: FORMAT_VERSION, folders: vec![FollowedFolder { path: dir.to_string_lossy().into_owned(), missing: false }], photos }
 }
 
-/// La photothèque du dossier ; vide s'il n'y en a pas encore. Un index plus récent que l'application est
-/// refusé plutôt qu'écrasé ; un index de la version 1 est converti en mémoire (le fichier n'est réécrit
-/// qu'à l'enregistrement).
+/// La photothèque du dossier ; vide s'il n'y en a pas encore. Un index qui existe mais ne peut pas être lu
+/// est une erreur (une photothèque vide, enregistrée ensuite, effacerait les étiquettes). Un index plus
+/// récent que l'application est refusé plutôt qu'écrasé ; un index de la version 1 est converti en mémoire
+/// (le fichier n'est réécrit qu'à l'enregistrement).
 pub fn open(dir: &Path) -> Result<Phototheque, String> {
     let path = dir.join(INDEX_FILE);
-    let Ok(bytes) = std::fs::read(&path) else { return Ok(Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![] }) };
+    let bytes = match std::fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![] }),
+        Err(_) => return Err("La photothèque de cette classe ne peut pas être lue.".into()),
+    };
     let unreadable = || "La photothèque de cette classe est illisible.".to_string();
     #[derive(Deserialize)]
     struct Head {
@@ -241,6 +240,14 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let lib = open(tmp.path()).unwrap();
         assert_eq!((lib.format_version, lib.folders.len(), lib.photos.len()), (2, 0, 0));
+    }
+
+    #[test]
+    fn an_index_that_cannot_be_read_is_an_error_not_an_empty_library() {
+        // Un index illisible ne doit pas devenir une photothèque vide : l'enregistrer effacerait les étiquettes.
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join(INDEX_FILE)).unwrap();
+        assert!(open(tmp.path()).unwrap_err().contains("ne peut pas être lue"));
     }
 
     #[test]

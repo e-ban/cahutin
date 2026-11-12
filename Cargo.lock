@@ -384,6 +384,7 @@ version = "0.17.0"
 dependencies = [
  "cahutin-mcp",
  "carnet-core",
+ "image",
  "log",
  "open",
  "serde",

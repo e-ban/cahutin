@@ -3,20 +3,26 @@
 use super::{ClassPhoto, INDEX_FILE, Phototheque, iso, taken_of_file};
 use crate::class;
 use crate::model::{Mime, new_id};
+use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
+use ts_rs::TS;
 
 /// Nombre de photos envoyées à la fois à `on_batch`.
 const BATCH_SIZE: usize = 50;
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Serialize, Clone, Debug, Default, PartialEq, TS)]
+#[ts(export)]
 pub struct ScanReport {
     /// Photos nouvelles.
+    #[ts(type = "number")]
     pub added: usize,
     /// Photos retrouvées ailleurs (renommées ou déplacées).
+    #[ts(type = "number")]
     pub moved: usize,
     /// Photos dont le fichier manque après le parcours.
+    #[ts(type = "number")]
     pub missing: usize,
     /// Dossiers suivis introuvables.
     pub missing_folders: Vec<String>,
@@ -181,6 +187,43 @@ pub fn scan(lib: &mut Phototheque, _library_dir: &Path, on_batch: &mut dyn FnMut
     }
     report.missing = lib.photos.iter().filter(|p| p.missing).count();
     report
+}
+
+/// Reporte dans l'index courant les résultats d'un parcours fait sur une copie de l'index : l'enseignant a
+/// pu étiqueter, masquer ou ne plus suivre un dossier pendant ce temps. Pour une photo connue, le fichier
+/// (chemin, dossier, taille, date, empreinte, dimensions, absence) vient du parcours ; élèves, activités
+/// et « masquée » restent ceux de l'index courant. Une photo nouvelle n'entre que si son dossier est encore
+/// suivi et que son chemin n'y est pas déjà. L'absence des dossiers suivis est reportée d'après leur chemin.
+/// Rend les photos telles qu'elles sont maintenant dans l'index courant.
+pub fn merge_scan(current: &mut Phototheque, photos: &[ClassPhoto], folders: &[super::FollowedFolder]) -> Vec<ClassPhoto> {
+    // Tables par identifiant et par chemin : l'index peut compter des milliers de photos.
+    let index_of: HashMap<String, usize> = current.photos.iter().enumerate().map(|(i, p)| (p.id.clone(), i)).collect();
+    let mut merged = Vec::with_capacity(photos.len());
+    let mut new = Vec::new();
+    for s in photos {
+        let Some(&i) = index_of.get(&s.id) else {
+            new.push(s);
+            continue;
+        };
+        let p = &mut current.photos[i];
+        let (students, tags, hidden) = (std::mem::take(&mut p.students), std::mem::take(&mut p.tags), p.hidden);
+        *p = ClassPhoto { students, tags, hidden, ..s.clone() };
+        merged.push(p.clone());
+    }
+    let mut paths: HashSet<String> = current.photos.iter().map(|p| p.path.clone()).collect();
+    for s in new {
+        let followed = current.folders.iter().any(|f| Path::new(&s.path).starts_with(&f.path));
+        if followed && paths.insert(s.path.clone()) {
+            current.photos.push(s.clone());
+            merged.push(s.clone());
+        }
+    }
+    for f in &mut current.folders {
+        if let Some(s) = folders.iter().find(|s| s.path == f.path) {
+            f.missing = s.missing;
+        }
+    }
+    merged
 }
 
 /// Suit un dossier. Refusé s'il est déjà suivi, contenu dans un dossier suivi, ou s'il en contient un
@@ -435,6 +478,53 @@ mod tests {
         assert_eq!(report.added, 1);
         let p = &lib.photos[0];
         assert_eq!((p.mime, p.width_px, p.height_px), (Mime::Jpeg, 40, 30));
+    }
+
+    #[test]
+    fn a_tag_added_while_the_scan_runs_is_kept() {
+        let (_tmp, library, folder, mut lib) = setup();
+        jpeg(&folder.join("a.jpg"), 10);
+        run(&mut lib, &library);
+        let id = lib.photos[0].id.clone();
+        // Le parcours travaille sur une copie de l'index ; pendant ce temps, l'enseignant étiquette.
+        let mut scanned = lib.clone();
+        std::fs::rename(folder.join("a.jpg"), folder.join("renommee.jpg")).unwrap();
+        jpeg(&folder.join("b.jpg"), 90);
+        let mut batches = vec![];
+        scan(&mut scanned, &library, &mut |b| batches.push(b.to_vec()));
+        tag_all(&mut lib, &id, "Motricité");
+        hide(&mut lib, std::slice::from_ref(&id), true);
+        // Chaque paquet rejoint l'index courant, puis l'index entier à la fin.
+        for b in &batches {
+            let merged = merge_scan(&mut lib, b, &[]);
+            assert!(merged.iter().any(|p| p.id == id && p.tags == ["Motricité"]), "le paquet envoyé porte l'étiquette");
+        }
+        merge_scan(&mut lib, &scanned.photos, &scanned.folders);
+        assert_eq!(lib.photos.len(), 2);
+        let a = lib.photos.iter().find(|p| p.id == id).unwrap();
+        assert_eq!(a.path, folder.join("renommee.jpg").to_string_lossy());
+        assert_eq!((a.tags.as_slice(), a.hidden), (["Motricité".to_string()].as_slice(), true));
+        assert!(by_name(&lib, "b.jpg").tags.is_empty());
+        // Un second passage ne double rien.
+        merge_scan(&mut lib, &scanned.photos, &scanned.folders);
+        assert_eq!(lib.photos.len(), 2);
+    }
+
+    #[test]
+    fn a_folder_unfollowed_while_the_scan_runs_stays_forgotten() {
+        let (tmp, library, folder, mut lib) = setup();
+        let autre = tmp.path().join("Autre");
+        jpeg(&folder.join("a.jpg"), 10);
+        jpeg(&autre.join("b.jpg"), 60);
+        follow(&mut lib, &autre).unwrap();
+        let mut scanned = lib.clone();
+        std::fs::remove_dir_all(&folder).unwrap();
+        run(&mut scanned, &library);
+        unfollow(&mut lib, &autre.to_string_lossy());
+        merge_scan(&mut lib, &scanned.photos, &scanned.folders);
+        assert!(lib.photos.is_empty(), "les photos du dossier oublié ne reviennent pas");
+        assert_eq!(lib.folders.len(), 1);
+        assert!(lib.folders[0].missing, "l'absence du dossier suivi est reportée");
     }
 
     #[test]

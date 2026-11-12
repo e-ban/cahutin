@@ -1,19 +1,21 @@
 //! Commandes de la photothèque de la classe : un dossier par classe, à côté du dossier des classes
-//! (`Documents/Cahutin/Photos/<nom du fichier de la classe>/`). Une seule photothèque ouverte à la fois,
-//! celle de la classe courante. Le journal ne contient que des nombres.
+//! (`Documents/Cahutin/Photos/<nom du fichier de la classe>/`), qui garde l'index et le cache de vignettes.
+//! Les photos restent dans les dossiers que l'enseignant suit : rien n'est copié. Une seule photothèque
+//! ouverte à la fois, celle de la classe courante. Le journal ne contient que des nombres.
 
 use crate::state::AppState;
 use carnet_core::AssetMeta;
 use carnet_core::class::CLASS_EXTENSION;
-use carnet_core::phototheque::{self, Phototheque, TagChange};
+use carnet_core::phototheque::originals::{self, Match, OriginalsReport};
+use carnet_core::phototheque::{self, ClassPhoto, FollowedFolder, Phototheque, ScanReport, TagChange, thumbs};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use tauri::State;
+use std::sync::atomic::Ordering;
 use tauri::ipc::Channel;
+use tauri::{AppHandle, Manager, State};
 use ts_rs::TS;
 
-const ADD_THREADS: usize = 4;
+const MISSING_FILE: &str = "Cette photo est introuvable : la clé USB est-elle branchée ?";
 
 /// Dossier des photos d'une classe : seulement pour un fichier de classe du dossier des classes.
 pub fn library_dir(classes_dir: &Path, class_path: &Path) -> Result<PathBuf, String> {
@@ -31,11 +33,23 @@ fn with_open<T>(state: &AppState, f: impl FnOnce(&Path, &mut Phototheque) -> Res
     f(dir, index)
 }
 
+/// Le dossier et une copie de l'index ouvert, pour un long travail fait sans tenir le verrou.
+fn snapshot(state: &AppState) -> Result<(PathBuf, Phototheque), String> {
+    with_open(state, |dir, index| Ok((dir.to_path_buf(), index.clone())))
+}
+
+/// Ouvre la photothèque de la classe et la rend tout de suite, telle que l'index la connaît : le disque
+/// n'est parcouru qu'ensuite (`phototheque_scan`).
 pub fn open_in(state: &AppState, class_path: &Path) -> Result<Phototheque, String> {
     let dir = library_dir(&state.classes_dir, class_path)?;
     let index = phototheque::open(&dir)?;
-    log::info!("phototheque_open photos={}", index.photos.len());
-    *state.phototheque.lock().unwrap() = Some((dir, index.clone()));
+    log::info!("phototheque_open photos={} folders={}", index.photos.len(), index.folders.len());
+    let mut open = state.phototheque.lock().unwrap();
+    // Une autre classe : le remplissage des vignettes de la précédente s'arrête.
+    if open.as_ref().is_none_or(|(d, _)| *d != dir) {
+        state.thumb_fill.fetch_add(1, Ordering::SeqCst);
+    }
+    *open = Some((dir, index.clone()));
     Ok(index)
 }
 
@@ -44,82 +58,150 @@ pub fn phototheque_open(state: State<'_, AppState>, class_path: String) -> Resul
     open_in(&state, Path::new(&class_path))
 }
 
+/// Ce que le parcours annonce à l'interface.
 #[derive(Serialize, Clone, Debug, TS)]
 #[ts(export)]
 #[serde(tag = "type")]
-pub enum ClassPhotoAdded {
-    Ok { photo: phototheque::ClassPhoto },
-    Err { message: String },
+pub enum ScanEvent {
+    /// Photos nouvelles, retrouvées ailleurs, changées ou de retour, par paquets de 50, telles qu'elles
+    /// sont dans l'index (avec les étiquettes posées pendant le parcours).
+    Photos { photos: Vec<ClassPhoto> },
+    /// Fin du parcours. L'index entier est joint : les photos devenues absentes ne passent pas par les
+    /// paquets, l'interface remplace donc sa liste par celle-ci, sans rappeler `phototheque_open`.
+    Done { report: ScanReport, phototheque: Phototheque },
 }
 
-/// Ajout d'un lot de photos, sur plusieurs fils : chaque photo prête entre dans l'index, enregistré
-/// aussitôt, puis elle est annoncée. Une fermeture en cours d'import garde les photos déjà ajoutées.
-pub fn add_in(state: &AppState, paths: &[String], on_each: impl Fn(ClassPhotoAdded) + Sync) -> Result<Phototheque, String> {
-    let dir = with_open(state, |dir, _| Ok(dir.to_path_buf()))?;
-    let files: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
-    let failures = AtomicUsize::new(0);
-    let next = AtomicUsize::new(0);
-    std::thread::scope(|s| {
-        for _ in 0..ADD_THREADS.min(files.len()) {
-            s.spawn(|| {
-                while let Some(f) = files.get(next.fetch_add(1, Ordering::Relaxed)) {
-                    match phototheque::add_file(&dir, f).map_err(|e| e.message_fr()).and_then(|p| record(state, &dir, p)) {
-                        Ok(p) => on_each(ClassPhotoAdded::Ok { photo: p }),
-                        Err(message) => {
-                            failures.fetch_add(1, Ordering::Relaxed);
-                            on_each(ClassPhotoAdded::Err { message });
-                        }
-                    }
-                }
-            });
-        }
-    });
-    log::info!("phototheque_add total={} failures={}", files.len(), failures.into_inner());
-    with_open(state, |_, index| Ok(index.clone()))
-}
-
-/// Une photo ajoutée entre dans l'index de son dossier, enregistré : celui qui est ouvert, ou celui du
-/// disque si l'on a changé de classe pendant l'import.
-fn record(state: &AppState, dir: &Path, photo: phototheque::ClassPhoto) -> Result<phototheque::ClassPhoto, String> {
-    let mut lib = state.phototheque.lock().unwrap();
-    match lib.as_mut() {
-        Some((open, index)) if open == dir => {
-            index.photos.push(photo.clone());
+/// Reporte des résultats du parcours dans l'index du dossier `dir`, puis l'enregistre : l'index ouvert,
+/// ou celui du disque si l'on a changé de classe pendant le parcours. Rend les photos reportées.
+fn merge_saved(state: &AppState, dir: &Path, photos: &[ClassPhoto], folders: &[FollowedFolder]) -> Result<Vec<ClassPhoto>, String> {
+    let mut open = state.phototheque.lock().unwrap();
+    match open.as_mut() {
+        Some((d, index)) if d == dir => {
+            let merged = phototheque::merge_scan(index, photos, folders);
             phototheque::save(dir, index)?;
+            Ok(merged)
         }
         _ => {
             let mut index = phototheque::open(dir)?;
-            index.photos.push(photo.clone());
+            let merged = phototheque::merge_scan(&mut index, photos, folders);
             phototheque::save(dir, &index)?;
+            Ok(merged)
         }
     }
-    Ok(photo)
 }
 
-#[tauri::command(async)]
-pub fn phototheque_add(state: State<'_, AppState>, paths: Vec<String>, on_progress: Channel<ClassPhotoAdded>) -> Result<Phototheque, String> {
-    add_in(&state, &paths, |o| {
-        let _ = on_progress.send(o);
-    })
-}
-
-#[tauri::command(async)]
-pub fn phototheque_remove(state: State<'_, AppState>, ids: Vec<String>) -> Result<Phototheque, String> {
-    with_open(&state, |dir, index| {
-        // À la corbeille de l'ordinateur, comme un document ou une classe : une erreur se rattrape.
-        let files = phototheque::files_to_dispose(dir, index, &ids);
-        // Fichiers déjà tous disparus : rien à mettre à la corbeille, l'index se met à jour quand même.
-        if !files.is_empty() {
-            trash::delete_all(&files).map_err(|e| {
-                log::error!("phototheque_trash_failed kind={}", crate::commands::trash_error_kind(&e));
-                "Les photos n'ont pas pu être mises à la corbeille.".to_string()
-            })?;
+/// Parcourt les dossiers suivis sur une copie de l'index, sans tenir le verrou : l'enseignant peut
+/// étiqueter pendant ce temps. Chaque paquet rejoint l'index, enregistré, puis il est annoncé.
+pub fn scan_in(state: &AppState, on_event: impl Fn(ScanEvent)) -> Result<ScanReport, String> {
+    // Un seul parcours à la fois : deux parcours donneraient deux identifiants au même fichier nouveau.
+    let _one = state.phototheque_scan.lock().unwrap_or_else(|e| e.into_inner());
+    let (dir, mut scanned) = snapshot(state)?;
+    let mut failed = None;
+    let report = phototheque::scan(&mut scanned, &dir, &mut |batch| {
+        if failed.is_none() {
+            match merge_saved(state, &dir, batch, &[]) {
+                Ok(photos) => on_event(ScanEvent::Photos { photos }),
+                Err(e) => failed = Some(e),
+            }
         }
-        phototheque::remove(index, &ids);
+    });
+    if let Some(e) = failed {
+        return Err(e);
+    }
+    merge_saved(state, &dir, &scanned.photos, &scanned.folders)?;
+    let index = match snapshot(state) {
+        Ok((d, index)) if d == dir => index,
+        _ => phototheque::open(&dir)?,
+    };
+    log::info!("phototheque_scan added={} moved={} missing={} missing_folders={}", report.added, report.moved, report.missing, report.missing_folders.len());
+    on_event(ScanEvent::Done { report: report.clone(), phototheque: index });
+    Ok(report)
+}
+
+/// Parcourt les dossiers suivis, puis un seul fil remplit le cache de vignettes en arrière-plan.
+#[tauri::command(async)]
+pub fn phototheque_scan(app: AppHandle, state: State<'_, AppState>, on_progress: Channel<ScanEvent>) -> Result<ScanReport, String> {
+    let report = scan_in(&state, |e| {
+        let _ = on_progress.send(e);
+    })?;
+    // Ce remplissage remplace celui d'un parcours précédent : jamais deux fils à la fois.
+    let epoch = state.thumb_fill.fetch_add(1, Ordering::SeqCst) + 1;
+    std::thread::spawn(move || fill_thumbs(&app.state::<AppState>(), epoch));
+    Ok(report)
+}
+
+/// Fait les vignettes manquantes de la photothèque ouverte, une photo après l'autre, et efface d'abord
+/// celles qui ne servent plus (fichiers du cache de Cahutin, jamais ceux de l'enseignant). S'arrête dès
+/// que `thumb_fill` change : une autre classe ouverte ou un nouveau remplissage.
+pub fn fill_thumbs(state: &AppState, epoch: u64) {
+    let current = || state.thumb_fill.load(Ordering::SeqCst) == epoch;
+    if !current() {
+        return;
+    }
+    let Ok((dir, lib)) = snapshot(state) else { return };
+    if !current() {
+        return;
+    }
+    // Un fichier tout récent peut être une vignette en cours d'écriture (protocole) : laissé pour plus tard.
+    let recent = |f: &Path| std::fs::metadata(f).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_none_or(|age| age.as_secs() < 60);
+    for stale in thumbs::stale_thumbs(&dir, &lib).into_iter().filter(|f| !recent(f)) {
+        let _ = std::fs::remove_file(stale);
+    }
+    let (mut made, mut failed) = (0, 0);
+    for p in lib.photos.iter().filter(|p| !p.hidden && !p.missing) {
+        if !current() {
+            break;
+        }
+        match thumbs::thumb(&dir, p) {
+            Ok(_) => made += 1,
+            Err(_) => failed += 1,
+        }
+    }
+    log::info!("phototheque_thumbs photos={made} failed={failed}");
+}
+
+pub fn follow_in(state: &AppState, folder: &str) -> Result<Phototheque, String> {
+    with_open(state, |dir, index| {
+        phototheque::follow(index, Path::new(folder))?;
         phototheque::save(dir, index)?;
-        log::info!("phototheque_remove photos={}", ids.len());
+        log::info!("phototheque_follow folders={}", index.folders.len());
         Ok(index.clone())
     })
+}
+
+#[tauri::command(async)]
+pub fn phototheque_follow(state: State<'_, AppState>, folder: String) -> Result<Phototheque, String> {
+    follow_in(&state, &folder)
+}
+
+/// « Ne plus suivre » : le dossier et ses photos sont oubliés, aucun fichier n'est touché.
+pub fn unfollow_in(state: &AppState, folder: &str) -> Result<Phototheque, String> {
+    with_open(state, |dir, index| {
+        phototheque::unfollow(index, folder);
+        phototheque::save(dir, index)?;
+        log::info!("phototheque_unfollow folders={} photos={}", index.folders.len(), index.photos.len());
+        Ok(index.clone())
+    })
+}
+
+#[tauri::command(async)]
+pub fn phototheque_unfollow(state: State<'_, AppState>, folder: String) -> Result<Phototheque, String> {
+    unfollow_in(&state, &folder)
+}
+
+/// « Retirer » (et son annulation) : la photo est masquée, gardée dans l'index avec ses étiquettes.
+pub fn hide_in(state: &AppState, ids: &[String], hidden: bool) -> Result<Phototheque, String> {
+    with_open(state, |dir, index| {
+        phototheque::hide(index, ids, hidden);
+        phototheque::save(dir, index)?;
+        log::info!("phototheque_hide photos={} hidden={hidden}", ids.len());
+        Ok(index.clone())
+    })
+}
+
+#[tauri::command(async)]
+pub fn phototheque_hide(state: State<'_, AppState>, ids: Vec<String>, hidden: bool) -> Result<Phototheque, String> {
+    hide_in(&state, &ids, hidden)
 }
 
 #[tauri::command(async)]
@@ -131,11 +213,20 @@ pub fn phototheque_tag(state: State<'_, AppState>, ids: Vec<String>, change: Tag
     })
 }
 
-/// Les photos choisies, prêtes pour le document : elles rejoignent les images de l'application.
+/// Les photos choisies, prêtes pour le document (copiées dedans, réduites) : elles rejoignent les images de
+/// l'application. Si un fichier manque, rien n'est ajouté.
 pub fn use_in(state: &AppState, ids: &[String]) -> Result<Vec<AssetMeta>, String> {
-    let assets = with_open(state, |dir, index| {
-        Ok(index.photos.iter().filter(|p| ids.contains(&p.id)).filter_map(|p| phototheque::load_asset(dir, p)).collect::<Vec<_>>())
-    })?;
+    let photos: Vec<ClassPhoto> = with_open(state, |_, index| Ok(index.photos.iter().filter(|p| ids.contains(&p.id)).cloned().collect()))?;
+    // Les photos sont lues sans tenir le verrou de la photothèque.
+    let assets = photos
+        .iter()
+        .map(|p| {
+            if !Path::new(&p.path).is_file() {
+                return Err(MISSING_FILE.to_string());
+            }
+            thumbs::load_asset(p).map_err(|e| e.message_fr())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let mut store = state.store.lock().unwrap();
     let mut metas = Vec::new();
     for a in assets {
@@ -151,10 +242,59 @@ pub fn phototheque_use(state: State<'_, AppState>, ids: Vec<String>) -> Result<V
     use_in(&state, &ids)
 }
 
+/// Migration : pour chaque copie faite par l'ancienne photothèque (dans le dossier de la classe), son
+/// original parmi les photos des autres dossiers suivis. Rien n'est touché ; seules les vignettes se font.
+pub fn find_originals_in(state: &AppState) -> Result<OriginalsReport, String> {
+    let (dir, lib) = snapshot(state)?;
+    let report = originals::find_originals(&lib, &dir, &dir.to_string_lossy());
+    log::info!("phototheque_find_originals matches={} unmatched={}", report.matches.len(), report.unmatched.len());
+    Ok(report)
+}
+
+#[tauri::command(async)]
+pub fn phototheque_find_originals(state: State<'_, AppState>) -> Result<OriginalsReport, String> {
+    find_originals_in(&state)
+}
+
+/// Fin de la migration, après confirmation : les copies rapprochées vont à la corbeille (`to_trash`),
+/// puis leurs élèves et activités passent sur les originaux et les copies sont masquées. Si la corbeille
+/// échoue, rien ne change.
+pub fn apply_originals_in(state: &AppState, matches: &[Match], to_trash: impl FnOnce(&[PathBuf]) -> Result<(), String>) -> Result<Phototheque, String> {
+    with_open(state, |dir, index| {
+        // Seules les copies du dossier de la classe peuvent partir à la corbeille, jamais une photo de l'enseignant.
+        let matches: Vec<Match> = matches.iter().filter(|m| index.photos.iter().any(|p| p.id == m.copy && Path::new(&p.path).starts_with(dir))).cloned().collect();
+        let mut updated = index.clone();
+        let files: Vec<PathBuf> = originals::apply_originals(&mut updated, &matches).into_iter().filter(|f| f.exists()).collect();
+        if !files.is_empty() {
+            to_trash(&files)?;
+        }
+        *index = updated;
+        phototheque::save(dir, index)?;
+        log::info!("phototheque_apply_originals matches={} trashed={}", matches.len(), files.len());
+        Ok(index.clone())
+    })
+}
+
+#[tauri::command(async)]
+pub fn phototheque_apply_originals(state: State<'_, AppState>, matches: Vec<Match>) -> Result<Phototheque, String> {
+    apply_originals_in(&state, &matches, |files| {
+        // À la corbeille de l'ordinateur, comme un document ou une classe : une erreur se rattrape.
+        trash::delete_all(files).map_err(|e| {
+            log::error!("phototheque_trash_failed kind={}", crate::commands::trash_error_kind(&e));
+            "Les photos n'ont pas pu être mises à la corbeille.".to_string()
+        })
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use carnet_core::phototheque::INDEX_FILE;
     use carnet_core::templates::Library;
+    use image::{ImageFormat, Rgb, RgbImage};
+    use std::io::Cursor;
+    use std::sync::Mutex;
+    use std::sync::atomic::Ordering;
 
     fn state(dir: &Path) -> AppState {
         let classes = dir.join("Cahutin").join("Classes");
@@ -162,11 +302,65 @@ mod tests {
         AppState::new(Default::default(), Library::open(dir.join("modeles")).unwrap(), dir.join("polices"), classes, dir.join("secours"))
     }
 
-    fn jpeg(dir: &Path, name: &str) -> String {
-        let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../crates/carnet-core/tests/fixtures/date.jpg");
-        let p = dir.join(name);
-        std::fs::copy(fixture, &p).unwrap();
-        p.to_string_lossy().into_owned()
+    /// Une classe ouverte, et sa photothèque (vide).
+    fn class(s: &AppState, name: &str) -> PathBuf {
+        let class = s.classes_dir.join(format!("{name}.cahutin-classe"));
+        std::fs::write(&class, b"").unwrap();
+        open_in(s, &class).unwrap();
+        class
+    }
+
+    /// Une photo générée de 1200 x 900 dont les bandes dépendent de `seed`.
+    fn pattern(seed: u32) -> RgbImage {
+        let mut state = seed.wrapping_mul(2_654_435_761).wrapping_add(12345);
+        let mut bands = [0u8; 12];
+        for b in &mut bands {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            *b = (state >> 24) as u8;
+        }
+        RgbImage::from_fn(1200, 900, |x, y| {
+            let v = bands[(x / 100) as usize];
+            let dark = if (y / 150 + x / 100) % 2 == 0 { 0 } else { 40 };
+            Rgb([v.saturating_sub(dark), v / 2 + 60, 255 - v])
+        })
+    }
+
+    fn jpeg(path: &Path, seed: u32) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let mut out = Cursor::new(Vec::new());
+        pattern(seed).write_to(&mut out, ImageFormat::Jpeg).unwrap();
+        std::fs::write(path, out.into_inner()).unwrap();
+    }
+
+    /// Parcourt et rend les photos annoncées par paquets, et l'index joint à la fin.
+    fn scan(s: &AppState) -> (ScanReport, Vec<ClassPhoto>, Phototheque) {
+        let events = Mutex::new(vec![]);
+        let report = scan_in(s, |e| events.lock().unwrap().push(e)).unwrap();
+        let mut photos = vec![];
+        let mut done = None;
+        for e in events.into_inner().unwrap() {
+            match e {
+                ScanEvent::Photos { photos: p } => photos.extend(p),
+                ScanEvent::Done { report: r, phototheque } => {
+                    assert_eq!(r, report);
+                    done = Some(phototheque);
+                }
+            }
+        }
+        (report, photos, done.expect("Done arrive à la fin"))
+    }
+
+    /// Une classe qui suit un dossier `Sortie` de trois photos, parcouru.
+    fn followed_three(dir: &Path) -> (AppState, PathBuf, Phototheque) {
+        let s = state(dir);
+        let class = class(&s, "MS");
+        let folder = dir.join("Sortie");
+        for i in 0..3 {
+            jpeg(&folder.join(format!("p{i}.jpg")), i);
+        }
+        follow_in(&s, &folder.to_string_lossy()).unwrap();
+        let (_, _, lib) = scan(&s);
+        (s, class, lib)
     }
 
     #[test]
@@ -182,28 +376,192 @@ mod tests {
     }
 
     #[test]
-    fn photos_are_added_then_used_in_a_document() {
+    fn a_followed_folder_of_three_photos_announces_three_photos() {
         let dir = tempfile::tempdir().unwrap();
         let s = state(dir.path());
-        let class = s.classes_dir.join("MS.cahutin-classe");
-        std::fs::write(&class, b"").unwrap();
-        assert!(open_in(&s, &class).unwrap().photos.is_empty());
-        let files = [jpeg(dir.path(), "a.jpg"), jpeg(dir.path(), "b.jpg"), dir.path().join("absent.jpg").to_string_lossy().into_owned()];
-        let seen = AtomicUsize::new(0);
-        let saved_dir = library_dir(&s.classes_dir, &class).unwrap();
-        let lib = add_in(&s, &files, |o| {
-            seen.fetch_add(1, Ordering::Relaxed);
-            // Une photo annoncée est déjà dans l'index enregistré.
-            if let ClassPhotoAdded::Ok { photo } = o {
-                assert!(phototheque::open(&saved_dir).unwrap().photos.iter().any(|p| p.id == photo.id));
+        let class = class(&s, "MS");
+        let folder = dir.path().join("Sortie");
+        for i in 0..3 {
+            jpeg(&folder.join(format!("p{i}.jpg")), i);
+        }
+        let lib = follow_in(&s, &folder.to_string_lossy()).unwrap();
+        assert_eq!(lib.folders.len(), 1);
+        assert!(follow_in(&s, &folder.to_string_lossy()).is_err(), "déjà suivi");
+        let (report, photos, index) = scan(&s);
+        assert_eq!((report.added, report.missing), (3, 0));
+        assert_eq!(photos.len(), 3);
+        assert_eq!(index.photos.len(), 3);
+        // L'index est enregistré : rouverte, la photothèque a ses trois photos, sans rien copier.
+        assert_eq!(open_in(&s, &class).unwrap().photos.len(), 3);
+        assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 3);
+        let lib = unfollow_in(&s, &folder.to_string_lossy()).unwrap();
+        assert!(lib.folders.is_empty() && lib.photos.is_empty());
+        assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 3, "rien n'est touché sur le disque");
+    }
+
+    #[test]
+    fn photos_that_became_missing_come_with_the_done_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, _class, _) = followed_three(dir.path());
+        std::fs::remove_file(dir.path().join("Sortie/p0.jpg")).unwrap();
+        let (report, photos, index) = scan(&s);
+        assert_eq!(report.missing, 1);
+        assert!(photos.is_empty(), "une photo devenue absente ne passe pas par les paquets");
+        assert_eq!(index.photos.iter().filter(|p| p.missing).count(), 1);
+    }
+
+    #[test]
+    fn a_hidden_photo_stays_hidden_after_reopening() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, class, lib) = followed_three(dir.path());
+        let id = lib.photos[0].id.clone();
+        assert!(hide_in(&s, std::slice::from_ref(&id), true).unwrap().photos[0].hidden);
+        let lib = open_in(&s, &class).unwrap();
+        assert!(lib.photos.iter().find(|p| p.id == id).unwrap().hidden);
+        scan(&s);
+        assert!(open_in(&s, &class).unwrap().photos.iter().find(|p| p.id == id).unwrap().hidden, "même après un parcours");
+        assert!(!hide_in(&s, &[id], false).unwrap().photos[0].hidden);
+    }
+
+    #[test]
+    fn a_used_photo_keeps_its_id_and_stays_in_the_store_once_hidden() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, _class, lib) = followed_three(dir.path());
+        let id = lib.photos[0].id.clone();
+        let metas = use_in(&s, std::slice::from_ref(&id)).unwrap();
+        assert_eq!(metas.len(), 1);
+        assert_eq!(metas[0].id, id);
+        // Déjà posée dans un document : le magasin d'images la sert encore après « Retirer ».
+        hide_in(&s, std::slice::from_ref(&id), true).unwrap();
+        assert!(s.store.lock().unwrap().get(&id).is_some());
+    }
+
+    #[test]
+    fn using_a_photo_whose_file_is_gone_says_so_plainly() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, _class, lib) = followed_three(dir.path());
+        std::fs::remove_file(&lib.photos[1].path).unwrap();
+        let ids = [lib.photos[0].id.clone(), lib.photos[1].id.clone()];
+        assert_eq!(use_in(&s, &ids).unwrap_err(), "Cette photo est introuvable : la clé USB est-elle branchée ?");
+        assert!(s.store.lock().unwrap().get(&ids[0]).is_none(), "rien n'est ajouté à moitié");
+    }
+
+    #[test]
+    fn the_thumbnail_filler_makes_every_thumbnail_and_stops_for_another_class() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, class, lib) = followed_three(dir.path());
+        let thumbs = library_dir(&s.classes_dir, &class).unwrap().join(".vignettes");
+        let count = || std::fs::read_dir(&thumbs).map_or(0, |d| d.count());
+        // Une autre classe ouverte : le remplissage commencé pour la première s'arrête.
+        let epoch = s.thumb_fill.load(Ordering::SeqCst);
+        let other = self::class(&s, "GS");
+        fill_thumbs(&s, epoch);
+        assert_eq!(count(), 0);
+        // Rouvrir la même classe n'arrête rien ; un nouveau remplissage remplace le précédent.
+        open_in(&s, &class).unwrap();
+        let epoch = s.thumb_fill.load(Ordering::SeqCst);
+        open_in(&s, &class).unwrap();
+        assert_eq!(s.thumb_fill.load(Ordering::SeqCst), epoch);
+        fill_thumbs(&s, epoch);
+        assert_eq!(count(), lib.photos.len());
+        assert!(library_dir(&s.classes_dir, &other).unwrap().join(".vignettes").read_dir().is_err());
+        // Une vignette qui ne sert plus est effacée ; un fichier tout récent (en cours d'écriture) est laissé.
+        let (old, fresh) = (thumbs.join("ancienne-1-2.jpg"), thumbs.join("x-1-2.jpg.9-0.tmp"));
+        std::fs::write(&old, b"x").unwrap();
+        std::fs::write(&fresh, b"x").unwrap();
+        let long_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        std::fs::File::options().write(true).open(&old).unwrap().set_modified(long_ago).unwrap();
+        fill_thumbs(&s, epoch);
+        assert!(!old.exists() && fresh.exists());
+        assert_eq!(count(), lib.photos.len() + 1);
+    }
+
+    const V1: &str = r#"{"format_version": 1, "photos": [
+        {"id": "c1", "width_px": 400, "height_px": 300, "mime": "Jpeg", "taken": null, "added": "2026-10-15",
+         "students": ["lea"], "tags": ["Sortie à la ferme"]},
+        {"id": "c2", "width_px": 400, "height_px": 300, "mime": "Jpeg", "taken": null, "added": "2026-10-16",
+         "students": [], "tags": ["Motricité"]}]}"#;
+
+    /// Une ancienne photothèque (version 1) : deux copies réduites faites par Cahutin, et leurs originaux
+    /// dans un dossier `Originaux` que l'enseignant suit.
+    fn old_library(dir: &Path) -> (AppState, PathBuf, PathBuf) {
+        let s = state(dir);
+        let library = dir.join("Cahutin").join("Photos").join("MS");
+        std::fs::create_dir_all(&library).unwrap();
+        for (id, seed) in [("c1", 1), ("c2", 2)] {
+            let mut out = Cursor::new(Vec::new());
+            pattern(seed).write_to(&mut out, ImageFormat::Jpeg).unwrap();
+            let copy = carnet_core::photo::import_bytes(&out.into_inner()).unwrap();
+            std::fs::write(library.join(format!("{id}.jpg")), &*copy.bytes).unwrap();
+        }
+        std::fs::write(library.join(INDEX_FILE), V1).unwrap();
+        let originals = dir.join("Originaux");
+        jpeg(&originals.join("IMG_0001.jpg"), 1);
+        jpeg(&originals.join("IMG_0002.jpg"), 2);
+        class(&s, "MS");
+        follow_in(&s, &originals.to_string_lossy()).unwrap();
+        scan(&s);
+        (s, library, originals)
+    }
+
+    fn by_name<'a>(lib: &'a Phototheque, name: &str) -> &'a ClassPhoto {
+        lib.photos.iter().find(|p| Path::new(&p.path).file_name().unwrap() == name).unwrap()
+    }
+
+    #[test]
+    fn an_old_library_finds_its_originals_and_sends_the_copies_to_the_trash() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, library, _originals) = old_library(dir.path());
+        let report = find_originals_in(&s).unwrap();
+        assert_eq!((report.matches.len(), report.unmatched.len()), (2, 0));
+        let bin = dir.path().join("Corbeille");
+        let lib = apply_originals_in(&s, &report.matches, |files| {
+            std::fs::create_dir_all(&bin).unwrap();
+            for f in files {
+                std::fs::rename(f, bin.join(f.file_name().unwrap())).unwrap();
             }
+            Ok(())
         })
         .unwrap();
-        assert_eq!((lib.photos.len(), seen.into_inner()), (2, 3));
-        // Rouverte, la photothèque a gardé ses photos.
-        assert_eq!(open_in(&s, &class).unwrap().photos.len(), 2);
-        let metas = use_in(&s, &[lib.photos[0].id.clone()]).unwrap();
-        assert_eq!(metas.len(), 1);
-        assert!(s.store.lock().unwrap().get(&metas[0].id).is_some());
+        assert!(!library.join("c1.jpg").exists() && !library.join("c2.jpg").exists(), "copies à la corbeille");
+        assert!(bin.join("c1.jpg").exists() && bin.join("c2.jpg").exists());
+        let o1 = by_name(&lib, "IMG_0001.jpg");
+        assert_eq!((o1.students.as_slice(), o1.tags.as_slice()), (["lea".to_string()].as_slice(), ["Sortie à la ferme".to_string()].as_slice()));
+        assert_eq!(by_name(&lib, "IMG_0002.jpg").tags, ["Motricité"]);
+        assert!(lib.photos.iter().filter(|p| p.id == "c1" || p.id == "c2").all(|p| p.hidden));
+        // Enregistré.
+        assert_eq!(phototheque::open(&library).unwrap(), lib);
+    }
+
+    #[test]
+    fn a_failed_trash_changes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, library, _originals) = old_library(dir.path());
+        let report = find_originals_in(&s).unwrap();
+        let before = with_open(&s, |_, i| Ok(i.clone())).unwrap();
+        let saved = std::fs::read(library.join(INDEX_FILE)).unwrap();
+        let err = apply_originals_in(&s, &report.matches, |_| Err("Les photos n'ont pas pu être mises à la corbeille.".into())).unwrap_err();
+        assert_eq!(err, "Les photos n'ont pas pu être mises à la corbeille.");
+        assert_eq!(with_open(&s, |_, i| Ok(i.clone())).unwrap(), before);
+        assert_eq!(std::fs::read(library.join(INDEX_FILE)).unwrap(), saved);
+        assert!(library.join("c1.jpg").exists());
+    }
+
+    #[test]
+    fn only_copies_of_the_class_folder_can_go_to_the_trash() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, _library, originals) = old_library(dir.path());
+        let lib = with_open(&s, |_, i| Ok(i.clone())).unwrap();
+        // Une demande venue de la page qui désigne une photo de l'enseignant comme copie : ignorée.
+        let wrong = Match { copy: by_name(&lib, "IMG_0001.jpg").id.clone(), original: "c1".into() };
+        let trashed = Mutex::new(vec![]);
+        apply_originals_in(&s, &[wrong], |files| {
+            trashed.lock().unwrap().extend_from_slice(files);
+            Ok(())
+        })
+        .unwrap();
+        assert!(trashed.into_inner().unwrap().is_empty());
+        assert!(originals.join("IMG_0001.jpg").exists());
+        assert!(!by_name(&with_open(&s, |_, i| Ok(i.clone())).unwrap(), "IMG_0001.jpg").hidden);
     }
 }

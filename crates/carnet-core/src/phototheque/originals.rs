@@ -7,7 +7,9 @@ use super::thumbs::thumb;
 use super::{ClassPhoto, Phototheque};
 use crate::model::Id;
 use image::{DynamicImage, imageops::FilterType};
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use ts_rs::TS;
 
 /// Distance de Hamming la plus grande entre deux empreintes pour parler de la même photo.
 const MAX_DISTANCE: u32 = 10;
@@ -26,13 +28,15 @@ pub fn dhash(img: &DynamicImage) -> u64 {
     hash
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export)]
 pub struct Match {
     pub copy: Id,
     pub original: Id,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Serialize, Clone, Debug, Default, PartialEq, TS)]
+#[ts(export)]
 pub struct OriginalsReport {
     pub matches: Vec<Match>,
     pub unmatched: Vec<Id>,

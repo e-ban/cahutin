@@ -1,39 +1,73 @@
 //! Protocole `carnet-asset` : sert les images importées à l'interface.
 //! `/<id>` donne l'image (relue depuis le cache), `/<id>/thumb` sa vignette (en mémoire),
+//! `/lib/<id>` une photo de la photothèque et `/lib/<id>/thumb` sa vignette (faite si elle manque),
 //! `/font/<fichier>` une police ajoutée par l'utilisateur, `/sysfont/<indice>` une police du poste,
 //! `/picto/<code>.svg` une image de la banque OpenMoji.
 
 use crate::state::AppState;
+use carnet_core::phototheque::thumbs;
 use carnet_core::{Mime, fonts};
 use std::borrow::Cow;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::{Sender, channel};
+use std::sync::OnceLock;
 use tauri::http::{Request, Response, StatusCode, header};
-use tauri::{Manager, Runtime, UriSchemeContext};
+use tauri::{AppHandle, Manager, Runtime, UriSchemeContext, UriSchemeResponder};
 
 pub const SCHEME: &str = "carnet-asset";
 
-pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
+type Job = Box<dyn FnOnce() + Send>;
+
+/// Fil de travail de la photothèque : lire une photo ou faire sa vignette prend du temps, jamais sur le
+/// fil de l'interface. Un seul fil, qui sert les demandes dans l'ordre : jamais des centaines de photos
+/// décodées à la fois.
+fn library_jobs() -> &'static Sender<Job> {
+    static JOBS: OnceLock<Sender<Job>> = OnceLock::new();
+    JOBS.get_or_init(|| {
+        let (tx, rx) = channel::<Job>();
+        std::thread::spawn(move || {
+            for job in rx {
+                job();
+            }
+        });
+        tx
+    })
+}
+
+/// Protocole asynchrone : les routes `lib/` sont servies par les fils de travail, les autres tout de suite.
+pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>>, responder: UriSchemeResponder) {
     let path = request.uri().path().trim_start_matches('/');
+    if let Some(rest) = path.strip_prefix("lib/") {
+        let app = ctx.app_handle().clone();
+        let rest = rest.to_string();
+        let job: Job = Box::new(move || responder.respond(library_response(&app.state::<AppState>(), &rest)));
+        // Sans fil de travail, la réponse se fait ici plutôt que jamais.
+        if let Err(e) = library_jobs().send(job) {
+            (e.0)();
+        }
+        return;
+    }
+    responder.respond(respond(ctx.app_handle(), path));
+}
+
+fn respond<R: Runtime>(app: &AppHandle<R>, path: &str) -> Response<Cow<'static, [u8]>> {
     if let Some(file) = path.strip_prefix("font/") {
-        return font_response(&ctx.app_handle().state::<AppState>().fonts_dir, file);
+        return font_response(&app.state::<AppState>().fonts_dir, file);
     }
     if let Some(file) = path.strip_prefix("picto/") {
         return picto_response(file);
     }
     if let Some(name) = path.strip_prefix("mine/") {
-        return my_image_response(&ctx.app_handle().state::<AppState>(), name);
-    }
-    if let Some(rest) = path.strip_prefix("lib/") {
-        return library_response(&ctx.app_handle().state::<AppState>(), rest);
+        return my_image_response(&app.state::<AppState>(), name);
     }
     if let Some(index) = path.strip_prefix("sysfont/") {
-        return system_font_response(&ctx.app_handle().state::<AppState>(), index);
+        return system_font_response(&app.state::<AppState>(), index);
     }
     let (id, thumb) = match path.strip_suffix("/thumb") {
         Some(id) => (id, true),
         None => (path, false),
     };
-    let state = ctx.app_handle().state::<AppState>();
+    let state = app.state::<AppState>();
     let store = state.store.lock().unwrap();
     // La lecture du disque se fait après avoir rendu le verrou du magasin.
     let found = if thumb {
@@ -57,21 +91,34 @@ pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>
         .unwrap()
 }
 
-/// `lib/<id>` ou `lib/<id>/thumb` : une photo de la photothèque ouverte, lue dans son dossier.
+/// `lib/<id>` ou `lib/<id>/thumb` : une photo de la photothèque ouverte, lue dans son dossier suivi, ou
+/// sa vignette du cache (faite si elle manque). `no-cache` : la vignette change quand le fichier change.
 fn library_response(state: &AppState, rest: &str) -> Response<Cow<'static, [u8]>> {
     let (id, thumb) = rest.strip_suffix("/thumb").map_or((rest, false), |id| (id, true));
-    let file = {
+    let found = {
         let lib = state.phototheque.lock().unwrap();
         let Some((dir, index)) = lib.as_ref() else { return not_found() };
-        index.photos.iter().find(|p| p.id == id).and_then(|p| carnet_core::phototheque::file_of(dir, &p.id, p.mime, thumb).map(|f| (f, p.mime)))
+        index.photos.iter().find(|p| p.id == id).map(|p| (dir.clone(), p.clone()))
     };
-    let Some((file, mime)) = file else { return not_found() };
+    let Some((dir, photo)) = found else { return not_found() };
+    let (file, mime) = if thumb {
+        let Ok(t) = thumbs::thumb(&dir, &photo) else { return not_found() };
+        (t, "image/jpeg")
+    } else {
+        (PathBuf::from(&photo.path), original_type(&photo.path))
+    };
     let Ok(bytes) = std::fs::read(file) else { return not_found() };
-    let mime = match mime {
-        Mime::Jpeg => "image/jpeg",
-        Mime::Png => "image/png",
-    };
-    Response::builder().header(header::CONTENT_TYPE, mime).header(header::CACHE_CONTROL, "max-age=31536000, immutable").body(Cow::Owned(bytes)).unwrap()
+    Response::builder().header(header::CONTENT_TYPE, mime).header(header::CACHE_CONTROL, "no-cache").body(Cow::Owned(bytes)).unwrap()
+}
+
+/// Le type d'un original d'après l'extension de son fichier : un WebP est noté JPEG dans l'index (son
+/// format une fois posé dans un document), mais son fichier reste un WebP.
+fn original_type(path: &str) -> &'static str {
+    match Path::new(path).extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref() {
+        Some("png") => "image/png",
+        Some("webp") => "image/webp",
+        _ => "image/jpeg",
+    }
 }
 
 /// `mine/<nom>` : une image de « Mes images », telle quelle (le nom vient de l'adresse, encodé).
@@ -201,6 +248,53 @@ mod tests {
         assert_eq!(r.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN], "*");
         assert_eq!(system_font_response(&state, "1").status(), StatusCode::NOT_FOUND);
         assert_eq!(system_font_response(&state, "../x").status(), StatusCode::NOT_FOUND);
+    }
+
+    /// Une photothèque ouverte qui suit un dossier d'un JPEG 800 x 600 et d'un WebP.
+    fn library() -> (tempfile::TempDir, AppState, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("Sortie");
+        std::fs::create_dir_all(&folder).unwrap();
+        image::RgbImage::from_pixel(800, 600, image::Rgb([10, 120, 200])).save(folder.join("a.jpg")).unwrap();
+        image::RgbImage::from_pixel(40, 30, image::Rgb([200, 120, 10])).save(folder.join("b.webp")).unwrap();
+        let library = dir.path().join("Classe");
+        let mut lib = carnet_core::phototheque::Phototheque { format_version: 2, folders: vec![], photos: vec![] };
+        carnet_core::phototheque::follow(&mut lib, &folder).unwrap();
+        carnet_core::phototheque::scan(&mut lib, &library, &mut |_| {});
+        let state = AppState::new(Default::default(), carnet_core::templates::Library::open(dir.path().join("m")).unwrap(), dir.path().join("p"), dir.path().join("c"), dir.path().join("s"));
+        *state.phototheque.lock().unwrap() = Some((library.clone(), lib));
+        (dir, state, library)
+    }
+
+    fn id_of(state: &AppState, name: &str) -> String {
+        let lib = state.phototheque.lock().unwrap();
+        lib.as_ref().unwrap().1.photos.iter().find(|p| p.path.ends_with(name)).unwrap().id.clone()
+    }
+
+    #[test]
+    fn a_library_thumbnail_is_made_on_demand_then_served_from_the_cache() {
+        let (_dir, state, library) = library();
+        let id = id_of(&state, "a.jpg");
+        let r = library_response(&state, &format!("{id}/thumb"));
+        assert_eq!(r.status(), StatusCode::OK);
+        assert_eq!(r.headers()[header::CONTENT_TYPE], "image/jpeg");
+        assert_eq!(r.headers()[header::CACHE_CONTROL], "no-cache");
+        let img = image::load_from_memory(r.body()).unwrap();
+        assert_eq!((img.width(), img.height()), (256, 192));
+        assert_eq!(std::fs::read_dir(library.join(".vignettes")).unwrap().count(), 1, "gardée dans le cache");
+        assert_eq!(library_response(&state, "inconnue/thumb").status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn a_library_original_has_the_type_of_its_file() {
+        let (_dir, state, _library) = library();
+        let r = library_response(&state, &id_of(&state, "a.jpg"));
+        assert_eq!((r.headers()[header::CONTENT_TYPE].to_str().unwrap(), r.headers()[header::CACHE_CONTROL].to_str().unwrap()), ("image/jpeg", "no-cache"));
+        // Un WebP est noté JPEG dans l'index (son format une fois posé dans un document) : servi en WebP.
+        let r = library_response(&state, &id_of(&state, "b.webp"));
+        assert_eq!(r.headers()[header::CONTENT_TYPE], "image/webp");
+        assert!(r.body().starts_with(b"RIFF"));
+        assert_eq!(library_response(&state, "inconnue").status(), StatusCode::NOT_FOUND);
     }
 
     #[test]

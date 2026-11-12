@@ -4,7 +4,7 @@ use carnet_core::fonts::{FontFace, FontSet};
 use carnet_core::photo::AssetStore;
 use carnet_core::templates::Library;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Mutex, RwLock};
 
 pub struct AppState {
@@ -25,6 +25,11 @@ pub struct AppState {
     pub classes_dir: PathBuf,
     /// Photothèque ouverte (celle de la classe courante) : son dossier et son index.
     pub phototheque: Mutex<Option<(PathBuf, carnet_core::phototheque::Phototheque)>>,
+    /// Tenu pendant un parcours des dossiers suivis : un seul à la fois.
+    pub phototheque_scan: Mutex<()>,
+    /// Numéro du remplissage de vignettes en cours : changé quand une autre classe s'ouvre ou qu'un
+    /// nouveau remplissage commence, ce qui arrête le précédent.
+    pub thumb_fill: AtomicU64,
     /// « Mes images » déjà importées : (nom, date, taille) → image, pour ne pas la copier à chaque clic.
     pub my_images: Mutex<std::collections::HashMap<(String, u64, u64), carnet_core::AssetMeta>>,
     /// Dossier de la copie de secours du document ouvert (`<données de l'application>/secours`).
@@ -44,6 +49,8 @@ impl AppState {
             assistant_cancel: AtomicBool::new(false),
             classes_dir,
             phototheque: Mutex::new(None),
+            phototheque_scan: Mutex::new(()),
+            thumb_fill: AtomicU64::new(0),
             my_images: Mutex::new(Default::default()),
             backup_dir,
         }

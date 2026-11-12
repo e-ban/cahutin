@@ -43,8 +43,9 @@ import FileInput from "@lucide/svelte/icons/file-input";
 import FilePlus from "@lucide/svelte/icons/file-plus";
 import FileText from "@lucide/svelte/icons/file-text";
 import Flag from "@lucide/svelte/icons/flag";
-import FlipHorizontal2 from "@lucide/svelte/icons/flip-horizontal-2";
-import FlipVertical2 from "@lucide/svelte/icons/flip-vertical-2";
+// Lucide a renommé ses icônes de miroir : `flip-horizontal-2` montre désormais un miroir haut-bas.
+import TrianglesCenterlineDashedHorizontal from "@lucide/svelte/icons/triangles-centerline-dashed-horizontal";
+import TrianglesCenterlineDashedVertical from "@lucide/svelte/icons/triangles-centerline-dashed-vertical";
 import Flower2 from "@lucide/svelte/icons/flower-2";
 import Folder from "@lucide/svelte/icons/folder";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
@@ -144,8 +145,8 @@ export const ICONS = {
   fileNew: FilePlus,
   fill: PaintBucket,
   flag: Flag,
-  flipH: FlipHorizontal2,
-  flipV: FlipVertical2,
+  flipH: TrianglesCenterlineDashedVertical,
+  flipV: TrianglesCenterlineDashedHorizontal,
   folder: Folder,
   folderOpen: FolderOpen,
   frame: Frame,

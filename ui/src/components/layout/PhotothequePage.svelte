@@ -146,7 +146,7 @@
   }
   async function useChosen() {
     await run(async () => {
-      const n = await classLibrary.useInDocument(selected);
+      const n = (await classLibrary.useInDocument(selected)).length;
       editor.notice = fr.libraryUsed(n);
       editor.openImages("photos");
       close();

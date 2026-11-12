@@ -6,7 +6,7 @@
   import TextEl from "./elements/TextEl.svelte";
   import { dragCrop, photoTrims, wheelCrop, withTrims, type Trims } from "../lib/crop";
   import { editor } from "../lib/docStore.svelte";
-  import { ASSET_MIME, MY_IMAGE_MIME, PICTO_MIME } from "../lib/dnd";
+  import { ASSET_MIME, CLASS_PHOTO_MIME, MY_IMAGE_MIME, PICTO_MIME } from "../lib/dnd";
   import { fr } from "../lib/i18n/fr";
   import { pageHasPictos } from "../lib/pictos.svelte";
   import { TEXT_PADDING_MM } from "../lib/richtext";
@@ -32,6 +32,7 @@
     onselect,
     ondropasset,
     ondropmyimage,
+    ondropclassphoto,
     oncropstart,
     oncropend,
     oncrop,
@@ -53,6 +54,8 @@
     ondropasset?: (assetId: string, elementId: string | null, xMm: number, yMm: number) => void;
     /** Une image de la collection glissée : son nom de fichier. */
     ondropmyimage?: (name: string, elementId: string | null, xMm: number, yMm: number) => void;
+    /** Une photo de la photothèque de la classe glissée : son identifiant. */
+    ondropclassphoto?: (id: string, elementId: string | null, xMm: number, yMm: number) => void;
     oncropstart?: (id: string) => void;
     /** Sortie du recadrage, une fois le dernier geste enregistré par `oncrop`. */
     oncropend?: (id: string) => void;
@@ -117,7 +120,7 @@
   }
 
   function acceptsAsset(ev: DragEvent): boolean {
-    return [ASSET_MIME, PICTO_MIME, MY_IMAGE_MIME].some((t) => ev.dataTransfer?.types.includes(t));
+    return [ASSET_MIME, PICTO_MIME, MY_IMAGE_MIME, CLASS_PHOTO_MIME].some((t) => ev.dataTransfer?.types.includes(t));
   }
 
   function drop(ev: DragEvent, elementId: string | null) {
@@ -134,6 +137,11 @@
     const mine = ev.dataTransfer!.getData(MY_IMAGE_MIME);
     if (mine) {
       ondropmyimage?.(mine, elementId, xMm, yMm);
+      return;
+    }
+    const classPhoto = ev.dataTransfer!.getData(CLASS_PHOTO_MIME);
+    if (classPhoto) {
+      ondropclassphoto?.(classPhoto, elementId, xMm, yMm);
       return;
     }
     ondropasset?.(ev.dataTransfer!.getData(ASSET_MIME), elementId, xMm, yMm);

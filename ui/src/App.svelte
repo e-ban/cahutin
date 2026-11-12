@@ -248,6 +248,18 @@
     }
   }
 
+  /** Une photo de la photothèque lâchée sur la page : elle rejoint d'abord les photos du document. */
+  async function dropClassPhoto(id: string, elementId: string | null, xMm: number, yMm: number) {
+    try {
+      const [meta] = await classLibrary.useInDocument([id]);
+      if (!meta) return;
+      warnConsent(id);
+      placeDropped(meta, elementId, xMm, yMm);
+    } catch (e) {
+      editor.notice = String(e);
+    }
+  }
+
   /** Une image lâchée sur une case photo la remplit ; ailleurs, elle est posée là, à ses proportions. */
   function placeDropped(meta: AssetMeta, elementId: string | null, xMm: number, yMm: number) {
     if (elementId) {
@@ -367,6 +379,7 @@
       onselect={select}
       ondropasset={dropAsset}
       ondropmyimage={dropMyImage}
+      ondropclassphoto={dropClassPhoto}
       oncropstart={(id) => {
         editor.selection = [id];
         editor.cropping = id;

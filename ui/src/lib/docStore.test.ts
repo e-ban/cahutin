@@ -43,6 +43,22 @@ test("annuler le retrait remet les photos, et l'enregistrement garde leurs chemi
   expect(pendingPaths(editor.photos, editor.doc, editor.carriedPending)).toEqual(["/photos/b.jpg", "/photos/c.jpg"]);
 });
 
+test("agrandir le tiroir Images, puis changer de tiroir le referme", () => {
+  editor.drawer = null;
+  editor.openImagesWide();
+  expect(editor.drawer).toBe("images");
+  expect(editor.imagesTab).not.toBe("pictos");
+  expect(editor.imagesWide).toBe(true);
+  editor.toggleDrawer("text");
+  expect(editor.imagesWide).toBe(false);
+  editor.toggleDrawer("images");
+  expect(editor.imagesWide).toBe(false);
+  editor.openImagesWide();
+  editor.closeImagesWide();
+  expect(editor.imagesWide).toBe(false);
+  expect(editor.drawer).toBe("images");
+});
+
 test("aller à une page oublie la sélection de la page quittée", () => {
   editor.commit({ ...editor.doc, pages: [...editor.doc.pages, { ...editor.doc.pages[0], id: "p2", elements: [] }] });
   editor.selection = ["quelque-chose"];

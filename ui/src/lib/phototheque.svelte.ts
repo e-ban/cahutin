@@ -5,7 +5,7 @@ import { classes } from "./classStore.svelte";
 import { editor } from "./docStore.svelte";
 import { fr } from "./i18n/fr";
 import { displayNames, withoutConsent } from "./phototheque";
-import type { ClassPhoto, TagChange } from "./types";
+import type { AssetMeta, ClassPhoto, TagChange } from "./types";
 
 class ClassLibrary {
   /** Classe dont la photothèque est chargée (chemin de son fichier). */
@@ -49,11 +49,11 @@ class ClassLibrary {
     this.photos = (await photothequeRemove(ids)).photos;
   }
 
-  /** Les photos rejoignent la photothèque du document, prêtes à glisser sur la page. */
-  async useInDocument(ids: string[]) {
+  /** Les photos rejoignent la photothèque du document, prêtes à glisser sur la page ; rend leurs descriptions. */
+  async useInDocument(ids: string[]): Promise<AssetMeta[]> {
     const metas = await photothequeUse(ids);
     editor.addPhotos(metas.map((meta) => ({ meta, path: "", folder: "Photothèque de la classe" })));
-    return metas.length;
+    return metas;
   }
 }
 

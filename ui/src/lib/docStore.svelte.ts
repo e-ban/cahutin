@@ -129,6 +129,23 @@ class Editor {
   openImages(tab: ImagesTab) {
     this.setImagesTab(tab);
     this.drawer = "images";
+    this.#imagesWide = false;
+  }
+
+  /** Tiroir Images agrandi par-dessus la page ; ne vaut que tant que ce tiroir est ouvert. */
+  #imagesWide = $state(false);
+  get imagesWide(): boolean {
+    return this.#imagesWide && this.drawer === "images";
+  }
+
+  /** Agrandit le tiroir Images ; les pictogrammes n'y sont pas, il s'ouvre alors sur les photos. */
+  openImagesWide() {
+    this.openImages(this.imagesTab === "pictos" ? "photos" : this.imagesTab);
+    this.#imagesWide = true;
+  }
+
+  closeImagesWide() {
+    this.#imagesWide = false;
   }
 
   setImagesTab(tab: ImagesTab) {
@@ -138,6 +155,7 @@ class Editor {
 
   toggleDrawer(id: DrawerId) {
     this.drawer = this.drawer === id ? null : id;
+    this.#imagesWide = false;
   }
 
   get page(): Page {

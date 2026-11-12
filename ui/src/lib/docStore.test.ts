@@ -21,10 +21,19 @@ function drawerWithOnePlaced() {
 test("retirer les non placées garde les photos posées", () => {
   drawerWithOnePlaced();
   const gone = editor.removeUnusedPhotos();
-  expect(gone.map((p) => p.meta.id)).toEqual(["b", "c"]);
+  expect(gone.photos.map((p) => p.meta.id)).toEqual(["b", "c"]);
   expect(editor.photos.map((p) => p.meta.id)).toEqual(["a"]);
   expect(editor.carriedPending).toEqual([]);
   expect(pendingPaths(editor.photos, editor.doc, editor.carriedPending)).toEqual([]);
+});
+
+test("retirer les non placées oublie aussi celles encore en attente (clé USB absente)", () => {
+  drawerWithOnePlaced();
+  editor.carriedPending = ["/photos/b.jpg", "/usb/x.jpg"];
+  const gone = editor.removeUnusedPhotos();
+  expect(pendingPaths(editor.photos, editor.doc, editor.carriedPending)).toEqual([]);
+  editor.restorePhotos(gone);
+  expect(pendingPaths(editor.photos, editor.doc, editor.carriedPending)).toEqual(["/photos/b.jpg", "/photos/c.jpg", "/usb/x.jpg"]);
 });
 
 test("annuler le retrait remet les photos, et l'enregistrement garde leurs chemins", () => {
@@ -32,6 +41,14 @@ test("annuler le retrait remet les photos, et l'enregistrement garde leurs chemi
   editor.restorePhotos(editor.removeUnusedPhotos());
   expect(editor.photos.map((p) => p.meta.id).sort()).toEqual(["a", "b", "c"]);
   expect(pendingPaths(editor.photos, editor.doc, editor.carriedPending)).toEqual(["/photos/b.jpg", "/photos/c.jpg"]);
+});
+
+test("aller à une page oublie la sélection de la page quittée", () => {
+  editor.commit({ ...editor.doc, pages: [...editor.doc.pages, { ...editor.doc.pages[0], id: "p2", elements: [] }] });
+  editor.selection = ["quelque-chose"];
+  editor.goToPage(2);
+  expect(editor.pageIndex).toBe(1);
+  expect(editor.selection).toEqual([]);
 });
 
 test("isDirty", () => {

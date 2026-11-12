@@ -308,20 +308,27 @@ class Editor {
     if (pagesUsing(this.doc, id).length) this.commit(withoutAsset(this.doc, id));
   }
 
-  /** Retire du tiroir toutes les photos posées nulle part (ni photo ni fond de cadre) et oublie leurs chemins
-   *  en attente ; le document n'est pas touché. Rend les photos retirées, pour « Annuler ». */
-  removeUnusedPhotos(): LibraryPhoto[] {
+  /** Retire du tiroir toutes les photos posées nulle part (ni photo ni fond de cadre), et oublie toutes les
+   *  photos en attente (non placées elles aussi, même si leur fichier est absent aujourd'hui) ; le document
+   *  n'est pas touché. Rend ce qui a été retiré, pour « Annuler ». */
+  removeUnusedPhotos(): { photos: LibraryPhoto[]; carried: string[] } {
     const used = usedAssetIds(this.doc);
-    const gone = this.photos.filter((p) => !used.has(p.meta.id));
-    const paths = new Set(gone.map((p) => p.path).filter(Boolean));
+    const gone = { photos: this.photos.filter((p) => !used.has(p.meta.id)), carried: this.carriedPending };
     this.photos = this.photos.filter((p) => used.has(p.meta.id));
-    this.carriedPending = this.carriedPending.filter((path) => !paths.has(path));
+    this.carriedPending = [];
     return gone;
   }
 
-  /** Remet dans le tiroir des photos retirées (« Annuler »). */
-  restorePhotos(photos: LibraryPhoto[]) {
-    this.addPhotos(photos);
+  /** Remet ce qu'a retiré `removeUnusedPhotos` (« Annuler »). */
+  restorePhotos(gone: { photos: LibraryPhoto[]; carried: string[] }) {
+    this.addPhotos(gone.photos);
+    this.carriedPending = [...new Set([...this.carriedPending, ...gone.carried])];
+  }
+
+  /** Va à une page (numérotée à partir de 1) ; la sélection de la page quittée est oubliée. */
+  goToPage(n: number) {
+    this.pageIndex = Math.max(0, Math.min(n - 1, this.doc.pages.length - 1));
+    this.selection = [];
   }
 
   /** Document ouvert : la photothèque devient la sienne (ses photos, puis ses photos en attente). */

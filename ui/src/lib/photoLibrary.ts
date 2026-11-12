@@ -33,6 +33,19 @@ export function byDay(photos: LibraryPhoto[]): { day: string | null; photos: Lib
     .map(([day, photos]) => ({ day, photos }));
 }
 
+/** Le filtre à montrer : un dossier qui n'a plus de photo dans ce tiroir (autre document, dernière photo
+ *  retirée) revient à « Toutes ». */
+export function shownFilter(filter: PhotoFilter, chips: { folder: string }[]): PhotoFilter {
+  return filter.kind === "folder" && !chips.some((c) => c.folder === filter.folder) ? { kind: "all" } : filter;
+}
+
+/** Vrai quand une photo du tiroir vient d'être posée. Un autre document ouvert change aussi les photos posées,
+ *  mais pas une photo du tiroir d'avant. */
+export function newlyPlaced(usedBefore: Set<string>, drawerBefore: Set<string>, used: Set<string>, drawer: Set<string>): boolean {
+  for (const id of used) if (!usedBefore.has(id) && drawerBefore.has(id) && drawer.has(id)) return true;
+  return false;
+}
+
 /** Le badge d'une photo posée : sa page, ou la première suivie de « … » si elle est sur plusieurs. */
 export function pageBadge(pages: number[]): string | null {
   if (pages.length === 0) return null;

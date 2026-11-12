@@ -11,7 +11,7 @@
   import { usePhoto } from "../../lib/editActions";
   import { importPaths } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
-  import { MANY_PHOTOS, assetsOnPage, byDay, elementAssets, filterPhotos, folderChips, pageBadge, pagesUsing, startFilter, usedAssetIds, type PhotoFilter } from "../../lib/photoLibrary";
+  import { MANY_PHOTOS, assetsOnPage, byDay, elementAssets, filterPhotos, folderChips, newlyPlaced, pageBadge, pagesUsing, shownFilter, startFilter, usedAssetIds, type PhotoFilter } from "../../lib/photoLibrary";
   import { readPref, writePref } from "../../lib/prefs";
 
   const EXTENSIONS = ["jpg", "jpeg", "png", "webp", "svg", "heic", "heif", "JPG", "JPEG", "PNG", "WEBP", "SVG", "HEIC", "HEIF"];
@@ -21,12 +21,13 @@
     { px: 140, label: fr.thumbLarge, iconSize: 16 },
   ];
 
-  let filter = $state<PhotoFilter>(startFilter(readPref<PhotoFilter | null>("photoFilter", null), editor.photos.length));
+  let chosen = $state<PhotoFilter>(startFilter(readPref<PhotoFilter | null>("photoFilter", null), editor.photos.length));
   let thumbSize = $state(readPref("thumbSize", 96));
 
   const used = $derived(usedAssetIds(editor.doc));
   const onPage = $derived(assetsOnPage(editor.page));
   const chips = $derived(folderChips(editor.photos));
+  const filter = $derived(shownFilter(chosen, chips));
   const shown = $derived(filterPhotos(editor.photos, filter, used, onPage));
   const days = $derived(byDay(shown));
   const unusedCount = $derived(editor.photos.filter((p) => !used.has(p.meta.id)).length);
@@ -45,19 +46,20 @@
 
   /** Un dossier est propre au document : seuls Toutes, Non placées et Sur cette page sont retenus. */
   function setFilter(f: PhotoFilter) {
-    filter = f;
+    chosen = f;
     if (f.kind !== "folder") writePref("photoFilter", f);
   }
 
-  // La première fois qu'une photo posée quitte « Non placées », on dit pourquoi.
-  let usedBefore: number | null = null;
+  // La première fois qu'une photo du tiroir posée quitte « Non placées », on dit pourquoi (pas quand un autre
+  // document s'ouvre, tiroir ouvert).
+  let before: { used: Set<string>; drawer: Set<string> } | null = null;
   $effect(() => {
-    const n = used.size;
-    if (usedBefore !== null && n > usedBefore && filter.kind === "unused" && !readPref("unusedHintShown", false)) {
+    const now = { used, drawer: new Set(editor.photos.map((p) => p.meta.id)) };
+    if (before && filter.kind === "unused" && newlyPlaced(before.used, before.drawer, now.used, now.drawer) && !readPref("unusedHintShown", false)) {
       editor.notice = fr.photosUnusedHint;
       writePref("unusedHintShown", true);
     }
-    usedBefore = n;
+    before = now;
   });
 
   function setSize(px: number) {
@@ -78,7 +80,7 @@
     const n = unusedCount;
     if (!(await ask(fr.photosRemoveUnusedConfirm(n), fr.photosRemoveUnused(n)))) return;
     const gone = editor.removeUnusedPhotos();
-    editor.notify(fr.photosRemovedUnused(gone.length), { label: fr.undo, run: () => editor.restorePhotos(gone) });
+    editor.notify(fr.photosRemovedUnused(gone.photos.length), { label: fr.undo, run: () => editor.restorePhotos(gone) });
   }
 
   async function pickFolder() {
@@ -117,7 +119,8 @@
       {/each}
     </div>
     <div class="tools">
-      {#if filter.kind === "unused" && unusedCount > 0}
+      <!-- Pas pendant un import : les photos encore en route reviendraient après le retrait. -->
+      {#if filter.kind === "unused" && unusedCount > 0 && !editor.importProgress}
         <button class="link" onclick={removeUnused}>{fr.photosRemoveUnused(unusedCount)}</button>
       {/if}
       <div class="sizes" role="group" aria-label={fr.thumbSize}>
@@ -133,6 +136,7 @@
   <p class="hint">{fr.noPhotosYet}</p>
 {:else}
   {#if filter.kind === "page" && shown.length === 0}<p class="hint">{fr.photosNoneOnPage}</p>{/if}
+  {#if filter.kind === "unused" && shown.length === 0}<p class="hint">{fr.photosAllPlaced}</p>{/if}
   {#each days as d (d.day)}
     <h4 class="day">{d.day ? fr.libraryDayShort(d.day) : fr.photosNoDate} <span>· {d.photos.length}</span></h4>
     <div class="thumbs" style:--thumb="{thumbSize}px">
@@ -153,7 +157,7 @@
           </button>
           {#if badge}
             <!-- La page où la photo est posée : un clic y mène. -->
-            <button class="page" title={fr.photoGoToPage(pages[0])} aria-label={fr.photoGoToPage(pages[0])} onclick={() => (editor.pageIndex = pages[0] - 1)}>{badge}</button>
+            <button class="page" title={fr.photoGoToPage(pages[0])} aria-label={fr.photoGoToPage(pages[0])} onclick={() => editor.goToPage(pages[0])}>{badge}</button>
           {/if}
           <button class="remove" title={fr.photoRemove} aria-label={fr.photoRemove} onclick={() => remove(p.meta.id)}><Icon name="close" size={14} /></button>
         </div>

@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
-import { MANY_PHOTOS, assetsOnPage, byDay, elementAssets, filterPhotos, folderChips, pageBadge, pendingPaths, startFilter, usedAssetIds, type LibraryPhoto } from "./photoLibrary";
+import { MANY_PHOTOS, assetsOnPage, byDay, elementAssets, filterPhotos, folderChips, newlyPlaced, pageBadge, pendingPaths, shownFilter, startFilter, usedAssetIds, type LibraryPhoto } from "./photoLibrary";
+import { fr } from "./i18n/fr";
 import type { Document, Element } from "./types";
 
 const meta = (id: string) => ({ id, width_px: 40, height_px: 30, mime: "Jpeg" as const });
@@ -108,6 +109,30 @@ test("pageBadge: la page où la photo est posée, la première s'il y en a plusi
   expect(pageBadge([])).toBeNull();
   expect(pageBadge([3])).toBe("p. 3");
   expect(pageBadge([2, 5])).toBe("p. 2…");
+});
+
+test("newlyPlaced: une photo du tiroir vient d'être posée, pas un autre document ouvert", () => {
+  const tiroir = new Set(["a", "b"]);
+  expect(newlyPlaced(new Set(), tiroir, new Set(["a"]), tiroir)).toBe(true);
+  expect(newlyPlaced(new Set(["a"]), tiroir, new Set(["a"]), tiroir)).toBe(false);
+  // Un autre document : ses photos posées n'étaient pas dans le tiroir d'avant.
+  expect(newlyPlaced(new Set(), tiroir, new Set(["x", "y"]), new Set(["x", "y", "z"]))).toBe(false);
+});
+
+test("shownFilter: un dossier disparu revient à Toutes", () => {
+  const chips = [{ folder: "Ferme", count: 2 }];
+  expect(shownFilter({ kind: "folder", folder: "Ferme" }, chips)).toEqual({ kind: "folder", folder: "Ferme" });
+  expect(shownFilter({ kind: "folder", folder: "Piscine" }, chips)).toEqual({ kind: "all" });
+  expect(shownFilter({ kind: "unused" }, chips)).toEqual({ kind: "unused" });
+});
+
+test("textes au singulier pour une seule photo", () => {
+  expect(fr.photosRemoveUnused(1)).toBe("Retirer la photo non placée");
+  expect(fr.photosRemoveUnused(3)).toBe("Retirer les 3 photos non placées");
+  expect(fr.photosRemoveUnusedConfirm(1)).toBe("Retirer la photo non placée du document ? Votre fichier n'est pas touché.");
+  expect(fr.photosRemovedUnused(1)).toBe("1 photo retirée du document.");
+  expect(fr.photosRemovedUnused(2)).toBe("2 photos retirées du document.");
+  expect(fr.photosAllPlaced).toBe("Toutes les photos sont placées.");
 });
 
 test("assetsOnPage: les photos et les fonds de cadre de la page", () => {

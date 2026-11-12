@@ -13,7 +13,11 @@ const APP = new URL("../../target/debug/cahutin", import.meta.url).pathname;
 const SEUIL_MS = 1000;
 const SEUIL_GEL_MS = 100;
 const TIROIR = [100, 300, 500];
-const PHOTOTHEQUE = [1000, 5000, 10000];
+// 5 000 et 10 000 viendront avec les dossiers suivis (étape 4) : aujourd'hui, chaque photo est copiée, et
+// remplir une photothèque de 10 000 photos prendrait deux heures.
+const PHOTOTHEQUE = [1000];
+/** Une sortie : le lot qu'on ajoute d'un coup dans la vraie vie. */
+const LOT = 50;
 const ELEVES = 25;
 
 /** Les photos générées, dans l'ordre (sortie-01/photo-00001.jpg, …). */
@@ -143,7 +147,7 @@ async function tiroir() {
 }
 
 async function phototheque() {
-  if (!["phototheque-ajout", "phototheque-ouvrir", "phototheque-enfant"].some(voulue)) return;
+  if (!["phototheque-lot", "phototheque-ouvrir", "phototheque-enfant"].some(voulue)) return;
   // Une classe aux prénoms inventés ; « Adèle » (eleve-0) vient en tête de la liste et figure sur une photo sur cinq.
   const prenoms = ["Adèle", "Basile", "Capucine", "Dorian", "Elsa", "Félix", "Garance", "Hugo", "Iris", "Jules", "Kenza", "Lucien", "Maëlle", "Nils", "Olympe", "Paul", "Quitterie", "Raphaël", "Salomé", "Timéo", "Ulysse", "Victoire", "Wassim", "Yanis", "Zélie"].slice(0, ELEVES);
   await run(`
@@ -157,12 +161,16 @@ async function phototheque() {
   `);
   let deja = 0;
   for (const n of PHOTOTHEQUE) {
-    const lot = photos.slice(deja, n);
+    // On n'ajoute jamais des milliers de photos d'un coup : la photothèque est remplie sans mesure, puis on mesure
+    // l'ajout d'une sortie (un lot) par-dessus.
+    const remplir = photos.slice(deja, n - LOT);
+    const sortie = photos.slice(n - LOT, n);
+    await run(`const l = window.__carnet.classLibrary; await l.add(${JSON.stringify(remplir)});`);
     await mesurer(
-      "phototheque-ajout",
+      "phototheque-lot",
       n,
-      `const l = window.__carnet.classLibrary, lot = ${JSON.stringify(lot)}; window.__fait = false;
-      const r = await window.__mesure(async () => { await l.add(lot); window.__fait = true; }, () => window.__fait, 3600000);
+      `const l = window.__carnet.classLibrary, lot = ${JSON.stringify(sortie)}; window.__fait = false;
+      const r = await window.__mesure(async () => { await l.add(lot); window.__fait = true; }, () => window.__fait, 600000);
       const ids = l.photos.filter((_, i) => i % 5 === 0).map((p) => p.id);
       await l.tag(ids, { add_students: ["eleve-0"] });
       return r;`,

@@ -109,11 +109,19 @@ async function tiroir() {
     await mesurer(
       "tiroir-filtre",
       n,
-      // Le dossier de la dernière sortie : ses photos sont en bas de la liste, pas encore chargées. (« Non
-      // utilisées » ne changerait rien ici : aucune photo n'est posée.)
+      // Le dossier de la photo affichée tout en bas de la liste. Ses vignettes peuvent être déjà chargées (le
+      // tiroir range les photos par jour : pendant l'import, chacune est passée en haut) : prêt quand la liste
+      // ne montre plus que ce dossier, et que les vignettes visibles sont chargées. (« Non placées » ne
+      // changerait rien ici : aucune photo n'est posée.)
       `const puces = () => [...document.querySelectorAll(".drawer .chips button")];
-      window.__marquerChargees(".drawer .body");
-      const r = await window.__mesure(() => puces().at(-1).click(), () => window.__vignettesPretes(".drawer .body", ${LOT}));
+      const vignettes = () => [...document.querySelectorAll(".drawer .body img[data-asset]")];
+      const dossierDe = new Map(window.__editor.photos.map((p) => [p.meta.id, p.folder]));
+      const dossier = dossierDe.get(vignettes().at(-1).dataset.asset);
+      const puce = puces().find((b) => b.textContent.trim().startsWith(dossier + " ("));
+      const r = await window.__mesure(() => puce.click(), () => {
+        const v = vignettes();
+        return v.length > 0 && v.every((img) => dossierDe.get(img.dataset.asset) === dossier) && window.__vignettesPretes(".drawer .body", v.length);
+      });
       puces()[0].click(); return r;`,
       { ms: SEUIL_MS },
     );

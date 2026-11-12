@@ -206,7 +206,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Ajouter les photos",
-        text: "En haut, « Photos » ou « Dossier » : elles se rangent par jour. Le lieu et l'appareil ne sont pas gardés.",
+        text: "En haut, « Ajouter un dossier » : ses photos se rangent par jour, sans être copiées. Une photo ajoutée plus tard dans ce dossier apparaît à la prochaine ouverture.",
         image: img("phototheque", "ajouter"),
       },
       {

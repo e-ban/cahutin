@@ -43,8 +43,20 @@ class ClassLibrary {
     this.folders = lib.folders;
   }
 
+  /** Ouverture en cours : une seconde demande pour la même classe (page et tiroir) attend la même. */
+  #pending: { classPath: string; done: Promise<void> } | null = null;
+
   /** L'index tout de suite, puis le parcours des dossiers suivis en arrière-plan (sans l'attendre). */
-  async open(classPath: string) {
+  open(classPath: string): Promise<void> {
+    if (this.#pending?.classPath === classPath) return this.#pending.done;
+    const done = this.#open(classPath).finally(() => {
+      if (this.#pending?.done === done) this.#pending = null;
+    });
+    this.#pending = { classPath, done };
+    return done;
+  }
+
+  async #open(classPath: string) {
     const token = ++this.#opening;
     const lib = await photothequeOpen(classPath);
     if (token !== this.#opening) return;
@@ -66,7 +78,8 @@ class ClassLibrary {
         if (token !== this.#opening) return;
         if (e.type === "Photos") {
           this.photos = upsertPhotos(this.photos, e.photos);
-          this.scanning = { found: (this.scanning?.found ?? 0) + e.photos.length };
+          // Un lot arrivé après la fin du parcours ne rallume pas la barre.
+          if (this.scanning) this.scanning = { found: this.scanning.found + e.photos.length };
         } else {
           this.#set(e.phototheque);
         }

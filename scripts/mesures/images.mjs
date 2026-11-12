@@ -5,6 +5,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { session, sleep } from "../captures/wd.mjs";
+import { attendreResultat, memoirePointeMo } from "./attente.mjs";
 import { SONDE } from "./sonde.mjs";
 
 const [photosDir, out, ...only] = process.argv.slice(2);
@@ -33,30 +34,13 @@ const voulue = (scene) => only.length === 0 || only.includes(scene);
 const resultats = [];
 let s;
 
-/**
- * Joue `body` dans la page et rend sa valeur. L'action est lancée, puis son résultat relevé toutes les deux
- * secondes : une seule requête tenue pendant tout un import de milliers de photos dépasserait le délai de
- * réponse de fetch (5 minutes).
- */
-async function run(body, args = []) {
-  await s.js(
-    `window.__resultat = undefined; const args = arguments;
-    (async () => { ${body} }).apply(null, args).then((v) => (window.__resultat = { v: v ?? null }), (e) => (window.__resultat = { v: { erreur: String(e) } }));`,
-    args,
-  );
-  for (;;) {
-    const r = await s.js("return window.__resultat ?? null;");
-    if (r) return r.v;
-    await sleep(2000);
-  }
-}
+/** Joue `body` dans la page et rend sa valeur ; échoue après `delaiMs` (15 minutes par défaut). */
+const run = (body, args = [], delaiMs) => attendreResultat(s, body, args, delaiMs ? { delaiMs } : {});
 
-/** VmHWM du processus de l'application, en Mo ; null sans PID connu. */
+/** Mémoire de pointe de l'application et de ses processus web, cumulée depuis le lancement ; null sans PID. */
 function memoireMo() {
   const pid = process.env.CAHUTIN_PID || (existsSync(join(out, ".pid")) ? readFileSync(join(out, ".pid"), "utf8").trim() : "");
-  if (!pid || !existsSync(`/proc/${pid}/status`)) return null;
-  const m = readFileSync(`/proc/${pid}/status`, "utf8").match(/VmHWM:\s+(\d+) kB/);
-  return m ? Math.round(Number(m[1]) / 1024) : null;
+  return memoirePointeMo(pid);
 }
 
 /**
@@ -125,8 +109,11 @@ async function tiroir() {
     await mesurer(
       "tiroir-filtre",
       n,
-      `const puces = () => document.querySelectorAll(".drawer .chips button");
-      const r = await window.__mesure(() => puces()[1].click(), () => window.__vignettesPretes(".drawer .body", ${n}));
+      // Le dossier de la dernière sortie : ses photos sont en bas de la liste, pas encore chargées. (« Non
+      // utilisées » ne changerait rien ici : aucune photo n'est posée.)
+      `const puces = () => [...document.querySelectorAll(".drawer .chips button")];
+      window.__marquerChargees(".drawer .body");
+      const r = await window.__mesure(() => puces().at(-1).click(), () => window.__vignettesPretes(".drawer .body", ${LOT}));
       puces()[0].click(); return r;`,
       { ms: SEUIL_MS },
     );
@@ -165,7 +152,7 @@ async function phototheque() {
     // l'ajout d'une sortie (un lot) par-dessus.
     const remplir = photos.slice(deja, n - LOT);
     const sortie = photos.slice(n - LOT, n);
-    await run(`const l = window.__carnet.classLibrary; await l.add(${JSON.stringify(remplir)});`);
+    await run(`const l = window.__carnet.classLibrary; await l.add(${JSON.stringify(remplir)});`, [], 60 * 60 * 1000);
     await mesurer(
       "phototheque-lot",
       n,
@@ -189,7 +176,8 @@ async function phototheque() {
     await mesurer(
       "phototheque-enfant",
       n,
-      `const r = await window.__mesure(() => document.querySelector(".library-page .filters .child").click(),
+      `window.__marquerChargees(".library-page .photos");
+      const r = await window.__mesure(() => document.querySelector(".library-page .filters .child").click(),
         () => window.__vignettesPretes(".library-page .photos", ${Math.ceil(n / 5)}));
       document.querySelector(".library-page .filters > button").click(); return r;`,
       { ms: SEUIL_MS },
@@ -219,9 +207,9 @@ function ecrire() {
   writeFileSync(
     join(out, "mesures.md"),
     [
-      "Limites : 2 cœurs, 4 Go de mémoire. Le disque dur classique n'est pas simulé.",
+      "Limites : 2 cœurs, 4 Go de mémoire. Le disque dur classique n'est pas simulé. Mémoire : application et processus web, pointe depuis le lancement.",
       "",
-      "| Scène | Photos | Temps (ms) | Plus long gel (ms) | Mémoire de pointe (Mo) | Résultat |",
+      "| Scène | Photos | Temps (ms) | Plus long gel (ms) | Mémoire de pointe cumulée (Mo) | Résultat |",
       "|---|---|---|---|---|---|",
       ...lignes,
       "",

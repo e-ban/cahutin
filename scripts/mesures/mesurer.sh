@@ -14,6 +14,14 @@ root=$(cd "$here/../.." && pwd)
 mkdir -p "${1:?dossier de sortie}"
 out=$(realpath "$1"); shift
 photos=${PHOTOS:-$out/.photos}
+# Un vite ou un pilote déjà lancé (une autre copie du dépôt, un autre banc) ferait mesurer une autre application.
+occupe() { (echo >"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+for port in 5173 4444; do
+  if occupe "$port"; then
+    echo "Le port $port est déjà pris (un autre vite, un autre tauri-driver ?) : arrêtez-le avant de mesurer." >&2
+    exit 3
+  fi
+done
 [ -n "${PHOTOS:-}" ] || "$here/photos.sh" "$photos" 10000
 work=$(mktemp -d -p "$out" .travail-XXXX)
 mkdir -p "$work/home/Documents"
@@ -33,7 +41,22 @@ descendants() { local c; for c in $(pgrep -P "$1"); do echo "$c"; descendants "$
   done
   sleep 0.5
 done) & finder=$!
-trap 'killtree $finder; killtree $vite; killtree $driver; true' EXIT
+# À la fin, tout s'arrête, et le dossier personnel jetable (les photos copiées par la photothèque, près d'un
+# Go) est effacé ; ses journaux sont gardés à côté des résultats.
+fin() {
+  killtree $finder; killtree $vite; killtree $driver
+  sleep 1
+  cp "$work"/*.log "$out/" 2>/dev/null || true
+  rm -rf "$work"
+}
+trap fin EXIT
+trap 'exit 130' INT TERM
 sleep 5
+for p in $vite $driver; do
+  if ! kill -0 "$p" 2>/dev/null; then
+    echo "Le serveur vite ou le pilote s'est arrêté au lancement : voir $out/vite.log et $out/driver.log." >&2
+    exit 4
+  fi
+done
 node "$here/images.mjs" "$photos" "$out" "$@"
 echo "Résultats : $out/mesures.md et $out/mesures.xml"

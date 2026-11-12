@@ -34,7 +34,9 @@ struct Found {
 
 fn mime_of(path: &Path) -> Option<Mime> {
     match path.extension()?.to_str()?.to_ascii_lowercase().as_str() {
-        "jpg" | "jpeg" => Some(Mime::Jpeg),
+        // Un WebP compte comme un JPEG : c'est le format qu'il prend une fois posé dans un document (une photo
+        // n'a pas de transparence). La route qui sert l'original donne le type du contenu d'après l'extension.
+        "jpg" | "jpeg" | "webp" => Some(Mime::Jpeg),
         "png" => Some(Mime::Png),
         _ => None,
     }
@@ -212,6 +214,7 @@ pub fn unfollow(lib: &mut Phototheque, folder: &str) {
 
 #[cfg(test)]
 mod tests {
+    use crate::model::Mime;
     use super::super::{FORMAT_VERSION, INDEX_FILE, TagChange, hide, tag};
     use super::*;
     use image::{ImageFormat, Rgb, RgbImage};
@@ -422,6 +425,16 @@ mod tests {
         assert!(batches.is_empty());
         assert_eq!(lib.photos.len(), 1);
         assert!(lib.photos[0].hidden);
+    }
+
+    #[test]
+    fn a_webp_file_is_found_as_a_jpeg() {
+        let (_tmp, library, folder, mut lib) = setup();
+        RgbImage::from_pixel(40, 30, Rgb([10, 120, 200])).save(folder.join("a.WEBP")).unwrap();
+        let (report, _) = run(&mut lib, &library);
+        assert_eq!(report.added, 1);
+        let p = &lib.photos[0];
+        assert_eq!((p.mime, p.width_px, p.height_px), (Mime::Jpeg, 40, 30));
     }
 
     #[test]

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Photos de mesure, toutes dessinées par ImageMagick (jamais de vraie photo) : 40 images de base de 4000x3000
 # (3 à 6 Mo), puis autant de copies légères (reflink) qu'il en faut, rangées par « sortie » de 50 photos et
-# datées de septembre à mars. Une photo sur trois porte aussi une date d'appareil (EXIF).
+# datées de septembre à mars. Une photo sur vingt porte aussi une date d'appareil (EXIF).
 # Usage : scripts/mesures/photos.sh <dossier> <nombre>
 set -euo pipefail
 dir=${1:?dossier}
@@ -47,8 +47,8 @@ for k in $(seq 1 "$n"); do
   mkdir -p "$sub"
   cp --reflink=$reflink "$bases/base-$(( k % 40 )).jpg" "$f"
   made+=("$k")
-  # Une date d'appareil pour une photo sur trois, écrite en un seul passage d'exiftool à la fin.
-  if [ $(( k % 3 )) -eq 1 ]; then
+  # Une date d'appareil pour une photo sur vingt (exiftool réécrit le fichier entier : moins de place), écrite en un seul passage d'exiftool à la fin.
+  if [ $(( k % 20 )) -eq 1 ]; then
     when=$(( start + span * (k - 1) / (n > 1 ? n - 1 : 1) ))
     printf -- '-DateTimeOriginal=%s\n%s\n-execute\n' "$(date -d "@$when" '+%Y:%m:%d %H:%M:%S')" "$f" >>"$exif"
   fi

@@ -15,7 +15,7 @@ mkdir -p "${1:?dossier de sortie}"
 out=$(realpath "$1"); shift
 photos=${PHOTOS:-$out/.photos}
 [ -n "${PHOTOS:-}" ] || "$here/photos.sh" "$photos" 10000
-work=$(mktemp -d)
+work=$(mktemp -d -p "$out" .travail-XXXX)
 mkdir -p "$work/home/Documents"
 : >"$out/.pid"
 (cd "$root" && cargo build -p carnet-app)

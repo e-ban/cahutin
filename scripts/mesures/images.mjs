@@ -29,8 +29,23 @@ const voulue = (scene) => only.length === 0 || only.includes(scene);
 const resultats = [];
 let s;
 
-const run = (body, args = []) =>
-  s.jsAsync(`const done = arguments[arguments.length - 1]; (async () => { ${body} })().then((v) => done(v ?? null), (e) => done({ erreur: String(e) }))`, args);
+/**
+ * Joue `body` dans la page et rend sa valeur. L'action est lancée, puis son résultat relevé toutes les deux
+ * secondes : une seule requête tenue pendant tout un import de milliers de photos dépasserait le délai de
+ * réponse de fetch (5 minutes).
+ */
+async function run(body, args = []) {
+  await s.js(
+    `window.__resultat = undefined; const args = arguments;
+    (async () => { ${body} }).apply(null, args).then((v) => (window.__resultat = { v: v ?? null }), (e) => (window.__resultat = { v: { erreur: String(e) } }));`,
+    args,
+  );
+  for (;;) {
+    const r = await s.js("return window.__resultat ?? null;");
+    if (r) return r.v;
+    await sleep(2000);
+  }
+}
 
 /** VmHWM du processus de l'application, en Mo ; null sans PID connu. */
 function memoireMo() {
@@ -208,8 +223,6 @@ function ecrire() {
 
 try {
   s = await session(APP);
-  // Les imports de milliers de photos dépassent le délai de script par défaut (30 s).
-  await fetch(`http://localhost:4444/session/${s.id}/timeouts`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ script: 4 * 3600 * 1000 }) });
   await sleep(3000);
   await s.size(1600, 1000);
   await s.js(SONDE);

@@ -390,7 +390,6 @@ export const fr = {
   thumbSmall: "Petites",
   thumbMedium: "Moyennes",
   thumbLarge: "Grandes",
-  usedInDocument: "Déjà dans le document",
   photoRemove: "Retirer cette photo",
   photoRemoveConfirm: (pages: number[]) =>
     (pages.length === 0

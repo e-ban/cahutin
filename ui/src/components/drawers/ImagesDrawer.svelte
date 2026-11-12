@@ -8,6 +8,7 @@
   import MyImagesPanel from "./MyImagesPanel.svelte";
   import PhotosPanel from "./PhotosPanel.svelte";
   import PictoPanel from "./PictoPanel.svelte";
+  import ImagesWide from "./ImagesWide.svelte";
   import { editor, type ImagesTab } from "../../lib/docStore.svelte";
   import { photoZoneElement } from "../../lib/factory";
   import { fr } from "../../lib/i18n/fr";
@@ -24,6 +25,8 @@
   });
 
   let query = $state("");
+  // Une image de la vue agrandie est en train d'être glissée : le tiroir reprend sa largeur.
+  let dragging = $state(false);
 
   function addPhotoZone() {
     const el = photoZoneElement(editor.page);
@@ -44,7 +47,13 @@
   const tab = $derived(tabs.some((t) => t.id === editor.imagesTab) ? editor.imagesTab : "pictos");
 </script>
 
-<Drawer title={fr.images}>
+<Drawer title={fr.images} wide={editor.imagesWide && !dragging}>
+  {#if editor.imagesWide}
+    <ImagesWide ondrag={(d) => (dragging = d)} />
+  {:else}
+  {#if !editor.templateMode && !editor.replacingPictos}
+    <button class="expand" title={fr.imagesWideHint} onclick={() => editor.openImagesWide()}><Icon name="images" /> {fr.imagesWide}</button>
+  {/if}
   <div class="tabs" role="tablist">
     {#each tabs as t (t.id)}
       <button role="tab" data-guide="tab-{t.id}" aria-selected={tab === t.id} class:on={tab === t.id} onclick={() => ((query = ""), editor.setImagesTab(t.id))}>{t.label}</button>
@@ -68,9 +77,14 @@
       <PictoPanel />
     {/if}
   {/if}
+  {/if}
 </Drawer>
 
 <style>
+  .expand {
+    padding: 6px;
+    font-weight: 600;
+  }
   .tabs {
     display: flex;
     border: 1px solid var(--line);

@@ -4,10 +4,11 @@
   import { fr } from "../../lib/i18n/fr";
   import Icon from "../Icon.svelte";
 
-  let { title, children }: { title: string; children: Snippet } = $props();
+  // `wide` : le tiroir s'étend par-dessus la page sans la déplacer (sa colonne garde 260 px).
+  let { title, children, wide = false }: { title: string; children: Snippet; wide?: boolean } = $props();
 </script>
 
-<aside class="drawer" aria-label={title}>
+<aside class="drawer" class:wide aria-label={title}>
   <header>
     <h3>{title}</h3>
     <button class="close" title={fr.closeDrawer} aria-label={fr.closeDrawer} onclick={() => (editor.drawer = null)}><Icon name="close" size={18} /></button>
@@ -24,6 +25,16 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    --wide-w: min(1240px, calc(100vw - 140px));
+    transition: width 0.15s ease, margin-right 0.15s ease;
+  }
+  /* Plus large que sa colonne : la marge négative rend la différence, la page ne bouge pas. */
+  .drawer.wide {
+    position: relative;
+    z-index: 40;
+    width: var(--wide-w);
+    margin-right: calc(260px - var(--wide-w));
+    box-shadow: 6px 0 18px rgb(0 0 0 / 0.18);
   }
   header {
     display: flex;

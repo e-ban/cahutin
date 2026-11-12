@@ -1,5 +1,5 @@
 // Photothèque de la session : filtres, pastilles par dossier, photos utilisées, chemins à mémoriser.
-import type { AssetMeta, Document, Element } from "./types";
+import type { AssetMeta, Document, Element, Page } from "./types";
 
 export interface LibraryPhoto {
   meta: AssetMeta;
@@ -8,7 +8,41 @@ export interface LibraryPhoto {
   folder: string;
 }
 
-export type PhotoFilter = { kind: "all" } | { kind: "unused" } | { kind: "folder"; folder: string };
+export type PhotoFilter = { kind: "all" } | { kind: "unused" } | { kind: "page" } | { kind: "folder"; folder: string };
+
+/** À partir de ce nombre de photos, le tiroir s'ouvre sur « Non placées » et les aides se taisent. */
+export const MANY_PHOTOS = 20;
+
+/** Le filtre à l'ouverture du tiroir : celui qu'on a choisi la dernière fois (sauf un dossier, propre à son
+ *  document) ; sinon « Non placées » quand il y a beaucoup de photos. */
+export function startFilter(saved: PhotoFilter | null, count: number): PhotoFilter {
+  if (saved && (saved.kind === "all" || saved.kind === "unused" || saved.kind === "page")) return saved;
+  return count >= MANY_PHOTOS ? { kind: "unused" } : { kind: "all" };
+}
+
+/** Les photos par jour de prise de vue, du plus récent au plus ancien ; celles sans date (documents d'avant la
+ *  version 10) à la fin. Dans un jour, l'ordre d'import est gardé. */
+export function byDay(photos: LibraryPhoto[]): { day: string | null; photos: LibraryPhoto[] }[] {
+  const days = new Map<string | null, LibraryPhoto[]>();
+  for (const p of photos) {
+    const day = p.meta.taken ?? null;
+    days.set(day, [...(days.get(day) ?? []), p]);
+  }
+  return [...days]
+    .sort(([a], [b]) => (a === null ? 1 : b === null ? -1 : b.localeCompare(a)))
+    .map(([day, photos]) => ({ day, photos }));
+}
+
+/** Le badge d'une photo posée : sa page, ou la première suivie de « … » si elle est sur plusieurs. */
+export function pageBadge(pages: number[]): string | null {
+  if (pages.length === 0) return null;
+  return `p. ${pages[0]}${pages.length > 1 ? "…" : ""}`;
+}
+
+/** Les images posées sur une page : photos et fonds de cadre. */
+export function assetsOnPage(page: Page): Set<string> {
+  return new Set(page.elements.flatMap(elementAssets));
+}
 
 /** Images de la photothèque utilisées par un élément : la photo, ou l'image de fond d'un cadre de texte. */
 export function elementAssets(e: Element): string[] {
@@ -22,12 +56,14 @@ export function usedAssetIds(doc: Document): Set<string> {
   return new Set(doc.pages.flatMap((p) => p.elements.flatMap(elementAssets)));
 }
 
-export function filterPhotos(photos: LibraryPhoto[], filter: PhotoFilter, used: Set<string>): LibraryPhoto[] {
+export function filterPhotos(photos: LibraryPhoto[], filter: PhotoFilter, used: Set<string>, onPage: Set<string> = new Set()): LibraryPhoto[] {
   switch (filter.kind) {
     case "all":
       return photos;
     case "unused":
       return photos.filter((p) => !used.has(p.meta.id));
+    case "page":
+      return photos.filter((p) => onPage.has(p.meta.id));
     case "folder":
       return photos.filter((p) => p.folder === filter.folder);
   }

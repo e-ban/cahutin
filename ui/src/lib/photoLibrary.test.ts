@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { elementAssets, filterPhotos, folderChips, pendingPaths, usedAssetIds, type LibraryPhoto } from "./photoLibrary";
+import { MANY_PHOTOS, assetsOnPage, byDay, elementAssets, filterPhotos, folderChips, pageBadge, pendingPaths, startFilter, usedAssetIds, type LibraryPhoto } from "./photoLibrary";
 import type { Document, Element } from "./types";
 
 const meta = (id: string) => ({ id, width_px: 40, height_px: 30, mime: "Jpeg" as const });
@@ -22,6 +22,8 @@ const doc = (pages: (string | null)[][]): Document => ({
 });
 
 const photos = [lp("a", "Ferme"), lp("b", "Ferme"), lp("c", "Piscine"), lp("d", "Ferme")];
+/** Une photo datée (ou sans date : document d'avant la version 10). */
+const lpd = (id: string, taken: string | null): LibraryPhoto => ({ meta: { ...meta(id), taken }, path: `/p/${id}.jpg`, folder: "Ferme" });
 
 test("usedAssetIds collects photos placed on every page", () => {
   expect([...usedAssetIds(doc([["a", null], ["c"]]))].sort()).toEqual(["a", "c"]);
@@ -72,4 +74,50 @@ test("a photo removed from the document leaves its photo boxes empty, in place",
   const out = withoutAsset(d, "a");
   expect(out.pages.map((p) => p.elements.map((e) => (e.kind.type === "Photo" ? e.kind.asset : "?")))).toEqual([[null, "b"], [], [null]]);
   expect(pagesUsing(out, "a")).toEqual([]);
+});
+
+test("byDay: du plus récent au plus ancien, sans date à la fin, ordre d'import gardé dans un jour", () => {
+  const g = byDay([lpd("a", "2026-10-05"), lpd("b", null), lpd("c", "2026-10-07"), lpd("d", "2026-10-05")]);
+  expect(g.map((x) => [x.day, x.photos.map((p) => p.meta.id)])).toEqual([
+    ["2026-10-07", ["c"]],
+    ["2026-10-05", ["a", "d"]],
+    [null, ["b"]],
+  ]);
+});
+
+test("un document d'avant la version 10 : toutes ses photos sont sans date", () => {
+  expect(byDay([lp("a", "Ferme"), lp("b", "Ferme")]).map((x) => [x.day, x.photos.length])).toEqual([[null, 2]]);
+});
+
+test("filtre Sur cette page", () => {
+  expect(filterPhotos(photos, { kind: "page" }, new Set(["a", "c"]), new Set(["c"])).map((p) => p.meta.id)).toEqual(["c"]);
+  expect(filterPhotos(photos, { kind: "page" }, new Set(["a", "c"]), new Set())).toEqual([]);
+});
+
+test("startFilter: Non placées à partir de 20 photos, sauf choix mémorisé", () => {
+  expect(MANY_PHOTOS).toBe(20);
+  expect(startFilter(null, 19)).toEqual({ kind: "all" });
+  expect(startFilter(null, 20)).toEqual({ kind: "unused" });
+  expect(startFilter({ kind: "all" }, 300)).toEqual({ kind: "all" });
+  expect(startFilter({ kind: "page" }, 3)).toEqual({ kind: "page" });
+  // Un dossier n'a de sens que dans son document : il n'est pas repris.
+  expect(startFilter({ kind: "folder", folder: "Ferme" }, 300)).toEqual({ kind: "unused" });
+});
+
+test("pageBadge: la page où la photo est posée, la première s'il y en a plusieurs", () => {
+  expect(pageBadge([])).toBeNull();
+  expect(pageBadge([3])).toBe("p. 3");
+  expect(pageBadge([2, 5])).toBe("p. 2…");
+});
+
+test("assetsOnPage: les photos et les fonds de cadre de la page", () => {
+  const d = doc([["a", null]]);
+  d.pages[0].elements.push({
+    id: "t",
+    frame: { x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 },
+    locked: false,
+    zone: false,
+    kind: { type: "Text", content: { paragraphs: [] }, style: { font: "Andika", size_pt: 14, color: "#222222", align: "Left" }, prompt: null, frame: { fill: null, stroke: null, corner_radius_mm: 0, image: "b" } },
+  });
+  expect([...assetsOnPage(d.pages[0])].sort()).toEqual(["a", "b"]);
 });

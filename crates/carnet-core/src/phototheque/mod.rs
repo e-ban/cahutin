@@ -5,6 +5,7 @@
 
 pub mod index;
 pub mod scan;
+pub mod thumbs;
 
 use crate::class;
 use crate::model::Id;

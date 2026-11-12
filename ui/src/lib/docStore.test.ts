@@ -187,6 +187,15 @@ test("a notice can carry one action, dropped when another notice replaces it", (
   editor.notice = null;
 });
 
+test("running a notice action clears the notice first, then runs the action once", () => {
+  const run = vi.fn();
+  editor.notify("Photo retirée.", { label: "Annuler", run });
+  editor.runNoticeAction();
+  expect(run).toHaveBeenCalledTimes(1);
+  expect(editor.notice).toBeNull();
+  expect(editor.noticeAction).toBeNull();
+});
+
 test("each change of placed handwriting rows is one undo step for all the rows", () => {
   editor.updatePage((p) => ({ ...p, elements: graphismeRows(p, "ponts", "MS", 4) }));
   const placed = editor.page;

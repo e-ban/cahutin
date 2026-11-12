@@ -442,13 +442,7 @@
     <div class="notice" role="alert">
       <pre>{editor.notice}</pre>
       {#if editor.noticeAction}
-        {@const action = editor.noticeAction}
-        <button
-          onclick={() => {
-            editor.notice = null;
-            action.run();
-          }}>{action.label}</button
-        >
+        <button onclick={() => editor.runNoticeAction()}>{editor.noticeAction.label}</button>
       {/if}
       <button onclick={() => (editor.notice = null)}>OK</button>
     </div>

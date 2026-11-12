@@ -101,6 +101,12 @@ class Editor {
     this.notice = message;
     this.noticeAction = action ?? null;
   }
+  /** Lance l'action de l'avis : on la prend avant de fermer l'avis, qui vide aussi `noticeAction`. */
+  runNoticeAction() {
+    const action = this.noticeAction;
+    this.notice = null;
+    action?.run();
+  }
   /** Travail en cours sans progression mesurable (export) : un message sans bouton. */
   busy = $state<string | null>(null);
   /** Tiroir ouvert à côté de la colonne d'icônes (un seul à la fois). */

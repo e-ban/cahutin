@@ -17,4 +17,32 @@ students: Array<string>,
 /**
  * Activités, sorties, domaines : « Sortie à la ferme », « Motricité ».
  */
-tags: Array<string>, };
+tags: Array<string>, 
+/**
+ * Chemin absolu du fichier.
+ */
+path: string, 
+/**
+ * Dossier suivi d'où vient la photo, pour le filtre « Dossiers ».
+ */
+folder: string, 
+/**
+ * Taille en octets.
+ */
+size: number, 
+/**
+ * Date de modification, en secondes depuis 1970 : un fichier changé se voit.
+ */
+modified: number, 
+/**
+ * Empreinte (taille + FNV-1a des 64 premiers Kio), en hexadécimal.
+ */
+fingerprint: string, 
+/**
+ * « Retirer » : masquée mais gardée, pour ne pas revenir au prochain parcours.
+ */
+hidden: boolean, 
+/**
+ * Fichier absent au dernier parcours.
+ */
+missing: boolean, };

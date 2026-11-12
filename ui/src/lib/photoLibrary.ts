@@ -26,7 +26,9 @@ export function byDay(photos: LibraryPhoto[]): { day: string | null; photos: Lib
   const days = new Map<string | null, LibraryPhoto[]>();
   for (const p of photos) {
     const day = p.meta.taken ?? null;
-    days.set(day, [...(days.get(day) ?? []), p]);
+    const list = days.get(day);
+    if (list) list.push(p);
+    else days.set(day, [p]);
   }
   return [...days]
     .sort(([a], [b]) => (a === null ? 1 : b === null ? -1 : b.localeCompare(a)))

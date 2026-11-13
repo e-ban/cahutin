@@ -8,7 +8,7 @@
   import { ask } from "../../lib/ask";
   import { editor } from "../../lib/docStore.svelte";
   import { ASSET_MIME } from "../../lib/dnd";
-  import { usePhoto } from "../../lib/editActions";
+  import { askRemoveUnusedPhotos, usePhoto } from "../../lib/editActions";
   import { importPaths } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
   import { MANY_PHOTOS, assetsOnPage, byDay, elementAssets, filterPhotos, folderChips, newlyPlaced, pageBadge, pagesUsing, shownFilter, startFilter, usedAssetIds, type PhotoFilter } from "../../lib/photoLibrary";
@@ -31,6 +31,9 @@
   const shown = $derived(filterPhotos(editor.photos, filter, used, onPage));
   const days = $derived(byDay(shown));
   const unusedCount = $derived(editor.photos.filter((p) => !used.has(p.meta.id)).length);
+  // Le retrait suit le filtre : la vue d'un dossier ne retire que ses photos non placées.
+  const removeOnly = $derived(filter.kind === "folder" ? new Set(shown.map((p) => p.meta.id)) : undefined);
+  const removeCount = $derived(shown.filter((p) => !used.has(p.meta.id)).length);
   const pageCount = $derived(editor.photos.filter((p) => onPage.has(p.meta.id)).length);
   const many = $derived(editor.photos.length >= MANY_PHOTOS);
   // Les pages de chaque photo posée, calculées une fois pour tout le tiroir.
@@ -76,13 +79,6 @@
     if (await ask(fr.photoRemoveConfirm(pagesUsing(editor.doc, id)), fr.photoRemove)) editor.removePhoto(id);
   }
 
-  async function removeUnused() {
-    const n = unusedCount;
-    if (!(await ask(fr.photosRemoveUnusedConfirm(n), fr.photosRemoveUnused(n)))) return;
-    const gone = editor.removeUnusedPhotos();
-    editor.notify(fr.photosRemovedUnused(gone.photos.length), { label: fr.undo, run: () => editor.restorePhotos(gone) });
-  }
-
   async function pickFolder() {
     const dir = await open({ directory: true });
     if (typeof dir === "string") await importPaths(await listImportableIn(dir), { fromFolder: true });
@@ -119,9 +115,10 @@
       {/each}
     </div>
     <div class="tools">
-      <!-- Pas pendant un import : les photos encore en route reviendraient après le retrait. -->
-      {#if filter.kind === "unused" && unusedCount > 0 && !editor.importProgress}
-        <button class="link" onclick={removeUnused}>{fr.photosRemoveUnused(unusedCount)}</button>
+      <!-- Dès que la vue montre une photo non placée (Toutes, Non placées, un dossier). Pas pendant un import :
+           les photos encore en route reviendraient après le retrait. -->
+      {#if shown.some((p) => !used.has(p.meta.id)) && !editor.importProgress}
+        <button class="link" onclick={() => askRemoveUnusedPhotos(removeOnly)}>{fr.photosRemoveUnused(removeCount)}</button>
       {/if}
       <div class="sizes" role="group" aria-label={fr.thumbSize}>
         {#each SIZES as s (s.px)}

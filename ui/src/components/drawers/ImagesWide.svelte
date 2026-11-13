@@ -7,7 +7,7 @@
   import { CLASS_PHOTO_MIME, ASSET_MIME, MY_IMAGE_MIME } from "../../lib/dnd";
   import { editor } from "../../lib/docStore.svelte";
   import { DRAWN_STEP, drawMoreNearEnd } from "../../lib/drawMore";
-  import { useImages } from "../../lib/editActions";
+  import { askRemoveUnusedPhotos, unusedPhotoIds, useImages } from "../../lib/editActions";
   import { fr } from "../../lib/i18n/fr";
   import { libraryView, mineView, photosView, type Source, type WideFilter } from "../../lib/imageSources";
   import { myImages } from "../../lib/myImages.svelte";
@@ -58,6 +58,7 @@
   });
 
   const students = $derived(classes.current?.class.students ?? []);
+  const unusedIds = $derived(unusedPhotoIds());
   const view = $derived(
     source === "photos"
       ? photosView(editor.photos, editor.doc, editor.page, filters.photos)
@@ -66,6 +67,10 @@
         : mineView(myImages.images, filters.mine),
   );
   const order = $derived(view.groups.flatMap((g) => g.items.map((i) => i.key)));
+  // Le retrait des non placées suit le filtre : la vue d'un dossier ne retire que ses photos.
+  const shownKeys = $derived(view.groups.flatMap((g) => g.items.map((it) => it.key)));
+  const removeCount = $derived(source === "photos" ? shownKeys.filter((k) => unusedIds.has(k)).length : 0);
+  const removeOnly = $derived(filters.photos.startsWith("folder:") ? new Set(shownKeys) : undefined);
   // Comme la page Photothèque : les premières vignettes seulement, puis davantage quand le bas approche. Le
   // choix (Maj, le jour entier) porte toujours sur toutes les images, dessinées ou non.
   let drawnCount = $state(DRAWN_STEP);
@@ -160,20 +165,25 @@
         <button class:on={thumbSize === s.px} title={s.label} aria-label={s.label} onclick={() => setSize(s.px)}><Icon name="border" size={s.iconSize} /></button>
       {/each}
     </div>
-    <button class="narrow" onclick={() => editor.closeImagesWide()}>{fr.imagesNarrow}</button>
   </header>
 
   <div class="main">
     <nav class="filters" aria-label={fr.images}>
+      <!-- En haut de la colonne : visibles même avec beaucoup d'enfants ou de dossiers à faire défiler. -->
+      {#if source === "library" && classes.current}
+        <button class="link top" onclick={() => (editor.showPhototheque = true)}>{fr.librarySortLink}</button>
+      {/if}
+      <!-- Comme dans le tiroir : dès que la vue montre une photo non placée, et pas pendant un import (les
+           photos encore en route reviendraient après le retrait). -->
+      {#if source === "photos" && removeCount > 0 && !editor.importProgress}
+        <button class="link top" onclick={async () => (await askRemoveUnusedPhotos(removeOnly)) && (selected = [])}>{fr.photosRemoveUnused(removeCount)}</button>
+      {/if}
       {#each sections as sec, i (i)}
         {#if sec.heading}<h4>{sec.heading}</h4>{/if}
         {#each sec.filters as f (f.id)}
           <button class:on={f.on} onclick={() => setFilter(f.id)}>{f.label}</button>
         {/each}
       {/each}
-      {#if source === "library" && classes.current}
-        <button class="link" onclick={() => (editor.showPhototheque = true)}>{fr.librarySortLink}</button>
-      {/if}
     </nav>
 
     <section class="groups">
@@ -282,9 +292,13 @@
     align-items: start;
     flex: 1;
   }
+  /* La colonne défile seule (beaucoup d'enfants ou de dossiers) ; ses liens restent en haut. */
   .filters {
     position: sticky;
     top: 48px;
+    max-height: calc(100vh - 250px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -314,6 +328,14 @@
     color: var(--accent);
     text-decoration: underline;
     text-align: left;
+  }
+  .link.top {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 0 6px;
+    padding: 2px 0 6px;
+    background: var(--panel);
   }
   .groups {
     display: flex;

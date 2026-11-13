@@ -27,6 +27,19 @@ test("retirer les non placées garde les photos posées", () => {
   expect(pendingPaths(editor.photos, editor.doc, editor.carriedPending)).toEqual([]);
 });
 
+test("retirer les non placées d'un dossier ne touche pas aux autres", () => {
+  drawerWithOnePlaced();
+  editor.carriedPending = ["/photos/b.jpg", "/usb/x.jpg"];
+  const gone = editor.removeUnusedPhotos(new Set(["a", "b"]));
+  expect(gone.photos.map((p) => p.meta.id)).toEqual(["b"]);
+  expect(editor.photos.map((p) => p.meta.id)).toEqual(["a", "c"]);
+  // Seul le chemin de la photo retirée est oublié ; celui de la clé USB absente reste.
+  expect(editor.carriedPending).toEqual(["/usb/x.jpg"]);
+  editor.restorePhotos(gone);
+  expect(editor.photos.map((p) => p.meta.id).sort()).toEqual(["a", "b", "c"]);
+  expect(editor.carriedPending.sort()).toEqual(["/photos/b.jpg", "/usb/x.jpg"]);
+});
+
 test("retirer les non placées oublie aussi celles encore en attente (clé USB absente)", () => {
   drawerWithOnePlaced();
   editor.carriedPending = ["/photos/b.jpg", "/usb/x.jpg"];

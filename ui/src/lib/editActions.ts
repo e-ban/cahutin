@@ -5,7 +5,9 @@ import { copyElements, duplicateElements, pasteElements, removeElements, reorder
 import { editor } from "./docStore.svelte";
 import { boundsOf, existingIds, flipped, expandSelection, groupElements, pathOf, isLockedSelection, mirrorElements, rotateElements, scaleElements, ungroup, withPath } from "./groups";
 import { newId } from "./factory";
-import { elementAssets } from "./photoLibrary";
+import { elementAssets, usedAssetIds } from "./photoLibrary";
+import { ask } from "./ask";
+import { fr } from "./i18n/fr";
 import { textFrame } from "./elementEdit";
 import { tableDissolve, tableSetCell } from "./api";
 import { clearTextCell, inTableGroup, isTableCell } from "./table";
@@ -356,4 +358,26 @@ export function usePhoto(meta: AssetMeta, { warn = true }: { warn?: boolean } = 
   const taken = (x: number, y: number) => editor.page.elements.some((e) => Math.abs(e.frame.x_mm + e.frame.w_mm / 2 - x) < 1 && Math.abs(e.frame.y_mm + e.frame.h_mm / 2 - y) < 1);
   for (let i = 0; i < 20 && taken(x, y); i++) [x, y] = [x + 8, y + 8];
   addPhotoAt(meta, x, y);
+}
+
+/** Les photos du panneau posées nulle part dans le document. */
+export function unusedPhotoIds(): Set<string> {
+  const used = usedAssetIds(editor.doc);
+  return new Set(editor.photos.filter((p) => !used.has(p.meta.id)).map((p) => p.meta.id));
+}
+
+/** Combien de photos non placées retirerait `askRemoveUnusedPhotos(only)`. */
+export function unusedPhotoCountIn(only?: Set<string>): number {
+  const ids = unusedPhotoIds();
+  return only ? [...ids].filter((id) => only.has(id)).length : ids.size;
+}
+
+/** Retire du panneau les photos non placées (`only` : la vue d'un dossier, seulement celles-là), après
+ *  confirmation ; « Annuler » les remet. Vrai si retirées. */
+export async function askRemoveUnusedPhotos(only?: Set<string>): Promise<boolean> {
+  const n = unusedPhotoCountIn(only);
+  if (!n || !(await ask(fr.photosRemoveUnusedConfirm(n), fr.photosRemoveUnused(n)))) return false;
+  const gone = editor.removeUnusedPhotos(only);
+  editor.notify(fr.photosRemovedUnused(gone.photos.length), { label: fr.undo, run: () => editor.restorePhotos(gone) });
+  return true;
 }

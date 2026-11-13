@@ -19,7 +19,7 @@ class Editor {
   zoom = $state<Zoom>("fit");
   fitZoom = $state(1);
   templateMode = $state(false);
-  /** Photothèque de la session (pas forcément utilisées dans le document) ; gardée après « Nouveau ». */
+  /** Photos du document, placées ou non ; un document qui s'ouvre ou se crée y met les siennes. */
   photos = $state.raw<LibraryPhoto[]>([]);
   /** Chemins en attente du document ouvert, gardés à l'enregistrement tant qu'ils ne sont pas réimportés. */
   carriedPending: string[] = [];
@@ -334,13 +334,17 @@ class Editor {
 
   /** Retire du tiroir toutes les photos posées nulle part (ni photo ni fond de cadre), et oublie toutes les
    *  photos en attente (non placées elles aussi, même si leur fichier est absent aujourd'hui) ; le document
-   *  n'est pas touché. Rend ce qui a été retiré, pour « Annuler ». */
-  removeUnusedPhotos(): { photos: LibraryPhoto[]; carried: string[] } {
+   *  n'est pas touché. Rend ce qui a été retiré, pour « Annuler ». `only` (la vue d'un dossier) : seulement
+   *  celles-là ; les autres photos et les autres chemins en attente restent. */
+  removeUnusedPhotos(only?: Set<string>): { photos: LibraryPhoto[]; carried: string[] } {
     const used = usedAssetIds(this.doc);
-    const gone = { photos: this.photos.filter((p) => !used.has(p.meta.id)), carried: this.carriedPending };
-    this.photos = this.photos.filter((p) => used.has(p.meta.id));
-    this.carriedPending = [];
-    return gone;
+    const goes = (p: LibraryPhoto) => !used.has(p.meta.id) && (!only || only.has(p.meta.id));
+    const photos = this.photos.filter(goes);
+    const paths = new Set(photos.map((p) => p.path));
+    const carried = only ? this.carriedPending.filter((path) => paths.has(path)) : this.carriedPending;
+    this.photos = this.photos.filter((p) => !goes(p));
+    this.carriedPending = only ? this.carriedPending.filter((path) => !paths.has(path)) : [];
+    return { photos, carried };
   }
 
   /** Remet ce qu'a retiré `removeUnusedPhotos` (« Annuler »). */

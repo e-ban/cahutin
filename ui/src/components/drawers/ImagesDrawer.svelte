@@ -45,9 +45,48 @@
     ).filter((t) => t.id === "pictos" || !editor.replacingPictos),
   );
   const tab = $derived(tabs.some((t) => t.id === editor.imagesTab) ? editor.imagesTab : "pictos");
+
+  // Agrandi, un clic n'importe où hors du tiroir (la page, les barres) le réduit, et ne fait rien d'autre.
+  // Les boîtes de dialogue et les menus ouverts au-dessus ne comptent pas.
+  $effect(() => {
+    if (!editor.imagesWide || dragging) return;
+    let swallowing = false;
+    const outside = (t: EventTarget | null) =>
+      t instanceof Element && !t.closest('aside.drawer, [role="dialog"], [role="menu"], [role="listbox"]');
+    const down = (e: Event) => {
+      if (!outside(e.target)) return;
+      swallowing = true;
+      e.preventDefault();
+      e.stopPropagation();
+      editor.closeImagesWide();
+    };
+    const swallow = (e: Event) => {
+      if (!swallowing) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.type === "click") swallowing = false;
+    };
+    window.addEventListener("pointerdown", down, true);
+    for (const t of ["mousedown", "pointerup", "mouseup", "click"]) window.addEventListener(t, swallow, true);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      // Le reste du clic qui a réduit (relâchement, clic) arrive après : il est encore avalé, puis on s'arrête.
+      setTimeout(() => {
+        for (const t of ["mousedown", "pointerup", "mouseup", "click"]) window.removeEventListener(t, swallow, true);
+      }, 600);
+    };
+  });
+  const edge = $derived(
+    !editor.templateMode && !editor.replacingPictos
+      ? {
+          label: editor.imagesWide ? fr.imagesNarrow : fr.imagesWideHint,
+          ontoggle: () => (editor.imagesWide ? editor.closeImagesWide() : editor.openImagesWide()),
+        }
+      : undefined,
+  );
 </script>
 
-<Drawer title={fr.images} wide={editor.imagesWide && !dragging}>
+<Drawer title={fr.images} wide={editor.imagesWide && !dragging} {edge}>
   {#if editor.imagesWide}
     <!-- Pendant un glisser, la vue agrandie reste dans la page (l'image tenue en fait partie : la retirer
          annulerait le glisser) mais ne se voit plus ; le tiroir montre son contenu habituel. -->
@@ -56,9 +95,6 @@
     </div>
   {/if}
   {#if !editor.imagesWide || dragging}
-  {#if !editor.templateMode && !editor.replacingPictos}
-    <button class="expand" title={fr.imagesWideHint} onclick={() => editor.openImagesWide()}><Icon name="images" /> {fr.imagesWide}</button>
-  {/if}
   <div class="tabs" role="tablist">
     {#each tabs as t (t.id)}
       <button role="tab" data-guide="tab-{t.id}" aria-selected={tab === t.id} class:on={tab === t.id} onclick={() => ((query = ""), editor.setImagesTab(t.id))}>{t.label}</button>
@@ -100,10 +136,6 @@
     overflow: hidden;
     opacity: 0;
     pointer-events: none;
-  }
-  .expand {
-    padding: 6px;
-    font-weight: 600;
   }
   .tabs {
     display: flex;

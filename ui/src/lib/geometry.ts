@@ -103,6 +103,22 @@ export function nudge(frame: Frame, key: ArrowKey, shift: boolean): Frame {
   return { ...frame, x_mm: frame.x_mm + dx, y_mm: frame.y_mm + dy };
 }
 
+/** Ce qui reste au moins sur la page d'un bloc déplacé aux flèches (mm), comme un bord que l'on peut encore saisir. */
+export const KEEP_ON_PAGE_MM = 5;
+
+/** Déplacement aux flèches de la boîte d'un bloc : celui de `nudge`, arrêté quand il ne resterait plus que
+ *  KEEP_ON_PAGE_MM sur la page (tout le bloc s'il est plus petit). Vers la page, rien ne retient. */
+export function nudgeOnPage(box: Box, size: PageSize, key: ArrowKey, shift: boolean): { dx: number; dy: number } {
+  const step = nudge({ x_mm: 0, y_mm: 0, w_mm: 0, h_mm: 0, rotation_deg: 0 }, key, shift);
+  const limit = (d: number, at: number, len: number, page: number) => {
+    const keep = Math.min(KEEP_ON_PAGE_MM, len);
+    if (d > 0) return Math.min(d, Math.max(0, Math.round((page - keep - at) * 10) / 10));
+    if (d < 0) return Math.max(d, Math.min(0, Math.round((keep - at - len) * 10) / 10));
+    return 0;
+  };
+  return { dx: limit(step.x_mm, box.x_mm, box.w_mm, size.width_mm), dy: limit(step.y_mm, box.y_mm, box.h_mm, size.height_mm) };
+}
+
 /**
  * Redimensionner garde-t-il les proportions ? Une photo, oui (son recadrage reste le même), sauf avec Maj ;
  * une image de la banque, toujours (elle est carrée) ; le reste, seulement avec Maj.

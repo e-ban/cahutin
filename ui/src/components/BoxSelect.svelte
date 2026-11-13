@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Sélection au cadre : glisser sur la page vide ou la vue autour sélectionne les éléments entièrement couverts
+  // Sélection au cadre : glisser sur la page vide, un élément verrouillé ou la vue autour sélectionne les éléments entièrement couverts
   // (un élément groupé sélectionne tout son groupe) ; Maj ajoute à la sélection.
   import { editor } from "../lib/docStore.svelte";
   import { elementsInRect, expandSelection } from "../lib/groups";
@@ -12,7 +12,9 @@
   let box = $state<{ left: number; top: number; width: number; height: number } | null>(null);
 
   function onDown(ev: PointerEvent) {
-    if (ev.button !== 0 || (ev.target !== pageEl && ev.target !== stageEl) || editor.cropping || editor.editingText) return;
+    // Un élément verrouillé (un fond de page) ne bouge pas : un glisser qui part de lui trace aussi le cadre.
+    const onLocked = !editor.templateMode && !!(ev.target as HTMLElement).closest?.(".element.locked") && !!pageEl?.contains(ev.target as Node);
+    if (ev.button !== 0 || (ev.target !== pageEl && ev.target !== stageEl && !onLocked) || editor.cropping || editor.editingText) return;
     start = { x: ev.clientX, y: ev.clientY, add: ev.shiftKey };
   }
 

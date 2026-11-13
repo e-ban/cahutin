@@ -17,6 +17,8 @@
   import { PX_PER_MM, mmToPx, ptToPx } from "../lib/units";
   import { settings } from "../lib/settings.svelte";
   import { isPlacedCell } from "../lib/table";
+  import { blockBelow } from "../lib/groups";
+  import { DRAG_DEAD_ZONE_PX } from "../lib/geometry";
   import { textEditing } from "../lib/textEditing.svelte";
   import { IS_LINUX, resizeCursor } from "../lib/cursors";
   import { pixelRatio } from "../lib/pixelRatio.svelte";
@@ -68,7 +70,7 @@
     onedittext?: (id: string) => void;
     ontextdone?: (id: string, content: RichText) => void;
     /** Clic droit sur un élément (id) ou sur la page (null), avec la position en mm sur la page. */
-    oncontext?: (id: string | null, xMm: number, yMm: number, clientX: number, clientY: number) => void;
+    oncontext?: (id: string | null, xMm: number, yMm: number, clientX: number, clientY: number, stack: string[]) => void;
     /** Double-clic sur un élément groupé : il est modifié seul. */
     onfocusmember?: (id: string) => boolean;
     /** Image de la banque lâchée sur la page, au point (mm). */
@@ -80,6 +82,8 @@
   // Rognage en cours : le cadre bouge avec la poignée, la photo reste en place.
   let liveFrame = $state<Frame | null>(null);
   let dragFrom: { x: number; y: number } | null = null;
+  // Appui d'un Alt+clic sur la page : un glisser depuis là reste un déplacement.
+  let altFrom: { x: number; y: number } | null = null;
   let wheelTimer: ReturnType<typeof setTimeout> | null = null;
   /** Molette : enregistrée après une courte pause, en un seul pas d'annulation. */
   const WHEEL_COMMIT_MS = 400;
@@ -104,8 +108,13 @@
 
   /** Élément de cette page sous le pointeur, même sous la zone des poignées d'un groupe. */
   function elementUnder(x: number, y: number): string | null {
-    const n = document.elementsFromPoint(x, y).map((el) => el.closest<HTMLElement>(".element")).find((el) => el && pageEl?.contains(el));
-    return n?.dataset.id ?? null;
+    return stackUnder(x, y)[0] ?? null;
+  }
+
+  /** Éléments de cette page sous le pointeur, du dessus au fond. */
+  function stackUnder(x: number, y: number): string[] {
+    const ids = document.elementsFromPoint(x, y).map((el) => el.closest<HTMLElement>(".element")).filter((el) => el && pageEl?.contains(el)).map((el) => el!.dataset.id!);
+    return [...new Set(ids)];
   }
 
   // Forme vide (sans remplissage) : sa boîte laisse passer les clics, ShapeEl dessine la surface qui les reçoit.
@@ -284,8 +293,19 @@
   style:background={page.background?.color ?? "white"}
   onpointerdown={(ev) => {
     if (cropping) endCrop();
+    // Alt+clic : traité au clic, une fois fini le geste éventuel des poignées.
+    altFrom = ev.altKey ? { x: ev.clientX, y: ev.clientY } : null;
+    if (altFrom) return;
     // Maj : la sélection au cadre ajoutera à la sélection actuelle.
     if (ev.target === ev.currentTarget && !ev.shiftKey) onselect?.(null, false);
+  }}
+  onclick={(ev) => {
+    // Alt+clic sans glisser : le bloc sous celui qui est choisi, pour atteindre un élément caché (seul sous le pointeur : lui).
+    const from = altFrom;
+    altFrom = null;
+    if (!ev.altKey || !onselect || editingText || (from && Math.hypot(ev.clientX - from.x, ev.clientY - from.y) > DRAG_DEAD_ZONE_PX)) return;
+    const stack = stackUnder(ev.clientX, ev.clientY);
+    onselect(blockBelow(page, stack, selection, editor.inside) ?? stack[0] ?? null, false);
   }}
   ondblclick={(ev) => {
     // Double-clic sur la zone des poignées d'un groupe (pas sur un élément) : l'élément sous le pointeur.
@@ -305,7 +325,7 @@
     const r = pageEl.getBoundingClientRect();
     // Sous la zone des poignées d'un groupe, l'élément est celui qui se trouve sous le pointeur.
     const id = elementUnder(ev.clientX, ev.clientY);
-    oncontext(id, (ev.clientX - r.left) / (PX_PER_MM * zoom), (ev.clientY - r.top) / (PX_PER_MM * zoom), ev.clientX, ev.clientY);
+    oncontext(id, (ev.clientX - r.left) / (PX_PER_MM * zoom), (ev.clientY - r.top) / (PX_PER_MM * zoom), ev.clientX, ev.clientY, stackUnder(ev.clientX, ev.clientY));
   }}
 >
   {#if page.background?.pattern}
@@ -341,7 +361,10 @@
           (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
           return;
         }
-        onselect?.(e.id, ev.shiftKey);
+        // Alt+clic : la page choisit l'élément dessous, au clic.
+        if (ev.altKey) return;
+        // Ctrl+clic, comme Maj+clic : ajoute à la sélection ou en retire.
+        onselect?.(e.id, ev.shiftKey || ev.ctrlKey || ev.metaKey);
       }}
       onpointermove={(ev) => {
         if (e.id !== cropping || !dragFrom || e.kind.type !== "Photo" || !e.kind.asset) return;

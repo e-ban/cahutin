@@ -142,3 +142,109 @@ test("une flèche maintenue ne compte que pour une étape d'annulation", async (
   editor.redo();
   expect(x(b.id)).toBe(52);
 });
+
+test("shortcutAction maps Ctrl+A to select all, even held down", () => {
+  expect(shortcutAction(key("a"))).toBe("selectAll");
+  expect(shortcutAction(key("A", { repeat: true }))).toBe("selectAll");
+});
+
+test("Ctrl+A choisit tous les éléments libres de la page, ou ceux du groupe où l'on est entré", async () => {
+  const { editor } = await import("./docStore.svelte");
+  const { modal } = await import("./modal.svelte");
+  const { handleShortcut } = await import("./shortcuts");
+  const { newDocument, textElement } = await import("./factory");
+  const doc = newDocument();
+  const frame = { x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 };
+  const fond = { ...textElement(frame), locked: true };
+  const a = { ...textElement(frame), group: "g" };
+  const b = { ...textElement(frame), group: "g" };
+  const c = textElement(frame);
+  doc.pages[0].elements.push(fond, a, b, c);
+  editor.reset(doc, null);
+  let prevented = false;
+  const ctrlA = (target: unknown = null) =>
+    handleShortcut({ key: "a", ctrlKey: true, metaKey: false, shiftKey: false, repeat: false, target, preventDefault: () => (prevented = true) } as unknown as KeyboardEvent);
+
+  // L'élément verrouillé reste à part : avec lui, rien ne pourrait plus bouger.
+  editor.selection = [];
+  ctrlA();
+  expect(prevented).toBe(true);
+  expect(editor.selection).toEqual([a.id, b.id, c.id]);
+
+  // Entré dans le groupe : ses éléments seulement.
+  editor.insideGroup = ["g"];
+  editor.focusedMember = a.id;
+  editor.selection = [a.id];
+  ctrlA();
+  expect(editor.selection).toEqual([a.id, b.id]);
+  expect(editor.focusedMember).toBeNull();
+  expect(editor.inside).toEqual(["g"]);
+
+  // Mode modèle : un élément fixé se règle, il est pris aussi.
+  editor.insideGroup = [];
+  editor.templateMode = true;
+  ctrlA();
+  expect(editor.selection).toEqual([fond.id, a.id, b.id, c.id]);
+  editor.templateMode = false;
+
+  // Dans un champ de saisie, ou sous une boîte de dialogue : rien.
+  editor.selection = [];
+  ctrlA({ tagName: "INPUT", isContentEditable: false });
+  expect(editor.selection).toEqual([]);
+  void modal.choose("Question ?", [{ value: "ok", label: "OK" }]);
+  ctrlA();
+  expect(editor.selection).toEqual([]);
+  modal.answer("ok");
+});
+
+test("Échap sort d'un groupe, puis désélectionne", async () => {
+  const { editor } = await import("./docStore.svelte");
+  const { handleShortcut } = await import("./shortcuts");
+  const { newDocument, textElement } = await import("./factory");
+  const doc = newDocument();
+  const frame = { x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 };
+  const a = { ...textElement(frame), group: "g" };
+  const b = { ...textElement(frame), group: "g" };
+  doc.pages[0].elements.push(a, b);
+  editor.reset(doc, null);
+  const esc = () => handleShortcut({ key: "Escape", ctrlKey: false, metaKey: false, shiftKey: false, repeat: false, target: null, preventDefault() {} } as unknown as KeyboardEvent);
+
+  editor.insideGroup = ["g"];
+  editor.focusedMember = a.id;
+  editor.selection = [a.id];
+  esc();
+  expect(editor.selection).toEqual([a.id, b.id]);
+  expect(editor.inside).toEqual([]);
+  esc();
+  expect(editor.selection).toEqual([]);
+  expect(editor.insideGroup).toEqual([]);
+
+  // Pendant un recadrage, Échap termine le recadrage seulement.
+  editor.selection = [a.id];
+  editor.cropping = a.id;
+  esc();
+  expect(editor.selection).toEqual([a.id]);
+  editor.cropping = null;
+});
+
+test("une flèche ne sort pas un élément de la page", async () => {
+  const { editor } = await import("./docStore.svelte");
+  const { handleShortcut, handleKeyUp } = await import("./shortcuts");
+  const { newDocument, textElement } = await import("./factory");
+  const doc = newDocument();
+  const a = textElement({ x_mm: 0, y_mm: 0, w_mm: 20, h_mm: 10, rotation_deg: 0 });
+  doc.pages[0].elements.push(a);
+  editor.reset(doc, null);
+  const ev = (k: string) => ({ key: k, ctrlKey: false, metaKey: false, shiftKey: true, repeat: false, target: null, preventDefault() {} }) as unknown as KeyboardEvent;
+  const x = () => editor.page.elements.find((e) => e.id === a.id)!.frame.x_mm;
+
+  editor.selection = [a.id];
+  for (let i = 0; i < 10; i++) handleShortcut(ev("ArrowLeft"));
+  handleKeyUp(ev("ArrowLeft"));
+  // Il reste 5 mm de l'élément sur la page.
+  expect(x()).toBe(-15);
+  const width = editor.page.size.width_mm;
+  for (let i = 0; i < 100; i++) handleShortcut(ev("ArrowRight"));
+  handleKeyUp(ev("ArrowRight"));
+  expect(x()).toBe(width - 5);
+});

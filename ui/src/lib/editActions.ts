@@ -102,6 +102,8 @@ export function deleteSelection() {
   }
   const next = removeElements(editor.page, ids, editor.templateMode);
   if (next !== editor.page) editor.updatePage(() => next);
+  // Rien n'est parti à cause d'un verrou : on dit pourquoi, et où l'enlever.
+  else if (!editor.templateMode && editor.page.elements.some((e) => ids.includes(e.id) && e.locked)) editor.notice = fr.lockedNoDelete;
 }
 
 /** Opération du moteur sur la page courante ; son erreur s'affiche dans le bandeau. */

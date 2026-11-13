@@ -387,3 +387,19 @@ test("one step forward is one undo step, and a step that changes nothing adds no
   expect(editor.page.elements.map((e) => e.id)).toEqual([a.id, b.id]);
   expect(editor.canUndo).toBe(false);
 });
+
+test("Suppr sur un élément verrouillé dit où le déverrouiller", async () => {
+  const { deleteSelection } = await import("./editActions");
+  const { fr } = await import("./i18n/fr");
+  const { textElement } = await import("./factory");
+  const doc = newDocument();
+  const el = { ...textElement({ x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 }), locked: true };
+  doc.pages[0].elements.push(el);
+  editor.reset(doc, null);
+  editor.notice = null;
+  editor.selection = [el.id];
+  deleteSelection();
+  expect(editor.page.elements).toHaveLength(1);
+  expect(editor.notice).toBe(fr.lockedNoDelete);
+  expect(fr.lockedNoDelete).toContain(`« ${fr.unlock} »`);
+});

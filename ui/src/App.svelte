@@ -66,7 +66,7 @@
   import { fonts } from "./lib/fonts.svelte";
   import { addPhotoAt } from "./lib/editActions";
   import { dropFiles, guardWindowDrop, handlePasteEvent } from "./lib/incoming";
-  import { expandSelection, groupOf, pathOf } from "./lib/groups";
+  import { blockBelow, expandSelection, groupOf, pathOf } from "./lib/groups";
   import { pictoElement, pictos } from "./lib/pictos.svelte";
   import { endNudge, handleKeyUp, handleShortcut, handleWheelZoom } from "./lib/shortcuts";
   import { roundedFrame } from "./lib/crop";
@@ -196,10 +196,10 @@
   let stageEl = $state<HTMLElement>();
   let contextTarget = $state<ContextTarget | null>(null);
 
-  function openContextMenu(id: string | null, xMm: number, yMm: number, clientX: number, clientY: number) {
+  function openContextMenu(id: string | null, xMm: number, yMm: number, clientX: number, clientY: number, stack: string[]) {
     if (id && !editor.selection.includes(id)) editor.selection = [id];
     if (!id) editor.selection = [];
-    contextTarget = { id, xMm, yMm, clientX, clientY };
+    contextTarget = { id, xMm, yMm, clientX, clientY, below: blockBelow(editor.page, stack, editor.selection, editor.inside) };
   }
   const facing = $derived(editor.spread ? facingOf(editor.pageIndex, editor.doc.pages.length) : null);
 
@@ -416,7 +416,7 @@
     <CellBar {pageEl} {stageEl} />
   <TableBar {pageEl} {stageEl} />
     <GridDragMerge {pageEl} />
-    {#if contextTarget}<ContextMenu target={contextTarget} onclose={() => (contextTarget = null)} />{/if}
+    {#if contextTarget}<ContextMenu target={contextTarget} onclose={() => (contextTarget = null)} onselect={(id) => select(id, false)} />{/if}
   </main>
   <div class="hint-slot"><Hint /></div>
   {#if assistant.open && assistant.enabled}<AssistantPanel />{:else}<Inspector />{/if}

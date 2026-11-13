@@ -169,11 +169,12 @@
       // La zone du groupe recouvre la boîte englobante : un clic sur un autre élément (ou sur la page)
       // dessous le sélectionne. Le double-clic est traité par la page.
       .on("clickGroup", (ev) => {
-        if (ev.isDouble) return;
         const input = ev.inputEvent as MouseEvent;
+        // Alt+clic : la page a déjà choisi l'élément dessous.
+        if (ev.isDouble || input.altKey) return;
         const id = document.elementsFromPoint(input.clientX, input.clientY).map((n) => n.closest<HTMLElement>(".element")).find((n) => n && pageEl?.contains(n))?.dataset.id ?? null;
         if (id && ids?.includes(id)) return;
-        onpick(id, input.shiftKey);
+        onpick(id, input.shiftKey || input.ctrlKey || input.metaKey);
       });
     return m;
   }

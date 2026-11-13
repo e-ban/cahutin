@@ -278,3 +278,20 @@ export function elementsInRect(page: Page, rect: Rect): string[] {
     })
     .map((e) => e.id);
 }
+
+/** Le bloc sous celui qui est choisi dans `stack` (les éléments sous le pointeur, du dessus au fond) ; après le
+ *  plus bas, on repart du dessus. Rien de choisi sous le pointeur : le bloc sous celui du dessus. Un seul bloc : null. */
+export function blockBelow(page: Page, stack: string[], selection: string[], inside: string[] = []): string | null {
+  const blocks: string[][] = [];
+  for (const id of stack) if (!blocks.some((b) => b.includes(id))) blocks.push(groupOf(page, id, inside));
+  if (blocks.length < 2) return null;
+  const i = blocks.findIndex((b) => b.some((id) => selection.includes(id)));
+  const next = blocks[(Math.max(i, 0) + 1) % blocks.length];
+  return stack.find((id) => next.includes(id))!;
+}
+
+/** Ctrl+A : les éléments de la page, ou du groupe `inside` où l'on est entré ; les verrouillés seulement avec
+ *  `withLocked` (mode modèle), sinon la sélection entière serait figée. */
+export function selectAllIds(page: Page, inside: string[] = [], withLocked = false): string[] {
+  return page.elements.filter((e) => startsWith(pathOf(e), inside) && (withLocked || !e.locked)).map((e) => e.id);
+}

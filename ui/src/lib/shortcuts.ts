@@ -3,9 +3,9 @@ import { editor } from "./docStore.svelte";
 import { copySelection, cutSelection, deleteSelection, duplicateSelection, groupSelection, ungroupSelection } from "./editActions";
 import { armPaste } from "./incoming";
 import { newDoc, openDoc, print, save } from "./fileActions";
-import { groupOf, isLockedSelection } from "./groups";
+import { boundsOf, groupOf, isLockedSelection, selectAllIds } from "./groups";
 import { modal } from "./modal.svelte";
-import { nudge, type ArrowKey } from "./geometry";
+import { nudgeOnPage, type ArrowKey } from "./geometry";
 import { tour } from "./tour.svelte";
 import { nextZoom } from "./units";
 
@@ -14,7 +14,7 @@ function typing(ev: KeyboardEvent): boolean {
   return !!t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
 }
 
-export type ShortcutAction = "new" | "open" | "save" | "print" | "duplicate" | "undo" | "redo" | "copy" | "cut" | "paste" | "group" | "ungroup" | "zoomIn" | "zoomOut" | "zoomFit";
+export type ShortcutAction = "new" | "open" | "save" | "print" | "duplicate" | "undo" | "redo" | "copy" | "cut" | "paste" | "group" | "ungroup" | "selectAll" | "zoomIn" | "zoomOut" | "zoomFit";
 
 type KeyInfo = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "repeat">;
 
@@ -29,6 +29,8 @@ export function shortcutAction(ev: KeyInfo): ShortcutAction | null {
   if (k === "+" || k === "=") return "zoomIn";
   if (k === "-") return "zoomOut";
   if (k === "0" || k === "à") return ev.repeat ? null : "zoomFit";
+  // Maintenue, la touche choisit encore tout : la vue web ne surligne pas l'interface.
+  if (k === "a") return "selectAll";
   if (ev.repeat) return null;
   const actions: Record<string, ShortcutAction> = { n: "new", o: "open", s: "save", p: "print", d: "duplicate", c: "copy", x: "cut", v: "paste" };
   return actions[k] ?? null;
@@ -38,6 +40,20 @@ export function shortcutAction(ev: KeyInfo): ShortcutAction | null {
 // page n'est pas visible : rien ne doit la modifier.
 function pageHidden(): boolean {
   return editor.showWelcome || editor.showTips || editor.showClassPage || editor.showPhototheque || editor.showCollection || editor.showPreferences || editor.imagesWide;
+}
+
+// Une fenêtre, un menu ou une liste ouverts (ils se ferment eux-mêmes à Échap), ou un recadrage en cours.
+function somethingToClose(): boolean {
+  return !!editor.cropping || !!globalThis.document?.querySelector('[role="dialog"], [role="menu"], [role="listbox"]');
+}
+
+/** Ctrl+A : tous les éléments de la page affichée, ou du groupe où l'on est entré. */
+function selectAll() {
+  if (editor.cropping || editor.editingText) return;
+  const inside = editor.inside;
+  editor.focusedMember = null;
+  editor.insideGroup = inside;
+  editor.selection = selectAllIds(editor.page, inside, editor.templateMode);
 }
 
 /** Pixels de molette pour un cran de zoom : le pincement du pavé tactile envoie beaucoup de petits pas. */
@@ -115,6 +131,7 @@ export function handleShortcut(ev: KeyboardEvent) {
     cut: cutSelection,
     group: groupSelection,
     ungroup: ungroupSelection,
+    selectAll,
     zoomIn: () => (editor.zoom = nextZoom(editor.effectiveZoom, 1)),
     zoomOut: () => (editor.zoom = nextZoom(editor.effectiveZoom, -1)),
     zoomFit: () => (editor.zoom = "fit"),
@@ -143,13 +160,21 @@ export function handleShortcut(ev: KeyboardEvent) {
     editor.focusedMember = null;
     editor.insideGroup = editor.inside.slice(0, -1);
     editor.selection = groupOf(editor.page, id, editor.insideGroup);
+  } else if (ev.key === "Escape" && editor.selection.length && !editor.editingText && !somethingToClose()) {
+    // Plus rien à quitter : Échap désélectionne, comme un clic sur la page vide.
+    editor.selection = [];
+    editor.insideGroup = [];
   } else if (ev.key.startsWith("Arrow")) {
     const ids = editor.selection;
     const inGrid = ids.some((id) => isPlacedCell(editor.page, id));
     if (ids.length === 0 || inGrid || isLockedSelection(editor.page, ids, editor.inside)) return;
     ev.preventDefault();
+    // La sélection bouge d'un bloc, et s'arrête avant de quitter la page.
+    const box = boundsOf(editor.page.elements.filter((el) => ids.includes(el.id)).map((el) => el.frame));
+    const { dx, dy } = nudgeOnPage(box, editor.page.size, ev.key as ArrowKey, ev.shiftKey);
+    if (dx === 0 && dy === 0) return;
     nudging = [...ids];
-    const pages = editor.doc.pages.map((p, i) => (i === editor.pageIndex ? { ...p, elements: p.elements.map((el) => (ids.includes(el.id) ? { ...el, frame: nudge(el.frame, ev.key as ArrowKey, ev.shiftKey) } : el)) } : p));
+    const pages = editor.doc.pages.map((p, i) => (i === editor.pageIndex ? { ...p, elements: p.elements.map((el) => (ids.includes(el.id) ? { ...el, frame: { ...el.frame, x_mm: el.frame.x_mm + dx, y_mm: el.frame.y_mm + dy } } : el)) } : p));
     editor.preview({ ...editor.doc, pages });
   }
 }

@@ -13,6 +13,10 @@
 - Modèles : fusionner deux zones ne perd plus le texte écrit.
 - Aligner : un élément choisi seul s'aligne sur la page, centré ou à 1 cm d'un bord.
 - Ordre : « Avancer d'un cran » et « Reculer d'un cran » (clic droit et réglages).
+- Sélection : Ctrl+A sélectionne tout (sauf les éléments verrouillés), Échap désélectionne, Ctrl+clic ajoute ou retire un élément.
+- Alt+clic, ou clic droit > « Sélectionner dessous », atteint un élément caché sous un autre.
+- Le cadre de sélection se trace aussi en partant d'un fond verrouillé.
+- Les flèches ne font plus sortir un élément de la page ; supprimer un élément verrouillé dit comment le déverrouiller.
 
 
 ## 0.17.0

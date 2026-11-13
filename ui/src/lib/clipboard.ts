@@ -1,5 +1,5 @@
 // Copier, coller, dupliquer, ordre d'empilement et suppression d'éléments d'une page.
-// Le presse-papiers est interne à l'application : rien ne passe par celui du système.
+// Copier met aussi le texte des éléments dans le presse-papiers du système, et coller y prend ce qui vient d'un autre logiciel (systemClipboard.ts, incoming.ts).
 // Copié pour l'assistant dans crates/cahutin-mcp/src/arrange.rs : changer les deux ensemble.
 import { newId } from "./factory";
 import { dissolveSmallGroups, expandSelection, pathOf, withPath } from "./groups";

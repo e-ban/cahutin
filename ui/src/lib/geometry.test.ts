@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { handlePadding, keepsRatio, nudge, shiftHeld, rectPxToFrame, settle, settleMove, settleResize, settleScale, snapLines } from "./geometry";
+import { handlePadding, keepsRatio, nudge, nudgeOnPage, shiftHeld, rectPxToFrame, settle, settleMove, settleResize, settleScale, snapLines } from "./geometry";
 import { PX_PER_MM } from "./units";
 
 test("rectPxToFrame at zoom 1 rounds to 0.1 mm", () => {
@@ -86,4 +86,18 @@ test("handlePadding spreads the handles of an element smaller than 48 px (80 wit
   expect(handlePadding(100, false)).toBe(0);
   expect(handlePadding(20, false)).toBe(14);
   expect(handlePadding(20, true)).toBe(30);
+});
+
+test("nudgeOnPage s'arrête quand il ne resterait plus qu'un petit bout sur la page", () => {
+  const size = { width_mm: 210, height_mm: 297 };
+  const box = { x_mm: 200, y_mm: 10, w_mm: 20, h_mm: 20 };
+  // Il reste 5 mm visibles au plus près du bord.
+  expect(nudgeOnPage(box, size, "ArrowRight", true)).toEqual({ dx: 5, dy: 0 });
+  expect(nudgeOnPage({ ...box, x_mm: 205 }, size, "ArrowRight", false)).toEqual({ dx: 0, dy: 0 });
+  expect(nudgeOnPage({ ...box, x_mm: -14 }, size, "ArrowLeft", true)).toEqual({ dx: -1, dy: 0 });
+  expect(nudgeOnPage({ ...box, y_mm: 290 }, size, "ArrowDown", true)).toEqual({ dx: 0, dy: 2 });
+  // Vers l'intérieur, rien ne retient ; un bloc déjà dehors peut revenir.
+  expect(nudgeOnPage({ ...box, x_mm: 300 }, size, "ArrowLeft", false)).toEqual({ dx: -1, dy: 0 });
+  // Un bloc plus petit que la marge doit rester entier sur la page.
+  expect(nudgeOnPage({ x_mm: 208, y_mm: 10, w_mm: 2, h_mm: 2 }, size, "ArrowRight", false)).toEqual({ dx: 0, dy: 0 });
 });

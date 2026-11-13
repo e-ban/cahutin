@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { alignFrames, distributeFrames } from "./align";
-import { alignableIds, alignUnits, arrangeUnits, boundsOf, elementsInRect, existingIds, expandSelection, groupElements, groupOf, isLockedSelection, normalizeGroups, pathOf, rotateElements, scaleElements, ungroup } from "./groups";
+import { alignableIds, blockBelow, alignUnits, arrangeUnits, boundsOf, elementsInRect, existingIds, expandSelection, groupElements, groupOf, isLockedSelection, normalizeGroups, pathOf, rotateElements, scaleElements, ungroup } from "./groups";
 import type { Element, Page } from "./types";
 
 const shape = (id: string, x = 0, extra: Partial<Element> = {}): Element => ({
@@ -236,4 +236,19 @@ test("mirroring a group swaps sides, reverses rotations and flips pictures, not 
   const [down] = mirrorElements([pic], "v", { x_mm: 50, y_mm: 50 });
   expect(down.frame.y_mm).toBe(90);
   expect(down.flip_v).toBe(true);
+});
+
+test("blockBelow passe au bloc sous celui qui est choisi, et fait le tour", () => {
+  const p = page([shape("fond"), shape("a"), shape("b", 0, { group: "g" }), shape("c", 0, { group: "g" })]);
+  // Pile sous le pointeur, du dessus au fond : le groupe g (deux membres), puis a, puis le fond.
+  const stack = ["c", "b", "a", "fond"];
+  expect(blockBelow(p, stack, ["b", "c"])).toBe("a");
+  expect(blockBelow(p, stack, ["a"])).toBe("fond");
+  expect(blockBelow(p, stack, ["fond"])).toBe("c");
+  // Rien de choisi sous le pointeur : le bloc sous celui du dessus.
+  expect(blockBelow(p, stack, [])).toBe("a");
+  // Un seul bloc sous le pointeur : rien dessous.
+  expect(blockBelow(p, ["c", "b"], ["b", "c"])).toBeNull();
+  // Entré dans le groupe : ses membres sont des blocs séparés.
+  expect(blockBelow(p, stack, ["c"], ["g"])).toBe("b");
 });

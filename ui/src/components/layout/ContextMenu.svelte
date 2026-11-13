@@ -6,6 +6,8 @@
     yMm: number;
     clientX: number;
     clientY: number;
+    /** Bloc caché sous l'élément choisi, au même endroit, ou null. */
+    below: string | null;
   }
 </script>
 
@@ -19,7 +21,7 @@
   import Icon from "../Icon.svelte";
   import type { IconName } from "../../lib/icons";
 
-  let { target, onclose }: { target: ContextTarget; onclose: () => void } = $props();
+  let { target, onclose, onselect }: { target: ContextTarget; onclose: () => void; onselect: (id: string) => void } = $props();
 
   let menuEl = $state<HTMLElement>();
   const element = $derived(target.id ? editor.page.elements.find((e) => e.id === target.id) : undefined);
@@ -76,6 +78,9 @@
     <button role="menuitem" disabled={!canBringSelection("forward")} onclick={() => run(() => bringSelection("forward"))}><span class="ico"><Icon name="chevronUp" /></span><span>{fr.bringForward}</span></button>
     <button role="menuitem" disabled={!canBringSelection("backward")} onclick={() => run(() => bringSelection("backward"))}><span class="ico"><Icon name="chevronDown" /></span><span>{fr.sendBackward}</span></button>
     <button role="menuitem" onclick={() => run(() => bringSelection("back"))}><span class="ico"><Icon name="sendBack" /></span><span>{fr.sendBack}</span></button>
+    {#if target.below}
+      <button role="menuitem" onclick={() => run(() => onselect(target.below!))}><span class="ico"><Icon name="layers" /></span><span>{fr.selectBelow}</span><kbd>Alt+clic</kbd></button>
+    {/if}
     <hr />
     <button role="menuitem" onclick={() => run(toggleLockSelection)}><span class="ico"><Icon name={lockIcon} /></span><span>{editor.templateMode ? (element.locked ? fr.unfixCell : fr.fixCell) : element.locked ? fr.unlock : fr.lock}</span></button>
     <button role="menuitem" disabled={element.locked && !editor.templateMode} onclick={() => run(deleteSelection)}><span class="ico"><Icon name="trash" /></span><span>{fr.delete}</span><kbd>Suppr</kbd></button>

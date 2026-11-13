@@ -67,7 +67,7 @@
   import { addPhotoAt } from "./lib/editActions";
   import { expandSelection, groupOf, pathOf } from "./lib/groups";
   import { pictoElement, pictos } from "./lib/pictos.svelte";
-  import { handleShortcut, handleWheelZoom } from "./lib/shortcuts";
+  import { endNudge, handleKeyUp, handleShortcut, handleWheelZoom } from "./lib/shortcuts";
   import { roundedFrame } from "./lib/crop";
   import { newDocument, newId } from "./lib/factory";
   import { templates } from "./lib/templates.svelte";
@@ -339,7 +339,7 @@
   </button>
 {/snippet}
 
-<svelte:window onkeydown={handleShortcut} />
+<svelte:window onkeydown={handleShortcut} onkeyup={handleKeyUp} onblur={endNudge} />
 
 <!-- Pendant la visite ou le panneau Astuces, l'application est inerte : ni clic ni clavier ne l'atteignent. -->
 <div class="app" inert={tour.step !== null || editor.showTips}>

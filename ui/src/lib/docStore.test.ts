@@ -1,6 +1,6 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { confirmDiscardIfDirty, editor } from "./docStore.svelte";
-import { newDocument, photoZoneElement } from "./factory";
+import { newDocument, newPage, photoZoneElement, textElement } from "./factory";
 import { pendingPaths } from "./photoLibrary";
 import { graphismeRows } from "./graphisme";
 import { changeRows, rowsIn, rowsSettings } from "./graphismeEdit";
@@ -231,4 +231,62 @@ test("each change of placed handwriting rows is one undo step for all the rows",
   expect(editor.page).not.toEqual(placed);
   editor.undo();
   expect(editor.page).toEqual(placed);
+});
+
+test("annuler et rétablir affichent la page où le changement a lieu", () => {
+  const doc = newDocument();
+  doc.pages.push(newPage(), newPage());
+  editor.reset(doc, null);
+  const el = textElement({ x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 });
+  editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+  expect(editor.dirty).toBe(true);
+  editor.pageIndex = 2;
+  editor.undo();
+  expect(editor.pageIndex).toBe(0);
+  expect(editor.page.elements).toHaveLength(0);
+  // Revenu à l'état enregistré : plus de point « modifié ».
+  expect(editor.dirty).toBe(false);
+  editor.pageIndex = 2;
+  editor.redo();
+  expect(editor.pageIndex).toBe(0);
+  expect(editor.page.elements).toHaveLength(1);
+  expect(editor.dirty).toBe(true);
+});
+
+test("annuler une suppression ou un ajout de page montre une page juste", () => {
+  const doc = newDocument();
+  doc.pages.push(newPage(), newPage());
+  editor.reset(doc, null);
+  const [, second] = editor.doc.pages;
+  // Suppression de la page 2, vue depuis la page 2 (devenue l'ancienne page 3) : Annuler la montre de nouveau.
+  editor.pageIndex = 1;
+  editor.commit({ ...editor.doc, pages: editor.doc.pages.filter((_, i) => i !== 1) });
+  editor.pageIndex = 0;
+  editor.undo();
+  expect(editor.page.id).toBe(second.id);
+  editor.redo();
+  expect(editor.doc.pages).toHaveLength(2);
+  expect(editor.pageIndex).toBeLessThan(2);
+  editor.undo();
+  // Ajout d'une page à la fin, vue : Annuler revient sur une page qui existe.
+  editor.commit({ ...editor.doc, pages: [...editor.doc.pages, newPage()] });
+  editor.pageIndex = 3;
+  editor.undo();
+  expect(editor.doc.pages).toHaveLength(3);
+  expect(editor.pageIndex).toBe(2);
+  expect(editor.dirty).toBe(false);
+});
+
+test("annuler la suppression d'une page placée avant celle affichée montre la page rendue", () => {
+  const doc = newDocument();
+  doc.pages.push(newPage(), newPage(), newPage());
+  editor.reset(doc, null);
+  const [, b, c] = editor.doc.pages;
+  editor.commit({ ...editor.doc, pages: editor.doc.pages.filter((p) => p !== b) });
+  editor.pageIndex = 2;
+  editor.undo();
+  expect(editor.page.id).toBe(b.id);
+  editor.pageIndex = 3;
+  editor.redo();
+  expect(editor.page.id).toBe(c.id);
 });

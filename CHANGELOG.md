@@ -5,6 +5,7 @@
 
 - Texte : un texte collé sur plusieurs lignes ne s'efface plus quand on le reprend ; Maj+Entrée va à la ligne.
 - Tableaux : fusionner des cases garde leur texte, réuni ligne par ligne.
+- Annuler : déplacer un élément en gardant une flèche enfoncée s'annule d'un seul coup, sans effacer les modifications précédentes ; Annuler et Rétablir affichent la page modifiée, même depuis une autre page.
 
 
 ## 0.17.0

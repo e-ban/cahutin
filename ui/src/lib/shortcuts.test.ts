@@ -95,3 +95,50 @@ test("editing shortcuts do nothing under the welcome screen or a dialog", async 
   press("Delete");
   expect(editor.page.elements).toHaveLength(0);
 });
+
+test("une flèche maintenue ne compte que pour une étape d'annulation", async () => {
+  const { editor } = await import("./docStore.svelte");
+  const { handleShortcut, handleKeyUp } = await import("./shortcuts");
+  const { newDocument, textElement } = await import("./factory");
+  const doc = newDocument();
+  const a = textElement({ x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 });
+  const b = textElement({ x_mm: 50, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 });
+  doc.pages[0].elements.push(a, b);
+  editor.reset(doc, null);
+  const ev = (k: string, o: { ctrl?: boolean; repeat?: boolean } = {}) =>
+    ({ key: k, ctrlKey: o.ctrl ?? false, metaKey: false, shiftKey: false, repeat: o.repeat ?? false, target: null, preventDefault() {} }) as unknown as KeyboardEvent;
+  const x = (id: string) => editor.page.elements.find((e) => e.id === id)!.frame.x_mm;
+
+  // Une rafale plus longue que l'historique (100 étapes), terminée par le relâchement de la touche.
+  editor.selection = [a.id];
+  for (let i = 0; i < 150; i++) handleShortcut(ev("ArrowRight", { repeat: i > 0 }));
+  expect(x(a.id)).toBe(150);
+  handleKeyUp(ev("ArrowRight"));
+  expect(editor.dirty).toBe(true);
+  editor.undo();
+  expect(x(a.id)).toBe(0);
+  expect(editor.canUndo).toBe(false);
+  editor.redo();
+  expect(x(a.id)).toBe(150);
+
+  // Changer de sélection termine la rafale : chaque élément a sa propre étape.
+  editor.selection = [a.id];
+  handleShortcut(ev("ArrowLeft"));
+  editor.selection = [b.id];
+  handleShortcut(ev("ArrowRight"));
+  handleShortcut(ev("ArrowRight", { repeat: true }));
+  handleKeyUp(ev("ArrowRight"));
+  editor.undo();
+  expect([x(a.id), x(b.id)]).toEqual([149, 50]);
+  editor.undo();
+  expect([x(a.id), x(b.id)]).toEqual([150, 50]);
+
+  // Une autre action (Ctrl+Z, touche encore enfoncée) termine la rafale avant d'agir.
+  editor.selection = [b.id];
+  handleShortcut(ev("ArrowRight"));
+  handleShortcut(ev("ArrowRight", { repeat: true }));
+  handleShortcut(ev("z", { ctrl: true }));
+  expect(x(b.id)).toBe(50);
+  editor.redo();
+  expect(x(b.id)).toBe(52);
+});

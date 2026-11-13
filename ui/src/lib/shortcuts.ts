@@ -71,8 +71,25 @@ export function handleWheelZoom(ev: WheelEvent): number | null {
   return editor.zoom;
 }
 
+// Rafale de déplacements aux flèches : un seul pas d'annulation, comme un curseur que l'on fait glisser. Elle se
+// termine au relâchement de la flèche, à un changement de sélection, à toute autre touche ou avant d'enregistrer.
+let nudging: string[] | null = null;
+
+export function endNudge() {
+  if (!nudging) return;
+  nudging = null;
+  editor.endPreview();
+}
+
+editor.onFlush(endNudge);
+
+export function handleKeyUp(ev: KeyboardEvent) {
+  if (ev.key.startsWith("Arrow")) endNudge();
+}
+
 /** Raccourcis globaux : fichiers, annuler, rétablir, supprimer, déplacer au clavier. */
 export function handleShortcut(ev: KeyboardEvent) {
+  if (nudging && !(ev.key.startsWith("Arrow") && nudging.join() === editor.selection.join())) endNudge();
   // Une boîte de dialogue attend une réponse, ou la visite guidée est ouverte : aucun raccourci.
   if (modal.message !== null || tour.step !== null) return;
   const action = shortcutAction(ev);
@@ -126,6 +143,8 @@ export function handleShortcut(ev: KeyboardEvent) {
     const inGrid = ids.some((id) => isPlacedCell(editor.page, id));
     if (ids.length === 0 || inGrid || isLockedSelection(editor.page, ids, editor.inside)) return;
     ev.preventDefault();
-    editor.updatePage((p) => ({ ...p, elements: p.elements.map((el) => (ids.includes(el.id) ? { ...el, frame: nudge(el.frame, ev.key as ArrowKey, ev.shiftKey) } : el)) }));
+    nudging = [...ids];
+    const pages = editor.doc.pages.map((p, i) => (i === editor.pageIndex ? { ...p, elements: p.elements.map((el) => (ids.includes(el.id) ? { ...el, frame: nudge(el.frame, ev.key as ArrowKey, ev.shiftKey) } : el)) } : p));
+    editor.preview({ ...editor.doc, pages });
   }
 }

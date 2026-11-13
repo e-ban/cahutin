@@ -232,8 +232,10 @@ class Editor {
   undo() {
     // Annuler pendant une proposition : la refuser.
     if (this.#proposal) return this.proposalGate?.undo();
+    const before = this.doc;
     this.#history.undo();
     this.#sync();
+    this.#showChange(before);
     // Une photo retirée revient sur la page : elle revient aussi dans le tiroir.
     const used = usedAssetIds(this.doc);
     this.addPhotos(this.#removedPhotos.filter((p) => used.has(p.meta.id)));
@@ -241,8 +243,21 @@ class Editor {
 
   redo() {
     if (this.#proposal) return;
+    const before = this.doc;
     this.#history.redo();
     this.#sync();
+    this.#showChange(before);
+  }
+
+  /** Après Annuler ou Rétablir : affiche la première page qui a changé, sauf si la page affichée a changé (et
+   *  qu'aucune page n'a été ajoutée ni retirée, ce qui décale les suivantes). */
+  #showChange(before: Document) {
+    const pages = this.doc.pages;
+    if (pages.length === before.pages.length && pages[this.pageIndex] !== before.pages[this.pageIndex]) return;
+    const i = pages.findIndex((p, k) => p !== before.pages[k]);
+    if (i < 0) return;
+    this.pageIndex = i;
+    this.selection = [];
   }
 
   markSaved(path: string, snapshot?: Document) {

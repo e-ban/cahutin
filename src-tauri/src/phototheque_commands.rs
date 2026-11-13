@@ -184,10 +184,26 @@ fn fill_thumbs_with(state: &AppState, epoch: u64, make: fn(&Path, &ClassPhoto) -
     log::info!("phototheque_thumbs photos={made} failed={failed}");
 }
 
+/// Suit un dossier. Si c'est celui que « Ne plus suivre » vient de retirer (gardé pour « Annuler »), ses
+/// photos reviennent avec leurs élèves, activités et masquage, au lieu de revenir neuves au parcours.
 pub fn follow_in(state: &AppState, folder: &str) -> Result<Phototheque, String> {
     with_open(state, |dir, index| {
-        phototheque::follow(index, Path::new(folder))?;
-        phototheque::save(dir, index)?;
+        let mut kept = state.phototheque_unfollowed.lock().unwrap();
+        let undo = kept.as_ref().filter(|(d, r)| d == dir && Path::new(r.path()) == Path::new(folder)).map(|(_, r)| r.clone());
+        let mut followed = index.clone();
+        // Les mêmes refus que pour un dossier neuf (introuvable, déjà suivi, dans un dossier suivi).
+        phototheque::follow(&mut followed, Path::new(folder))?;
+        let restored = undo.is_some();
+        if let Some(removed) = undo {
+            // Le dossier reprend sa place d'avant, avec ses photos.
+            followed.folders.pop();
+            phototheque::refollow(&mut followed, removed);
+        }
+        phototheque::save(dir, &followed)?;
+        *index = followed;
+        if restored {
+            *kept = None;
+        }
         log::info!("phototheque_follow folders={}", index.folders.len());
         Ok(index.clone())
     })
@@ -204,7 +220,10 @@ pub fn unfollow_in(state: &AppState, folder: &str) -> Result<Phototheque, String
     with_open(state, |dir, index| {
         let removed = phototheque::unfollow(index, folder);
         phototheque::save(dir, index)?;
-        *state.phototheque_unfollowed.lock().unwrap() = removed.map(|r| (dir.to_path_buf(), r));
+        // Un dossier qui n'était pas suivi ne retire rien : ce que garde « Annuler » pour un autre reste.
+        if let Some(r) = removed {
+            *state.phototheque_unfollowed.lock().unwrap() = Some((dir.to_path_buf(), r));
+        }
         log::info!("phototheque_unfollow folders={} photos={}", index.folders.len(), index.photos.len());
         Ok(index.clone())
     })
@@ -220,6 +239,10 @@ pub fn refollow_in(state: &AppState, folder: &str) -> Result<Phototheque, String
     with_open(state, |dir, index| {
         let mut kept = state.phototheque_unfollowed.lock().unwrap();
         let Some((_, removed)) = kept.as_ref().filter(|(d, r)| d == dir && r.path() == folder) else {
+            // Déjà suivi de nouveau (« Ajouter un dossier » l'a remis avec ses photos) : rien à faire.
+            if index.folders.iter().any(|f| Path::new(&f.path) == Path::new(folder)) {
+                return Ok(index.clone());
+            }
             return Err("Ce dossier ne peut plus être remis : suivez-le de nouveau avec « Ajouter un dossier ».".into());
         };
         let mut restored = index.clone();
@@ -510,7 +533,55 @@ mod tests {
         assert!(unfollow_in(&s, &folder).unwrap().photos.is_empty());
         assert_eq!(refollow_in(&s, &folder).unwrap(), before);
         assert_eq!(open_in(&s, &class).unwrap(), before, "enregistré");
-        assert!(refollow_in(&s, &folder).is_err(), "rien à remettre une seconde fois");
+        assert_eq!(refollow_in(&s, &folder).unwrap(), before, "une seconde fois : rien ne change, rien en double");
+        assert!(refollow_in(&s, &dir.path().join("Jamais suivi").to_string_lossy()).is_err(), "rien à remettre");
+    }
+
+    /// « Ne plus suivre », puis suivre de nouveau le même dossier au lieu d'« Annuler » : les photos reviennent
+    /// avec leurs élèves, activités et masquage, sans double ; « Annuler » n'a plus rien à remettre et ne se
+    /// plaint pas.
+    #[test]
+    fn following_again_a_folder_just_unfollowed_brings_back_its_tags() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, class, lib) = followed_three(dir.path());
+        let folder = dir.path().join("Sortie").to_string_lossy().into_owned();
+        let (a, b) = (lib.photos[0].id.clone(), lib.photos[1].id.clone());
+        tag_in(&s, std::slice::from_ref(&a), &TagChange { add_students: vec!["lea".into()], add_tags: vec!["Ferme".into()], ..Default::default() }).unwrap();
+        hide_in(&s, std::slice::from_ref(&b), true).unwrap();
+        let before = with_open(&s, |_, i| Ok(i.clone())).unwrap();
+        unfollow_in(&s, &folder).unwrap();
+        // Le même dossier, écrit avec une barre finale : c'est le même chemin.
+        follow_in(&s, &format!("{folder}/")).unwrap();
+        let (_, _, after) = scan(&s);
+        assert_eq!(after.photos.len(), 3, "aucun double");
+        assert_eq!(after, before);
+        assert_eq!(open_in(&s, &class).unwrap(), before, "enregistré");
+        assert_eq!(refollow_in(&s, &folder).unwrap(), before, "« Annuler » resté à l'écran ne change rien");
+        // Plus rien de gardé : ne plus suivre de nouveau, puis suivre, donne un dossier neuf.
+        assert!(s.phototheque_unfollowed.lock().unwrap().is_none());
+    }
+
+    /// Suivre de nouveau garde les refus de « Ajouter un dossier » : un dossier disparu n'est pas remis.
+    #[test]
+    fn following_again_a_folder_gone_from_the_disk_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, _class, _) = followed_three(dir.path());
+        let folder = dir.path().join("Sortie");
+        unfollow_in(&s, &folder.to_string_lossy()).unwrap();
+        std::fs::rename(&folder, dir.path().join("Ailleurs")).unwrap();
+        assert!(follow_in(&s, &folder.to_string_lossy()).is_err());
+        assert!(s.phototheque_unfollowed.lock().unwrap().is_some(), "« Annuler » reste possible");
+    }
+
+    /// « Ne plus suivre » un dossier qui n'est pas suivi n'efface pas ce que garde « Annuler » pour un autre.
+    #[test]
+    fn unfollowing_a_folder_not_followed_keeps_the_undo_of_another() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, _class, before) = followed_three(dir.path());
+        let folder = dir.path().join("Sortie").to_string_lossy().into_owned();
+        unfollow_in(&s, &folder).unwrap();
+        unfollow_in(&s, &dir.path().join("Jamais suivi").to_string_lossy()).unwrap();
+        assert_eq!(refollow_in(&s, &folder).unwrap(), before);
     }
 
     #[test]

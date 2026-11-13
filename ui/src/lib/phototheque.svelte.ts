@@ -144,9 +144,12 @@ class ClassLibrary {
     return photothequeFindOriginals();
   }
 
-  /** Reporte enfants et activités sur les originaux et met les copies à la corbeille de l'ordinateur. */
-  async applyOriginals(matches: Match[]) {
-    this.#set(await photothequeApplyOriginals(matches));
+  /** Met les copies à la corbeille de l'ordinateur et reporte enfants et activités de celles parties sur les
+   *  originaux ; rend le nombre de copies que la corbeille a refusées (restées montrées, avec leurs étiquettes). */
+  async applyOriginals(matches: Match[]): Promise<number> {
+    const done = await photothequeApplyOriginals(matches);
+    this.#set(done.phototheque);
+    return done.not_trashed;
   }
 
   /** Les photos rejoignent la photothèque du document, prêtes à glisser sur la page ; rend leurs descriptions. */

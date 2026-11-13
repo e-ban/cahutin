@@ -10,6 +10,7 @@ export type { Document } from "./gen/Document";
 export type { ClassPhoto } from "./gen/ClassPhoto";
 export type { FollowedFolder } from "./gen/FollowedFolder";
 export type { Match } from "./gen/Match";
+export type { OriginalsApplied } from "./gen/OriginalsApplied";
 export type { OriginalsReport } from "./gen/OriginalsReport";
 export type { Phototheque } from "./gen/Phototheque";
 export type { ScanEvent } from "./gen/ScanEvent";

@@ -505,6 +505,16 @@ export const fr = {
     n > 1
       ? `${n} copies mises à la corbeille de l'ordinateur. Les enfants et activités sont sur les originaux.`
       : "1 copie mise à la corbeille de l'ordinateur. Les enfants et activités sont sur l'original.",
+  libraryOriginalsNotTrashed: (done: number, left: number) =>
+    (done > 1
+      ? `${done} copies mises à la corbeille de l'ordinateur, leurs enfants et activités sont sur les originaux. `
+      : done === 1
+        ? "1 copie mise à la corbeille de l'ordinateur, ses enfants et activités sont sur l'original. "
+        : "") +
+    (left > 1
+      ? `${left} copies n'ont pas pu être mises à la corbeille : elles restent dans la photothèque, avec leurs enfants et activités.`
+      : "1 copie n'a pas pu être mise à la corbeille : elle reste dans la photothèque, avec ses enfants et activités.") +
+    " Vous pourrez réessayer avec « Retrouver les originaux ».",
   yes: "Oui",
   no: "Non",
   libraryNoneHere: "Aucune photo ici.",

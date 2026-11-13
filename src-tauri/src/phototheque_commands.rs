@@ -256,34 +256,48 @@ pub fn phototheque_find_originals(state: State<'_, AppState>) -> Result<Original
     find_originals_in(&state)
 }
 
-/// Fin de la migration, après confirmation : les copies rapprochées vont à la corbeille (`to_trash`),
-/// puis leurs élèves et activités passent sur les originaux et les copies sont masquées. Si la corbeille
-/// échoue, rien ne change.
-pub fn apply_originals_in(state: &AppState, matches: &[Match], to_trash: impl FnOnce(&[PathBuf]) -> Result<(), String>) -> Result<Phototheque, String> {
+/// Ce que la fin de la migration a fait.
+#[derive(Serialize, Clone, Debug, TS)]
+#[ts(export)]
+pub struct OriginalsApplied {
+    pub phototheque: Phototheque,
+    /// Copies restées en place : la corbeille les a refusées. Elles restent montrées, avec leurs élèves et
+    /// activités, pour une prochaine fois.
+    #[ts(type = "number")]
+    pub not_trashed: usize,
+}
+
+/// Fin de la migration, après confirmation : chaque copie rapprochée va à la corbeille (`to_trash`, une à une) ;
+/// pour chaque copie partie (ou déjà absente), ses élèves et activités passent sur son original et elle est
+/// masquée. Une copie que la corbeille refuse ne change pas : rien n'est laissé à moitié.
+pub fn apply_originals_in(state: &AppState, matches: &[Match], mut to_trash: impl FnMut(&Path) -> Result<(), ()>) -> Result<OriginalsApplied, String> {
     with_open(state, |dir, index| {
         // Seules les copies faites par Cahutin (`<id>.<ext>` dans le dossier de la classe) peuvent partir à la
         // corbeille, jamais une photo de l'enseignant.
-        let matches: Vec<Match> = matches.iter().filter(|m| index.photos.iter().any(|p| p.id == m.copy && originals::is_copy(p, dir))).cloned().collect();
-        let mut updated = index.clone();
-        let files: Vec<PathBuf> = originals::apply_originals(&mut updated, &matches).into_iter().filter(|f| f.exists()).collect();
-        if !files.is_empty() {
-            to_trash(&files)?;
+        let copies: Vec<(&Match, PathBuf)> = matches
+            .iter()
+            .filter_map(|m| index.photos.iter().find(|p| p.id == m.copy && originals::is_copy(p, dir)).map(|p| (m, PathBuf::from(&p.path))))
+            .collect();
+        let (mut gone, mut not_trashed) = (vec![], 0);
+        for (m, file) in copies {
+            if !file.exists() || to_trash(&file).is_ok() {
+                gone.push(m.clone());
+            } else {
+                not_trashed += 1;
+            }
         }
-        *index = updated;
+        originals::apply_originals(index, &gone);
         phototheque::save(dir, index)?;
-        log::info!("phototheque_apply_originals matches={} trashed={}", matches.len(), files.len());
-        Ok(index.clone())
+        log::info!("phototheque_apply_originals trashed={} not_trashed={not_trashed}", gone.len());
+        Ok(OriginalsApplied { phototheque: index.clone(), not_trashed })
     })
 }
 
 #[tauri::command(async)]
-pub fn phototheque_apply_originals(state: State<'_, AppState>, matches: Vec<Match>) -> Result<Phototheque, String> {
-    apply_originals_in(&state, &matches, |files| {
+pub fn phototheque_apply_originals(state: State<'_, AppState>, matches: Vec<Match>) -> Result<OriginalsApplied, String> {
+    apply_originals_in(&state, &matches, |file| {
         // À la corbeille de l'ordinateur, comme un document ou une classe : une erreur se rattrape.
-        trash::delete_all(files).map_err(|e| {
-            log::error!("phototheque_trash_failed kind={}", crate::commands::trash_error_kind(&e));
-            "Les photos n'ont pas pu être mises à la corbeille.".to_string()
-        })
+        trash::delete(file).map_err(|e| log::error!("phototheque_trash_failed kind={}", crate::commands::trash_error_kind(&e)))
     })
 }
 
@@ -516,14 +530,14 @@ mod tests {
         let report = find_originals_in(&s).unwrap();
         assert_eq!((report.matches.len(), report.unmatched.len()), (2, 0));
         let bin = dir.path().join("Corbeille");
-        let lib = apply_originals_in(&s, &report.matches, |files| {
+        let done = apply_originals_in(&s, &report.matches, |f| {
             std::fs::create_dir_all(&bin).unwrap();
-            for f in files {
-                std::fs::rename(f, bin.join(f.file_name().unwrap())).unwrap();
-            }
+            std::fs::rename(f, bin.join(f.file_name().unwrap())).unwrap();
             Ok(())
         })
         .unwrap();
+        assert_eq!(done.not_trashed, 0);
+        let lib = done.phototheque;
         assert!(!library.join("c1.jpg").exists() && !library.join("c2.jpg").exists(), "copies à la corbeille");
         assert!(bin.join("c1.jpg").exists() && bin.join("c2.jpg").exists());
         let o1 = by_name(&lib, "IMG_0001.jpg");
@@ -540,12 +554,41 @@ mod tests {
         let (s, library, _originals) = old_library(dir.path());
         let report = find_originals_in(&s).unwrap();
         let before = with_open(&s, |_, i| Ok(i.clone())).unwrap();
-        let saved = std::fs::read(library.join(INDEX_FILE)).unwrap();
-        let err = apply_originals_in(&s, &report.matches, |_| Err("Les photos n'ont pas pu être mises à la corbeille.".into())).unwrap_err();
-        assert_eq!(err, "Les photos n'ont pas pu être mises à la corbeille.");
+        let done = apply_originals_in(&s, &report.matches, |_| Err(())).unwrap();
+        assert_eq!(done.not_trashed, 2);
+        assert_eq!(done.phototheque, before);
         assert_eq!(with_open(&s, |_, i| Ok(i.clone())).unwrap(), before);
-        assert_eq!(std::fs::read(library.join(INDEX_FILE)).unwrap(), saved);
-        assert!(library.join("c1.jpg").exists());
+        assert!(library.join("c1.jpg").exists() && library.join("c2.jpg").exists());
+    }
+
+    /// La corbeille met la première copie de côté, puis échoue : les élèves et activités de la copie partie
+    /// sont sur son original ; l'autre copie reste montrée, avec les siens, pour une prochaine fois.
+    #[test]
+    fn a_trash_that_fails_part_way_moves_the_tags_of_the_copies_gone() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, library, _originals) = old_library(dir.path());
+        let report = find_originals_in(&s).unwrap();
+        let bin = dir.path().join("Corbeille");
+        std::fs::create_dir_all(&bin).unwrap();
+        let done = apply_originals_in(&s, &report.matches, |f| {
+            if f.ends_with("c1.jpg") {
+                std::fs::rename(f, bin.join("c1.jpg")).unwrap();
+                Ok(())
+            } else {
+                Err(())
+            }
+        })
+        .unwrap();
+        assert_eq!(done.not_trashed, 1);
+        let lib = done.phototheque;
+        let o1 = by_name(&lib, "IMG_0001.jpg");
+        assert_eq!((o1.students.as_slice(), o1.tags.as_slice()), (["lea".to_string()].as_slice(), ["Sortie à la ferme".to_string()].as_slice()));
+        assert!(lib.photos.iter().find(|p| p.id == "c1").unwrap().hidden);
+        let c2 = lib.photos.iter().find(|p| p.id == "c2").unwrap();
+        assert!(!c2.hidden && c2.tags == ["Motricité"]);
+        assert!(by_name(&lib, "IMG_0002.jpg").tags.is_empty());
+        assert!(library.join("c2.jpg").exists());
+        assert_eq!(phototheque::open(&library).unwrap(), lib, "enregistré");
     }
 
     #[test]
@@ -561,8 +604,8 @@ mod tests {
         assert!(report.matches.iter().all(|m| m.copy != teacher) && !report.unmatched.contains(&teacher), "{report:?}");
         let original = lib.photos.iter().find(|p| p.path == originals.join("IMG_0001.jpg").to_string_lossy()).unwrap().id.clone();
         let trashed = Mutex::new(vec![]);
-        apply_originals_in(&s, &[Match { copy: teacher, original }], |files| {
-            trashed.lock().unwrap().extend_from_slice(files);
+        apply_originals_in(&s, &[Match { copy: teacher, original }], |f| {
+            trashed.lock().unwrap().push(f.to_path_buf());
             Ok(())
         })
         .unwrap();
@@ -578,8 +621,8 @@ mod tests {
         // Une demande venue de la page qui désigne une photo de l'enseignant comme copie : ignorée.
         let wrong = Match { copy: by_name(&lib, "IMG_0001.jpg").id.clone(), original: "c1".into() };
         let trashed = Mutex::new(vec![]);
-        apply_originals_in(&s, &[wrong], |files| {
-            trashed.lock().unwrap().extend_from_slice(files);
+        apply_originals_in(&s, &[wrong], |f| {
+            trashed.lock().unwrap().push(f.to_path_buf());
             Ok(())
         })
         .unwrap();

@@ -64,6 +64,14 @@ test("the migration banner and its result", () => {
   expect(fr.libraryOriginalsNone).toContain("rien n'a changé");
   expect(fr.libraryOriginalsDone(1)).toBe("1 copie mise à la corbeille de l'ordinateur. Les enfants et activités sont sur l'original.");
   expect(fr.libraryOriginalsDone(4)).toBe("4 copies mises à la corbeille de l'ordinateur. Les enfants et activités sont sur les originaux.");
+  // La corbeille en refuse une partie : on dit combien, et que rien n'est perdu.
+  expect(fr.libraryOriginalsNotTrashed(3, 2)).toBe(
+    "3 copies mises à la corbeille de l'ordinateur, leurs enfants et activités sont sur les originaux. 2 copies n'ont pas pu être mises à la corbeille : elles restent dans la photothèque, avec leurs enfants et activités. Vous pourrez réessayer avec « Retrouver les originaux ».",
+  );
+  expect(fr.libraryOriginalsNotTrashed(0, 1)).toBe(
+    "1 copie n'a pas pu être mise à la corbeille : elle reste dans la photothèque, avec ses enfants et activités. Vous pourrez réessayer avec « Retrouver les originaux ».",
+  );
+  expect(fr.libraryOriginalsNotTrashed(1, 1)).toContain("1 copie mise à la corbeille de l'ordinateur, ses enfants et activités sont sur l'original.");
 });
 
 /** La question avant de quitter un document le nomme, et son retour ne s'appelle pas « Annuler ». */

@@ -153,8 +153,8 @@
         return;
       }
       if (!(await ask(fr.libraryOriginalsFound(n, report.unmatched.length), fr.yes, fr.no))) return;
-      await classLibrary.applyOriginals(report.matches);
-      editor.notice = fr.libraryOriginalsDone(n);
+      const left = await classLibrary.applyOriginals(report.matches);
+      editor.notice = left ? fr.libraryOriginalsNotTrashed(n - left, left) : fr.libraryOriginalsDone(n);
     } catch (e) {
       error = String(e);
     } finally {

@@ -164,6 +164,29 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # Banc de fidélité ODG (README, Développement) : les pages exportées, rendues par LibreOffice, comparées
+  # à l'écran. À part, pour ne pas ralentir les installeurs. LibreOffice vient d'apt, plus ancienne que
+  # celle du poste de développement : sa version est écrite dans le journal.
+  odg:
+    needs: notes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: LibreOffice Draw et poppler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-draw poppler-utils
+          soffice --version
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+
+      - name: Banc de fidélité ODG
+        run: cargo test -p carnet-core --test odg_libreoffice -- --ignored --test-threads=1
+
   # Avant la 1.0, le titre porte « (bêta) » ; la version n'est pas marquée préversion, pour que
   # « releases/latest » (liens du README, avis de nouvelle version) la trouve.
   release:

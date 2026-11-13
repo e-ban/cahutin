@@ -122,7 +122,7 @@ cargo test --workspace   # tests du moteur et de l'application
 npm run tauri build      # installeur Windows (sous Linux : -- --bundles appimage,deb)
 ```
 
-Le banc de fidélité exporte des pages en ODG et les fait rendre par LibreOffice pour vérifier qu'elles sont identiques à l'écran (LibreOffice doit être installé) :
+Le banc de fidélité exporte des pages en ODG et les fait rendre par LibreOffice pour vérifier qu'elles sont identiques à l'écran (LibreOffice doit être installé ; l'intégration continue lance le premier à chaque envoi) :
 
 ```sh
 cargo test -p carnet-core --test odg_libreoffice -- --ignored --test-threads=1

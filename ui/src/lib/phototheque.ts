@@ -161,6 +161,20 @@ export function displayNames(students: Student[]): Map<string, string> {
   return names;
 }
 
+/** Les jours qui portent les `n` premières photos : `drawn`, celles du jour à dessiner ; `photos`, toutes celles
+ *  du jour (son en-tête les compte et les choisit). Des milliers de vignettes dessinées d'un coup gèleraient la
+ *  page : elle n'en dessine que `n`, et davantage quand on fait défiler. */
+export function firstDays(days: { day: string; photos: ClassPhoto[] }[], n: number): { day: string; photos: ClassPhoto[]; drawn: ClassPhoto[] }[] {
+  const out: { day: string; photos: ClassPhoto[]; drawn: ClassPhoto[] }[] = [];
+  let left = n;
+  for (const d of days) {
+    if (left <= 0) break;
+    out.push({ ...d, drawn: d.photos.slice(0, left) });
+    left -= d.photos.length;
+  }
+  return out;
+}
+
 /** Les photos (déjà dans l'ordre) regroupées par jour de prise de vue. */
 export function byDay(photos: ClassPhoto[]): { day: string; photos: ClassPhoto[] }[] {
   const days: { day: string; photos: ClassPhoto[] }[] = [];

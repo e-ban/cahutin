@@ -18,6 +18,7 @@
     countsByStudent,
     displayNames,
     filterLibrary,
+    firstDays,
     folderCounts,
     foldersWithOldCopies,
     oldCopies,
@@ -35,6 +36,8 @@
   const PERIODS: Period[] = ["month", "trimester", "year", "all"];
   /** Enfants nommés dans le bandeau d'équité avant « et N autres ». */
   const BEHIND_SHOWN = 6;
+  /** Vignettes dessinées d'abord, puis à chaque fois que le bas de la grille approche. */
+  const DRAWN_STEP = 300;
 
   let filter = $state<LibraryFilter>({ period: "year" });
   let selected = $state<string[]>([]);
@@ -61,6 +64,10 @@
   const photos = $derived(classLibrary.visible);
   const shown = $derived(filterLibrary(photos, filter, today));
   const days = $derived(byDay(shown));
+  let drawnCount = $state(DRAWN_STEP);
+  const drawnDays = $derived(firstDays(days, drawnCount));
+  // Repère sous la dernière vignette dessinée : quand il approche de l'écran, on en dessine davantage.
+  let more = $state<HTMLElement>();
   const counts = $derived(countsByStudent(photos, students, filter.period, today));
   const behind = $derived(studentsBehind(counts));
   const tags = $derived(tagsOf(photos));
@@ -90,6 +97,20 @@
       selected = [];
       classLibrary.open(path).catch((e) => (error = String(e)));
     } else if (path) classLibrary.refresh();
+  });
+
+  // Un autre filtre : la grille repart des premières photos.
+  $effect(() => {
+    void [filter.period, filter.student, filter.tag, filter.untagged, filter.folder];
+    drawnCount = DRAWN_STEP;
+  });
+  // Recréé à chaque ajout : s'il est encore près de l'écran, l'observateur le redit aussitôt.
+  $effect(() => {
+    void drawnCount;
+    if (!more) return;
+    const io = new IntersectionObserver((seen) => seen.some((e) => e.isIntersecting) && (drawnCount += DRAWN_STEP), { root: more.closest(".library-page"), rootMargin: "1500px" });
+    io.observe(more);
+    return () => io.disconnect();
   });
 
   function close() {
@@ -311,13 +332,13 @@
           <p class="hint">{photos.length ? fr.libraryNoneHere : classLibrary.scanning ? "" : fr.libraryEmpty}</p>
         {/if}
         <div class="days">
-        {#each days as d (d.day)}
+        {#each drawnDays as d (d.day)}
           <div class="day">
             <button class="day-head" disabled={!!marking} title={fr.librarySelectDay} onclick={() => pickAll(d.photos.map((p) => p.id))}>
               {fr.libraryDayShort(d.day)} <span class="n">· {d.photos.length}</span>
             </button>
             <div class="grid">
-            {#each d.photos as p (p.id)}
+            {#each d.drawn as p (p.id)}
               {@const missing = withoutConsent(p, students)}
               {@const on = marking ? p.students.includes(marking) : selected.includes(p.id)}
               <button
@@ -338,6 +359,7 @@
           </div>
         {/each}
         </div>
+        {#if shown.length > drawnCount}<div class="more" bind:this={more}></div>{/if}
       </section>
 
       {#if chosen.length && !marking}
@@ -465,6 +487,9 @@
   }
   .day {
     max-width: 100%;
+  }
+  .more {
+    height: 1px;
   }
   .day-head {
     border: none;

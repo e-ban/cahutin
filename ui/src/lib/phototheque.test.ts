@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { baseName, byDay, foldersWithOldCopies, upsertPhotos, countsByStudent, displayNames, filterLibrary, folderCounts, isOldCopy, oldCopies, periodStart, presence, studentsBehind, tagsOf, missingConsent, visiblePhotos, withoutConsent } from "./phototheque";
+import { baseName, byDay, firstDays, foldersWithOldCopies, upsertPhotos, countsByStudent, displayNames, filterLibrary, folderCounts, isOldCopy, oldCopies, periodStart, presence, studentsBehind, tagsOf, missingConsent, visiblePhotos, withoutConsent } from "./phototheque";
 import type { ClassPhoto, Student } from "./types";
 
 const photo = (id: string, taken: string, students: string[] = [], tags: string[] = [], more: Partial<ClassPhoto> = {}): ClassPhoto => ({
@@ -76,6 +76,18 @@ test("children with the same first name are told apart by their last name", () =
 test("photos are grouped by day, in the order given", () => {
   const photos = [photo("a", "2026-10-14"), photo("b", "2026-10-14"), photo("c", "2026-10-02")];
   expect(byDay(photos).map((d) => [d.day, d.photos.map((p) => p.id)])).toEqual([["2026-10-14", ["a", "b"]], ["2026-10-02", ["c"]]]);
+});
+
+test("seules les premières photos sont dessinées, chaque jour garde toutes ses photos pour son en-tête", () => {
+  const days = byDay([photo("a", "2026-10-14"), photo("b", "2026-10-14"), photo("c", "2026-10-02"), photo("d", "2026-10-01")]);
+  const first = firstDays(days, 3);
+  expect(first.map((d) => [d.day, d.drawn.map((p) => p.id), d.photos.length])).toEqual([
+    ["2026-10-14", ["a", "b"], 2],
+    ["2026-10-02", ["c"], 1],
+  ]);
+  expect(firstDays(days, 2).map((d) => [d.day, d.drawn.map((p) => p.id), d.photos.length])).toEqual([["2026-10-14", ["a", "b"], 2]]);
+  expect(firstDays(days, 1).map((d) => [d.drawn.map((p) => p.id), d.photos.length])).toEqual([[["a"], 2]]);
+  expect(firstDays(days, 10).flatMap((d) => d.drawn).length).toBe(4);
 });
 
 test("seules les photos ni retirées ni absentes sont montrées", () => {

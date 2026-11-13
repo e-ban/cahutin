@@ -17,6 +17,9 @@ use tauri::{AppHandle, Manager, State};
 use ts_rs::TS;
 
 const MISSING_FILE: &str = "Cette photo est introuvable : la clé USB est-elle branchée ?";
+/// Un dossier qui contient celui où Cahutin range les photothèques (« Documents », le dossier personnel) :
+/// les anciennes copies de toutes les classes y seraient prises pour des photos de l'enseignant.
+const HOLDS_CAHUTIN: &str = "Ce dossier contient aussi les photos que Cahutin range lui-même, dans le dossier « Cahutin ». Choisissez plutôt le dossier où sont vos photos, par exemple « Images » ou celui de votre appareil photo.";
 
 /// Dossier des photos d'une classe : seulement pour un fichier de classe du dossier des classes.
 pub fn library_dir(classes_dir: &Path, class_path: &Path) -> Result<PathBuf, String> {
@@ -211,6 +214,9 @@ pub fn follow_in(state: &AppState, folder: &str) -> Result<Phototheque, String> 
     with_open(state, |dir, index| {
         let mut kept = state.phototheque_unfollowed.lock().unwrap();
         let root = Path::new(folder);
+        if dir.parent().is_some_and(|photos| photos.starts_with(root)) {
+            return Err(HOLDS_CAHUTIN.into());
+        }
         let mut followed = index.clone();
         // Les mêmes refus que pour un dossier neuf (introuvable, déjà suivi, dans un dossier suivi).
         phototheque::follow(&mut followed, root)?;
@@ -714,6 +720,22 @@ mod tests {
         std::fs::rename(&folder, dir.path().join("Ailleurs")).unwrap();
         assert!(follow_in(&s, &folder.to_string_lossy()).is_err());
         assert!(s.phototheque_unfollowed.lock().unwrap().is_some(), "« Annuler » reste possible");
+    }
+
+    /// L'enseignant choisit « Documents » pour ses originaux : refusé avec un message qui dit quoi choisir, et
+    /// non « contient un dossier déjà suivi » (le dossier des anciennes copies, qu'il n'a jamais ajouté).
+    /// Même refus une fois ce dossier oublié : les copies des autres classes y sont aussi.
+    #[test]
+    fn a_folder_that_holds_the_photos_of_cahutin_is_refused_plainly() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, library, originals) = old_library(dir.path());
+        for parent in [dir.path().to_path_buf(), dir.path().join("Cahutin"), dir.path().join("Cahutin").join("Photos")] {
+            assert_eq!(follow_in(&s, &parent.to_string_lossy()).unwrap_err(), HOLDS_CAHUTIN, "{parent:?}");
+        }
+        unfollow_in(&s, &library.to_string_lossy()).unwrap();
+        assert_eq!(follow_in(&s, &dir.path().to_string_lossy()).unwrap_err(), HOLDS_CAHUTIN);
+        // Le dossier des originaux, à côté : accepté comme avant (il est déjà suivi, d'où ce refus-là).
+        assert_eq!(follow_in(&s, &originals.to_string_lossy()).unwrap_err(), "Ce dossier est déjà suivi.");
     }
 
     /// « Ne plus suivre » un dossier qui n'est pas suivi n'efface pas ce que garde « Annuler » pour un autre.

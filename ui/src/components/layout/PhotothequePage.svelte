@@ -9,7 +9,6 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { classPhotoUrl } from "../../lib/api";
   import { DRAWN_STEP, drawMoreNearEnd } from "../../lib/drawMore";
-  import { ask } from "../../lib/ask";
   import { classes } from "../../lib/classStore.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
@@ -133,15 +132,7 @@
     error = null;
     searching = true;
     try {
-      const report = await classLibrary.findOriginals();
-      const n = report.matches.length;
-      if (n === 0) {
-        editor.notice = fr.libraryOriginalsNone;
-        return;
-      }
-      if (!(await ask(fr.libraryOriginalsFound(n, report.unmatched.length), fr.yes, fr.no))) return;
-      const left = await classLibrary.applyOriginals(report.matches);
-      editor.notice = left ? fr.libraryOriginalsNotTrashed(n - left, left) : fr.libraryOriginalsDone(n);
+      await classLibrary.migrate();
     } catch (e) {
       error = String(e);
     } finally {

@@ -21,7 +21,7 @@ import { classes } from "./classStore.svelte";
 import { editor } from "./docStore.svelte";
 import { fr } from "./i18n/fr";
 import { baseName, displayNames, missingConsent, upsertPhotos, visiblePhotos } from "./phototheque";
-import type { AssetMeta, ClassPhoto, FollowedFolder, Match, OriginalsReport, Phototheque, TagChange } from "./types";
+import type { AssetMeta, ClassPhoto, FollowedFolder, Match, Phototheque, TagChange } from "./types";
 
 class ClassLibrary {
   /** Classe dont la photothèque est chargée (chemin de son fichier). */
@@ -162,14 +162,34 @@ class ClassLibrary {
     });
   }
 
-  /** Les originaux des anciennes copies, cherchés dans les dossiers suivis ; rien n'est changé. */
-  findOriginals(): Promise<OriginalsReport> {
-    return photothequeFindOriginals();
-  }
-
   /** « Non merci » : l'enseignant ne veut pas de la migration ; rien n'est touché, le bandeau ne revient plus. */
   async settleMigration() {
     this.#set(await photothequeSettleMigration());
+  }
+
+  /** Migration : cherche les originaux des anciennes copies dans les dossiers suivis, dit combien sont
+   *  retrouvés, puis demande avant la corbeille. « Non », ou aucun original retrouvé : la question est
+   *  tranchée comme « Non merci » (le bandeau ne revient plus, le lien de la colonne reste). */
+  async migrate() {
+    const token = this.#opening;
+    const report = await photothequeFindOriginals();
+    if (token !== this.#opening) return;
+    const n = report.matches.length;
+    if (n === 0) {
+      if (!this.migrationSettled) await this.settleMigration();
+      editor.notice = fr.libraryOriginalsNone;
+      return;
+    }
+    if (!(await ask(fr.libraryOriginalsFound(n, report.unmatched.length), fr.yes, fr.no))) {
+      if (token === this.#opening && !this.migrationSettled) {
+        await this.settleMigration();
+        editor.notice = fr.libraryMigrationDeclined;
+      }
+      return;
+    }
+    if (token !== this.#opening) return;
+    const left = await this.applyOriginals(report.matches);
+    editor.notice = left ? fr.libraryOriginalsNotTrashed(n - left, left) : fr.libraryOriginalsDone(n);
   }
 
   /** Met les copies à la corbeille de l'ordinateur et reporte enfants et activités de celles parties sur les

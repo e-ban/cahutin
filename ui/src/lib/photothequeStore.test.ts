@@ -24,7 +24,9 @@ const scans: { send: (e: ScanEvent) => void; finish: () => void }[] = [];
 
 vi.mock("./api", () => ({
   photothequeOpen: async () => lib(["a"]),
-  photothequeSettleMigration: async () => lib(["a"], true),
+  photothequeSettleMigration: vi.fn(async () => lib(["a"], true)),
+  photothequeFindOriginals: vi.fn(async () => ({ matches: [{ copy: "a", original: "b" }], unmatched: [] })),
+  photothequeApplyOriginals: vi.fn(async () => ({ phototheque: lib(["a"], true), not_trashed: 0 })),
   photothequeUnfollow: async () => ({ format_version: 2, folders: [], photos: [], migration_settled: false }),
   photothequeRefollow: vi.fn(async () => lib(["a"])),
   // Étiqueter et retirer ne renvoient que les photos changées.
@@ -34,12 +36,13 @@ vi.mock("./api", () => ({
     new Promise((resolve) => scans.push({ send: onEvent, finish: () => resolve({ added: 0, moved: 0, missing: 0, missing_folders: [] }) })),
 }));
 
-vi.mock("./ask", () => ({ ask: async () => true }));
+vi.mock("./ask", () => ({ ask: vi.fn(async () => true) }));
 
 const { classLibrary } = await import("./phototheque.svelte");
 const { editor } = await import("./docStore.svelte");
 const { fr } = await import("./i18n/fr");
 const api = await import("./api");
+const { ask } = await import("./ask");
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 test("rouvrir la photothèque d'une classe déjà chargée relance un parcours, un seul à la fois", async () => {
@@ -113,4 +116,45 @@ test("une réponse d'étiquette arrivée après le changement de classe ne touch
   answer([{ ...photo("z"), tags: ["Ferme"] }]);
   await tagging;
   expect(classLibrary.photos.map((p) => p.id)).toEqual(["a"]);
+});
+
+test("« Non » à la question de la corbeille : la migration est tranchée comme « Non merci »", async () => {
+  await classLibrary.open("/classes/ms.cahutin");
+  vi.mocked(api.photothequeSettleMigration).mockClear();
+  vi.mocked(ask).mockResolvedValueOnce(false);
+  await classLibrary.migrate();
+  expect(ask).toHaveBeenLastCalledWith(fr.libraryOriginalsFound(1, 0), fr.yes, fr.no);
+  expect(api.photothequeApplyOriginals).not.toHaveBeenCalled();
+  expect(api.photothequeSettleMigration).toHaveBeenCalledTimes(1);
+  expect(classLibrary.migrationSettled).toBe(true);
+  expect(editor.notice).toBe(fr.libraryMigrationDeclined);
+});
+
+test("aucun original retrouvé : la question est tranchée aussi, et on le dit", async () => {
+  await classLibrary.open("/classes/ms.cahutin");
+  vi.mocked(api.photothequeSettleMigration).mockClear();
+  vi.mocked(api.photothequeFindOriginals).mockResolvedValueOnce({ matches: [], unmatched: ["a"] });
+  await classLibrary.migrate();
+  expect(api.photothequeSettleMigration).toHaveBeenCalledTimes(1);
+  expect(classLibrary.migrationSettled).toBe(true);
+  expect(editor.notice).toBe(fr.libraryOriginalsNone);
+});
+
+test("le lien « Retrouver les originaux », question déjà tranchée : « Non » ne la retranche pas", async () => {
+  await classLibrary.open("/classes/ms.cahutin");
+  await classLibrary.settleMigration();
+  vi.mocked(api.photothequeSettleMigration).mockClear();
+  vi.mocked(ask).mockResolvedValueOnce(false);
+  editor.notice = null;
+  await classLibrary.migrate();
+  expect(api.photothequeSettleMigration).not.toHaveBeenCalled();
+  expect(classLibrary.migrationSettled).toBe(true);
+  expect(editor.notice).toBeNull();
+});
+
+test("« Oui » : les copies vont à la corbeille et on dit combien", async () => {
+  await classLibrary.open("/classes/ms.cahutin");
+  await classLibrary.migrate();
+  expect(api.photothequeApplyOriginals).toHaveBeenCalledWith([{ copy: "a", original: "b" }]);
+  expect(editor.notice).toBe(fr.libraryOriginalsDone(1));
 });

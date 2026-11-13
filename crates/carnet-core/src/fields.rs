@@ -76,7 +76,7 @@ fn is_student_field(field: &str) -> bool {
     value(field, &Student::new("", "")).is_some()
 }
 
-/// Ce qu'on lit à la place d'un champ non rempli : sur la pastille, à l'impression, à l'export.
+/// Le nom d'un champ non rempli, que dit sa pastille (à l'impression et à l'export, le champ reste blanc).
 pub fn label(field: &str) -> Option<String> {
     if let Some((n, capital)) = letter_index(field) {
         return Some(format!("{} {n}", if capital { "Lettre" } else { "lettre" }));

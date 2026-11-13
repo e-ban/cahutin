@@ -479,18 +479,27 @@ fn examples_render_in_libreoffice() {
         let doc = carnet_core::examples::document(&info.id).unwrap();
         let (_dir, pdf) = render(&doc, &AssetStore::default());
         let text: String = run(Command::new("pdftotext").arg(&pdf).arg("-")).split_whitespace().collect();
-        // Le titre : premier mot du plus grand texte de l'exemple.
+        // Le titre : premier mot écrit du plus grand texte de l'exemple ; un champ non rempli sort blanc.
+        let written = |t: &str| {
+            carnet_core::fields::split(t)
+                .into_iter()
+                .map(|p| match p {
+                    carnet_core::fields::Piece::Text(x) => x,
+                    carnet_core::fields::Piece::Field(_) => " ",
+                })
+                .collect::<String>()
+        };
         let title = doc
             .pages
             .iter()
             .flat_map(|p| &p.elements)
             .filter_map(|e| match &e.kind {
-                carnet_core::ElementKind::Text(t) if !t.content.is_blank() => Some((t.style.size_pt, t.content.paragraphs.iter().flat_map(|p| p.runs.iter().map(|r| r.text.as_str())).collect::<Vec<_>>().join(" "))),
+                carnet_core::ElementKind::Text(t) if !t.content.is_blank() => Some((t.style.size_pt, t.content.paragraphs.iter().flat_map(|p| p.runs.iter().map(|r| written(&r.text))).collect::<Vec<_>>().join(" "))),
                 _ => None,
             })
             .max_by(|a, b| a.0.total_cmp(&b.0))
             .map(|(_, t)| t);
-        // Un exemple fait seulement de zones à remplir (étiquettes) n'a pas de titre écrit.
+        // Un exemple fait seulement de zones à remplir (étiquettes) ou de champs n'a pas de titre écrit.
         if let Some(word) = title.as_deref().and_then(|t| t.split_whitespace().next()) {
             assert!(text.contains(word), "{} : {word:?} absent de {text}", info.id);
         }

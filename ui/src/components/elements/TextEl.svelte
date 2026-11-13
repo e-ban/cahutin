@@ -193,7 +193,7 @@
     border-radius: 4px;
     white-space: nowrap;
   }
-  /* Un champ de la classe : une pastille qui dit son nom ; à l'impression, son nom en clair (print.css).
+  /* Un champ de la classe : une pastille qui dit son nom ; à l'impression, blanc à la même place (print.css).
      Aussi dans l'éditeur, d'où le sélecteur global. */
   /* En ligne, comme le texte : un nom long (« Anniversaires de septembre ») passe à la ligne, chaque morceau
      gardant sa pastille. */

@@ -229,7 +229,7 @@ mod tests {
             buf.set_position(0);
             let back = crate::import::odg::read_drawing(buf, &known).unwrap();
             assert_eq!(back.report.skipped, 0, "{} : {:?}", info.id, back.report);
-            // Un champ non rempli s'exporte en clair (« Âge ») : c'est ce qu'on relit.
+            // Un champ non rempli s'exporte sous son nom (« Âge ») à l'encre transparente : c'est ce qu'on relit.
             let shown = |t: &String| crate::fields::split(t).into_iter().map(|p| match p {
                 crate::fields::Piece::Text(x) => x.to_string(),
                 crate::fields::Piece::Field(f) => crate::fields::shown(f).unwrap(),
@@ -271,13 +271,28 @@ mod tests {
         }
     }
 
-    /// Une page à remplir exportée telle quelle : on lit le nom du champ, pas `{prenom}`.
+    /// Une page à remplir exportée telle quelle : un champ non rempli sort blanc, comme à l'impression. Son nom
+    /// est écrit à l'encre transparente, pour qu'il garde la place qu'il prend à l'impression ; le texte autour
+    /// reste à l'encre.
     #[test]
-    fn an_unfilled_field_exports_as_its_label() {
+    fn an_unfilled_field_exports_blank() {
         let doc = doc_with(vec![text(RichText::plain("Bonjour {prenom} {toto}, {PRENOM_2}"), None)]);
         let content = export(&doc, &AssetStore::default()).xml("content.xml");
-        assert!(content.contains("Bonjour Prénom {toto}, 2"), "{content}");
         assert!(!content.contains("{prenom}"));
+        // Chaque portion écrite, et si son style la rend transparente.
+        let invisible = |style: &str| {
+            let def = content.split(&format!(r#"<style:style style:name="{style}""#)).nth(1).unwrap();
+            def.split("</style:style>").next().unwrap().contains(r#"loext:opacity="0%""#)
+        };
+        let shown: Vec<(&str, bool)> = content
+            .split(r#"<text:span text:style-name=""#)
+            .skip(1)
+            .map(|s| {
+                let (style, rest) = s.split_once(r#"">"#).unwrap();
+                (rest.split("</text:span>").next().unwrap(), invisible(style))
+            })
+            .collect();
+        assert_eq!(shown, [("Bonjour ", false), ("Prénom", true), (" {toto}, ", false), ("2", true)], "{content}");
     }
 
     /// Une image à colorier part en contour noir et revient à colorier.

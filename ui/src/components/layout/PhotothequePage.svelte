@@ -16,6 +16,7 @@
     baseName,
     byDay,
     countsByStudent,
+    dayBox,
     displayNames,
     filterLibrary,
     firstDays,
@@ -68,6 +69,7 @@
   const drawnDays = $derived(firstDays(days, drawnCount));
   // Repère sous la dernière vignette dessinée : quand il approche de l'écran, on en dessine davantage.
   let more = $state<HTMLElement>();
+  let daysWidth = $state(0);
   const counts = $derived(countsByStudent(photos, students, filter.period, today));
   const behind = $derived(studentsBehind(counts));
   const tags = $derived(tagsOf(photos));
@@ -341,9 +343,10 @@
         {#if shown.length === 0}
           <p class="hint">{photos.length ? fr.libraryNoneHere : classLibrary.scanning ? "" : fr.libraryEmpty}</p>
         {/if}
-        <div class="days">
+        <div class="days" bind:clientWidth={daysWidth}>
         {#each drawnDays as d (d.day)}
-          <div class="day">
+          {@const box = dayBox(d.drawn.length, daysWidth)}
+          <div class="day" style:contain-intrinsic-size="auto {box.width}px auto {box.height}px">
             <button class="day-head" disabled={!!marking} title={fr.librarySelectDay} onclick={() => pickAll(d.photos.map((p) => p.id))}>
               {fr.libraryDayShort(d.day)} <span class="n">· {d.photos.length}</span>
             </button>
@@ -496,11 +499,11 @@
     align-items: flex-start;
   }
   /* Un jour loin de l'écran n'est ni mis en page ni dessiné : avec des milliers de vignettes dessinées, chaque
-     ajout en bas de la grille remettait toute la page en forme (750 ms de gel à 10 000 photos, 70 ms ainsi). */
+     ajout en bas de la grille remettait toute la page en forme (750 ms de gel à 10 000 photos, 70 ms ainsi). Sa
+     place est réservée d'après son nombre de photos (`dayBox`). */
   .day {
     max-width: 100%;
     content-visibility: auto;
-    contain-intrinsic-size: auto 1200px auto 400px;
   }
   .more {
     height: 1px;

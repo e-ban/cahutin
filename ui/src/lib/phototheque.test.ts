@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { baseName, byDay, firstDays, foldersWithOldCopies, upsertPhotos, countsByStudent, displayNames, filterLibrary, folderCounts, isOldCopy, oldCopies, periodStart, presence, studentsBehind, tagsOf, missingConsent, visiblePhotos, withoutConsent } from "./phototheque";
+import { baseName, byDay, dayBox, firstDays, foldersWithOldCopies, upsertPhotos, countsByStudent, displayNames, filterLibrary, folderCounts, isOldCopy, oldCopies, periodStart, presence, studentsBehind, tagsOf, missingConsent, visiblePhotos, withoutConsent } from "./phototheque";
 import type { ClassPhoto, Student } from "./types";
 
 const photo = (id: string, taken: string, students: string[] = [], tags: string[] = [], more: Partial<ClassPhoto> = {}): ClassPhoto => ({
@@ -88,6 +88,16 @@ test("seules les premières photos sont dessinées, chaque jour garde toutes ses
   expect(firstDays(days, 2).map((d) => [d.day, d.drawn.map((p) => p.id), d.photos.length])).toEqual([["2026-10-14", ["a", "b"], 2]]);
   expect(firstDays(days, 1).map((d) => [d.drawn.map((p) => p.id), d.photos.length])).toEqual([[["a"], 2]]);
   expect(firstDays(days, 10).flatMap((d) => d.drawn).length).toBe(4);
+});
+
+test("place d'un jour pas encore dessiné : vignettes de 150 x 112,5 px, 10 px entre elles, en-tête de 22 px", () => {
+  // 1288 px de large : 8 vignettes par ligne.
+  expect(dayBox(3, 1288)).toEqual({ width: 470, height: 134.5 });
+  expect(dayBox(8, 1288)).toEqual({ width: 1270, height: 134.5 });
+  // Plusieurs lignes : le jour prend toute la largeur.
+  expect(dayBox(43, 1288)).toEqual({ width: 1288, height: 747 });
+  // Pas encore de largeur connue : une vignette par ligne plutôt qu'une division par zéro.
+  expect(dayBox(2, 0)).toEqual({ width: 0, height: 22 + 2 * 112.5 + 10 });
 });
 
 test("seules les photos ni retirées ni absentes sont montrées", () => {

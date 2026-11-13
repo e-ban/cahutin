@@ -175,6 +175,16 @@ export function firstDays(days: { day: string; photos: ClassPhoto[] }[], n: numb
   return out;
 }
 
+/** La place d'un jour de `count` photos dans une grille large de `width` px, telle que la page la dessine
+ *  (vignettes de 150 x 112,5 px, 10 px entre elles, en-tête de 22 px) : réservée tant que le jour, loin de
+ *  l'écran, n'est pas dessiné, pour que la page ne saute pas quand il l'est. */
+export function dayBox(count: number, width: number): { width: number; height: number } {
+  const [w, h, gap, head] = [150, 112.5, 10, 22];
+  const perRow = Math.max(1, Math.floor((width + gap) / (w + gap)));
+  const rows = Math.ceil(count / perRow);
+  return { width: rows > 1 ? width : count * (w + gap) - gap, height: head + rows * h + (rows - 1) * gap };
+}
+
 /** Les photos (déjà dans l'ordre) regroupées par jour de prise de vue. */
 export function byDay(photos: ClassPhoto[]): { day: string; photos: ClassPhoto[] }[] {
   const days: { day: string; photos: ClassPhoto[] }[] = [];

@@ -219,7 +219,9 @@ pub fn phototheque_follow(state: State<'_, AppState>, folder: String) -> Result<
 }
 
 /// « Ne plus suivre » : le dossier et ses photos sont oubliés, aucun fichier n'est touché. Ce qui est retiré
-/// est gardé en mémoire pour « Annuler » (`refollow_in`), jusqu'au prochain « Ne plus suivre ».
+/// est gardé en mémoire pour « Annuler » (`refollow_in`), jusqu'au prochain « Ne plus suivre » d'un dossier
+/// suivi. Suivre de nouveau ce dossier, celui qui le contient ou un de ses sous-dossiers (`follow_in`) reprend
+/// les photos gardées qui y sont.
 pub fn unfollow_in(state: &AppState, folder: &str) -> Result<Phototheque, String> {
     with_open(state, |dir, index| {
         let removed = phototheque::unfollow(index, folder);
@@ -522,7 +524,8 @@ mod tests {
         assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 3, "rien n'est touché sur le disque");
     }
 
-    /// « Ne plus suivre » puis « Annuler » : l'index revient exactement, enregistré ; une seule fois.
+    /// « Ne plus suivre » puis « Annuler » : l'index revient exactement, enregistré ; un second « Annuler »
+    /// ne change rien.
     #[test]
     fn unfollowing_a_folder_can_be_undone_exactly() {
         let dir = tempfile::tempdir().unwrap();

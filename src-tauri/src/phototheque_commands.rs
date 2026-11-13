@@ -118,16 +118,32 @@ pub fn scan_in(state: &AppState, on_event: impl Fn(ScanEvent)) -> Result<ScanRep
     Ok(report)
 }
 
+/// Un long travail (parcours, recherche des originaux), fait sur un fil fait pour attendre, jamais sur les
+/// fils du runtime asynchrone : sur un ordinateur de deux coeurs, un parcours et un second qui attend le
+/// verrou les prendraient tous, et plus aucune commande ne répondrait. Une panique imprévue donne une erreur
+/// simple : la commande répond toujours.
+async fn off_runtime<T: Send + 'static>(work: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(work).await.unwrap_or_else(|_| {
+        log::error!("phototheque_job_panicked");
+        Err("Le travail sur les photos s'est arrêté. Réessayez plus tard.".into())
+    })
+}
+
 /// Parcourt les dossiers suivis, puis un seul fil remplit le cache de vignettes en arrière-plan.
-#[tauri::command(async)]
-pub fn phototheque_scan(app: AppHandle, state: State<'_, AppState>, on_progress: Channel<ScanEvent>) -> Result<ScanReport, String> {
-    let report = scan_in(&state, |e| {
-        let _ = on_progress.send(e);
-    })?;
-    // Ce remplissage remplace celui d'un parcours précédent : jamais deux fils à la fois.
-    let epoch = state.thumb_fill.fetch_add(1, Ordering::SeqCst) + 1;
-    std::thread::spawn(move || fill_thumbs(&app.state::<AppState>(), epoch));
-    Ok(report)
+#[tauri::command]
+pub async fn phototheque_scan(app: AppHandle, on_progress: Channel<ScanEvent>) -> Result<ScanReport, String> {
+    off_runtime(move || {
+        let state = app.state::<AppState>();
+        let report = scan_in(&state, |e| {
+            let _ = on_progress.send(e);
+        })?;
+        // Ce remplissage remplace celui d'un parcours précédent : jamais deux fils à la fois.
+        let epoch = state.thumb_fill.fetch_add(1, Ordering::SeqCst) + 1;
+        let app = app.clone();
+        std::thread::spawn(move || fill_thumbs(&app.state::<AppState>(), epoch));
+        Ok(report)
+    })
+    .await
 }
 
 /// Fait les vignettes manquantes de la photothèque ouverte, une photo après l'autre, et efface d'abord
@@ -258,9 +274,9 @@ pub fn find_originals_in(state: &AppState) -> Result<OriginalsReport, String> {
     Ok(report)
 }
 
-#[tauri::command(async)]
-pub fn phototheque_find_originals(state: State<'_, AppState>) -> Result<OriginalsReport, String> {
-    find_originals_in(&state)
+#[tauri::command]
+pub async fn phototheque_find_originals(app: AppHandle) -> Result<OriginalsReport, String> {
+    off_runtime(move || find_originals_in(&app.state::<AppState>())).await
 }
 
 /// Ce que la fin de la migration a fait.
@@ -496,6 +512,37 @@ mod tests {
         fill_thumbs(&s, epoch);
         assert!(!old.exists() && fresh.exists());
         assert_eq!(count(), lib.photos.len() + 1);
+    }
+
+    /// Des parcours qui attendent le verrou (un second parcours, une autre classe) ne prennent aucun fil du
+    /// runtime asynchrone : les autres commandes (étiqueter, retirer, poser) répondent encore.
+    #[test]
+    fn long_jobs_waiting_on_a_lock_leave_the_async_runtime_free() {
+        static LOCK: Mutex<()> = Mutex::new(());
+        let held = LOCK.lock().unwrap();
+        let jobs: Vec<_> = (0..64)
+            .map(|_| {
+                tauri::async_runtime::spawn(off_runtime(|| {
+                    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+                    Ok(())
+                }))
+            })
+            .collect();
+        let (tx, rx) = std::sync::mpsc::channel();
+        tauri::async_runtime::spawn(async move { tx.send(()).unwrap() });
+        let answered = rx.recv_timeout(std::time::Duration::from_secs(3));
+        drop(held);
+        assert!(answered.is_ok(), "une commande rapide doit répondre pendant que les parcours attendent");
+        for j in jobs {
+            assert!(tauri::async_runtime::block_on(j).unwrap().is_ok());
+        }
+    }
+
+    /// Un travail qui panique hors des fichiers protégés : la commande répond quand même, par une erreur simple.
+    #[test]
+    fn a_long_job_that_panics_still_answers() {
+        let answer = tauri::async_runtime::block_on(off_runtime(|| -> Result<(), String> { panic!("imprévu") }));
+        assert_eq!(answer.unwrap_err(), "Le travail sur les photos s'est arrêté. Réessayez plus tard.");
     }
 
     /// Une photo abîmée qui fait paniquer le décodeur : sautée, les autres vignettes se font quand même.

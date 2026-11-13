@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { attendreResultat, memoirePointeMo } from "./attente.mjs";
+import { attendreCache, attendreResultat, memoirePointeMo, vignettesFaites } from "./attente.mjs";
 import { SONDE } from "./sonde.mjs";
 
 /** Une fausse page : des images d'animation toutes les 16 ms, et les vignettes données. */
@@ -67,4 +67,20 @@ test("la mémoire de pointe est celle de tout le groupe de l'application", () =>
   writeFileSync(join(racine, "sys/fs/cgroup/user.slice/run-r1.scope/memory.peak"), String(1536 * 1024 * 1024) + "\n");
   assert.equal(memoirePointeMo("42", racine), 1536);
   assert.equal(memoirePointeMo("7", racine), null);
+});
+
+test("le cache n'est pas rempli tant qu'il manque des vignettes ou qu'une est en cours d'écriture", async () => {
+  const dossier = mkdtempSync(join(tmpdir(), "vignettes-"));
+  assert.deepEqual(vignettesFaites(join(dossier, "absent")), { finies: 0, encours: 0 });
+  writeFileSync(join(dossier, "a.jpg"), "x");
+  writeFileSync(join(dossier, "b.jpg.1-0.tmp"), "x");
+  assert.deepEqual(vignettesFaites(dossier), { finies: 1, encours: 1 });
+  await assert.rejects(attendreCache(dossier, 2, { delaiMs: 200, pasMs: 10, calmeMs: 20 }), /incomplet/);
+});
+
+test("le cache rempli rend le temps qu'il a fallu", async () => {
+  const dossier = mkdtempSync(join(tmpdir(), "vignettes-"));
+  setTimeout(() => writeFileSync(join(dossier, "a.jpg"), "x"), 60);
+  const ms = await attendreCache(dossier, 1, { delaiMs: 5000, pasMs: 10, calmeMs: 40 });
+  assert.ok(ms >= 40 && ms < 1000, String(ms));
 });

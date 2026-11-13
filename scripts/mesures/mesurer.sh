@@ -4,6 +4,8 @@
 # Prérequis : tauri-driver, WebKitWebDriver, xvfb-run, systemd (session utilisateur), ImageMagick, exiftool, Node.
 # Usage : scripts/mesures/mesurer.sh <dossier de sortie> [scène…]
 #         PHOTOS=<dossier> pour reprendre des photos déjà générées (sinon 10 000 dans <sortie>/.photos).
+#         DOSSIERS=<dossier> pour les dossiers de n photos de la photothèque (sinon <sortie>/.dossiers, refaits
+#         par clonage des photos si besoin, voir dossiers.sh).
 # Pour Timonier, qui ne lit que le JUnit écrit pendant son propre lancement :
 #         timonier test --junit <sortie>/mesures.xml -- scripts/mesures/mesurer.sh <sortie>
 # L'application est la version de développement (bibliothèques d'images optimisées, voir Cargo.toml) ; son
@@ -15,7 +17,7 @@ mkdir -p "${1:?dossier de sortie}"
 out=$(realpath "$1"); shift
 photos=${PHOTOS:-$out/.photos}
 # Un vite ou un pilote déjà lancé (une autre copie du dépôt, un autre banc) ferait mesurer une autre application.
-occupe() { (echo >"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+occupe() { (echo >"/dev/tcp/127.0.0.1/$1") 2>/dev/null || ss -ltn "sport = :$1" 2>/dev/null | grep -q LISTEN; }
 for port in 5173 4444; do
   if occupe "$port"; then
     echo "Le port $port est déjà pris (un autre vite, un autre tauri-driver ?) : arrêtez-le avant de mesurer." >&2
@@ -23,6 +25,11 @@ for port in 5173 4444; do
   fi
 done
 [ -n "${PHOTOS:-}" ] || "$here/photos.sh" "$photos" 10000
+# Les dossiers que les scènes de la photothèque suivent (1000, 5000 et 10000 photos), hors du dépôt.
+export DOSSIERS=${DOSSIERS:-$out/.dossiers}
+if [ $# -eq 0 ] || printf '%s\n' "$@" | grep -q '^phototheque'; then
+  "$here/dossiers.sh" "$photos" "$DOSSIERS" 1000 5000 10000
+fi
 work=$(mktemp -d -p "$out" .travail-XXXX)
 mkdir -p "$work/home/Documents"
 : >"$out/.pid"
@@ -41,8 +48,8 @@ descendants() { local c; for c in $(pgrep -P "$1"); do echo "$c"; descendants "$
   done
   sleep 0.5
 done) & finder=$!
-# À la fin, tout s'arrête, et le dossier personnel jetable (les photos copiées par la photothèque, près d'un
-# Go) est effacé ; ses journaux sont gardés à côté des résultats.
+# À la fin, tout s'arrête, et le dossier personnel jetable (l'index et les vignettes de la photothèque) est
+# effacé ; ses journaux sont gardés à côté des résultats.
 fin() {
   killtree $finder; killtree $vite; killtree $driver
   sleep 1

@@ -3,9 +3,9 @@
 // Usage : node images.mjs <dossier photos> <dossier sortie> [scène…]
 // Écrit <sortie>/mesures.xml (JUnit, pour `timonier test --junit`) et <sortie>/mesures.md.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { session, sleep } from "../captures/wd.mjs";
-import { attendreResultat, memoirePointeMo } from "./attente.mjs";
+import { attendreCache, attendreResultat, memoirePointeMo } from "./attente.mjs";
 import { SONDE } from "./sonde.mjs";
 
 const [photosDir, out, ...only] = process.argv.slice(2);
@@ -14,12 +14,14 @@ const APP = new URL("../../target/debug/cahutin", import.meta.url).pathname;
 const SEUIL_MS = 1000;
 const SEUIL_GEL_MS = 100;
 const TIROIR = [100, 300, 500];
-// 5 000 et 10 000 viendront avec les dossiers suivis (étape 4) : aujourd'hui, chaque photo est copiée, et
-// remplir une photothèque de 10 000 photos prendrait deux heures.
-const PHOTOTHEQUE = [1000];
-/** Une sortie : le lot qu'on ajoute d'un coup dans la vraie vie. */
-const LOT = 50;
+const PHOTOTHEQUE = [1000, 5000, 10000];
 const ELEVES = 25;
+/** Le premier parcours d'un gros dossier laisse quelques centaines de ms de gel : seuil sur le gel seulement. */
+const SEUIL_GEL_SUIVI_MS = 300;
+/** Les dossiers de n photos à suivre (préparés par dossiers.sh). */
+const DOSSIERS = process.env.DOSSIERS || join(out, ".dossiers");
+const TROIS_HEURES = 3 * 60 * 60 * 1000;
+const VINGT_MINUTES = 20 * 60 * 1000;
 
 /** Les photos générées, dans l'ordre (sortie-01/photo-00001.jpg, …). */
 function listePhotos(dir) {
@@ -48,12 +50,12 @@ function memoireMo() {
  * Une scène non demandée n'est pas mesurée ; `prealable` la joue quand même (un import dont dépendent les
  * suivantes), sans l'enregistrer.
  */
-async function mesurer(scene, taille, corps, seuil, { prealable = false } = {}) {
+async function mesurer(scene, taille, corps, seuil, { prealable = false, delaiMs } = {}) {
   if (!voulue(scene) && !prealable) return;
   const nom = `${scene}-${taille}`;
   let r;
   try {
-    r = await run(corps);
+    r = await run(corps, [], delaiMs);
   } catch (e) {
     r = { erreur: String(e) };
   }
@@ -63,13 +65,14 @@ async function mesurer(scene, taille, corps, seuil, { prealable = false } = {}) 
   else {
     Object.assign(res, r);
     const raisons = [];
-    if (r.expire) raisons.push("jamais prêt (délai dépassé)");
+    if (r.expire) raisons.push(`jamais prêt (délai dépassé)${r.diag ? ` ${r.diag}` : ""}`);
     if (seuil.ms != null && r.ms > seuil.ms) raisons.push(`${r.ms} ms > ${seuil.ms} ms`);
     if (seuil.gel != null && r.gelMaxMs > seuil.gel) raisons.push(`gel de ${r.gelMaxMs} ms > ${seuil.gel} ms`);
+    if (seuil.photos != null && r.photos !== seuil.photos) raisons.push(`${r.photos} photos montrées au lieu de ${seuil.photos}`);
     if (raisons.length) res.echec = raisons.join(" ; ");
   }
   resultats.push(res);
-  console.log(nom, res.erreur ? `ERREUR ${res.erreur}` : `${res.ms} ms, gel ${res.gelMaxMs} ms${res.echec ? `, ÉCHEC ${res.echec}` : ""}`);
+  console.log(nom, res.erreur ? `ERREUR ${res.erreur}` : `${res.ms} ms${res.premiereGrilleMs != null ? `, première grille ${res.premiereGrilleMs} ms` : ""}, gel ${res.gelMaxMs} ms${res.echec ? `, ÉCHEC ${res.echec}` : ""}`);
 }
 
 const attendre = (ms) => `await new Promise((r) => setTimeout(r, ${ms}));`;
@@ -150,41 +153,78 @@ async function tiroir() {
   );
 }
 
+/** La photothèque par dossiers suivis, pour chaque taille : premier parcours, vignettes, ouverture, filtre d'un enfant. */
 async function phototheque() {
-  if (!["phototheque-lot", "phototheque-ouvrir", "phototheque-enfant"].some(voulue)) return;
+  if (!["phototheque-suivre", "phototheque-ouvrir", "phototheque-enfant"].some(voulue)) return;
   // Une classe aux prénoms inventés ; « Adèle » (eleve-0) vient en tête de la liste et figure sur une photo sur cinq.
   const prenoms = ["Adèle", "Basile", "Capucine", "Dorian", "Elsa", "Félix", "Garance", "Hugo", "Iris", "Jules", "Kenza", "Lucien", "Maëlle", "Nils", "Olympe", "Paul", "Quitterie", "Raphaël", "Salomé", "Timéo", "Ulysse", "Victoire", "Wassim", "Yanis", "Zélie"].slice(0, ELEVES);
-  await run(`
-    const e = window.__editor, c = window.__carnet.classes;
-    e.drawer = null;
-    if (!c.current) await c.createNamed("Classe de mesure", "2026-2027");
-    const noms = ${JSON.stringify(prenoms)};
-    c.update((k) => ({ ...k, students: noms.map((first_name, i) => ({ id: "eleve-" + i, first_name, last_name: "", level: "MS", group: "", photo: null, photo_allowed: true, symbol: null, birth_date: null })) }));
-    e.showPhototheque = true;
-    for (let i = 0; i < 100 && !window.__carnet.classLibrary.classPath; i++) ${attendre(100)}
-  `);
-  let deja = 0;
   for (const n of PHOTOTHEQUE) {
-    // On n'ajoute jamais des milliers de photos d'un coup : la photothèque est remplie sans mesure, puis on mesure
-    // l'ajout d'une sortie (un lot) par-dessus.
-    const remplir = photos.slice(deja, n - LOT);
-    const sortie = photos.slice(n - LOT, n);
-    await run(`const l = window.__carnet.classLibrary; await l.add(${JSON.stringify(remplir)});`, [], 60 * 60 * 1000);
+    // Une classe par taille : chacune a son index et ses vignettes, rien ne se mélange d'un dossier à l'autre.
+    const classPath = await run(`
+      const e = window.__editor, c = window.__carnet.classes, l = window.__carnet.classLibrary;
+      e.showPhototheque = false; e.drawer = null;
+      await c.createNamed("Classe de mesure ${n}", "2026-2027");
+      const noms = ${JSON.stringify(prenoms)};
+      c.update((k) => ({ ...k, students: noms.map((first_name, i) => ({ id: "eleve-" + i, first_name, last_name: "", level: "MS", group: "", photo: null, photo_allowed: true, symbol: null, birth_date: null })) }));
+      e.showPhototheque = true;
+      for (let i = 0; i < 200 && !(l.classPath && l.classPath === c.current?.path); i++) ${attendre(100)}
+      for (let i = 0; i < 200 && l.scanning; i++) ${attendre(100)}
+      return l.classPath;
+    `);
+    if (typeof classPath !== "string") throw new Error(`la classe de ${n} photos n'a pas pu être créée : ${JSON.stringify(classPath)}`);
+    // Le cache de la classe : <dossier des données>/Photos/<nom du fichier de la classe>/.vignettes (à côté de Classes/).
+    const cache = join(dirname(dirname(classPath)), "Photos", basename(classPath).replace(/\.[^.]*$/, ""), ".vignettes");
+
+    // Premier parcours : la photothèque est vide, on suit un dossier de n photos. Deux temps : la fin du parcours
+    // (plus de barre d'avancement, c'est le temps de la scène) et la première grille (au moins 8 vignettes
+    // visibles chargées). Le gel est le plus long jusqu'à ce que les deux soient là.
     await mesurer(
-      "phototheque-lot",
+      "phototheque-suivre",
       n,
-      `const l = window.__carnet.classLibrary, lot = ${JSON.stringify(sortie)}; window.__fait = false;
-      const r = await window.__mesure(async () => { await l.add(lot); window.__fait = true; }, () => window.__fait, 600000);
-      const ids = l.photos.filter((_, i) => i % 5 === 0).map((p) => p.id);
-      await l.tag(ids, { add_students: ["eleve-0"] });
-      return r;`,
-      { gel: SEUIL_GEL_MS },
-      { prealable: true },
+      `const l = window.__carnet.classLibrary; window.__fait = false; let premiere = null, fin = null; const t0 = performance.now();
+      const r = await window.__mesure(async () => { await l.follow(${JSON.stringify(join(DOSSIERS, String(n)))}); window.__fait = true; },
+        () => {
+          if (fin === null && window.__fait && !l.scanning) fin = Math.round(performance.now() - t0);
+          if (premiere === null && window.__vignettesPretes(".library-page .photos", ${n})) premiere = Math.round(performance.now() - t0);
+          return fin !== null && premiere !== null;
+        }, ${VINGT_MINUTES});
+      // Si la première grille n'est jamais venue : ce que la page montre (images, chargées, visibles).
+      const imgs = [...document.querySelectorAll(".library-page .photos img")];
+      const diag = premiere === null ? { images: imgs.length, chargees: imgs.filter((i) => i.complete && i.naturalWidth > 0).length, cassees: imgs.filter((i) => i.complete && i.naturalWidth === 0).length } : null;
+      return { ...r, ms: fin ?? r.ms, premiereGrilleMs: premiere, photos: l.visible.length, ...(diag ? { diag: JSON.stringify(diag) } : {}) };`,
+      { gel: SEUIL_GEL_SUIVI_MS, photos: n },
+      { prealable: true, delaiMs: TROIS_HEURES + 60000 },
     );
-    deja = n;
+    // Sans « ouvrir », « enfant » ni « vignettes » demandés, on n'attend pas le remplissage du cache (plus d'une
+    // heure pour 10 000 photos) : la scène du premier parcours n'en a pas besoin.
+    if (["phototheque-ouvrir", "phototheque-enfant", "phototheque-vignettes"].some(voulue)) {
+      // Un enfant sur une photo sur cinq, pour la scène suivante.
+      await run(
+        `const l = window.__carnet.classLibrary;
+        await l.tag(l.photos.filter((_, i) => i % 5 === 0).map((p) => p.id), { add_students: ["eleve-0"] });`,
+        [],
+        TROIS_HEURES,
+      );
+      // Le cache de vignettes se remplit sur un seul fil après le parcours : on mesure « avec vignettes » une fois
+      // qu'il est plein (n vignettes finies, aucune en cours d'écriture, compte stable pendant 5 s).
+      const cle = `phototheque-vignettes-${n}`;
+      const fin = { nom: cle, scene: "phototheque-vignettes", taille: n };
+      try {
+        fin.ms = await attendreCache(cache, n);
+        console.log(cle, `${fin.ms} ms`);
+      } catch (e) {
+        fin.erreur = String(e);
+        console.log(cle, `ERREUR ${fin.erreur}`);
+      }
+      fin.memoireMo = memoireMo();
+      if (voulue("phototheque-suivre") || voulue("phototheque-vignettes")) resultats.push(fin);
+    }
+
     await mesurer(
       "phototheque-ouvrir",
       n,
+      // La page rouverte à froid : index relu depuis le disque, vignettes du cache. Le parcours de rafraîchissement
+      // part en même temps, comme chez l'enseignant.
       `const e = window.__editor, l = window.__carnet.classLibrary;
       e.showPhototheque = false; ${attendre(500)} l.classPath = null; l.photos = [];
       return await window.__mesure(() => { e.showPhototheque = true; }, () => window.__vignettesPretes(".library-page .photos", ${n}));`,
@@ -196,8 +236,10 @@ async function phototheque() {
       // Les photos de l'enfant sont souvent déjà chargées (le navigateur charge d'avance autour de l'écran) :
       // prêt quand la grille ne montre plus qu'elles (chaque vignette nomme ses élèves dans son infobulle), et que
       // celles qui sont visibles sont chargées. Le compte attendu n'est pas recalculé ici : la période affichée
-      // en écarte certaines.
-      `const grille = () => [...document.querySelectorAll(".library-page .photos .thumb")];
+      // en écarte certaines. Le parcours lancé à l'ouverture précédente doit être fini.
+      `for (let i = 0; i < 600 && window.__carnet.classLibrary.scanning; i++) ${attendre(100)}
+      ${attendre(2000)}
+      const grille = () => [...document.querySelectorAll(".library-page .photos .thumb")];
       const r = await window.__mesure(() => document.querySelector(".library-page .filters .child").click(), () => {
         const g = grille();
         return g.length > 0 && g.every((t) => t.title.split(", ").includes("Adèle")) && window.__vignettesPretes(".library-page .photos", g.length);
@@ -225,15 +267,15 @@ function ecrire() {
     `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="mesures-images" tests="${resultats.length}" failures="${echecs}" errors="${erreurs}">\n${cas.join("\n")}\n</testsuite>\n`,
   );
   const lignes = resultats.map((r) =>
-    `| ${r.scene} | ${r.taille} | ${r.erreur ? "erreur" : r.ms} | ${r.erreur ? "" : r.gelMaxMs} | ${r.memoireMo ?? "?"} | ${r.erreur ? `erreur : ${r.erreur}` : (r.echec ?? "ok")} |`,
+    `| ${r.scene} | ${r.taille} | ${r.erreur ? "erreur" : r.ms} | ${r.erreur ? "" : (r.premiereGrilleMs ?? "")} | ${r.erreur ? "" : (r.gelMaxMs ?? "")} | ${r.memoireMo ?? "?"} | ${r.erreur ? `erreur : ${r.erreur}` : (r.echec ?? "ok")} |`,
   );
   writeFileSync(
     join(out, "mesures.md"),
     [
       "Limites : 2 cœurs, 4 Go de mémoire. Le disque dur classique n'est pas simulé. Mémoire : application et processus web, pointe depuis le lancement.",
       "",
-      "| Scène | Photos | Temps (ms) | Plus long gel (ms) | Mémoire de pointe cumulée (Mo) | Résultat |",
-      "|---|---|---|---|---|---|",
+      "| Scène | Photos | Temps (ms) | Première grille (ms) | Plus long gel (ms) | Mémoire de pointe cumulée (Mo) | Résultat |",
+      "|---|---|---|---|---|---|---|",
       ...lignes,
       "",
     ].join("\n"),

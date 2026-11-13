@@ -1,5 +1,5 @@
 // Ce que le banc des images attend de la page et du système : le résultat d'une scène, la mémoire de pointe.
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -34,4 +34,32 @@ export function memoirePointeMo(pid, racine = "/") {
   const pic = chemin && join(racine, "sys/fs/cgroup", chemin, "memory.peak");
   if (!pic || !existsSync(pic)) return null;
   return Math.round(Number(readFileSync(pic, "utf8").trim()) / (1024 * 1024));
+}
+
+/** Les vignettes du cache d'une photothèque : celles qui sont finies (`.jpg`) et celles en cours d'écriture (`.tmp`). */
+export function vignettesFaites(dossier) {
+  if (!existsSync(dossier)) return { finies: 0, encours: 0 };
+  const noms = readdirSync(dossier);
+  return { finies: noms.filter((n) => n.endsWith(".jpg")).length, encours: noms.filter((n) => n.endsWith(".tmp")).length };
+}
+
+/**
+ * Attend que le fil de fond ait rempli le cache de vignettes : `attendues` vignettes finies, aucune en cours
+ * d'écriture, et un compte qui ne bouge plus depuis `calmeMs` (un fil qui reprendrait après un parcours serait vu).
+ * Rend le temps écoulé en ms, sans le calme. Échoue après `delaiMs`.
+ */
+export async function attendreCache(dossier, attendues, { delaiMs = 3 * 60 * 60 * 1000, pasMs = 1000, calmeMs = 5000 } = {}) {
+  const debut = Date.now();
+  let dernier = -1;
+  let depuis = Date.now();
+  for (;;) {
+    const { finies, encours } = vignettesFaites(dossier);
+    if (finies !== dernier) {
+      dernier = finies;
+      depuis = Date.now();
+    }
+    if (finies >= attendues && encours === 0 && Date.now() - depuis >= calmeMs) return Date.now() - debut - calmeMs;
+    if (Date.now() - debut >= delaiMs) throw new Error(`cache de vignettes incomplet après ${Math.round(delaiMs / 1000)} s (${finies} sur ${attendues})`);
+    await new Promise((ok) => setTimeout(ok, pasMs));
+  }
 }

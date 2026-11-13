@@ -18,7 +18,14 @@ use tauri::{AppHandle, Manager, State};
 use ts_rs::TS;
 
 pub const LOG_FILE_NAME: &str = "carnet";
-const IMPORT_THREADS: usize = 4;
+/// Fils d'import au plus, quelle que soit la machine (chaque photo décodée occupe de la mémoire).
+const IMPORT_THREADS_MAX: usize = 4;
+
+/// Nombre de fils pour importer des photos selon les cœurs de l'ordinateur : un cœur reste libre pour
+/// l'interface, au moins 1 fil, au plus `IMPORT_THREADS_MAX`.
+fn import_threads(cores: usize) -> usize {
+    cores.saturating_sub(1).clamp(1, IMPORT_THREADS_MAX)
+}
 const REPORT_MAX_LINES: usize = 500;
 
 #[derive(Serialize, Clone, TS)]
@@ -42,14 +49,15 @@ fn folder_name(path: &str) -> String {
     Path::new(path).parent().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
-/// Importe en parallèle (4 fils au plus) et envoie un résultat par photo dès qu'elle est prête.
+/// Importe en parallèle (selon les cœurs de l'ordinateur, voir `import_threads`) et envoie un résultat par photo dès qu'elle est prête.
 /// Exécutée hors du fil principal : la fenêtre reste réactive.
 #[tauri::command(async)]
 pub fn import_photos(state: State<'_, AppState>, paths: Vec<String>, on_progress: Channel<ImportOutcome>) -> Result<(), String> {
     let files: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
     let failures = AtomicUsize::new(0);
     let cache = state.store.lock().unwrap().cache_dir();
-    photo::import_many(&files, IMPORT_THREADS, |i, r| {
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
+    photo::import_many(&files, import_threads(cores), |i, r| {
         let path = paths[i].clone();
         // Écriture dans le cache hors du verrou : les vignettes restent servies pendant l'import.
         let r = r.and_then(|a| photo::stage(cache.as_deref(), a)).map(|staged| {
@@ -1004,4 +1012,18 @@ pub async fn check_update() -> Option<String> {
 #[tauri::command]
 pub fn open_download_page() -> Result<(), String> {
     open::that_detached(crate::update::DOWNLOAD_PAGE).map_err(|_| "Impossible d'ouvrir le navigateur.".to_string())
+}
+
+#[cfg(test)]
+mod import_threads_tests {
+    use super::import_threads;
+
+    #[test]
+    fn un_coeur_reste_libre_pour_l_interface() {
+        assert_eq!(import_threads(1), 1);
+        assert_eq!(import_threads(2), 1);
+        assert_eq!(import_threads(3), 2);
+        assert_eq!(import_threads(4), 3);
+        assert_eq!(import_threads(16), 4);
+    }
 }

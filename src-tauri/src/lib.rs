@@ -138,6 +138,7 @@ pub fn run() {
             phototheque_commands::phototheque_tag,
             phototheque_commands::phototheque_use,
             phototheque_commands::phototheque_find_originals,
+            phototheque_commands::phototheque_stop_originals,
             phototheque_commands::phototheque_apply_originals,
             phototheque_commands::phototheque_settle_migration,
             commands::photo_detect_faces,

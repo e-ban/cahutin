@@ -28,6 +28,8 @@ pub struct AppState {
     /// Le dernier dossier que l'enseignant a cessé de suivre, avec ses photos, le temps de l'avis « Annuler » :
     /// le dossier de la photothèque d'où il vient, et ce qui en a été retiré.
     pub phototheque_unfollowed: Mutex<Option<(PathBuf, carnet_core::phototheque::Unfollowed)>>,
+    /// Demande d'arrêt de la recherche des originaux en cours (bouton Arrêter).
+    pub originals_cancel: AtomicBool,
     /// Tenu pendant un parcours des dossiers suivis : un seul à la fois.
     pub phototheque_scan: Mutex<()>,
     /// Enregistre l'index de la photothèque, sans faire attendre un clic (étiqueter, retirer)
@@ -52,6 +54,7 @@ impl AppState {
             system_fonts: RwLock::new(Vec::new()),
             pending_fonts: Mutex::new(Vec::new()),
             import_cancel: AtomicBool::new(false),
+            originals_cancel: AtomicBool::new(false),
             assistant_cancel: AtomicBool::new(false),
             classes_dir,
             phototheque: Mutex::new(None),

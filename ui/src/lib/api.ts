@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AssistantEvent, AssistantRequest, AssistantSettings, AssetMeta, ClassPhoto, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind, Match, OriginalsApplied, OriginalsReport, Phototheque, ScanEvent, ScanReport, TagChange, MyImage, MyImagesAdded, MyImageKept, ReportMail, BackupOffer, RestoredDocument } from "./types";
+import type { AssistantEvent, AssistantRequest, AssistantSettings, AssetMeta, ClassPhoto, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind, Match, OriginalsApplied, OriginalsReport, Phototheque, OriginalsProgress, ScanEvent, ScanReport, TagChange, MyImage, MyImagesAdded, MyImageKept, ReportMail, BackupOffer, RestoredDocument } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -23,7 +23,14 @@ export const photothequeUnfollow = (folder: string) => invoke<Phototheque>("phot
 export const photothequeRefollow = (folder: string) => invoke<Phototheque>("phototheque_refollow", { folder });
 /** « Retirer » ou remettre : rend seulement les photos changées. */
 export const photothequeHide = (ids: string[], hidden: boolean) => invoke<ClassPhoto[]>("phototheque_hide", { ids, hidden });
-export const photothequeFindOriginals = () => invoke<OriginalsReport>("phototheque_find_originals");
+/** Cherche les originaux des anciennes copies, en disant où elle en est ; `null` si elle a été arrêtée. */
+export function photothequeFindOriginals(onEvent: (p: OriginalsProgress) => void): Promise<OriginalsReport | null> {
+  const onProgress = new Channel<OriginalsProgress>();
+  onProgress.onmessage = onEvent;
+  return invoke<OriginalsReport | null>("phototheque_find_originals", { onProgress });
+}
+/** « Arrêter » la recherche des originaux en cours. */
+export const photothequeStopOriginals = () => invoke<void>("phototheque_stop_originals");
 /** « Non merci » : la question de la migration ne revient plus. */
 export const photothequeSettleMigration = () => invoke<Phototheque>("phototheque_settle_migration");
 export const photothequeApplyOriginals = (matches: Match[]) => invoke<OriginalsApplied>("phototheque_apply_originals", { matches });

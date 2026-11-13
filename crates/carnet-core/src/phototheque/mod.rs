@@ -48,8 +48,12 @@ pub fn taken_of(path: &Path, data: &[u8]) -> Option<String> {
 
 /// Comme `taken_of`, sans lire toute la photo : seul l'en-tête du fichier est lu.
 pub fn taken_of_file(path: &Path) -> Option<String> {
-    let exif_date = std::fs::File::open(path).ok().and_then(|f| capture_date_from(&mut std::io::BufReader::new(f)));
-    exif_date.or_else(|| file_date(path))
+    capture_date_of_file(path).or_else(|| file_date(path))
+}
+
+/// Date de prise de vue écrite par l'appareil dans le fichier, s'il y en a une : seul l'en-tête est lu.
+pub fn capture_date_of_file(path: &Path) -> Option<String> {
+    std::fs::File::open(path).ok().and_then(|f| capture_date_from(&mut std::io::BufReader::new(f)))
 }
 
 /// Masque ou réaffiche des photos : elles restent dans l'index (étiquettes gardées) et leurs fichiers

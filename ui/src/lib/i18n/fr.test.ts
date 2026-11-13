@@ -49,8 +49,15 @@ test("followed folders speak plainly, singular and plural", () => {
 /** Migration : les copies d'une version précédente, rapprochées de leurs originaux. */
 test("the migration banner and its result", () => {
   expect(fr.libraryMigration).toBe(
-    "Vos photos ont été copiées dans Cahutin par une version précédente. Indiquez les dossiers où sont vos originaux, puis « Retrouver les originaux » : Cahutin y reportera les enfants et activités.",
+    "Vos photos ont été copiées dans Cahutin par une version précédente. Indiquez le dossier où sont vos originaux : Cahutin les y retrouve et leur reporte les enfants et activités. Rien n'est mis à la corbeille sans vous le demander.",
   );
+  // Un autre dossier est déjà suivi : on ne redemande pas de l'indiquer.
+  expect(fr.libraryMigrationReady).toContain("dans les dossiers suivis");
+  expect(fr.libraryPickOriginals).toBe("Indiquer le dossier de mes originaux");
+  // La recherche est longue : on dit où elle en est, et l'on peut l'arrêter sans rien perdre.
+  expect(fr.librarySearching(0, 0)).toBe("Recherche des originaux…");
+  expect(fr.librarySearching(120, 500)).toBe("Recherche des originaux : 120 photos regardées sur 500…");
+  expect(fr.libraryOriginalsStopped).toContain("rien n'a changé");
   expect(fr.libraryFindOriginals).toBe("Retrouver les originaux");
   expect(fr.libraryLater).toBe("Plus tard");
   // Refuser la migration : la question ne revient plus, et l'on dit où retrouver l'action.
@@ -74,9 +81,9 @@ test("the migration banner and its result", () => {
   expect(fr.libraryOriginalsFound(3, 2)).toBe(
     "3 photos retrouvées, 2 non retrouvées. Mettre les 3 copies à la corbeille ? Les enfants et activités sont reportés sur les originaux.",
   );
-  // Le bandeau ne revient plus : on dit où est le lien.
+  // Rien de trouvé : la question reste posée, on dit quoi faire.
   expect(fr.libraryOriginalsNone).toBe(
-    "Aucun original retrouvé dans les dossiers suivis : rien n'a changé. Ajoutez le dossier où sont vos originaux, puis cliquez sur « Retrouver les originaux », dans la colonne de gauche.",
+    "Aucun original retrouvé dans les dossiers suivis : rien n'a changé. Si vos originaux sont dans un autre dossier, ajoutez-le avec « Ajouter un dossier », puis cliquez à nouveau sur « Retrouver les originaux ».",
   );
   expect(fr.libraryOriginalsDone(1)).toBe("1 copie mise à la corbeille de l'ordinateur. Les enfants et activités sont sur l'original.");
   expect(fr.libraryOriginalsDone(4)).toBe("4 copies mises à la corbeille de l'ordinateur. Les enfants et activités sont sur les originaux.");

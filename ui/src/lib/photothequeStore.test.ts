@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import type { ClassPhoto, Phototheque, ScanEvent } from "./types";
+import type { ClassPhoto, OriginalsProgress, OriginalsReport, Phototheque, ScanEvent } from "./types";
 
 // Le moteur simulé : l'index enregistré, et des parcours qu'on termine à la main.
 const photo = (id: string): ClassPhoto => ({
@@ -25,7 +25,8 @@ const scans: { send: (e: ScanEvent) => void; finish: () => void }[] = [];
 vi.mock("./api", () => ({
   photothequeOpen: async () => lib(["a"]),
   photothequeSettleMigration: vi.fn(async () => lib(["a"], true)),
-  photothequeFindOriginals: vi.fn(async () => ({ matches: [{ copy: "a", original: "b" }], unmatched: [] })),
+  photothequeFindOriginals: vi.fn(async (_onEvent: (p: OriginalsProgress) => void): Promise<OriginalsReport | null> => ({ matches: [{ copy: "a", original: "b" }], unmatched: [] })),
+  photothequeStopOriginals: vi.fn(async () => {}),
   photothequeApplyOriginals: vi.fn(async () => ({ phototheque: lib(["a"], true), not_trashed: 0 })),
   photothequeUnfollow: async () => ({ format_version: 2, folders: [], photos: [], migration_settled: false }),
   photothequeRefollow: vi.fn(async () => lib(["a"])),
@@ -130,14 +131,71 @@ test("« Non » à la question de la corbeille : la migration est tranchée comm
   expect(editor.notice).toBe(fr.libraryMigrationDeclined);
 });
 
-test("aucun original retrouvé : la question est tranchée aussi, et on le dit", async () => {
+test("aucun original retrouvé : on le dit, et la question reste posée (le bandeau reste)", async () => {
   await classLibrary.open("/classes/ms.cahutin");
   vi.mocked(api.photothequeSettleMigration).mockClear();
   vi.mocked(api.photothequeFindOriginals).mockResolvedValueOnce({ matches: [], unmatched: ["a"] });
   await classLibrary.migrate();
-  expect(api.photothequeSettleMigration).toHaveBeenCalledTimes(1);
-  expect(classLibrary.migrationSettled).toBe(true);
+  expect(api.photothequeSettleMigration).not.toHaveBeenCalled();
+  expect(classLibrary.migrationSettled).toBe(false);
   expect(editor.notice).toBe(fr.libraryOriginalsNone);
+});
+
+test("la recherche des originaux dit où elle en est ; une seule à la fois", async () => {
+  await classLibrary.open("/classes/ms.cahutin");
+  let send!: (p: OriginalsProgress) => void;
+  let answer!: (r: OriginalsReport | null) => void;
+  vi.mocked(api.photothequeFindOriginals).mockClear();
+  vi.mocked(api.photothequeFindOriginals).mockImplementationOnce((onEvent) => {
+    send = onEvent;
+    return new Promise((r) => (answer = r));
+  });
+  const search = classLibrary.migrate();
+  expect(classLibrary.searching).toEqual({ seen: 0, total: 0 });
+  send({ seen: 120, total: 500 });
+  expect(classLibrary.searching).toEqual({ seen: 120, total: 500 });
+  // Page fermée puis rouverte, ou lien de la colonne : pas de seconde recherche.
+  await classLibrary.migrate();
+  expect(api.photothequeFindOriginals).toHaveBeenCalledTimes(1);
+  answer({ matches: [], unmatched: [] });
+  await search;
+  expect(classLibrary.searching).toBeNull();
+});
+
+test("changer de classe pendant la recherche des originaux l'arrête", async () => {
+  await classLibrary.open("/classes/ms.cahutin");
+  let answer!: (r: OriginalsReport | null) => void;
+  vi.mocked(api.photothequeFindOriginals).mockImplementationOnce(() => new Promise((r) => (answer = r)));
+  vi.mocked(api.photothequeStopOriginals).mockClear();
+  vi.mocked(ask).mockClear();
+  editor.notice = null;
+  const search = classLibrary.migrate();
+  await classLibrary.open("/classes/gs.cahutin");
+  expect(api.photothequeStopOriginals).toHaveBeenCalledTimes(1);
+  answer(null);
+  await search;
+  // Rien n'est dit ni demandé à la nouvelle classe.
+  expect(classLibrary.searching).toBeNull();
+  expect(ask).not.toHaveBeenCalled();
+  expect(editor.notice).toBeNull();
+});
+
+test("« Arrêter » la recherche : rien n'est tranché ni demandé, et on le dit", async () => {
+  await classLibrary.open("/classes/ms.cahutin");
+  vi.mocked(api.photothequeSettleMigration).mockClear();
+  vi.mocked(ask).mockClear();
+  let answer!: (r: OriginalsReport | null) => void;
+  vi.mocked(api.photothequeFindOriginals).mockImplementationOnce(() => new Promise((r) => (answer = r)));
+  const search = classLibrary.migrate();
+  await classLibrary.stopSearch();
+  expect(api.photothequeStopOriginals).toHaveBeenCalledTimes(1);
+  // Le moteur répond « arrêtée ».
+  answer(null);
+  await search;
+  expect(classLibrary.searching).toBeNull();
+  expect(ask).not.toHaveBeenCalled();
+  expect(api.photothequeSettleMigration).not.toHaveBeenCalled();
+  expect(editor.notice).toBe(fr.libraryOriginalsStopped);
 });
 
 test("le lien « Retrouver les originaux », question déjà tranchée : « Non » ne la retranche pas", async () => {

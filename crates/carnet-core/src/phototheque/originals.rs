@@ -13,6 +13,10 @@ use ts_rs::TS;
 
 /// Distance de Hamming la plus grande entre deux empreintes pour parler de la même photo.
 const MAX_DISTANCE: u32 = 10;
+/// La même, pour un original sans date d'appareil pris un autre jour d'après son fichier. Mesuré sur des
+/// photos générées : une copie est à 0 ou 1 de son original, deux photos différentes à 6 ou plus. Deux photos d'une
+/// rafale sont à 2 : ce qui les départage est la règle du seul candidat le plus proche, pas ce seuil.
+const MAX_DISTANCE_UNDATED: u32 = 4;
 /// Écart de proportions toléré (largeur sur hauteur), en proportion.
 const MAX_RATIO_GAP: f64 = 0.01;
 
@@ -76,46 +80,68 @@ fn shown_ratio(p: &ClassPhoto) -> f64 {
     if turned { 1.0 / ratio(p) } else { ratio(p) }
 }
 
+/// L'original le plus proche de la copie parmi les candidats : proportions à moins de 1 %, dHash à au plus 10,
+/// même jour si les deux sont datées. Un seul candidat au plus proche, sinon on ne devine pas.
+/// Avec `undated`, un candidat d'un autre jour est admis s'il n'a pas de date d'appareil (sa date est alors
+/// celle du fichier, qui change quand le dossier est recopié) et s'il ressemble de plus près encore.
+fn closest(copy: &ClassPhoto, h: u64, candidates: &[(&ClassPhoto, u64)], undated: bool) -> Option<Id> {
+    let mut best: Vec<(&ClassPhoto, u32)> = vec![];
+    for &(c, ch) in candidates {
+        let same_day = match (&copy.taken, &c.taken) {
+            (Some(a), Some(b)) => a == b,
+            _ => true,
+        };
+        let distance = (h ^ ch).count_ones();
+        if distance > MAX_DISTANCE || (!same_day && !(undated && distance <= MAX_DISTANCE_UNDATED)) {
+            continue;
+        }
+        // Les copies sont déjà redressées ; le fichier de l'original est lu seulement s'il est assez proche.
+        if (ratio(copy) / shown_ratio(c) - 1.0).abs() >= MAX_RATIO_GAP || (!same_day && super::capture_date_of_file(Path::new(&c.path)).is_some()) {
+            continue;
+        }
+        match best.first() {
+            Some(&(_, d)) if distance > d => {}
+            Some(&(_, d)) if distance == d => best.push((c, distance)),
+            _ => best = vec![(c, distance)],
+        }
+    }
+    if let [(c, _)] = best[..] { Some(c.id.clone()) } else { None }
+}
+
 /// Pour chaque copie du dossier des copies (`copies_folder`, voir `is_copy`), l'original parmi les photos des autres dossiers
-/// suivis : même jour (si les deux sont datées), proportions à moins de 1 %, dHash à au plus 10 ; un seul
-/// candidat au plus proche, sinon pas de rapprochement.
+/// suivis (voir `closest`). Une copie sans original le même jour est cherchée une seconde fois parmi les photos
+/// sans date d'appareil.
 /// Deux copies du même original le retrouvent toutes les deux : leurs étiquettes seront réunies sur lui.
-pub fn find_originals(lib: &Phototheque, library_dir: &Path, copies_folder: &str) -> OriginalsReport {
+/// `progress(regardées, à regarder)` est appelée après chaque photo ; si elle rend `false`, la recherche
+/// s'arrête et ne rend rien (les vignettes déjà faites restent dans le cache).
+pub fn find_originals(lib: &Phototheque, library_dir: &Path, copies_folder: &str, progress: &mut dyn FnMut(usize, usize) -> bool) -> Option<OriginalsReport> {
     let root = Path::new(copies_folder);
     let in_copies = |p: &ClassPhoto| Path::new(&p.path).starts_with(root);
     // Les copies déjà masquées ou absentes ne sont plus à traiter.
     let copies: Vec<&ClassPhoto> = lib.photos.iter().filter(|p| is_copy(p, root) && !p.hidden && !p.missing).collect();
-    let candidates: Vec<(&ClassPhoto, u64)> =
-        lib.photos.iter().filter(|p| !in_copies(p) && !p.hidden && !p.missing).filter_map(|p| hash_of(library_dir, p).map(|h| (p, h))).collect();
+    let others: Vec<&ClassPhoto> = lib.photos.iter().filter(|p| !in_copies(p) && !p.hidden && !p.missing).collect();
+    let total = copies.len() + others.len();
+    let mut seen = 0;
+    let mut hashed = |p: &ClassPhoto| {
+        let h = hash_of(library_dir, p);
+        seen += 1;
+        progress(seen, total).then_some(h)
+    };
+    let mut candidates = Vec::with_capacity(others.len());
+    for p in others {
+        if let Some(h) = hashed(p)? {
+            candidates.push((p, h));
+        }
+    }
     let mut report = OriginalsReport::default();
     for copy in copies {
-        let found = hash_of(library_dir, copy).and_then(|h| {
-            let mut best: Vec<(&ClassPhoto, u32)> = vec![];
-            for &(c, ch) in &candidates {
-                let same_day = match (&copy.taken, &c.taken) {
-                    (Some(a), Some(b)) => a == b,
-                    _ => true,
-                };
-                let distance = (h ^ ch).count_ones();
-                // Les copies sont déjà redressées ; l'original est lu seulement s'il est assez proche.
-                if !same_day || distance > MAX_DISTANCE || (ratio(copy) / shown_ratio(c) - 1.0).abs() >= MAX_RATIO_GAP {
-                    continue;
-                }
-                match best.first() {
-                    Some(&(_, d)) if distance > d => {}
-                    Some(&(_, d)) if distance == d => best.push((c, distance)),
-                    _ => best = vec![(c, distance)],
-                }
-            }
-            // Plusieurs candidats aussi proches : on ne devine pas.
-            if let [(c, _)] = best[..] { Some(c.id.clone()) } else { None }
-        });
+        let found = hashed(copy)?.and_then(|h| closest(copy, h, &candidates, false).or_else(|| closest(copy, h, &candidates, true)));
         match found {
             Some(original) => report.matches.push(Match { copy: copy.id.clone(), original }),
             None => report.unmatched.push(copy.id.clone()),
         }
     }
-    report
+    Some(report)
 }
 
 /// Reporte élèves et activités de chaque copie sur son original (réunis, sans doublon) et masque la copie ;
@@ -208,7 +234,7 @@ mod tests {
     }
 
     fn report(s: &Setup) -> OriginalsReport {
-        find_originals(&s.lib, &s.library, &s.library.to_string_lossy())
+        find_originals(&s.lib, &s.library, &s.library.to_string_lossy(), &mut |_, _| true).unwrap()
     }
 
     #[test]
@@ -248,29 +274,106 @@ mod tests {
         assert_eq!(r.unmatched, vec![id_of(&s, "copie1.jpg")]);
     }
 
-    #[test]
-    fn another_day_or_other_proportions_exclude_a_candidate() {
-        let mut s = setup(&[1], &[1]);
-        let original = id_of(&s, "-1.jpg");
-        s.lib.photos.iter_mut().for_each(|p| p.taken = Some(if p.id == original { "2026-10-01".into() } else { "2026-10-02".into() }));
-        assert!(report(&s).matches.is_empty());
-        s.lib.photos.iter_mut().for_each(|p| p.taken = None);
-        assert_eq!(report(&s).matches.len(), 1, "sans date, le jour ne compte pas");
-        s.lib.photos.iter_mut().find(|p| p.id == original).unwrap().width_px = 900;
-        assert!(report(&s).matches.is_empty());
-    }
-
-    /// Une photo de téléphone tenu en portrait : enregistrée en 1200 x 900, avec l'étiquette EXIF « tourner de
-    /// 90° » (orientation 6) ; montrée en 900 x 1200.
-    fn jpeg_turned(img: &RgbImage) -> Vec<u8> {
+    /// Un JPEG qui porte ces métadonnées EXIF (un bloc TIFF).
+    fn jpeg_with_exif(img: &RgbImage, tiff: Vec<u8>) -> Vec<u8> {
         use image::{ExtendedColorType, ImageEncoder, codecs::jpeg::JpegEncoder};
-        let mut tiff = b"II*\0\x08\0\0\0\x01\0".to_vec();
-        tiff.extend_from_slice(&[0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0]);
         let mut out = Vec::new();
         let mut encoder = JpegEncoder::new(&mut out);
         encoder.set_exif_metadata(tiff).unwrap();
         encoder.write_image(img.as_raw(), img.width(), img.height(), ExtendedColorType::Rgb8).unwrap();
         out
+    }
+
+    /// Une photo datée par l'appareil (EXIF « DateTime »), `day` écrit « 2026:10:01 ».
+    fn jpeg_dated(img: &RgbImage, day: &str) -> Vec<u8> {
+        let mut tiff = b"II*\0\x08\0\0\0\x01\0".to_vec();
+        tiff.extend_from_slice(&[0x32, 0x01, 2, 0, 20, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0, 0]);
+        tiff.extend_from_slice(format!("{day} 10:00:00\0").as_bytes());
+        jpeg_with_exif(img, tiff)
+    }
+
+    /// La copie est du 2 octobre, l'original (seul candidat) du 1er d'après l'index.
+    fn other_days(s: &mut Setup) -> Id {
+        let original = id_of(s, "-1.jpg");
+        s.lib.photos.iter_mut().for_each(|p| p.taken = Some(if p.id == original { "2026-10-01".into() } else { "2026-10-02".into() }));
+        original
+    }
+
+    #[test]
+    fn an_original_dated_another_day_by_the_camera_is_excluded() {
+        let mut s = setup(&[1], &[1]);
+        std::fs::write(s.originals.join("o0-1.jpg"), jpeg_dated(&pattern(1), "2026:10:01")).unwrap();
+        other_days(&mut s);
+        assert!(report(&s).matches.is_empty());
+        s.lib.photos.iter_mut().for_each(|p| p.taken = None);
+        assert_eq!(report(&s).matches.len(), 1, "sans date dans l'index, le jour ne compte pas");
+    }
+
+    #[test]
+    fn an_original_without_camera_date_is_found_whatever_the_day_of_its_file() {
+        // Le dossier des originaux a été recopié : le fichier a changé de date, la photo est la même.
+        let mut s = setup(&[1], &[1]);
+        other_days(&mut s);
+        assert_eq!(report(&s).matches.len(), 1);
+    }
+
+    /// `pattern(1)`, un morceau de bande éclairci : une photo qui ressemble, sans être la même.
+    fn look_alike() -> RgbImage {
+        let mut img = pattern(1);
+        for (x, y, px) in img.enumerate_pixels_mut() {
+            if (300..400).contains(&x) && y < 340 {
+                px.0 = [255, 255, 255];
+            }
+        }
+        img
+    }
+
+    #[test]
+    fn a_look_alike_without_camera_date_from_another_day_is_not_taken_for_the_original() {
+        let mut s = setup(&[1], &[1]);
+        std::fs::write(s.originals.join("o0-1.jpg"), jpeg(&look_alike())).unwrap();
+        let (c, o) = (dhash(&DynamicImage::ImageRgb8(pattern(1))), dhash(&DynamicImage::ImageRgb8(look_alike())));
+        let d = (c ^ o).count_ones();
+        assert!(d > MAX_DISTANCE_UNDATED && d <= MAX_DISTANCE, "la ressemblance du test : {d}");
+        other_days(&mut s);
+        assert!(report(&s).matches.is_empty(), "un autre jour : il faut ressembler de plus près");
+        s.lib.photos.iter_mut().for_each(|p| p.taken = None);
+        assert_eq!(report(&s).matches.len(), 1, "le même jour, cette ressemblance suffit");
+    }
+
+    #[test]
+    fn other_proportions_exclude_a_candidate() {
+        let mut s = setup(&[1], &[1]);
+        let original = id_of(&s, "-1.jpg");
+        s.lib.photos.iter_mut().find(|p| p.id == original).unwrap().width_px = 900;
+        assert!(report(&s).matches.is_empty());
+    }
+
+    #[test]
+    fn the_search_tells_its_progress_and_can_be_stopped() {
+        let s = setup(&[1, 2], &[1, 2, 3]);
+        let mut steps = vec![];
+        let folder = s.library.to_string_lossy();
+        let all = find_originals(&s.lib, &s.library, &folder, &mut |seen, total| {
+            steps.push((seen, total));
+            true
+        });
+        assert!(all.is_some());
+        assert_eq!(steps, (1..=5).map(|i| (i, 5)).collect::<Vec<_>>());
+        let mut calls = 0;
+        let stopped = find_originals(&s.lib, &s.library, &folder, &mut |seen, _| {
+            calls += 1;
+            seen < 2
+        });
+        assert_eq!((stopped, calls), (None, 2), "arrêtée : pas de résultat");
+    }
+
+    /// Une photo de téléphone tenu en portrait : enregistrée en 1200 x 900, avec l'étiquette EXIF « tourner de
+    /// 90° » (orientation 6) ; montrée en 900 x 1200.
+    fn jpeg_turned(img: &RgbImage) -> Vec<u8> {
+        let mut tiff = b"II*\0\x08\0\0\0\x01\0".to_vec();
+        tiff.extend_from_slice(&[0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0]);
+        jpeg_with_exif(img, tiff)
     }
 
     #[test]
@@ -290,7 +393,7 @@ mod tests {
         scan(&mut lib, &library, &mut |_| {});
         let c = lib.photos.iter_mut().find(|p| p.path.ends_with("copie.jpg")).unwrap();
         c.id = "copie".into();
-        let r = find_originals(&lib, &library, &library.to_string_lossy());
+        let r = find_originals(&lib, &library, &library.to_string_lossy(), &mut |_, _| true).unwrap();
         assert_eq!((r.matches.len(), r.unmatched.len()), (1, 0), "{r:?}");
     }
 

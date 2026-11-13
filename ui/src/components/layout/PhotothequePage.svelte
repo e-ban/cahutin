@@ -50,8 +50,8 @@
   let allBehind = $state(false);
   // « Plus tard » : le bandeau des anciennes copies ne revient qu'à la prochaine ouverture de la page.
   let migrationLater = $state(false);
-  // Recherche des originaux en cours (le bouton attend).
-  let searching = $state(false);
+  // Le choix du dossier des originaux est ouvert (les boutons attendent).
+  let picking = $state(false);
 
   const today = new Date();
   // Par ordre alphabétique, pour retrouver vite un prénom parmi 40.
@@ -87,7 +87,9 @@
         )
       : [],
   );
-  const busy = $derived(searching || !!classLibrary.scanning);
+  // Aucune photo montrée en dehors des anciennes copies : il n'y a nulle part où chercher les originaux.
+  const noOriginalsFolder = $derived(copies === photos.length);
+  const busy = $derived(picking || !!classLibrary.searching || !!classLibrary.scanning);
 
   // Ouverte pour la classe courante ; rechargée si l'on change de classe. Déjà chargée, la page rouverte
   // parcourt les dossiers suivis : les photos ajoutées depuis (celles de la semaine) apparaissent.
@@ -127,16 +129,24 @@
     await run(() => classLibrary.unfollow(folder));
   }
 
-  /** Les originaux des anciennes copies : on dit combien sont retrouvés, puis on demande avant la corbeille. */
+  /** Les originaux des anciennes copies : on dit combien sont retrouvés, puis on demande avant la corbeille.
+   *  Sans dossier où chercher, on demande d'abord celui des originaux ; la recherche part ensuite toute seule. */
   async function findOriginals() {
     error = null;
-    searching = true;
     try {
+      if (noOriginalsFolder) {
+        picking = true;
+        const dir = await open({ directory: true });
+        if (typeof dir !== "string") return;
+        filter = { period: "all" };
+        await classLibrary.follow(dir);
+      }
+      picking = false;
       await classLibrary.migrate();
     } catch (e) {
       error = String(e);
     } finally {
-      searching = false;
+      picking = false;
     }
   }
 
@@ -249,15 +259,22 @@
     {#if classLibrary.scanning}
       <div class="progress" role="status"><span>{fr.libraryScanning(classLibrary.scanning.found)}</span><progress></progress></div>
     {/if}
+    {#if classLibrary.searching}
+      <div class="progress" role="status">
+        <span>{fr.librarySearching(classLibrary.searching.seen, classLibrary.searching.total)}</span>
+        {#if classLibrary.searching.total}<progress value={classLibrary.searching.seen} max={classLibrary.searching.total}></progress>{:else}<progress></progress>{/if}
+        <button onclick={() => classLibrary.stopSearch()}>{fr.libraryStopSearch}</button>
+      </div>
+    {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     {#each classLibrary.missingFolders as path (path)}
       <p class="note" role="note" title={path}><Icon name="warning" /> {fr.libraryFolderMissing(baseName(path))}</p>
     {/each}
     {#if copies && !classLibrary.migrationSettled && !migrationLater}
       <div class="note migration" role="note">
-        <p>{fr.libraryMigration}</p>
+        <p>{noOriginalsFolder ? fr.libraryMigration : fr.libraryMigrationReady}</p>
         <div class="row">
-          <button class="primary" disabled={busy} onclick={findOriginals}>{searching ? fr.librarySearching : fr.libraryFindOriginals}</button>
+          <button class="primary" disabled={busy} onclick={findOriginals}>{noOriginalsFolder ? fr.libraryPickOriginals : fr.libraryFindOriginals}</button>
           <button onclick={() => (migrationLater = true)}>{fr.libraryLater}</button>
           <button disabled={busy} onclick={declineMigration}>{fr.libraryNoThanks}</button>
         </div>
@@ -309,7 +326,7 @@
             </div>
           {/each}
         {/if}
-        {#if copies}<button class="link" disabled={busy} onclick={findOriginals}>{searching ? fr.librarySearching : fr.libraryFindOriginals}</button>{/if}
+        {#if copies}<button class="link" disabled={busy} onclick={findOriginals}>{fr.libraryFindOriginals}</button>{/if}
       </aside>
 
       <section class="photos" aria-label={fr.libraryTitle}>

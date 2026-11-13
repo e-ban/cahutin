@@ -493,17 +493,23 @@ export const fr = {
   libraryHidden: (n: number) =>
     n > 1 ? `${n} photos retirées de la photothèque. Les fichiers restent sur l'ordinateur.` : "1 photo retirée de la photothèque. Le fichier reste sur l'ordinateur.",
   libraryMigration:
-    "Vos photos ont été copiées dans Cahutin par une version précédente. Indiquez les dossiers où sont vos originaux, puis « Retrouver les originaux » : Cahutin y reportera les enfants et activités.",
+    "Vos photos ont été copiées dans Cahutin par une version précédente. Indiquez le dossier où sont vos originaux : Cahutin les y retrouve et leur reporte les enfants et activités. Rien n'est mis à la corbeille sans vous le demander.",
+  libraryMigrationReady:
+    "Vos photos ont été copiées dans Cahutin par une version précédente. Cahutin peut retrouver vos originaux dans les dossiers suivis et leur reporter les enfants et activités. Rien n'est mis à la corbeille sans vous le demander.",
+  libraryPickOriginals: "Indiquer le dossier de mes originaux",
   libraryFindOriginals: "Retrouver les originaux",
   libraryLater: "Plus tard",
   libraryNoThanks: "Non merci",
   libraryMigrationDeclined:
     "Entendu, cette question ne reviendra plus. Vos photos restent comme elles sont. Le lien « Retrouver les originaux » reste en bas de la colonne de gauche.",
-  librarySearching: "Recherche des originaux…",
+  librarySearching: (seen: number, total: number) => (total ? `Recherche des originaux : ${seen} photos regardées sur ${total}…` : "Recherche des originaux…"),
+  libraryStopSearch: "Arrêter",
+  libraryOriginalsStopped:
+    "Recherche arrêtée : rien n'a changé. Vous pourrez la reprendre avec « Retrouver les originaux » ; elle ira plus vite, le travail déjà fait est gardé.",
   libraryOriginalsFound: (n: number, m: number) =>
     `${n > 1 ? `${n} photos retrouvées` : `${n} photo retrouvée`}${m > 1 ? `, ${m} non retrouvées` : m === 1 ? ", 1 non retrouvée" : ""}. ${n > 1 ? `Mettre les ${n} copies à la corbeille ?` : "Mettre la copie à la corbeille ?"} Les enfants et activités sont reportés sur les originaux.`,
   libraryOriginalsNone:
-    "Aucun original retrouvé dans les dossiers suivis : rien n'a changé. Ajoutez le dossier où sont vos originaux, puis cliquez sur « Retrouver les originaux », dans la colonne de gauche.",
+    "Aucun original retrouvé dans les dossiers suivis : rien n'a changé. Si vos originaux sont dans un autre dossier, ajoutez-le avec « Ajouter un dossier », puis cliquez à nouveau sur « Retrouver les originaux ».",
   libraryOriginalsDone: (n: number) =>
     n > 1
       ? `${n} copies mises à la corbeille de l'ordinateur. Les enfants et activités sont sur les originaux.`

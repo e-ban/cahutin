@@ -356,18 +356,48 @@ pub fn phototheque_use(state: State<'_, AppState>, ids: Vec<String>) -> Result<V
     use_in(&state, &ids)
 }
 
+/// Avancement de la recherche des originaux : photos regardées, sur combien.
+#[derive(Serialize, Clone, Debug, PartialEq, TS)]
+#[ts(export)]
+pub struct OriginalsProgress {
+    pub seen: usize,
+    pub total: usize,
+}
+
 /// Migration : pour chaque copie faite par l'ancienne photothèque (dans le dossier de la classe), son
 /// original parmi les photos des autres dossiers suivis. Rien n'est touché ; seules les vignettes se font.
-pub fn find_originals_in(state: &AppState) -> Result<OriginalsReport, String> {
+/// L'avancement est annoncé toutes les 10 photos. « Arrêter » (`phototheque_stop_originals`) : rien n'est
+/// rendu ; les vignettes déjà faites restent, la recherche suivante ira plus vite.
+pub fn find_originals_in(state: &AppState, mut on_progress: impl FnMut(OriginalsProgress)) -> Result<Option<OriginalsReport>, String> {
+    state.originals_cancel.store(false, Ordering::SeqCst);
     let (dir, lib) = snapshot(state)?;
-    let report = originals::find_originals(&lib, &dir, &dir.to_string_lossy());
-    log::info!("phototheque_find_originals matches={} unmatched={}", report.matches.len(), report.unmatched.len());
+    let report = originals::find_originals(&lib, &dir, &dir.to_string_lossy(), &mut |seen, total| {
+        if seen % 10 == 0 || seen == total {
+            on_progress(OriginalsProgress { seen, total });
+        }
+        !state.originals_cancel.load(Ordering::SeqCst)
+    });
+    match &report {
+        Some(r) => log::info!("phototheque_find_originals matches={} unmatched={}", r.matches.len(), r.unmatched.len()),
+        None => log::info!("phototheque_find_originals stopped"),
+    }
     Ok(report)
 }
 
 #[tauri::command]
-pub async fn phototheque_find_originals(app: AppHandle) -> Result<OriginalsReport, String> {
-    off_runtime(move || find_originals_in(&app.state::<AppState>())).await
+pub async fn phototheque_find_originals(app: AppHandle, on_progress: Channel<OriginalsProgress>) -> Result<Option<OriginalsReport>, String> {
+    off_runtime(move || {
+        find_originals_in(&app.state::<AppState>(), |p| {
+            let _ = on_progress.send(p);
+        })
+    })
+    .await
+}
+
+/// « Arrêter » la recherche des originaux en cours. Ne prend aucun verrou : répond tout de suite.
+#[tauri::command]
+pub fn phototheque_stop_originals(state: State<'_, AppState>) {
+    state.originals_cancel.store(true, Ordering::SeqCst);
 }
 
 /// « Non merci » : l'enseignant refuse la migration ; le bandeau ne revient plus, le lien « Retrouver les
@@ -1078,7 +1108,7 @@ mod tests {
     fn an_old_library_finds_its_originals_and_sends_the_copies_to_the_trash() {
         let dir = tempfile::tempdir().unwrap();
         let (s, library, _originals) = old_library(dir.path());
-        let report = find_originals_in(&s).unwrap();
+        let report = find_originals_in(&s, |_| {}).unwrap().unwrap();
         assert_eq!((report.matches.len(), report.unmatched.len()), (2, 0));
         let bin = dir.path().join("Corbeille");
         let done = apply_originals_in(&s, &report.matches, |f| {
@@ -1101,6 +1131,24 @@ mod tests {
 
     /// « Non merci » ou une migration faite : la question est tranchée pour de bon, même après un parcours.
     #[test]
+    fn the_search_for_originals_tells_its_progress_and_stops_when_asked() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (s, _, _) = old_library(tmp.path());
+        let mut steps = vec![];
+        assert!(find_originals_in(&s, |p| steps.push(p)).unwrap().is_some());
+        let last = steps.last().unwrap();
+        assert!(last.total > 0 && last.seen == last.total, "{steps:?}");
+        // « Arrêter » pendant la recherche : pas de résultat ; la recherche suivante repart entière.
+        let mut calls = 0;
+        let stopped = find_originals_in(&s, |_| {
+            calls += 1;
+            s.originals_cancel.store(true, Ordering::SeqCst);
+        });
+        assert_eq!((stopped.unwrap(), calls), (None, 1));
+        assert!(find_originals_in(&s, |_| {}).unwrap().is_some());
+    }
+
+    #[test]
     fn the_migration_question_once_settled_stays_settled() {
         let dir = tempfile::tempdir().unwrap();
         let (s, _library, _originals) = old_library(dir.path());
@@ -1112,7 +1160,7 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let (s, _library, _originals) = old_library(dir.path());
-        let report = find_originals_in(&s).unwrap();
+        let report = find_originals_in(&s, |_| {}).unwrap().unwrap();
         assert!(apply_originals_in(&s, &report.matches, |_| Ok(())).unwrap().phototheque.migration_settled);
     }
 
@@ -1120,7 +1168,7 @@ mod tests {
     fn a_failed_trash_changes_nothing() {
         let dir = tempfile::tempdir().unwrap();
         let (s, library, _originals) = old_library(dir.path());
-        let report = find_originals_in(&s).unwrap();
+        let report = find_originals_in(&s, |_| {}).unwrap().unwrap();
         let before = with_open(&s, |_, i| Ok(i.clone())).unwrap();
         let done = apply_originals_in(&s, &report.matches, |_| Err(())).unwrap();
         assert_eq!(done.not_trashed, 2);
@@ -1135,7 +1183,7 @@ mod tests {
     fn a_trash_that_fails_part_way_moves_the_tags_of_the_copies_gone() {
         let dir = tempfile::tempdir().unwrap();
         let (s, library, _originals) = old_library(dir.path());
-        let report = find_originals_in(&s).unwrap();
+        let report = find_originals_in(&s, |_| {}).unwrap().unwrap();
         let bin = dir.path().join("Corbeille");
         std::fs::create_dir_all(&bin).unwrap();
         let done = apply_originals_in(&s, &report.matches, |f| {
@@ -1168,7 +1216,7 @@ mod tests {
         scan(&s);
         let lib = with_open(&s, |_, i| Ok(i.clone())).unwrap();
         let teacher = lib.photos.iter().find(|p| p.path == library.join("IMG_0001.jpg").to_string_lossy()).unwrap().id.clone();
-        let report = find_originals_in(&s).unwrap();
+        let report = find_originals_in(&s, |_| {}).unwrap().unwrap();
         assert!(report.matches.iter().all(|m| m.copy != teacher) && !report.unmatched.contains(&teacher), "{report:?}");
         let original = lib.photos.iter().find(|p| p.path == originals.join("IMG_0001.jpg").to_string_lossy()).unwrap().id.clone();
         let trashed = Mutex::new(vec![]);

@@ -12,6 +12,7 @@ import {
   photothequeRefollow,
   photothequeScan,
   photothequeSettleMigration,
+  photothequeStopOriginals,
   photothequeTag,
   photothequeUnfollow,
   photothequeUse,
@@ -29,6 +30,8 @@ class ClassLibrary {
   /** Tout l'index, photos retirées et absentes comprises (pour les autorisations des photos déjà posées). */
   photos = $state.raw<ClassPhoto[]>([]);
   folders = $state.raw<FollowedFolder[]>([]);
+  /** Recherche des originaux en cours : photos regardées, sur combien (0 sur 0 tant qu'elle démarre). */
+  searching = $state<{ seen: number; total: number } | null>(null);
   /** La question de la migration est tranchée (faite, ou « Non merci ») : son bandeau ne revient plus. */
   migrationSettled = $state(false);
   /** Les photos montrées : ni retirées ni absentes. */
@@ -64,6 +67,8 @@ class ClassLibrary {
 
   async #open(classPath: string) {
     const token = ++this.#opening;
+    // Une recherche des originaux de la classe quittée s'arrête : sa barre ne reste pas sur la nouvelle classe.
+    if (this.searching) await photothequeStopOriginals().catch(() => {});
     const lib = await photothequeOpen(classPath);
     if (token !== this.#opening) return;
     this.classPath = classPath;
@@ -168,15 +173,28 @@ class ClassLibrary {
   }
 
   /** Migration : cherche les originaux des anciennes copies dans les dossiers suivis, dit combien sont
-   *  retrouvés, puis demande avant la corbeille. « Non », ou aucun original retrouvé : la question est
-   *  tranchée comme « Non merci » (le bandeau ne revient plus, le lien de la colonne reste). */
+   *  retrouvés, puis demande avant la corbeille. « Non » : la question est tranchée comme « Non merci » (le
+   *  bandeau ne revient plus, le lien de la colonne reste). Aucun original retrouvé, ou recherche arrêtée :
+   *  rien n'est tranché, l'enseignant peut ajouter un dossier et recommencer. Une seule recherche à la fois. */
   async migrate() {
+    if (this.searching) return;
     const token = this.#opening;
-    const report = await photothequeFindOriginals();
+    this.searching = { seen: 0, total: 0 };
+    let report;
+    try {
+      report = await photothequeFindOriginals((p) => {
+        if (this.searching) this.searching = p;
+      });
+    } finally {
+      this.searching = null;
+    }
     if (token !== this.#opening) return;
+    if (!report) {
+      editor.notice = fr.libraryOriginalsStopped;
+      return;
+    }
     const n = report.matches.length;
     if (n === 0) {
-      if (!this.migrationSettled) await this.settleMigration();
       editor.notice = fr.libraryOriginalsNone;
       return;
     }
@@ -190,6 +208,11 @@ class ClassLibrary {
     if (token !== this.#opening) return;
     const left = await this.applyOriginals(report.matches);
     editor.notice = left ? fr.libraryOriginalsNotTrashed(n - left, left) : fr.libraryOriginalsDone(n);
+  }
+
+  /** « Arrêter » la recherche des originaux : elle s'arrête à la photo en cours. */
+  async stopSearch() {
+    await photothequeStopOriginals();
   }
 
   /** Met les copies à la corbeille de l'ordinateur et reporte enfants et activités de celles parties sur les

@@ -6,6 +6,7 @@
 #         PHOTOS=<dossier> pour reprendre des photos déjà générées (sinon 10 000 dans <sortie>/.photos).
 #         DOSSIERS=<dossier> pour les dossiers de n photos de la photothèque (sinon <sortie>/.dossiers, refaits
 #         par clonage des photos si besoin, voir dossiers.sh).
+#         TAILLES=1000,10000 pour ne mesurer la photothèque qu'à ces tailles (sinon 1000, 5000 et 10000).
 # Pour Timonier, qui ne lit que le JUnit écrit pendant son propre lancement :
 #         timonier test --junit <sortie>/mesures.xml -- scripts/mesures/mesurer.sh <sortie>
 # L'application est la version de développement (bibliothèques d'images optimisées, voir Cargo.toml) ; son

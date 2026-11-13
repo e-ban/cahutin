@@ -14,7 +14,8 @@ const APP = new URL("../../target/debug/cahutin", import.meta.url).pathname;
 const SEUIL_MS = 1000;
 const SEUIL_GEL_MS = 100;
 const TIROIR = [100, 300, 500];
-const PHOTOTHEQUE = [1000, 5000, 10000];
+/** Tailles de photothèque mesurées ; `TAILLES=1000,10000` pour un passage plus court. */
+const PHOTOTHEQUE = process.env.TAILLES ? process.env.TAILLES.split(",").map(Number) : [1000, 5000, 10000];
 const ELEVES = 25;
 /** Le premier parcours d'un gros dossier laisse quelques centaines de ms de gel : seuil sur le gel seulement. */
 const SEUIL_GEL_SUIVI_MS = 300;

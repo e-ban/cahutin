@@ -196,16 +196,21 @@ pub fn follow_in(state: &AppState, folder: &str) -> Result<Phototheque, String> 
         // Les mêmes refus que pour un dossier neuf (introuvable, déjà suivi, dans un dossier suivi).
         phototheque::follow(&mut followed, root)?;
         let mut undo = kept.as_ref().filter(|(d, _)| d == dir).map(|(_, r)| r.clone());
+        // Ce qui est gardé ne change que si des photos (ou le dossier lui-même) en ont été reprises.
+        let mut taken = false;
         if let Some(removed) = undo.take_if(|r| Path::new(r.path()) == root) {
             // Le même dossier : il reprend sa place d'avant, avec ses photos.
             followed.folders.pop();
             phototheque::refollow(&mut followed, removed);
+            taken = true;
         } else if let Some(removed) = undo.as_mut() {
-            phototheque::restore_photos(&mut followed, removed.take_under(root));
+            let photos = removed.take_under(root);
+            taken = !photos.is_empty();
+            phototheque::restore_photos(&mut followed, photos);
         }
         phototheque::save(dir, &followed)?;
         *index = followed;
-        if kept.as_ref().is_some_and(|(d, _)| d == dir) {
+        if taken {
             *kept = undo.filter(|r| !r.is_empty()).map(|r| (dir.to_path_buf(), r));
         }
         log::info!("phototheque_follow folders={}", index.folders.len());
@@ -630,6 +635,22 @@ mod tests {
         for p in &before.photos {
             assert_eq!(lib.photos.iter().find(|q| q.id == p.id).map(|q| (&q.students, &q.tags, q.hidden)), Some((&p.students, &p.tags, p.hidden)));
         }
+    }
+
+    /// « Ne plus suivre » un dossier vide, puis suivre un autre dossier : « Annuler » remet toujours le premier.
+    #[test]
+    fn following_an_unrelated_folder_keeps_the_undo_of_an_empty_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = state(dir.path());
+        class(&s, "MS");
+        let (vide, autre) = (dir.path().join("Vide"), dir.path().join("Autre"));
+        std::fs::create_dir_all(&vide).unwrap();
+        std::fs::create_dir_all(&autre).unwrap();
+        follow_in(&s, &vide.to_string_lossy()).unwrap();
+        unfollow_in(&s, &vide.to_string_lossy()).unwrap();
+        follow_in(&s, &autre.to_string_lossy()).unwrap();
+        let lib = refollow_in(&s, &vide.to_string_lossy()).unwrap();
+        assert_eq!(lib.folders.len(), 2);
     }
 
     /// Suivre de nouveau garde les refus de « Ajouter un dossier » : un dossier disparu n'est pas remis.

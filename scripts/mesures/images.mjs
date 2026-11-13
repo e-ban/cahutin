@@ -73,7 +73,7 @@ async function mesurer(scene, taille, corps, seuil, { prealable = false, delaiMs
     if (raisons.length) res.echec = raisons.join(" ; ");
   }
   resultats.push(res);
-  console.log(nom, res.erreur ? `ERREUR ${res.erreur}` : `${res.ms} ms${res.premiereGrilleMs != null ? `, première grille ${res.premiereGrilleMs} ms` : ""}, gel ${res.gelMaxMs} ms${res.echec ? `, ÉCHEC ${res.echec}` : ""}`);
+  console.log(nom, res.erreur ? `ERREUR ${res.erreur}` : `${res.ms} ms${res.temps ? ` (${res.temps})` : ""}${res.premiereGrilleMs != null ? `, première grille ${res.premiereGrilleMs} ms` : ""}, gel ${res.gelMaxMs} ms${res.echec ? `, ÉCHEC ${res.echec}` : ""}`);
 }
 
 const attendre = (ms) => `await new Promise((r) => setTimeout(r, ${ms}));`;
@@ -156,7 +156,7 @@ async function tiroir() {
 
 /** La photothèque par dossiers suivis, pour chaque taille : premier parcours, vignettes, ouverture, filtre d'un enfant. */
 async function phototheque() {
-  if (!["phototheque-suivre", "phototheque-ouvrir", "phototheque-enfant"].some(voulue)) return;
+  if (!["phototheque-suivre", "phototheque-ouvrir", "phototheque-enfant", "phototheque-etiqueter", "phototheque-etiqueter-page"].some(voulue)) return;
   // Une classe aux prénoms inventés ; « Adèle » (eleve-0) vient en tête de la liste et figure sur une photo sur cinq.
   const prenoms = ["Adèle", "Basile", "Capucine", "Dorian", "Elsa", "Félix", "Garance", "Hugo", "Iris", "Jules", "Kenza", "Lucien", "Maëlle", "Nils", "Olympe", "Paul", "Quitterie", "Raphaël", "Salomé", "Timéo", "Ulysse", "Victoire", "Wassim", "Yanis", "Zélie"].slice(0, ELEVES);
   for (const n of PHOTOTHEQUE) {
@@ -196,6 +196,31 @@ async function phototheque() {
       { gel: SEUIL_GEL_SUIVI_MS, photos: n },
       { prealable: true, delaiMs: TROIS_HEURES + 60000 },
     );
+    // Marquer un enfant sur la première photo dessinée, dix fois (ajout puis retrait) : du clic à l'image où la
+    // vignette montre le changement (son infobulle nomme ses élèves), et le plus long gel. « etiqueter » passe par
+    // l'application entière (version de développement : l'enregistrement y est lent) ; « etiqueter-page » ne
+    // mesure que la page, la photo changée posée dans la liste sans passer par l'application. Le seuil (50 ms)
+    // porte sur le gel, ce qui fige l'écran.
+    const etiqueter = (seulementPage) => `const l = window.__carnet.classLibrary;
+      for (let i = 0; i < 600 && l.scanning; i++) ${attendre(100)}
+      ${attendre(2000)}
+      const vignette = () => document.querySelector(".library-page .photos .thumb");
+      const id = decodeURIComponent(vignette().querySelector("img").getAttribute("src").split("/lib/")[1].split("/")[0]);
+      const temps = [], gels = [];
+      for (let k = 0; k < 10; k++) {
+        const ajout = k % 2 === 0;
+        const voulu = (t) => t.split(", ").includes("Adèle") === ajout;
+        const action = ${seulementPage}
+          ? () => { l.photos = l.photos.map((p) => (p.id === id ? { ...p, students: ajout ? [...p.students, "eleve-0"] : p.students.filter((s) => s !== "eleve-0") } : p)); }
+          : () => l.tag([id], ajout ? { add_students: ["eleve-0"] } : { remove_students: ["eleve-0"] });
+        const r = await window.__mesure(action, () => voulu(vignette().title));
+        if (r.expire || r.erreur) return r;
+        temps.push(r.ms); gels.push(r.gelMaxMs);
+      }
+      const tri = [...temps].sort((a, b) => a - b);
+      return { ms: tri[5], gelMaxMs: Math.max(...gels), temps: temps.join(" "), photos: l.visible.length };`;
+    await mesurer("phototheque-etiqueter", n, etiqueter(false), { gel: 50, photos: n });
+    await mesurer("phototheque-etiqueter-page", n, etiqueter(true), { gel: 50, photos: n });
     // Sans « ouvrir », « enfant » ni « vignettes » demandés, on n'attend pas le remplissage du cache (plus d'une
     // heure pour 10 000 photos) : la scène du premier parcours n'en a pas besoin.
     if (["phototheque-ouvrir", "phototheque-enfant", "phototheque-vignettes"].some(voulue)) {

@@ -25,11 +25,18 @@ const scans: { send: (e: ScanEvent) => void; finish: () => void }[] = [];
 vi.mock("./api", () => ({
   photothequeOpen: async () => lib(["a"]),
   photothequeSettleMigration: async () => lib(["a"], true),
+  photothequeUnfollow: async () => ({ format_version: 2, folders: [], photos: [], migration_settled: false }),
+  photothequeRefollow: vi.fn(async () => lib(["a"])),
   photothequeScan: (onEvent: (e: ScanEvent) => void) =>
     new Promise((resolve) => scans.push({ send: onEvent, finish: () => resolve({ added: 0, moved: 0, missing: 0, missing_folders: [] }) })),
 }));
 
+vi.mock("./ask", () => ({ ask: async () => true }));
+
 const { classLibrary } = await import("./phototheque.svelte");
+const { editor } = await import("./docStore.svelte");
+const { fr } = await import("./i18n/fr");
+const api = await import("./api");
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 test("rouvrir la photothèque d'une classe déjà chargée relance un parcours, un seul à la fois", async () => {
@@ -62,4 +69,17 @@ test("« Non merci » : la question de la migration est tranchée et le reste", 
   expect(classLibrary.migrationSettled).toBe(false);
   await classLibrary.settleMigration();
   expect(classLibrary.migrationSettled).toBe(true);
+});
+
+test("« Ne plus suivre », puis « Annuler » dans l'avis : le dossier et ses photos reviennent", async () => {
+  await classLibrary.open("/classes/ms.cahutin");
+  expect(await classLibrary.unfollow("/Images/Sortie")).toBe(true);
+  expect(classLibrary.photos).toEqual([]);
+  expect(editor.notice).toBe(fr.libraryUnfollowed("Sortie"));
+  expect(editor.noticeAction?.label).toBe(fr.undo);
+  editor.runNoticeAction();
+  await tick();
+  expect(api.photothequeRefollow).toHaveBeenCalledWith("/Images/Sortie");
+  expect(classLibrary.photos.map((p) => p.id)).toEqual(["a"]);
+  expect(classLibrary.folders.map((f) => f.path)).toEqual(["/Images/Sortie"]);
 });

@@ -19,6 +19,8 @@ export function photothequeScan(onEvent: (e: ScanEvent) => void): Promise<ScanRe
 /** Suit un dossier, sans le parcourir : `photothequeScan` ensuite. */
 export const photothequeFollow = (folder: string) => invoke<Phototheque>("phototheque_follow", { folder });
 export const photothequeUnfollow = (folder: string) => invoke<Phototheque>("phototheque_unfollow", { folder });
+/** « Annuler » après « Ne plus suivre » : le dossier revient avec ses photos et leurs étiquettes. */
+export const photothequeRefollow = (folder: string) => invoke<Phototheque>("phototheque_refollow", { folder });
 export const photothequeHide = (ids: string[], hidden: boolean) => invoke<Phototheque>("phototheque_hide", { ids, hidden });
 export const photothequeFindOriginals = () => invoke<OriginalsReport>("phototheque_find_originals");
 /** « Non merci » : la question de la migration ne revient plus. */

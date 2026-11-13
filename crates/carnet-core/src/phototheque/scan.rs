@@ -284,11 +284,56 @@ pub fn follow(lib: &mut Phototheque, folder: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Oublie le dossier et ses photos : aucun fichier n'est touché.
-pub fn unfollow(lib: &mut Phototheque, folder: &str) {
+/// Ce que « Ne plus suivre » a retiré de l'index, avec les places, pour « Annuler ».
+#[derive(Clone, Debug, PartialEq)]
+pub struct Unfollowed {
+    folder_at: usize,
+    folder: super::FollowedFolder,
+    photos: Vec<(usize, ClassPhoto)>,
+}
+
+impl Unfollowed {
+    pub fn path(&self) -> &str {
+        &self.folder.path
+    }
+}
+
+/// Oublie le dossier et ses photos : aucun fichier n'est touché. Rend ce qui a été retiré (`refollow` le
+/// remet), ou rien si le dossier n'était pas suivi.
+pub fn unfollow(lib: &mut Phototheque, folder: &str) -> Option<Unfollowed> {
     let root = Path::new(folder);
-    lib.folders.retain(|f| f.path != folder);
-    lib.photos.retain(|p| !Path::new(&p.path).starts_with(root));
+    let folder_at = lib.folders.iter().position(|f| f.path == folder)?;
+    let followed = lib.folders.remove(folder_at);
+    let mut photos = vec![];
+    let mut i = 0;
+    lib.photos.retain(|p| {
+        let inside = Path::new(&p.path).starts_with(root);
+        if inside {
+            photos.push((i, p.clone()));
+        }
+        i += 1;
+        !inside
+    });
+    Some(Unfollowed { folder_at, folder: followed, photos })
+}
+
+/// « Annuler » après « Ne plus suivre » : le dossier et ses photos reviennent à leurs places, avec leurs
+/// élèves, activités et masquage. Rien n'est mis en double : un dossier déjà suivi (ou dans un dossier suivi,
+/// ou qui en contient un) n'est pas ajouté, une photo dont l'identifiant ou le chemin est déjà là non plus.
+pub fn refollow(lib: &mut Phototheque, removed: Unfollowed) {
+    let root = Path::new(&removed.folder.path);
+    if !lib.folders.iter().any(|f| root.starts_with(&f.path) || Path::new(&f.path).starts_with(root)) {
+        lib.folders.insert(removed.folder_at.min(lib.folders.len()), removed.folder);
+    }
+    let mut ids: HashSet<String> = lib.photos.iter().map(|p| p.id.clone()).collect();
+    let mut paths: HashSet<String> = lib.photos.iter().map(|p| p.path.clone()).collect();
+    for (at, p) in removed.photos {
+        if !ids.contains(&p.id) && !paths.contains(&p.path) {
+            ids.insert(p.id.clone());
+            paths.insert(p.path.clone());
+            lib.photos.insert(at.min(lib.photos.len()), p);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -512,6 +557,42 @@ mod tests {
         assert_eq!(lib.folders.len(), 1);
         assert_eq!(lib.photos.len(), 1);
         assert_eq!(lib.photos[0].folder, "Autre");
+    }
+
+    /// « Ne plus suivre » puis « Annuler » : le dossier et ses photos reviennent tels quels, étiquettes,
+    /// masquage et places compris, même si un parcours a eu lieu entre les deux.
+    #[test]
+    fn unfollowing_then_undoing_restores_everything_exactly() {
+        let (tmp, library, folder, mut lib) = setup();
+        let autre = tmp.path().join("Autre");
+        jpeg(&folder.join("a.jpg"), 10);
+        jpeg(&folder.join("b.jpg"), 40);
+        jpeg(&autre.join("c.jpg"), 60);
+        follow(&mut lib, &autre).unwrap();
+        run(&mut lib, &library);
+        let (a, b) = (by_name(&lib, "a.jpg").id.clone(), by_name(&lib, "b.jpg").id.clone());
+        tag(&mut lib, std::slice::from_ref(&a), &TagChange { add_students: vec!["lea".into()], add_tags: vec!["Ferme".into()], ..Default::default() });
+        hide(&mut lib, &[b], true);
+        let before = lib.clone();
+        let removed = unfollow(&mut lib, &folder.to_string_lossy()).unwrap();
+        assert_eq!((lib.folders.len(), lib.photos.len()), (1, 1));
+        run(&mut lib, &library);
+        refollow(&mut lib, removed);
+        assert_eq!(lib, before);
+        assert!(unfollow(&mut lib, "/pas/suivi").is_none());
+    }
+
+    /// Le dossier suivi de nouveau entre-temps : rien n'est en double (ni identifiant, ni chemin).
+    #[test]
+    fn undoing_after_following_again_makes_no_double() {
+        let (_tmp, library, folder, mut lib) = setup();
+        jpeg(&folder.join("a.jpg"), 10);
+        run(&mut lib, &library);
+        let removed = unfollow(&mut lib, &folder.to_string_lossy()).unwrap();
+        follow(&mut lib, &folder).unwrap();
+        run(&mut lib, &library);
+        refollow(&mut lib, removed);
+        assert_eq!((lib.folders.len(), lib.photos.len()), (1, 1));
     }
 
     #[test]

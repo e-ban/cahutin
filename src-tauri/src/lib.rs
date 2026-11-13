@@ -132,6 +132,7 @@ pub fn run() {
             phototheque_commands::phototheque_scan,
             phototheque_commands::phototheque_follow,
             phototheque_commands::phototheque_unfollow,
+            phototheque_commands::phototheque_refollow,
             phototheque_commands::phototheque_hide,
             phototheque_commands::phototheque_tag,
             phototheque_commands::phototheque_use,

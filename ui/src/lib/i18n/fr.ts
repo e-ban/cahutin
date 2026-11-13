@@ -485,7 +485,8 @@ export const fr = {
   libraryFollowed: "Dossiers suivis",
   libraryUnfollow: "Ne plus suivre",
   libraryUnfollowConfirm: (name: string) =>
-    `Ne plus suivre « ${name} » ? Les photos restent sur l'ordinateur ; les élèves et activités indiqués pour elles seront oubliés.`,
+    `Ne plus suivre « ${name} » ? Ses photos ne seront plus montrées ici, mais elles restent sur l'ordinateur : aucun fichier n'est touché. Les élèves et activités indiqués pour elles seront oubliés.`,
+  libraryUnfollowed: (name: string) => `« ${name} » n'est plus suivi. Ses photos restent sur l'ordinateur.`,
   libraryScanning: (n: number) => (n === 0 ? "Recherche des photos…" : n > 1 ? `Recherche des photos : ${n} trouvées…` : "Recherche des photos : 1 trouvée…"),
   libraryFolderMissing: (name: string) => `Le dossier « ${name} » est introuvable (une clé USB débranchée ?). Ses photos sont gardées : elles reviendront avec lui.`,
   libraryHide: "Retirer",

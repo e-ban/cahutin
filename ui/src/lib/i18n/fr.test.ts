@@ -38,8 +38,9 @@ test("followed folders speak plainly, singular and plural", () => {
   expect(fr.libraryScanning(1)).toBe("Recherche des photos : 1 trouvée…");
   expect(fr.libraryScanning(42)).toBe("Recherche des photos : 42 trouvées…");
   expect(fr.libraryUnfollowConfirm("Sortie")).toBe(
-    "Ne plus suivre « Sortie » ? Les photos restent sur l'ordinateur ; les élèves et activités indiqués pour elles seront oubliés.",
+    "Ne plus suivre « Sortie » ? Ses photos ne seront plus montrées ici, mais elles restent sur l'ordinateur : aucun fichier n'est touché. Les élèves et activités indiqués pour elles seront oubliés.",
   );
+  expect(fr.libraryUnfollowed("Sortie")).toBe("« Sortie » n'est plus suivi. Ses photos restent sur l'ordinateur.");
   expect(fr.libraryFolderMissing("Clé USB")).toContain("« Clé USB »");
   expect(fr.libraryEmpty).toContain("« Ajouter un dossier »");
   expect(fr.libraryEmpty).not.toContain("Ajouter des photos");

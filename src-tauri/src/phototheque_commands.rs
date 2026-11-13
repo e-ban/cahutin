@@ -197,11 +197,13 @@ pub fn phototheque_follow(state: State<'_, AppState>, folder: String) -> Result<
     follow_in(&state, &folder)
 }
 
-/// « Ne plus suivre » : le dossier et ses photos sont oubliés, aucun fichier n'est touché.
+/// « Ne plus suivre » : le dossier et ses photos sont oubliés, aucun fichier n'est touché. Ce qui est retiré
+/// est gardé en mémoire pour « Annuler » (`refollow_in`), jusqu'au prochain « Ne plus suivre ».
 pub fn unfollow_in(state: &AppState, folder: &str) -> Result<Phototheque, String> {
     with_open(state, |dir, index| {
-        phototheque::unfollow(index, folder);
+        let removed = phototheque::unfollow(index, folder);
         phototheque::save(dir, index)?;
+        *state.phototheque_unfollowed.lock().unwrap() = removed.map(|r| (dir.to_path_buf(), r));
         log::info!("phototheque_unfollow folders={} photos={}", index.folders.len(), index.photos.len());
         Ok(index.clone())
     })
@@ -210,6 +212,28 @@ pub fn unfollow_in(state: &AppState, folder: &str) -> Result<Phototheque, String
 #[tauri::command(async)]
 pub fn phototheque_unfollow(state: State<'_, AppState>, folder: String) -> Result<Phototheque, String> {
     unfollow_in(&state, &folder)
+}
+
+/// « Annuler » après « Ne plus suivre » : le dossier revient avec ses photos, leurs élèves et activités.
+pub fn refollow_in(state: &AppState, folder: &str) -> Result<Phototheque, String> {
+    with_open(state, |dir, index| {
+        let mut kept = state.phototheque_unfollowed.lock().unwrap();
+        let Some((_, removed)) = kept.as_ref().filter(|(d, r)| d == dir && r.path() == folder) else {
+            return Err("Ce dossier ne peut plus être remis : suivez-le de nouveau avec « Ajouter un dossier ».".into());
+        };
+        let mut restored = index.clone();
+        phototheque::refollow(&mut restored, removed.clone());
+        phototheque::save(dir, &restored)?;
+        *index = restored;
+        *kept = None;
+        log::info!("phototheque_refollow folders={} photos={}", index.folders.len(), index.photos.len());
+        Ok(index.clone())
+    })
+}
+
+#[tauri::command(async)]
+pub fn phototheque_refollow(state: State<'_, AppState>, folder: String) -> Result<Phototheque, String> {
+    refollow_in(&state, &folder)
 }
 
 /// « Retirer » (et son annulation) : la photo est masquée, gardée dans l'index avec ses étiquettes.
@@ -455,6 +479,25 @@ mod tests {
         let lib = unfollow_in(&s, &folder.to_string_lossy()).unwrap();
         assert!(lib.folders.is_empty() && lib.photos.is_empty());
         assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 3, "rien n'est touché sur le disque");
+    }
+
+    /// « Ne plus suivre » puis « Annuler » : l'index revient exactement, enregistré ; une seule fois.
+    #[test]
+    fn unfollowing_a_folder_can_be_undone_exactly() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, class, lib) = followed_three(dir.path());
+        let folder = dir.path().join("Sortie").to_string_lossy().into_owned();
+        hide_in(&s, &[lib.photos[1].id.clone()], true).unwrap();
+        let before = with_open(&s, |dir, index| {
+            phototheque::tag(index, &[index.photos[0].id.clone()], &TagChange { add_tags: vec!["Ferme".into()], ..Default::default() });
+            phototheque::save(dir, index)?;
+            Ok(index.clone())
+        })
+        .unwrap();
+        assert!(unfollow_in(&s, &folder).unwrap().photos.is_empty());
+        assert_eq!(refollow_in(&s, &folder).unwrap(), before);
+        assert_eq!(open_in(&s, &class).unwrap(), before, "enregistré");
+        assert!(refollow_in(&s, &folder).is_err(), "rien à remettre une seconde fois");
     }
 
     #[test]

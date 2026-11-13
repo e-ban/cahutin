@@ -9,6 +9,7 @@ import {
   photothequeFollow,
   photothequeHide,
   photothequeOpen,
+  photothequeRefollow,
   photothequeScan,
   photothequeSettleMigration,
   photothequeTag,
@@ -116,10 +117,21 @@ class ClassLibrary {
     return true;
   }
 
-  /** Ne plus suivre un dossier, après confirmation : ses photos restent sur l'ordinateur. */
+  /** Ne plus suivre un dossier, après confirmation : ses photos restent sur l'ordinateur ; « Annuler » dans
+   *  l'avis remet le dossier et ses photos, avec leurs élèves et activités. */
   async unfollow(folder: string): Promise<boolean> {
     if (!(await ask(fr.libraryUnfollowConfirm(baseName(folder)), fr.libraryUnfollow))) return false;
+    const token = this.#opening;
     this.#set(await photothequeUnfollow(folder));
+    editor.notify(fr.libraryUnfollowed(baseName(folder)), {
+      label: fr.undo,
+      run: () => {
+        if (token !== this.#opening) return;
+        photothequeRefollow(folder)
+          .then((lib) => token === this.#opening && this.#set(lib))
+          .catch((e) => (editor.notice = String(e)));
+      },
+    });
     return true;
   }
 

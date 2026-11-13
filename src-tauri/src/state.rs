@@ -25,6 +25,9 @@ pub struct AppState {
     pub classes_dir: PathBuf,
     /// Photothèque ouverte (celle de la classe courante) : son dossier et son index.
     pub phototheque: Mutex<Option<(PathBuf, carnet_core::phototheque::Phototheque)>>,
+    /// Le dernier dossier que l'enseignant a cessé de suivre, avec ses photos, le temps de l'avis « Annuler » :
+    /// le dossier de la photothèque d'où il vient, et ce qui en a été retiré.
+    pub phototheque_unfollowed: Mutex<Option<(PathBuf, carnet_core::phototheque::Unfollowed)>>,
     /// Tenu pendant un parcours des dossiers suivis : un seul à la fois.
     pub phototheque_scan: Mutex<()>,
     /// Numéro du remplissage de vignettes en cours : changé quand une autre classe s'ouvre ou qu'un
@@ -49,6 +52,7 @@ impl AppState {
             assistant_cancel: AtomicBool::new(false),
             classes_dir,
             phototheque: Mutex::new(None),
+            phototheque_unfollowed: Mutex::new(None),
             phototheque_scan: Mutex::new(()),
             thumb_fill: AtomicU64::new(0),
             my_images: Mutex::new(Default::default()),

@@ -74,7 +74,10 @@ test("the migration banner and its result", () => {
   expect(fr.libraryOriginalsFound(3, 2)).toBe(
     "3 photos retrouvées, 2 non retrouvées. Mettre les 3 copies à la corbeille ? Les enfants et activités sont reportés sur les originaux.",
   );
-  expect(fr.libraryOriginalsNone).toContain("rien n'a changé");
+  // Le bandeau ne revient plus : on dit où est le lien.
+  expect(fr.libraryOriginalsNone).toBe(
+    "Aucun original retrouvé dans les dossiers suivis : rien n'a changé. Ajoutez le dossier où sont vos originaux, puis cliquez sur « Retrouver les originaux », dans la colonne de gauche.",
+  );
   expect(fr.libraryOriginalsDone(1)).toBe("1 copie mise à la corbeille de l'ordinateur. Les enfants et activités sont sur l'original.");
   expect(fr.libraryOriginalsDone(4)).toBe("4 copies mises à la corbeille de l'ordinateur. Les enfants et activités sont sur les originaux.");
   // La corbeille en refuse une partie : on dit combien, et que rien n'est perdu.

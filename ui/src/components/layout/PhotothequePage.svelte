@@ -104,13 +104,23 @@
     void [filter.period, filter.student, filter.tag, filter.untagged, filter.folder];
     drawnCount = DRAWN_STEP;
   });
-  // Recréé à chaque ajout : s'il est encore près de l'écran, l'observateur le redit aussitôt.
+  // Le repère à moins de 1500 px du bas de l'écran, ou déjà passé au-dessus (un saut tout en bas ; la colonne
+  // des filtres, plus longue que la grille, fait descendre la page plus bas que lui) : on en dessine davantage.
+  // Vu à chaque défilement, et une image après chaque ajout, au cas où il serait encore proche.
   $effect(() => {
     void drawnCount;
-    if (!more) return;
-    const io = new IntersectionObserver((seen) => seen.some((e) => e.isIntersecting) && (drawnCount += DRAWN_STEP), { root: more.closest(".library-page"), rootMargin: "1500px" });
-    io.observe(more);
-    return () => io.disconnect();
+    const mark = more;
+    const page = mark?.closest(".library-page");
+    if (!mark || !page) return;
+    const check = () => {
+      if (mark.getBoundingClientRect().top < page.getBoundingClientRect().bottom + 1500) drawnCount += DRAWN_STEP;
+    };
+    page.addEventListener("scroll", check, { passive: true });
+    const frame = requestAnimationFrame(check);
+    return () => {
+      page.removeEventListener("scroll", check);
+      cancelAnimationFrame(frame);
+    };
   });
 
   function close() {
@@ -485,8 +495,12 @@
     gap: 14px 18px;
     align-items: flex-start;
   }
+  /* Un jour loin de l'écran n'est ni mis en page ni dessiné : avec des milliers de vignettes dessinées, chaque
+     ajout en bas de la grille remettait toute la page en forme (750 ms de gel à 10 000 photos, 70 ms ainsi). */
   .day {
     max-width: 100%;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 1200px auto 400px;
   }
   .more {
     height: 1px;

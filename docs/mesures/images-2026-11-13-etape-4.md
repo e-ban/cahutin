@@ -59,7 +59,7 @@ cache par le fil de fond (366 s pour 1 000 photos, 1 944 s soit 32 min pour 5 00
 ## Lecture
 
 - **Photothèque déjà parcourue** : 126 ms pour 1 000 photos, 518 ms pour 5 000, **1 122 ms pour 10 000**, soit
-  un peu au-dessus du seuil de 1 000 ms (corrigé depuis, voir « Après les correctifs » : 347 ms). Presque tout ce temps est du gel du fil de l'interface (1 087 ms) : la
+  un peu au-dessus du seuil de 1 000 ms (corrigé depuis, voir « Après les correctifs » : 325 ms). Presque tout ce temps est du gel du fil de l'interface (1 087 ms) : la
   page de 10 000 vignettes se construit d'un bloc. Filtrer sur un enfant reste rapide (233 ms à 10 000).
 - **Premier parcours** : les photos arrivent vite (3 s pour 1 000, 38 à 42 s pour 5 000, 101 s pour 10 000) sans
   bloquer l'interface au-delà de 184 ms à 5 000 photos. À 10 000 photos le plus long gel est de 410 ms (502 ms en
@@ -74,7 +74,7 @@ cache par le fil de fond (366 s pour 1 000 photos, 1 944 s soit 32 min pour 5 00
   première grille n'est toujours pas là après 20 minutes (2 563 et 2 034 vignettes chargées). Une grille de
   photos reste donc vide pendant plusieurs minutes après le premier suivi d'un gros dossier, alors que la liste
   est déjà complète. Aucune image n'est cassée : tout finit par arriver. Corrigé depuis (voir « Après les
-  correctifs ») : 4,8 s à 1 000 photos, 45 s à 10 000.
+  correctifs ») : 7,7 s à 1 000 photos, 39 s à 10 000.
 - **Mémoire** : la pointe cumulée (application et processus web, un seul cgroup limité à 4 Go) monte à 1,2 à
   1,4 Go avec 1 000 photos, puis **atteint la limite de 4 096 Mo** dès les 5 000 photos. Le cgroup compte aussi le
   cache de fichiers du noyau (le fil de fond relit les originaux de 3 à 5 Mo, plus de 40 Go pour 10 000 photos),
@@ -96,10 +96,11 @@ cache par le fil de fond (366 s pour 1 000 photos, 1 944 s soit 32 min pour 5 00
 
 ## Après les correctifs (2026-11-13)
 
-Passage court, mêmes machine, limites, photos et dossiers, application en version de développement, sur la
-branche `worktree-photo-dossiers` après le commit `84be66b` :
+Mêmes machine, limites, photos et dossiers, application en version de développement, sans Timonier. Passage
+retenu sur la branche `worktree-photo-dossiers` au commit `3dcb0d5` :
 `PHOTOS=… DOSSIERS=… TAILLES=1000,10000 scripts/mesures/mesurer.sh <sortie> phototheque-suivre phototheque-ouvrir`
-(25 min en tout, sans Timonier). Une seule mesure par scène et par taille.
+(27 min). Un premier passage identique, fait avant le dernier correctif de la grille (commit `460afa6`, avec
+`TAILLES` pas encore enregistré), est donné entre parenthèses. Une seule mesure par cas.
 
 ### Causes, vérifiées
 
@@ -107,49 +108,61 @@ branche `worktree-photo-dossiers` après le commit `84be66b` :
   coup, d'où un gel qui croît avec le nombre de photos.
 - **Première grille tardive** (passage instrumenté à 1 000 photos, journal temporaire de nombres, retiré
   ensuite) : à la fin du parcours (3 s), la page avait déjà demandé 947 vignettes, 997 en tout. Chaque paquet de
-  50 photos reçu est plus récent que les précédents et arrive donc en haut de la grille, à l'écran, où ses images
-  sont demandées avant d'être poussées vers le bas : `loading="lazy"` n'y change rien. Le fil du protocole les
-  servait dans l'ordre d'arrivée (les 81 premières réponses : les photos 0 à 84 de l'index, attente de 40 s
-  pour la 80e) ; les vignettes visibles, demandées en dernier, attendaient derrière toutes les autres. Chacune
-  prenait 500 ms, dont 450 ms de réduction Lanczos3 sur l'image de 12 Mpx. Le fil de fond, parti après le
-  parcours dans l'ordre de l'index, refaisait en même temps les mêmes photos que le protocole. Pas de
-  contention de verrou : le fil de fond travaille sur une copie de l'index et la vignette se fait sans verrou.
+  50 photos reçu est plus récent que les précédents et arrive donc en haut de la grille, à l'écran ; ses images
+  sont demandées avant d'être poussées vers le bas par le paquet suivant (déduit de l'ordre des paquets et du
+  tri de la grille : le journal montre les demandes, pas leur raison). Le fil du protocole les servait dans
+  l'ordre d'arrivée (les 81 premières réponses : les photos 0 à 84 de l'index, attente de 40 s pour la 80e) ;
+  les vignettes visibles, demandées en dernier, attendaient derrière toutes les autres. Chacune prenait 500 ms,
+  dont 450 ms de réduction Lanczos3 sur l'image de 12 Mpx. Le fil de fond, parti après le parcours dans l'ordre
+  de l'index, refaisait en même temps les mêmes photos que le protocole. Pas de contention de verrou : le fil de
+  fond travaille sur une copie de l'index et la vignette se fait sans verrou.
 
 ### Correctifs
 
-- La grille dessine 300 vignettes, puis 300 de plus quand son bas approche de l'écran ; les jours, filtres, le
-  choix et la vue en grand portent toujours sur toutes les photos montrées.
+- La grille dessine 300 vignettes, puis 300 de plus quand son bas approche de l'écran (regardé à chaque
+  défilement, y compris après un saut tout en bas) ; un jour loin de l'écran n'est ni mis en page ni dessiné
+  (`content-visibility`). Les jours, filtres, le choix et la vue en grand portent toujours sur toutes les photos
+  montrées ; un autre filtre repart de 300.
 - Le fil du protocole sert la demande la plus récente d'abord (toujours un seul fil).
 - La vignette du cache se fait par une réduction par moyenne jusqu'à 512 px, puis Lanczos3 : 109 ms au lieu de
   500 ms par photo de 4000 x 3000 px, image presque identique (écart moyen 0,15 sur 255).
 
 ### Résultats
 
-| Scène | Photos | Avant (ms) | Après (ms) | Plus long gel avant / après (ms) | Mémoire de pointe cumulée après (Mo) |
-|---|---|---|---|---|---|
-| phototheque-suivre, fin du parcours | 1000 | 3409 | 3077 | 35 / 28 | 2423 |
-| phototheque-suivre, première grille | 1000 | 339915 | **4831** | | |
-| phototheque-vignettes | 1000 | 366688 | 50236 | | 2591 |
-| phototheque-ouvrir | 1000 | 126 | 56 | 109 / 40 | 2591 |
-| phototheque-suivre, fin du parcours | 10000 | 101522 | 75962 | 410 / **62** | 4096 |
-| phototheque-suivre, première grille | 10000 | pas venue en 20 min | **45195** | | |
-| phototheque-vignettes | 10000 | 4718966 | 768946 | | 4096 |
-| phototheque-ouvrir | 10000 | 1122 | **347** | 1087 / 313 | 4096 |
+| Scène | Photos | Avant (ms) | Après (ms) | Plus long gel avant / après (ms) |
+|---|---|---|---|---|
+| phototheque-suivre, fin du parcours | 1000 | 3409 | 5868 (3077) | 35 / 31 (28) |
+| phototheque-suivre, première grille | 1000 | 339915 | **7727** (4831) | |
+| phototheque-vignettes | 1000 | 366688 | 50251 (50236) | |
+| phototheque-ouvrir | 1000 | 126 | 81 (56) | 109 / 47 (40) |
+| phototheque-suivre, fin du parcours | 10000 | 101522 | 64569 (75962) | 410 / **72** (62) |
+| phototheque-suivre, première grille | 10000 | pas venue en 20 min | **39329** (45195) | |
+| phototheque-vignettes | 10000 | 4718966 | 777861 (768946) | |
+| phototheque-ouvrir | 10000 | 1122 | **325** (347) | 1087 / 291 (313) |
 
-- **Ouvrir une photothèque de 10 000 photos** : 347 ms, sous le seuil de 1 000 ms. Il reste 313 ms de gel : le
+Défilement jusqu'à la dernière des 10 000 photos (essai à part, sauts répétés tout en bas de la page, après un
+premier parcours) : 2,4 s et 68 ms de gel au plus ; sans `content-visibility`, 25,6 s et 813 ms de gel quand
+près de 10 000 vignettes sont dessinées. Après un changement de filtre, la grille repart bien de 300 vignettes.
+
+- **Ouvrir une photothèque de 10 000 photos** : 325 ms, sous le seuil de 1 000 ms. Il reste 291 ms de gel : le
   tri, le regroupement par jour et les comptes (par enfant, par activité, par dossier) se font encore sur les
   10 000 photos.
-- **Première grille à 1 000 photos** : 4,8 s, soit 1,8 s après la fin du parcours.
-- **Première grille à 10 000 photos** : 45 s, alors que le parcours dure 76 s. Les sous-dossiers sont parcourus
+- **Première grille à 1 000 photos** : 1,9 s après la fin du parcours (1,8 s au premier passage). Les photos
+  les plus récentes arrivent en dernier, la grille ne se stabilise qu'à la fin du parcours. La fin du parcours
+  varie d'un passage à l'autre (3,1 et 5,9 s).
+- **Première grille à 10 000 photos** : 39 s, alors que le parcours dure 65 s. Les sous-dossiers sont parcourus
   par ordre alphabétique (`sortie-01` … `sortie-09`, `sortie-10`, `sortie-100` … `sortie-109`, `sortie-11`, …) :
-  les photos les plus récentes (`sortie-200`, mars) arrivent après 121 sous-dossiers sur 200, vers 60 % du
-  parcours. Avant, chaque nouveau paquet plus récent remplaçait le haut de la grille ; la grille se stabilise
-  quand elles arrivent, et ses vignettes viennent dans la foulée. On ne peut pas montrer plus tôt des vignettes
-  qui quittent l'écran deux à trois fois par seconde.
-- **Remplissage du cache** : 50 s pour 1 000 photos (367 s avant), 12 min 49 s pour 10 000 (79 min avant).
-- **Gel du premier parcours à 10 000 photos** : 62 ms (410 ms avant) : la page ne redessine plus que 300
+  les photos les plus récentes (`sortie-200`, mars) arrivent en 121e position sur 200. Mesuré dans trois essais :
+  elles arrivent dans la page 2,0 s avant la première grille (43,2 s puis 45,2 s ; 40,2 puis 42,2 ; 37,5 puis
+  39,5). Avant cela, chaque nouveau paquet plus récent remplace le haut de la grille deux à trois fois par
+  seconde, et aucune vignette n'a le temps d'arriver. **Un dossier rangé par date ne montre donc ses vignettes
+  qu'à la fin du parcours** (environ 65 s à 10 000 photos). Pour faire mieux, il faudrait changer l'ordre dans
+  lequel le parcours annonce les photos (les plus récentes d'abord) ou garder le haut de la grille immobile
+  pendant le parcours.
+- **Remplissage du cache** : 50 s pour 1 000 photos (367 s avant), 13 min pour 10 000 (79 min avant).
+- **Gel du premier parcours à 10 000 photos** : 72 ms (410 ms avant) : la page ne redessine plus que 300
   vignettes à chaque paquet.
-- **Mémoire** : la pointe cumulée du cgroup est plus haute à 1 000 photos (2 423 Mo contre 1 163) ; elle compte
-  le cache de fichiers du noyau, et les originaux sont relus plus vite. Elle atteint encore la limite de 4 096 Mo à
-  10 000 photos, sans application tuée. La mémoire propre à l'application reste à mesurer.
+- **Mémoire** : la pointe cumulée du cgroup atteint 4 096 Mo (la limite) dès 1 000 photos dans le passage
+  retenu (2 423 Mo au premier passage, 1 163 avant) ; elle compte le cache de fichiers du noyau, et les originaux
+  sont relus plus vite. Aucune application tuée. La mémoire propre à l'application reste à mesurer.
 - Non remesuré : 5 000 photos, le filtre d'un enfant (`phototheque-enfant`).

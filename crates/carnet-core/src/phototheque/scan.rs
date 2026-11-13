@@ -489,7 +489,7 @@ mod tests {
         assert_eq!((report.added, report.moved), (0, 1));
         let p = by_name(&lib, "renommee.jpg");
         assert_eq!((p.id.as_str(), p.folder.as_str(), p.missing), (id.as_str(), "sous", false));
-        assert_eq!(p.path, folder.join("sous/renommee.jpg").to_string_lossy());
+        assert_eq!(p.path, folder.join("sous").join("renommee.jpg").to_string_lossy());
         assert_eq!(p.tags, ["Sortie à la ferme"]);
     }
 

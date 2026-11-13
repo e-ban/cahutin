@@ -9,7 +9,7 @@
   import StrokeStylePicker from "./StrokeStylePicker.svelte";
   import VAlignIcon from "./VAlignIcon.svelte";
   import FontPicker from "./FontPicker.svelte";
-  import { alignFrames, distributeFrames, type AlignMode } from "../lib/align";
+  import { alignFrames, distributeFrames, pageArea, type AlignMode } from "../lib/align";
   import { placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
   import { addCaption, deleteSelection, groupSelection, mirrorSelection, rotateSelection, selectionLocked, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
@@ -46,7 +46,7 @@
 
   const ROTATION_HANDLE_GAP = 44;
 
-  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "distribute" | "frame" | "cut" | "fields" | "repeat" | "styles" | "frieze" | "graphisme" | "more";
+  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "alignPage" | "distribute" | "frame" | "cut" | "fields" | "repeat" | "styles" | "frieze" | "graphisme" | "more";
   let pop = $state<Pop | null>(null);
   let barEl = $state<HTMLElement>();
   let pos = $state<{ left: number; top: number } | null>(null);
@@ -142,6 +142,17 @@
     editor.updatePage((p) => arrangeUnits(p, editor.selection, fn, inside));
     pop = null;
   }
+
+  /** Un bloc seul (pas avec une case de grille, qui ne bouge pas) s'aligne sur la page ; plusieurs, entre eux. */
+  const onPage = () => units() === 1 && !editor.selection.some(inGrid);
+
+  function alignSelection(mode: AlignMode) {
+    const page = onPage() ? pageArea(editor.page.size) : undefined;
+    applyFrames((f) => alignFrames(f, mode, page));
+  }
+
+  /** Aligner sur la page un élément seul et libre (ni case de grille ou de tableau, ni verrouillé). */
+  const canAlignPage = $derived(!many && !!selected && !isTableCell(editor.page, selected.id) && onPage());
 
   const alignModes: [AlignMode, string][] = [
     ["left", fr.alignLeft],
@@ -340,6 +351,13 @@
   }
 </script>
 
+<!-- Un bloc seul : sa place sur la page ; plusieurs : leur place entre eux. -->
+{#snippet alignPop()}
+  <div use:fitInWindow class="pop list">
+    {#each alignModes as [mode, label] (mode)}<button onclick={() => alignSelection(mode)}>{onPage() ? fr.alignPage[mode] : label}</button>{/each}
+  </div>
+{/snippet}
+
 <!-- Frise posée : taille, écart, et ses images à changer. -->
 {#snippet friezePop(now: { size: number; gap: number; distance: number; block: boolean })}
   <label>{fr.friezeSize} <input type="range" min="6" max="40" step="1" value={now.size} onchange={(e) => setFrieze(Number(e.currentTarget.value), now.gap)} /> {now.size} mm</label>
@@ -444,11 +462,10 @@
       {/if}
       <span class="sep"></span>
       <div class="wrap">
-        <button onclick={() => toggle("alignMany")} disabled={units() < 2}><Icon name="align" /><span class="lbl"> {fr.alignMenu} <Icon name="chevronDown" size={14} /></span></button>
+        <!-- Un seul groupe : il s'aligne sur la page. -->
+        <button title={onPage() ? fr.alignPageHint : fr.alignManyHint} onclick={() => toggle("alignMany")} disabled={units() < 2 && !onPage()}><Icon name="align" /><span class="lbl"> {fr.alignMenu} <Icon name="chevronDown" size={14} /></span></button>
         {#if pop === "alignMany"}
-          <div use:fitInWindow class="pop list">
-            {#each alignModes as [mode, label] (mode)}<button onclick={() => applyFrames((f) => alignFrames(f, mode))}>{label}</button>{/each}
-          </div>
+          {@render alignPop()}
         {/if}
       </div>
       <div class="wrap">
@@ -661,8 +678,18 @@
     {/if}
     <!-- Sa place sur la page (dans « Plus » avec cette préférence). Plusieurs éléments : aligner et répartir
          ouvrent déjà la famille, sans trait entre eux. -->
+    {#if canAlignPage}
+      <!-- Aligner sur la page reste dans la barre, même avec « Plus », comme pour plusieurs éléments. -->
+      <span class="sep"></span>
+      <div class="wrap">
+        <button class:on={pop === "alignPage"} title={fr.alignPageHint} onclick={() => toggle("alignPage")}><Icon name="align" /><span class="lbl"> {fr.alignMenu} <Icon name="chevronDown" size={14} /></span></button>
+        {#if pop === "alignPage"}
+          {@render alignPop()}
+        {/if}
+      </div>
+    {/if}
     {#if !settings.moreMenu}
-      {#if hasPlace && !many}<span class="sep"></span>{/if}
+      {#if hasPlace && !many && !canAlignPage}<span class="sep"></span>{/if}
       {#if canMirror}
         {@const mh = selected ? (selected.kind.type === "Photo" ? !!selected.kind.mirrored : !!selected.flip_h) : false}
         <!-- Un seul outil, deux sens : gauche-droite et haut-bas côte à côte, sans menu. -->

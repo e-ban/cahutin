@@ -1,7 +1,7 @@
 // Tableaux : un élément `Table` (grille et traits) et ses cases, éléments ordinaires du même groupe.
 // Les opérations sont dans le moteur (carnet_core::table) ; ici, ce que l'affichage doit savoir tout de suite.
-import { TEXT_PADDING_MM } from "./richtext";
-import type { Element, Frame, GridCell, Page, TableProps } from "./types";
+import { sanitizePlainText, TEXT_PADDING_MM } from "./richtext";
+import type { Element, Frame, GridCell, Page, RichText, TableProps } from "./types";
 
 type Segment = [number, number, number, number];
 
@@ -47,6 +47,15 @@ export function tableOf(page: Page, id: string): Element | undefined {
 
 export const isTableCell = (page: Page, id: string) => tableOf(page, id)?.id !== id && !!tableOf(page, id);
 
+/** La case dont la barre du tableau s'affiche : une seule case de tableau sélectionnée, modifiée seule
+ *  (double-clic) ou prise d'un clic dans le tableau où l'on est déjà entré. */
+export function barCell(page: Page, selection: string[], focusedMember: string | null, inside: string[]): string | null {
+  const id = selection.length === 1 ? selection[0] : null;
+  const t = id ? tableOf(page, id) : undefined;
+  if (!id || !t || t.id === id) return null;
+  return focusedMember === id || (!!t.group && inside.includes(t.group)) ? id : null;
+}
+
 /** Le tableau dont la sélection est exactement le groupe (tableau et toutes ses cases). */
 export function selectedTable(page: Page, selection: string[]): Element | undefined {
   const t = selection.map((id) => page.elements.find((e) => e.id === id)).find((e) => e?.kind.type === "Table");
@@ -58,6 +67,52 @@ export function selectedTable(page: Page, selection: string[]): Element | undefi
 /** Vide une case texte ; sa police, sa taille et son cadre restent. */
 export function clearTextCell(page: Page, id: string): Page {
   return { ...page, elements: page.elements.map((e) => (e.id === id && e.kind.type === "Text" ? { ...e, kind: { ...e.kind, content: { paragraphs: [] } } } : e)) };
+}
+
+/** Case texte modifiable : texte, non verrouillée. */
+const writable = (page: Page, id: string) => {
+  const e = page.elements.find((x) => x.id === id);
+  return e?.kind.type === "Text" && !e.locked;
+};
+
+/** Case texte suivante (ou précédente) de la case `id`, dans l'ordre de lecture ; une case fusionnée compte pour
+ *  une, les pictogrammes, photos et cases verrouillées sont sautés. Rien après la dernière. */
+export function nextCell(page: Page, id: string, back = false): string | null {
+  const t = tableOf(page, id);
+  if (t?.kind.type !== "Table" || t.id === id || t.locked) return null;
+  const order = [...t.kind.cells].sort((a, b) => a.row - b.row || a.col - b.col);
+  const i = order.findIndex((c) => c.element_id === id);
+  const rest = back ? order.slice(0, i).reverse() : order.slice(i + 1);
+  return rest.find((c) => writable(page, c.element_id))?.element_id ?? null;
+}
+
+/** Cellules copiées dans un tableur (séparées par des tabulations, une ligne par rangée) collées à partir de la
+ *  case `id` : une valeur par case, qui remplace son texte. Une valeur vide ne vide rien ; ce qui sort du tableau
+ *  ou tombe sur un pictogramme, une photo ou une case verrouillée est compté dans `ignored`. Rien (null) sans
+ *  tabulation : le texte se colle alors dans la case. */
+export function pasteCells(page: Page, id: string, text: string): { page: Page; ignored: number } | null {
+  const t = tableOf(page, id);
+  if (t?.kind.type !== "Table" || t.id === id || !text.includes("\t")) return null;
+  const cells = t.kind.cells;
+  const at = (r: number, c: number) => cells.find((x) => x.row <= r && r < x.row + x.row_span && x.col <= c && c < x.col + x.col_span);
+  const start = cells.find((c) => c.element_id === id)!;
+  const contents = new Map<string, RichText>();
+  let ignored = 0;
+  let row = start.row;
+  for (const line of sanitizePlainText(text).replace(/\n$/, "").split("\n")) {
+    let col = start.col;
+    const first = at(row, col);
+    for (const value of line.split("\t")) {
+      const c = at(row, col);
+      col = c ? c.col + c.col_span : col + 1;
+      if (!value.trim()) continue;
+      if (!c || !writable(page, c.element_id) || contents.has(c.element_id)) ignored++;
+      else contents.set(c.element_id, { paragraphs: [{ align: null, runs: [{ text: value, bold: false, italic: false, underline: false, color: null, font: null, size_pt: null }] }] });
+    }
+    row = first ? first.row + first.row_span : row + 1;
+  }
+  const elements = page.elements.map((e) => (contents.has(e.id) && e.kind.type === "Text" ? { ...e, kind: { ...e.kind, content: contents.get(e.id)! } } : e));
+  return { page: { ...page, elements }, ignored };
 }
 
 /** Tableaux recopiés avec de nouveaux ids : leurs cases désignent les copies ; une case restée en arrière

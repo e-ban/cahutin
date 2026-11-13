@@ -12,8 +12,9 @@
 <script lang="ts">
   // Menu du clic droit : sur un élément, ou sur la page vide.
   import { editor } from "../../lib/docStore.svelte";
-  import { bringSelection, copySelection, cutSelection, deleteSelection, duplicateSelection, groupSelection, hasClipboard, paste, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
+  import { bringSelection, canBringSelection, copySelection, cutSelection, deleteSelection, duplicateSelection, groupSelection, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
   import { shapeElement, textElement } from "../../lib/factory";
+  import { pasteFromMenu } from "../../lib/incoming";
   import { fr } from "../../lib/i18n/fr";
   import Icon from "../Icon.svelte";
   import type { IconName } from "../../lib/icons";
@@ -60,7 +61,7 @@
   {#if element}
     <button role="menuitem" disabled={element.locked && !editor.templateMode} onclick={() => run(cutSelection)}><span class="ico"><Icon name="cut" /></span><span>{fr.cut}</span><kbd>Ctrl+X</kbd></button>
     <button role="menuitem" onclick={() => run(copySelection)}><span class="ico"><Icon name="copy" /></span><span>{fr.copy}</span><kbd>Ctrl+C</kbd></button>
-    <button role="menuitem" disabled={!hasClipboard()} onclick={() => run(paste)}><span class="ico"><Icon name="clipboard" /></span><span>{fr.paste}</span><kbd>Ctrl+V</kbd></button>
+    <button role="menuitem" onclick={() => run(pasteFromMenu)}><span class="ico"><Icon name="clipboard" /></span><span>{fr.paste}</span><kbd>Ctrl+V</kbd></button>
     <button role="menuitem" onclick={() => run(duplicateSelection)}><span class="ico"><Icon name="duplicate" /></span><span>{fr.duplicate}</span><kbd>Ctrl+D</kbd></button>
     {#if editor.selection.length > 1 || element.group}
       <hr />
@@ -72,12 +73,14 @@
     {/if}
     <hr />
     <button role="menuitem" onclick={() => run(() => bringSelection("front"))}><span class="ico"><Icon name="bringFront" /></span><span>{fr.bringFront}</span></button>
+    <button role="menuitem" disabled={!canBringSelection("forward")} onclick={() => run(() => bringSelection("forward"))}><span class="ico"><Icon name="chevronUp" /></span><span>{fr.bringForward}</span></button>
+    <button role="menuitem" disabled={!canBringSelection("backward")} onclick={() => run(() => bringSelection("backward"))}><span class="ico"><Icon name="chevronDown" /></span><span>{fr.sendBackward}</span></button>
     <button role="menuitem" onclick={() => run(() => bringSelection("back"))}><span class="ico"><Icon name="sendBack" /></span><span>{fr.sendBack}</span></button>
     <hr />
     <button role="menuitem" onclick={() => run(toggleLockSelection)}><span class="ico"><Icon name={lockIcon} /></span><span>{editor.templateMode ? (element.locked ? fr.unfixCell : fr.fixCell) : element.locked ? fr.unlock : fr.lock}</span></button>
     <button role="menuitem" disabled={element.locked && !editor.templateMode} onclick={() => run(deleteSelection)}><span class="ico"><Icon name="trash" /></span><span>{fr.delete}</span><kbd>Suppr</kbd></button>
   {:else}
-    <button role="menuitem" disabled={!hasClipboard()} onclick={() => run(paste)}><span class="ico"><Icon name="clipboard" /></span><span>{fr.paste}</span><kbd>Ctrl+V</kbd></button>
+    <button role="menuitem" onclick={() => run(pasteFromMenu)}><span class="ico"><Icon name="clipboard" /></span><span>{fr.paste}</span><kbd>Ctrl+V</kbd></button>
     <button role="menuitem" onclick={() => run(() => addHere("text"))}><span class="ico"><Icon name="text" /></span><span>{fr.addTextHere}</span></button>
     <button role="menuitem" onclick={() => run(() => addHere("shape"))}><span class="ico"><Icon name="shapes" /></span><span>{fr.addShapeHere}</span></button>
     <hr />

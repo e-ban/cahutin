@@ -15,7 +15,7 @@
   import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
   import { endPreview, previewPhoto, previewShape, previewTextStyle, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
   import { cropPosition, photoTrims, roundedFrame, wholePhoto, withPosition, withTrims, type Trims } from "../../lib/crop";
-  import { bringSelection, deleteSelection, mirrorSelection, rotateSelection, selectionLocked, setSelectedFrame, setSelectionSize, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
+  import { bringSelection, canBringSelection, deleteSelection, mirrorSelection, rotateSelection, selectionLocked, setSelectedFrame, setSelectionSize, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
   import { boundsOf, isLockedSelection } from "../../lib/groups";
   import type { AssetMeta, Crop, Element, Frame } from "../../lib/types";
   import { textPadding } from "../../lib/richtext";
@@ -121,6 +121,8 @@
     <span>{fr.orderRow}</span>
     <div class="row">
       <button onclick={() => bringSelection("front")}><Icon name="bringFront" /> {fr.bringFront}</button>
+      <button disabled={!canBringSelection("forward")} onclick={() => bringSelection("forward")}><Icon name="chevronUp" /> {fr.bringForward}</button>
+      <button disabled={!canBringSelection("backward")} onclick={() => bringSelection("backward")}><Icon name="chevronDown" /> {fr.sendBackward}</button>
       <button onclick={() => bringSelection("back")}><Icon name="sendBack" /> {fr.sendBack}</button>
     </div>
   </div>

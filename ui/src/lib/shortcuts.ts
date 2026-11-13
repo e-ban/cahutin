@@ -1,6 +1,7 @@
 import { isPlacedCell } from "./table";
 import { editor } from "./docStore.svelte";
-import { copySelection, cutSelection, deleteSelection, duplicateSelection, groupSelection, paste, ungroupSelection } from "./editActions";
+import { copySelection, cutSelection, deleteSelection, duplicateSelection, groupSelection, ungroupSelection } from "./editActions";
+import { armPaste } from "./incoming";
 import { newDoc, openDoc, print, save } from "./fileActions";
 import { groupOf, isLockedSelection } from "./groups";
 import { modal } from "./modal.svelte";
@@ -112,13 +113,17 @@ export function handleShortcut(ev: KeyboardEvent) {
     duplicate: duplicateSelection,
     copy: copySelection,
     cut: cutSelection,
-    paste,
     group: groupSelection,
     ungroup: ungroupSelection,
     zoomIn: () => (editor.zoom = nextZoom(editor.effectiveZoom, 1)),
     zoomOut: () => (editor.zoom = nextZoom(editor.effectiveZoom, -1)),
     zoomFit: () => (editor.zoom = "fit"),
   };
+  // Coller : sans empêcher la touche, la vue web envoie l'événement « paste » avec le presse-papiers du système.
+  if (action === "paste") {
+    armPaste();
+    return;
+  }
   if (action && editActions[action]) {
     ev.preventDefault();
     editActions[action]!();

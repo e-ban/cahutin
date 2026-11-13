@@ -1,8 +1,9 @@
 // Actions d'édition sur la sélection, communes aux raccourcis, au clic droit et à la barre flottante.
 // Copié en partie pour l'assistant dans crates/cahutin-mcp/src/decor.rs (légende d'une photo) : changer les deux ensemble.
 import { warnConsent } from "./phototheque.svelte";
-import { copyElements, duplicateElements, pasteElements, removeElements, reorder } from "./clipboard";
+import { copyElements, duplicateElements, pasteElements, removeElements, reorder, reorderStep } from "./clipboard";
 import { editor } from "./docStore.svelte";
+import { markCopy, plainTextOf } from "./systemClipboard";
 import { boundsOf, existingIds, flipped, expandSelection, groupElements, pathOf, isLockedSelection, mirrorElements, rotateElements, scaleElements, ungroup, withPath } from "./groups";
 import { newId } from "./factory";
 import { elementAssets, usedAssetIds } from "./photoLibrary";
@@ -35,6 +36,7 @@ export function copySelection() {
   if (editor.selection.length === 0) return;
   clipboard = copyElements(editor.page, selected());
   clipboardAssets = assetsOf(clipboard);
+  markCopy(plainTextOf(clipboard));
 }
 
 export function cutSelection() {
@@ -62,8 +64,16 @@ export function duplicateSelection() {
   editor.selection = ids;
 }
 
-export function bringSelection(where: "front" | "back") {
-  if (editor.selection.length) editor.updatePage((p) => reorder(p, editor.selection, where));
+export function bringSelection(where: "front" | "back" | "forward" | "backward") {
+  if (!editor.selection.length) return;
+  if (where === "front" || where === "back") editor.updatePage((p) => reorder(p, editor.selection, where));
+  // Déjà tout devant ou tout derrière : rien ne bouge, et pas d'étape d'annulation vide.
+  else if (canBringSelection(where)) editor.updatePage((p) => reorderStep(p, editor.selection, where, editor.inside));
+}
+
+/** Avancer ou reculer d'un cran changerait l'ordre (sinon le bouton est grisé). */
+export function canBringSelection(where: "forward" | "backward"): boolean {
+  return editor.selection.length > 0 && reorderStep(editor.page, editor.selection, where, editor.inside) !== editor.page;
 }
 
 /** Toute la sélection est verrouillée : le bouton propose de la déverrouiller (barre et Réglages). */

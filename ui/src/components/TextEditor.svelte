@@ -11,8 +11,10 @@
   import { onDestroy, onMount } from "svelte";
   import { editor as doc } from "../lib/docStore.svelte";
   import { plainText } from "../lib/fieldNode";
+  import { fr } from "../lib/i18n/fr";
   import { cssFontFamily, fontFamilyName, richToTiptap, tiptapToRich } from "../lib/richtext";
-  import { keepsEditing, textEditing } from "../lib/textEditing.svelte";
+  import { isTableCell, nextCell, pasteCells } from "../lib/table";
+  import { keepsEditing, takeClick, textEditing } from "../lib/textEditing.svelte";
   import { insertLines, readable, textNodes } from "../lib/textNodes";
   import { copiedSlice, rememberCopy, withZoneStyle, type CopiedSlice } from "../lib/textClipboard";
   import type { RichText, TextProps } from "../lib/types";
@@ -92,6 +94,20 @@
               // Passage illisible pour cet éditeur : collé en texte brut.
             }
           }
+          // Cellules copiées dans un tableur, dans une case de tableau : une valeur par case, en un pas
+          // d'annulation, après le texte déjà tapé (enregistré d'abord).
+          const id = doc.editingText;
+          if (id && pasteCells(doc.page, id, text)) {
+            finish();
+            let ignored = 0;
+            doc.updatePage((p) => {
+              const r = pasteCells(p, id, text);
+              ignored = r?.ignored ?? 0;
+              return r?.page ?? p;
+            });
+            if (ignored) doc.notice = fr.pasteCellsIgnored;
+            return true;
+          }
           view.dispatch(insertLines(view.state, text));
           return true;
         },
@@ -106,6 +122,19 @@
         handleKeyDown(_view, event) {
           if (event.key === "Escape") {
             finish();
+            return true;
+          }
+          // Tab dans une case de tableau : la case est validée, la suivante (Maj : la précédente) s'ouvre ; après
+          // la dernière, rien ne s'ouvre. Hors tableau, Tab garde son comportement.
+          const id = doc.editingText;
+          if (event.key === "Tab" && !event.ctrlKey && !event.altKey && !event.metaKey && id && isTableCell(doc.page, id)) {
+            const next = nextCell(doc.page, id, event.shiftKey);
+            finish();
+            if (next) {
+              doc.selection = [next];
+              doc.focusedMember = next;
+              doc.editingText = next;
+            }
             return true;
           }
           return false;
@@ -123,9 +152,11 @@
     textEditing.current = editor;
     // Enregistrer ou fermer pendant la saisie : le texte tapé est validé d'abord.
     stopFlush = doc.onFlush(finish);
-    // Texte modèle tout juste posé : sélectionné en entier, la première frappe le remplace.
+    // Texte modèle tout juste posé : sélectionné en entier, la première frappe le remplace. Sinon, le curseur au
+    // point du double-clic qui a ouvert le texte, ou à la fin.
+    const click = takeClick(doc.editingText ?? "");
     if (doc.selectTextOnEdit) editor.chain().focus().selectAll().run();
-    else editor.commands.focus("end");
+    else editor.commands.focus((click && editor.view.posAtCoords({ left: click.x, top: click.y })?.pos) ?? "end");
     doc.selectTextOnEdit = false;
   });
 

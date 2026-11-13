@@ -148,7 +148,10 @@ pub fn apply_preset(page: &mut Page, preset: GridPreset) {
     }
 }
 
-/// Fusionne `a` et `b` en leur rectangle englobant ; la case `a` garde son type.
+/// Fusionne `a` et `b` en leur rectangle englobant ; la case `a` garde son type. Un texte écrit n'est jamais
+/// perdu, comme pour les tableaux : dès qu'une zone fusionnée contient du texte non vide, la case `a` devient
+/// un texte (style de la première zone écrite) qui réunit le texte de toutes les zones écrites dans l'ordre de
+/// lecture. L'annulation rend les zones d'origine.
 pub fn merge_cells(page: &mut Page, a: &str, b: &str) -> Result<(), GridError> {
     let g = grid_of(page)?;
     let (ia, ib) = (cell_index(g, a)?, cell_index(g, b)?);
@@ -169,9 +172,24 @@ pub fn merge_cells(page: &mut Page, a: &str, b: &str) -> Result<(), GridError> {
             return Err(GridError::NotRectangular);
         }
     }
+    let mut order: Vec<_> = g.cells.iter().filter(|c| c.element_id == a || absorbed.contains(&c.element_id)).map(|c| (c.row, c.col, c.element_id.clone())).collect();
+    order.sort();
     g.cells.retain(|c| !absorbed.contains(&c.element_id));
     let ca = g.cells.iter_mut().find(|c| c.element_id == a).unwrap();
     *ca = GridCell { element_id: a.to_string(), col: c0, row: r0, col_span: c1 - c0, row_span: r1 - r0 };
+    let written: Vec<&TextProps> = order
+        .iter()
+        .filter_map(|(_, _, id)| page.elements.iter().find(|e| &e.id == id))
+        .filter_map(|e| match &e.kind {
+            ElementKind::Text(tx) if !tx.content.is_blank() => Some(tx),
+            _ => None,
+        })
+        .collect();
+    if let Some(first) = written.first() {
+        let mut tx = (*first).clone();
+        tx.content.paragraphs = written.iter().flat_map(|t| t.content.paragraphs.clone()).collect();
+        page.elements.iter_mut().find(|e| e.id == a).unwrap().kind = ElementKind::Text(tx);
+    }
     page.elements.retain(|e| !absorbed.contains(&e.id));
     layout(page);
     Ok(())
@@ -305,6 +323,50 @@ mod tests {
         let c = g.cells.iter().find(|c| c.element_id == a).unwrap();
         assert_eq!(c.col_span, 2);
         assert!(close(frame_of(&p, &a).w_mm, 190.0));
+    }
+
+    fn write(page: &mut Page, cell: &str, text: &str) {
+        set_cell_kind(page, cell, ZoneKind::Text).unwrap();
+        if let Some(ElementKind::Text(tx)) = page.elements.iter_mut().find(|e| e.id == cell).map(|e| &mut e.kind) {
+            tx.content = RichText::plain(text);
+        }
+    }
+
+    fn lines(page: &Page, cell: &str) -> Vec<String> {
+        let ElementKind::Text(tx) = &page.elements.iter().find(|e| e.id == cell).unwrap().kind else { panic!("pas un texte") };
+        tx.content.paragraphs.iter().map(|p| p.runs.iter().map(|r| r.text.as_str()).collect()).collect()
+    }
+
+    #[test]
+    fn merge_gathers_the_text_of_every_zone_in_reading_order() {
+        let mut p = a4();
+        set_grid(&mut p, 2, 2);
+        let (c00, c10, c01, c11) = (cell_at(&p, 0, 0), cell_at(&p, 1, 0), cell_at(&p, 0, 1), cell_at(&p, 1, 1));
+        write(&mut p, &c00, "Lundi");
+        write(&mut p, &c10, " ");
+        write(&mut p, &c01, "Mardi\nmatin");
+        write(&mut p, &c11, "Jeudi");
+        // La zone gardée est celle du bas à droite : l'ordre reste celui de la lecture.
+        merge_cells(&mut p, &c11, &c00).unwrap();
+        assert_eq!(p.grid.as_ref().unwrap().cells.len(), 1);
+        assert_eq!(lines(&p, &c11), ["Lundi", "Mardi", "matin", "Jeudi"]);
+    }
+
+    #[test]
+    fn merge_into_a_photo_zone_keeps_the_written_text() {
+        let mut p = a4();
+        set_grid(&mut p, 2, 1);
+        let (a, b) = (cell_at(&p, 0, 0), cell_at(&p, 1, 0));
+        write(&mut p, &b, "Lundi");
+        merge_cells(&mut p, &a, &b).unwrap();
+        assert_eq!(lines(&p, &a), ["Lundi"]);
+        // Sans texte écrit, la zone gardée garde son type.
+        let mut p = a4();
+        set_grid(&mut p, 2, 1);
+        let (a, b) = (cell_at(&p, 0, 0), cell_at(&p, 1, 0));
+        write(&mut p, &b, "  ");
+        merge_cells(&mut p, &a, &b).unwrap();
+        assert!(matches!(&p.elements.iter().find(|e| e.id == a).unwrap().kind, ElementKind::Photo(_)));
     }
 
     #[test]

@@ -368,3 +368,22 @@ test("undoing a table merge brings back the text of every cell", async () => {
   editor.undo();
   expect(editor.page).toEqual(before);
 });
+
+test("one step forward is one undo step, and a step that changes nothing adds none", async () => {
+  const { bringSelection, canBringSelection } = await import("./editActions");
+  const { textElement } = await import("./factory");
+  const doc = newDocument("o");
+  const [a, b] = [0, 20].map((x) => textElement({ x_mm: x, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 }));
+  doc.pages[0].elements.push(a, b);
+  editor.reset(doc, null);
+  editor.selection = [b.id];
+  expect(canBringSelection("forward")).toBe(false);
+  bringSelection("forward");
+  expect(editor.canUndo).toBe(false);
+  expect(canBringSelection("backward")).toBe(true);
+  bringSelection("backward");
+  expect(editor.page.elements.map((e) => e.id)).toEqual([b.id, a.id]);
+  editor.undo();
+  expect(editor.page.elements.map((e) => e.id)).toEqual([a.id, b.id]);
+  expect(editor.canUndo).toBe(false);
+});

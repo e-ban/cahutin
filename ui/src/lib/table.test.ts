@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { borderSegments, clearTextCell, inTableGroup, isPlacedCell, isTableCell, remapTables, resizeTable, selectedTable, tableOf } from "./table";
+import { barCell, borderSegments, clearTextCell, inTableGroup, isPlacedCell, isTableCell, nextCell, pasteCells, remapTables, resizeTable, selectedTable, tableOf } from "./table";
 import type { Element, GridCell, Page, TableProps } from "./types";
 
 const frame = { x_mm: 0, y_mm: 0, w_mm: 20, h_mm: 10, rotation_deg: 0 };
@@ -105,4 +105,60 @@ test("resizeTable stretches the table and lays its cells out again, text size un
   expect(b.frame.x_mm).toBeCloseTo(40 + (60 - 7) / 2);
   expect(b.frame.y_mm).toBeCloseTo(21.5);
   expect(a.kind.type === "Text" && a.kind.style.size_pt).toBe(14);
+});
+
+/** Tableau 3 colonnes × 2 lignes : « a » couvre les deux premières cases de la première ligne, « p » est un
+ *  pictogramme. Ordre de lecture : a, c, d, p, f. */
+const gridFixture = (): Page => {
+  const textEl = (id: string): Element => ({ id, frame, locked: false, zone: false, group: "g", kind: { type: "Text", content: { paragraphs: [] }, style: { font: "Andika", size_pt: 14, color: "#222222", align: "Left" }, prompt: null } });
+  const cells = [cell("a", 0, 0, 2, 1), cell("c", 2, 0), cell("d", 0, 1), cell("p", 1, 1), cell("f", 2, 1)];
+  const t: Element = { id: "t", frame, locked: false, zone: false, group: "g", kind: { type: "Table", cols: [1, 1, 1], rows: [1, 1], cells, border: null } };
+  return { id: "p", size: { width_mm: 210, height_mm: 297 }, grid: null, elements: [textEl("f"), textEl("a"), textEl("d"), textEl("c"), { ...textEl("p"), kind: { type: "Image", code: "2B50" } }, t] };
+};
+
+const textOf = (page: Page, id: string) => {
+  const e = page.elements.find((x) => x.id === id);
+  return e?.kind.type === "Text" ? e.kind.content.paragraphs.map((p) => p.runs.map((r) => r.text).join("")) : null;
+};
+
+// Tab pendant l'écriture d'une case : la case suivante dans l'ordre de lecture, une case fusionnée comptant pour une.
+test("nextCell follows the reading order, skips pictures and stops at the last cell", () => {
+  const p = gridFixture();
+  expect(nextCell(p, "a")).toBe("c");
+  expect(nextCell(p, "c")).toBe("d");
+  expect(nextCell(p, "d")).toBe("f");
+  expect(nextCell(p, "f")).toBeNull();
+  expect(nextCell(p, "f", true)).toBe("d");
+  expect(nextCell(p, "c", true)).toBe("a");
+  expect(nextCell(p, "a", true)).toBeNull();
+  expect(nextCell(tableFixture(), "z")).toBeNull();
+});
+
+// Cellules copiées dans un tableur : une valeur par case à partir de la case en cours, sans déborder.
+test("pasteCells fills the cells from the current one and counts what does not fit", () => {
+  const p = gridFixture();
+  const out = pasteCells(p, "c", "Lundi\tMardi\r\nJeudi\tVendredi\r\n")!;
+  expect(textOf(out.page, "c")).toEqual(["Lundi"]);
+  expect(textOf(out.page, "f")).toEqual(["Jeudi"]);
+  // « Mardi » et « Vendredi » dépassent à droite du tableau.
+  expect(out.ignored).toBe(2);
+  const all = pasteCells(p, "a", "1\t2\n3\t\t4")!;
+  expect([textOf(all.page, "a"), textOf(all.page, "c"), textOf(all.page, "d"), textOf(all.page, "f")]).toEqual([["1"], ["2"], ["3"], ["4"]]);
+  // Une case vide du tableur ne vide rien ; la case pictogramme ne reçoit pas de texte (vide ici : rien de perdu).
+  expect(all.ignored).toBe(0);
+  expect(pasteCells(p, "a", "x\ty\tz")!.ignored).toBe(1);
+  // Sans tabulation : collé comme un texte ordinaire.
+  expect(pasteCells(p, "a", "Lundi\nMardi")).toBeNull();
+  expect(pasteCells(tableFixture(), "z", "a\tb")).toBeNull();
+});
+
+// Après une case modifiée seule, un simple clic sur une autre case du même tableau la sélectionne seule (on est
+// entré dans le tableau) : la barre du tableau la suit, sans second double-clic.
+test("barCell shows the table bar for a cell clicked inside the entered table", () => {
+  const p = gridFixture();
+  expect(barCell(p, ["c"], "c", ["g"])).toBe("c");
+  expect(barCell(p, ["d"], null, ["g"])).toBe("d");
+  expect(barCell(p, ["d"], null, [])).toBeNull();
+  expect(barCell(p, ["t"], null, ["g"])).toBeNull();
+  expect(barCell(p, ["c", "d"], null, ["g"])).toBeNull();
 });

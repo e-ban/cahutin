@@ -79,6 +79,39 @@ pub fn import_photos(state: State<'_, AppState>, paths: Vec<String>, on_progress
     Ok(())
 }
 
+/// Une image venue d'ailleurs sans chemin (presse-papiers, fichier lâché sur la page) : même filière que
+/// `import_photos` (réencodage sans métadonnées, réduction, copie dans le cache). Les octets arrivent bruts.
+#[tauri::command(async)]
+pub fn import_photo_bytes(state: State<'_, AppState>, request: tauri::ipc::Request<'_>) -> Result<AssetMeta, String> {
+    let data = body_bytes(request.body()).ok_or_else(|| photo::ImportError::Unsupported.message_fr())?;
+    import_photo_bytes_in(&state, &data)
+}
+
+/// Les octets envoyés : bruts, ou en tableau de nombres si la vue web est retombée sur `postMessage`.
+fn body_bytes(body: &tauri::ipc::InvokeBody) -> Option<std::borrow::Cow<'_, [u8]>> {
+    match body {
+        tauri::ipc::InvokeBody::Raw(data) => Some(data.as_slice().into()),
+        tauri::ipc::InvokeBody::Json(v) => serde_json::from_value::<Vec<u8>>(v.clone()).ok().map(Into::into),
+    }
+}
+
+fn import_photo_bytes_in(state: &AppState, data: &[u8]) -> Result<AssetMeta, String> {
+    let cache = state.store.lock().unwrap().cache_dir();
+    let r = photo::import_bytes(data).and_then(|a| photo::stage(cache.as_deref(), a));
+    match r {
+        Ok(staged) => {
+            let meta = staged.meta().clone();
+            state.store.lock().unwrap().commit(staged);
+            log::info!("import_photo_bytes");
+            Ok(meta)
+        }
+        Err(e) => {
+            log::warn!("import_photo_bytes_failed kind={e:?}");
+            Err(e.message_fr())
+        }
+    }
+}
+
 /// Seul un document Cahutin (`.carnet`) peut être mis à la corbeille depuis l'accueil.
 /// Un document Cahutin (`.carnet`) qui existe.
 fn is_carnet_document(path: &std::path::Path) -> bool {
@@ -683,6 +716,27 @@ mod tests {
     use carnet_core::photo::AssetStore;
     use carnet_core::templates::Library;
     use carnet_core::{A4_PORTRAIT, Page, grid};
+
+    /// Une image collée ou lâchée suit la filière de l'import : rangée dans le store, sans métadonnées.
+    #[test]
+    fn image_bytes_from_outside_join_the_store_without_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(dir.path());
+        let data = std::fs::read(fixture("gps.jpg")).unwrap();
+        let meta = import_photo_bytes_in(&state, &data).unwrap();
+        let stored = state.store.lock().unwrap().get(&meta.id).unwrap();
+        assert!(!stored.bytes.windows(4).any(|w| w == b"Exif"));
+        assert!(import_photo_bytes_in(&state, b"pas une image").unwrap_err().contains("format d'image"));
+    }
+
+    /// Octets bruts, ou tableau de nombres quand la vue web retombe sur `postMessage`.
+    #[test]
+    fn image_bytes_arrive_raw_or_as_a_json_array() {
+        use tauri::ipc::InvokeBody;
+        assert_eq!(body_bytes(&InvokeBody::Raw(vec![1, 2, 3])).as_deref(), Some(&[1u8, 2, 3][..]));
+        assert_eq!(body_bytes(&InvokeBody::Json(serde_json::json!([1, 2, 255]))).as_deref(), Some(&[1u8, 2, 255][..]));
+        assert_eq!(body_bytes(&InvokeBody::Json(serde_json::json!({ "a": 1 }))), None);
+    }
 
     #[test]
     fn blur_of_an_unknown_photo_is_a_french_error() {

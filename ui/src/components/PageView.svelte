@@ -17,6 +17,7 @@
   import { PX_PER_MM, mmToPx, ptToPx } from "../lib/units";
   import { settings } from "../lib/settings.svelte";
   import { isPlacedCell } from "../lib/table";
+  import { textEditing } from "../lib/textEditing.svelte";
   import { IS_LINUX, resizeCursor } from "../lib/cursors";
   import { pixelRatio } from "../lib/pixelRatio.svelte";
   import type { Crop, Document, Element, Frame, Page, RichText } from "../lib/types";
@@ -33,6 +34,7 @@
     ondropasset,
     ondropmyimage,
     ondropclassphoto,
+    ondropfiles,
     oncropstart,
     oncropend,
     oncrop,
@@ -56,6 +58,8 @@
     ondropmyimage?: (name: string, elementId: string | null, xMm: number, yMm: number) => void;
     /** Une photo de la photothèque de la classe glissée : son identifiant. */
     ondropclassphoto?: (id: string, elementId: string | null, xMm: number, yMm: number) => void;
+    /** Des fichiers lâchés depuis l'explorateur (aucun : un lien venu d'une page internet). */
+    ondropfiles?: (files: File[], xMm: number, yMm: number) => void;
     oncropstart?: (id: string) => void;
     /** Sortie du recadrage, une fois le dernier geste enregistré par `oncrop`. */
     oncropend?: (id: string) => void;
@@ -85,13 +89,15 @@
   let trimFrom: { handle: Handle; x: number; y: number; frame: Frame; crop: Crop; trims: Trims } | null = null;
 
   /** Double-clic : un élément groupé est modifié seul ; une photo se recadre, un texte s'écrit. */
-  function activate(e: Element) {
+  function activate(e: Element, ev: MouseEvent) {
     // Dans un groupe de groupes, le double-clic entre d'abord d'un niveau, sans recadrer ni écrire.
     if (e.group && onfocusmember?.(e.id) === false) return;
     if (e.kind.type === "Photo" && e.kind.asset && !e.locked) {
       liveCrop = null;
       oncropstart?.(e.id);
     } else if (e.kind.type === "Text" && !e.locked) {
+      // Le curseur se pose au point du double-clic (pas dans un texte déjà ouvert : le double-clic y prend un mot).
+      if (e.id !== editingText) textEditing.click = { id: e.id, x: ev.clientX, y: ev.clientY };
       onedittext?.(e.id);
     }
   }
@@ -120,7 +126,7 @@
   }
 
   function acceptsAsset(ev: DragEvent): boolean {
-    return [ASSET_MIME, PICTO_MIME, MY_IMAGE_MIME, CLASS_PHOTO_MIME].some((t) => ev.dataTransfer?.types.includes(t));
+    return [ASSET_MIME, PICTO_MIME, MY_IMAGE_MIME, CLASS_PHOTO_MIME, "Files", "text/uri-list"].some((t) => ev.dataTransfer?.types.includes(t));
   }
 
   function drop(ev: DragEvent, elementId: string | null) {
@@ -142,6 +148,11 @@
     const classPhoto = ev.dataTransfer!.getData(CLASS_PHOTO_MIME);
     if (classPhoto) {
       ondropclassphoto?.(classPhoto, elementId, xMm, yMm);
+      return;
+    }
+    // Venu d'ailleurs que des tiroirs : des fichiers de l'explorateur, ou un lien d'une page internet.
+    if (!ev.dataTransfer!.types.includes(ASSET_MIME)) {
+      ondropfiles?.(Array.from(ev.dataTransfer!.files), xMm, yMm);
       return;
     }
     ondropasset?.(ev.dataTransfer!.getData(ASSET_MIME), elementId, xMm, yMm);
@@ -281,7 +292,7 @@
     if ((ev.target as HTMLElement).closest(".element")) return;
     const id = elementUnder(ev.clientX, ev.clientY);
     const e = id ? page.elements.find((x) => x.id === id) : undefined;
-    if (e) activate(e);
+    if (e) activate(e, ev);
   }}
   ondragover={(ev) => {
     if (acceptsAsset(ev)) ev.preventDefault();
@@ -352,7 +363,7 @@
         if (wheelTimer) clearTimeout(wheelTimer);
         wheelTimer = setTimeout(() => commitLive(e), WHEEL_COMMIT_MS);
       }}
-      ondblclick={() => activate(e)}
+      ondblclick={(ev) => activate(e, ev)}
       ondragover={(ev) => {
         if (acceptsAsset(ev) && e.kind.type === "Photo" && !e.locked) {
           ev.preventDefault();

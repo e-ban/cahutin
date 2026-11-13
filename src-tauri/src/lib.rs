@@ -95,6 +95,7 @@ pub fn run() {
             backup::backup_clear,
             backup::backup_discard,
             commands::import_photos,
+            commands::import_photo_bytes,
             commands::existing_paths,
             commands::document_trash,
             commands::launch_document,

@@ -52,6 +52,39 @@ export function reorder(page: Page, selected: string[], where: "front" | "back")
   return { ...page, elements: where === "front" ? [...rest, ...moved] : [...moved, ...rest] };
 }
 
+/** Avance ou recule d'un cran parmi les blocs de la page, ou du groupe `inside` où l'on est entré (un groupe
+ *  compte pour un bloc) ; plusieurs blocs gardent leur ordre. Rien à faire : la même page. */
+export function reorderStep(page: Page, selected: string[], dir: "forward" | "backward", inside: string[] = []): Page {
+  const slots: number[] = [];
+  const blocks: { key: string; els: Element[] }[] = [];
+  page.elements.forEach((e, i) => {
+    const p = pathOf(e);
+    if (!inside.every((g, d) => p[d] === g)) return;
+    slots.push(i);
+    const key = p.length > inside.length ? `g:${p[inside.length]}` : `e:${e.id}`;
+    const block = blocks.find((b) => b.key === key);
+    if (block) block.els.push(e);
+    else blocks.push({ key, els: [e] });
+  });
+  const sel = blocks.map((b) => b.els.some((e) => selected.includes(e.id)));
+  let moved = false;
+  const swap = (i: number, j: number) => {
+    [blocks[i], blocks[j]] = [blocks[j], blocks[i]];
+    [sel[i], sel[j]] = [sel[j], sel[i]];
+    moved = true;
+  };
+  if (dir === "forward") {
+    for (let i = blocks.length - 2; i >= 0; i--) if (sel[i] && !sel[i + 1]) swap(i, i + 1);
+  } else {
+    for (let i = 1; i < blocks.length; i++) if (sel[i] && !sel[i - 1]) swap(i, i - 1);
+  }
+  if (!moved) return page;
+  const order = blocks.flatMap((b) => b.els);
+  const elements = [...page.elements];
+  slots.forEach((slot, k) => (elements[slot] = order[k]));
+  return { ...page, elements };
+}
+
 /** Les éléments verrouillés restent, sauf `withLocked` (mode modèle, où l'on règle les éléments fixés) ;
  *  une case de grille supprimée disparaît aussi de la grille. */
 export function removeElements(page: Page, ids: string[], withLocked = false): Page {

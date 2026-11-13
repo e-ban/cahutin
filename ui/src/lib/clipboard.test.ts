@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { copyElements, duplicateElements, pasteElements, removeElements, reorder } from "./clipboard";
+import { copyElements, duplicateElements, pasteElements, removeElements, reorder, reorderStep } from "./clipboard";
 import type { Element, Page } from "./types";
 
 const el = (id: string, x = 10, extra: Partial<Element> = {}): Element => ({
@@ -118,4 +118,39 @@ test("a pasted group of groups gets its own ids at every level", () => {
   expect([b.group, b.subgroups]).toEqual([a.group, a.subgroups]);
   expect(c.group).toBe(a.group);
   expect(c.subgroups).toBeUndefined();
+});
+
+const ids = (p: Page) => p.elements.map((e) => e.id);
+
+test("reorderStep moves one step forward or backward among the page's elements", () => {
+  const p = page([el("a"), el("b"), el("c"), el("d")]);
+  expect(ids(reorderStep(p, ["b"], "forward"))).toEqual(["a", "c", "b", "d"]);
+  expect(ids(reorderStep(p, ["c"], "backward"))).toEqual(["a", "c", "b", "d"]);
+});
+
+test("reorderStep keeps the order between several chosen elements", () => {
+  const p = page([el("a"), el("b"), el("c"), el("d")]);
+  expect(ids(reorderStep(p, ["a", "b"], "forward"))).toEqual(["c", "a", "b", "d"]);
+  expect(ids(reorderStep(p, ["a", "c"], "forward"))).toEqual(["b", "a", "d", "c"]);
+  expect(ids(reorderStep(p, ["b", "d"], "backward"))).toEqual(["b", "a", "d", "c"]);
+});
+
+test("reorderStep changes nothing, and returns the same page, at the very front or back", () => {
+  const p = page([el("a"), el("b"), el("c")]);
+  expect(reorderStep(p, ["c"], "forward")).toBe(p);
+  expect(reorderStep(p, ["b", "c"], "forward")).toBe(p);
+  expect(reorderStep(p, ["a"], "backward")).toBe(p);
+});
+
+test("reorderStep moves a group as one block and steps over a whole group", () => {
+  const p = page([el("a"), el("g1", 10, { group: "g" }), el("g2", 10, { group: "g" }), el("b")]);
+  expect(ids(reorderStep(p, ["a"], "forward"))).toEqual(["g1", "g2", "a", "b"]);
+  expect(ids(reorderStep(p, ["g1"], "forward"))).toEqual(["a", "b", "g1", "g2"]);
+});
+
+test("inside a group, reorderStep moves among the group's members only", () => {
+  const p = page([el("x"), el("g1", 10, { group: "g" }), el("y"), el("g2", 10, { group: "g" }), el("g3", 10, { group: "g" })]);
+  expect(ids(reorderStep(p, ["g1"], "forward", ["g"]))).toEqual(["x", "g2", "y", "g1", "g3"]);
+  expect(reorderStep(p, ["g3"], "forward", ["g"])).toBe(p);
+  expect(reorderStep(p, ["g1"], "backward", ["g"])).toBe(p);
 });

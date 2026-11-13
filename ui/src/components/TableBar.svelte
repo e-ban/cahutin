@@ -1,6 +1,7 @@
 <script lang="ts">
-  // Barre d'une case de tableau modifiée seule (après un double-clic), sous la case : lignes, colonnes,
-  // fusion et contenu. La barre flottante de la case (texte, fond) reste au-dessus.
+  // Barre d'une case de tableau modifiée seule (après un double-clic, puis d'un clic sur une autre case du
+  // tableau), sous la case : lignes, colonnes, fusion et contenu. La barre flottante de la case (texte, fond)
+  // reste au-dessus.
   import { tick } from "svelte";
   import Icon from "./Icon.svelte";
   import { tableInsertCol, tableInsertRow, tableMerge, tableRemoveCol, tableRemoveRow, tableSetCell, tableSplit } from "../lib/api";
@@ -8,7 +9,7 @@
   import { editor } from "../lib/docStore.svelte";
   import { runOnPage } from "../lib/editActions";
   import { fr } from "../lib/i18n/fr";
-  import { tableOf } from "../lib/table";
+  import { barCell, tableOf } from "../lib/table";
   import type { CellContent, GridCell } from "../lib/types";
 
   let { pageEl, stageEl }: { pageEl: HTMLElement | undefined; stageEl: HTMLElement | undefined } = $props();
@@ -19,7 +20,7 @@
   let barEl = $state<HTMLElement>();
   let pos = $state<{ left: number; top: number } | null>(null);
 
-  const cellId = $derived(editor.selection.length === 1 && editor.focusedMember === editor.selection[0] ? editor.selection[0] : null);
+  const cellId = $derived(barCell(editor.page, editor.selection, editor.focusedMember, editor.inside));
   const table = $derived(cellId ? tableOf(editor.page, cellId) : undefined);
   const grid = $derived(table?.kind.type === "Table" && table.id !== cellId ? table.kind : null);
   const cell = $derived(grid?.cells.find((c) => c.element_id === cellId));

@@ -7,6 +7,12 @@
 - Tableaux : fusionner des cases garde leur texte, réuni ligne par ligne.
 - Annuler : déplacer un élément en gardant une flèche enfoncée s'annule d'un seul coup, sans effacer les modifications précédentes ; Annuler et Rétablir affichent la page modifiée, même depuis une autre page.
 - Export LibreOffice Draw : un champ de la classe pas encore rempli (prénom, nom...) reste blanc, comme sur la feuille imprimée, à la même place.
+- Coller une image ou un texte copié dans un autre logiciel (navigateur, capture d'écran, Word), ou glisser des photos depuis ses dossiers : ils se posent sur la page. Rien n'est téléchargé : une image d'un site copiée sans ses pixels n'est pas chargée.
+- Texte : le double-clic place le curseur à l'endroit cliqué.
+- Tableaux : Tab passe à la case suivante, Maj+Tab à la précédente ; des cellules copiées depuis un tableur se collent une par case ; un clic sur une autre case affiche la barre du tableau.
+- Modèles : fusionner deux zones ne perd plus le texte écrit.
+- Aligner : un élément choisi seul s'aligne sur la page, centré ou à 1 cm d'un bord.
+- Ordre : « Avancer d'un cran » et « Reculer d'un cran » (clic droit et réglages).
 
 
 ## 0.17.0

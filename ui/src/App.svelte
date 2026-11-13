@@ -65,6 +65,7 @@
   import ProposalBar from "./components/assistant/ProposalBar.svelte";
   import { fonts } from "./lib/fonts.svelte";
   import { addPhotoAt } from "./lib/editActions";
+  import { dropFiles, guardWindowDrop, handlePasteEvent } from "./lib/incoming";
   import { expandSelection, groupOf, pathOf } from "./lib/groups";
   import { pictoElement, pictos } from "./lib/pictos.svelte";
   import { endNudge, handleKeyUp, handleShortcut, handleWheelZoom } from "./lib/shortcuts";
@@ -339,7 +340,7 @@
   </button>
 {/snippet}
 
-<svelte:window onkeydown={handleShortcut} onkeyup={handleKeyUp} onblur={endNudge} />
+<svelte:window onkeydown={handleShortcut} onkeyup={handleKeyUp} onblur={endNudge} onpaste={handlePasteEvent} ondragover={guardWindowDrop} ondrop={guardWindowDrop} />
 
 <!-- Pendant la visite ou le panneau Astuces, l'application est inerte : ni clic ni clavier ne l'atteignent. -->
 <div class="app" inert={tour.step !== null || editor.showTips}>
@@ -380,6 +381,7 @@
       ondropasset={dropAsset}
       ondropmyimage={dropMyImage}
       ondropclassphoto={dropClassPhoto}
+      ondropfiles={dropFiles}
       oncropstart={(id) => {
         editor.selection = [id];
         editor.cropping = id;

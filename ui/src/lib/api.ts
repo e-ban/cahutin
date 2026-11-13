@@ -8,6 +8,8 @@ export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => v
   onProgress.onmessage = onOutcome;
   return invoke<void>("import_photos", { paths, onProgress });
 }
+/** Une image sans chemin (presse-papiers, fichier lâché) : même filière que `importPhotos`, octets bruts. */
+export const importPhotoBytes = (bytes: Uint8Array) => invoke<AssetMeta>("import_photo_bytes", bytes);
 /** L'index tel qu'il est enregistré, tout de suite, sans parcourir le disque. */
 export const photothequeOpen = (classPath: string) => invoke<Phototheque>("phototheque_open", { classPath });
 /** Parcourt les dossiers suivis ; `onEvent` reçoit les photos au fil de l'eau, puis l'index complet. */

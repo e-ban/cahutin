@@ -48,11 +48,18 @@ fn hash_of(library_dir: &Path, p: &ClassPhoto) -> Option<u64> {
     Some(dhash(&img))
 }
 
+/// Une copie faite par l'ancienne photothèque : dans le dossier des copies, sous le nom `<id>.<ext>` de sa photo
+/// (la règle de l'interface). Toute autre photo de ce dossier est à l'enseignant : jamais une copie.
+pub fn is_copy(p: &ClassPhoto, copies_folder: &Path) -> bool {
+    let path = Path::new(&p.path);
+    path.starts_with(copies_folder) && path.extension().is_some() && path.file_stem().is_some_and(|s| *s == *p.id)
+}
+
 fn ratio(p: &ClassPhoto) -> f64 {
     f64::from(p.width_px) / f64::from(p.height_px.max(1))
 }
 
-/// Pour chaque photo du dossier des copies (`copies_folder`), l'original parmi les photos des autres dossiers
+/// Pour chaque copie du dossier des copies (`copies_folder`, voir `is_copy`), l'original parmi les photos des autres dossiers
 /// suivis : même jour (si les deux sont datées), proportions à moins de 1 %, dHash à au plus 10 ; un seul
 /// candidat au plus proche, sinon pas de rapprochement.
 /// Deux copies du même original le retrouvent toutes les deux : leurs étiquettes seront réunies sur lui.
@@ -60,7 +67,7 @@ pub fn find_originals(lib: &Phototheque, library_dir: &Path, copies_folder: &str
     let root = Path::new(copies_folder);
     let in_copies = |p: &ClassPhoto| Path::new(&p.path).starts_with(root);
     // Les copies déjà masquées ou absentes ne sont plus à traiter.
-    let copies: Vec<&ClassPhoto> = lib.photos.iter().filter(|p| in_copies(p) && !p.hidden && !p.missing).collect();
+    let copies: Vec<&ClassPhoto> = lib.photos.iter().filter(|p| is_copy(p, root) && !p.hidden && !p.missing).collect();
     let candidates: Vec<(&ClassPhoto, u64)> =
         lib.photos.iter().filter(|p| !in_copies(p) && !p.hidden && !p.missing).filter_map(|p| hash_of(library_dir, p).map(|h| (p, h))).collect();
     let mut report = OriginalsReport::default();
@@ -171,6 +178,10 @@ mod tests {
         follow(&mut lib, &library).unwrap();
         follow(&mut lib, &originals).unwrap();
         scan(&mut lib, &library, &mut |_| {});
+        // Comme l'ancienne photothèque : une copie porte pour nom l'identifiant de sa photo.
+        for p in lib.photos.iter_mut().filter(|p| Path::new(&p.path).starts_with(&library)) {
+            p.id = Path::new(&p.path).file_stem().unwrap().to_string_lossy().into_owned();
+        }
         Setup { _tmp: tmp, library, originals, lib }
     }
 
@@ -229,6 +240,18 @@ mod tests {
         assert_eq!(report(&s).matches.len(), 1, "sans date, le jour ne compte pas");
         s.lib.photos.iter_mut().find(|p| p.id == original).unwrap().width_px = 900;
         assert!(report(&s).matches.is_empty());
+    }
+
+    #[test]
+    fn a_teacher_photo_in_the_class_folder_is_not_a_copy() {
+        let mut s = setup(&[1], &[1, 2]);
+        // L'enseignant a rangé là une photo à lui, dont le double est dans « Originaux ».
+        std::fs::write(s.library.join("IMG_0002.jpg"), jpeg(&pattern(2))).unwrap();
+        scan(&mut s.lib, &s.library, &mut |_| {});
+        let teacher = id_of(&s, "IMG_0002.jpg");
+        let r = report(&s);
+        assert_eq!(r.matches.len(), 1);
+        assert!(r.matches.iter().all(|m| m.copy != teacher) && !r.unmatched.contains(&teacher), "{r:?}");
     }
 
     #[test]

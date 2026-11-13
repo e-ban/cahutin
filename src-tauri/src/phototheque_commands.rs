@@ -261,8 +261,9 @@ pub fn phototheque_find_originals(state: State<'_, AppState>) -> Result<Original
 /// échoue, rien ne change.
 pub fn apply_originals_in(state: &AppState, matches: &[Match], to_trash: impl FnOnce(&[PathBuf]) -> Result<(), String>) -> Result<Phototheque, String> {
     with_open(state, |dir, index| {
-        // Seules les copies du dossier de la classe peuvent partir à la corbeille, jamais une photo de l'enseignant.
-        let matches: Vec<Match> = matches.iter().filter(|m| index.photos.iter().any(|p| p.id == m.copy && Path::new(&p.path).starts_with(dir))).cloned().collect();
+        // Seules les copies faites par Cahutin (`<id>.<ext>` dans le dossier de la classe) peuvent partir à la
+        // corbeille, jamais une photo de l'enseignant.
+        let matches: Vec<Match> = matches.iter().filter(|m| index.photos.iter().any(|p| p.id == m.copy && originals::is_copy(p, dir))).cloned().collect();
         let mut updated = index.clone();
         let files: Vec<PathBuf> = originals::apply_originals(&mut updated, &matches).into_iter().filter(|f| f.exists()).collect();
         if !files.is_empty() {
@@ -545,6 +546,28 @@ mod tests {
         assert_eq!(with_open(&s, |_, i| Ok(i.clone())).unwrap(), before);
         assert_eq!(std::fs::read(library.join(INDEX_FILE)).unwrap(), saved);
         assert!(library.join("c1.jpg").exists());
+    }
+
+    #[test]
+    fn a_teacher_photo_in_the_class_folder_never_goes_to_the_trash() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, library, originals) = old_library(dir.path());
+        // Une photo de l'enseignant rangée dans le dossier de la classe, avec son double dans « Originaux ».
+        jpeg(&library.join("IMG_0001.jpg"), 1);
+        scan(&s);
+        let lib = with_open(&s, |_, i| Ok(i.clone())).unwrap();
+        let teacher = lib.photos.iter().find(|p| p.path == library.join("IMG_0001.jpg").to_string_lossy()).unwrap().id.clone();
+        let report = find_originals_in(&s).unwrap();
+        assert!(report.matches.iter().all(|m| m.copy != teacher) && !report.unmatched.contains(&teacher), "{report:?}");
+        let original = lib.photos.iter().find(|p| p.path == originals.join("IMG_0001.jpg").to_string_lossy()).unwrap().id.clone();
+        let trashed = Mutex::new(vec![]);
+        apply_originals_in(&s, &[Match { copy: teacher, original }], |files| {
+            trashed.lock().unwrap().extend_from_slice(files);
+            Ok(())
+        })
+        .unwrap();
+        assert!(trashed.into_inner().unwrap().is_empty());
+        assert!(library.join("IMG_0001.jpg").exists());
     }
 
     #[test]

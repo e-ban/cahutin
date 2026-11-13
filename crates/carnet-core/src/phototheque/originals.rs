@@ -59,6 +59,18 @@ fn ratio(p: &ClassPhoto) -> f64 {
     f64::from(p.width_px) / f64::from(p.height_px.max(1))
 }
 
+/// Proportions de la photo telle qu'elle se montre : les dimensions de l'index sont celles du fichier, sans
+/// l'étiquette d'orientation ; une étiquette 5 à 8 (photo de téléphone tenu en portrait) les échange. Seul
+/// l'en-tête du fichier est lu.
+fn shown_ratio(p: &ClassPhoto) -> f64 {
+    let turned = std::fs::File::open(&p.path)
+        .ok()
+        .and_then(|f| exif::Reader::new().read_from_container(&mut std::io::BufReader::new(f)).ok())
+        .and_then(|e| e.get_field(exif::Tag::Orientation, exif::In::PRIMARY).and_then(|f| f.value.get_uint(0)))
+        .is_some_and(|o| (5..=8).contains(&o));
+    if turned { 1.0 / ratio(p) } else { ratio(p) }
+}
+
 /// Pour chaque copie du dossier des copies (`copies_folder`, voir `is_copy`), l'original parmi les photos des autres dossiers
 /// suivis : même jour (si les deux sont datées), proportions à moins de 1 %, dHash à au plus 10 ; un seul
 /// candidat au plus proche, sinon pas de rapprochement.
@@ -80,7 +92,8 @@ pub fn find_originals(lib: &Phototheque, library_dir: &Path, copies_folder: &str
                     _ => true,
                 };
                 let distance = (h ^ ch).count_ones();
-                if !same_day || distance > MAX_DISTANCE || (ratio(copy) / ratio(c) - 1.0).abs() >= MAX_RATIO_GAP {
+                // Les copies sont déjà redressées ; l'original est lu seulement s'il est assez proche.
+                if !same_day || distance > MAX_DISTANCE || (ratio(copy) / shown_ratio(c) - 1.0).abs() >= MAX_RATIO_GAP {
                     continue;
                 }
                 match best.first() {
@@ -240,6 +253,40 @@ mod tests {
         assert_eq!(report(&s).matches.len(), 1, "sans date, le jour ne compte pas");
         s.lib.photos.iter_mut().find(|p| p.id == original).unwrap().width_px = 900;
         assert!(report(&s).matches.is_empty());
+    }
+
+    /// Une photo de téléphone tenu en portrait : enregistrée en 1200 x 900, avec l'étiquette EXIF « tourner de
+    /// 90° » (orientation 6) ; montrée en 900 x 1200.
+    fn jpeg_turned(img: &RgbImage) -> Vec<u8> {
+        use image::{ExtendedColorType, ImageEncoder, codecs::jpeg::JpegEncoder};
+        let mut tiff = b"II*\0\x08\0\0\0\x01\0".to_vec();
+        tiff.extend_from_slice(&[0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0]);
+        let mut out = Vec::new();
+        let mut encoder = JpegEncoder::new(&mut out);
+        encoder.set_exif_metadata(tiff).unwrap();
+        encoder.write_image(img.as_raw(), img.width(), img.height(), ExtendedColorType::Rgb8).unwrap();
+        out
+    }
+
+    #[test]
+    fn a_turned_phone_photo_finds_its_original() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (library, originals) = (tmp.path().join("Classe"), tmp.path().join("Originaux"));
+        std::fs::create_dir_all(&library).unwrap();
+        std::fs::create_dir_all(&originals).unwrap();
+        let raw = jpeg_turned(&pattern(1));
+        let copy = crate::photo::import_bytes(&raw).unwrap();
+        assert!(copy.meta.height_px > copy.meta.width_px, "la copie est redressée, en portrait");
+        std::fs::write(library.join("copie.jpg"), &*copy.bytes).unwrap();
+        std::fs::write(originals.join("IMG_0001.jpg"), &raw).unwrap();
+        let mut lib = Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![] };
+        follow(&mut lib, &library).unwrap();
+        follow(&mut lib, &originals).unwrap();
+        scan(&mut lib, &library, &mut |_| {});
+        let c = lib.photos.iter_mut().find(|p| p.path.ends_with("copie.jpg")).unwrap();
+        c.id = "copie".into();
+        let r = find_originals(&lib, &library, &library.to_string_lossy());
+        assert_eq!((r.matches.len(), r.unmatched.len()), (1, 0), "{r:?}");
     }
 
     #[test]

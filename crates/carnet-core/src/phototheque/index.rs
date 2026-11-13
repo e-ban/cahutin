@@ -26,6 +26,8 @@ pub struct FollowedFolder {
 #[ts(export)]
 pub struct ClassPhoto {
     pub id: Id,
+    /// Dimensions du fichier telles qu'enregistrées, sans son étiquette d'orientation (une copie de la
+    /// version 1 est déjà redressée).
     pub width_px: u32,
     pub height_px: u32,
     pub mime: Mime,

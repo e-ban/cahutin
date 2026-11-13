@@ -2,10 +2,7 @@
   // Édition d'une zone de texte avec TipTap, limitée à la mise en forme exportable en ODG.
   import { Editor } from "@tiptap/core";
   import Bold from "@tiptap/extension-bold";
-  import Document from "@tiptap/extension-document";
   import Italic from "@tiptap/extension-italic";
-  import Paragraph from "@tiptap/extension-paragraph";
-  import Text from "@tiptap/extension-text";
   import TextAlign from "@tiptap/extension-text-align";
   import { Color, FontFamily, FontSize, TextStyle } from "@tiptap/extension-text-style";
   import Underline from "@tiptap/extension-underline";
@@ -13,9 +10,10 @@
   import { Slice } from "@tiptap/pm/model";
   import { onDestroy, onMount } from "svelte";
   import { editor as doc } from "../lib/docStore.svelte";
-  import { ClassField, plainText } from "../lib/fieldNode";
-  import { cssFontFamily, fontFamilyName, richToTiptap, sanitizePlainText, tiptapToRich } from "../lib/richtext";
+  import { plainText } from "../lib/fieldNode";
+  import { cssFontFamily, fontFamilyName, richToTiptap, tiptapToRich } from "../lib/richtext";
   import { keepsEditing, textEditing } from "../lib/textEditing.svelte";
+  import { insertLines, readable, textNodes } from "../lib/textNodes";
   import { copiedSlice, rememberCopy, withZoneStyle, type CopiedSlice } from "../lib/textClipboard";
   import type { RichText, TextProps } from "../lib/types";
 
@@ -43,21 +41,22 @@
   let host: HTMLDivElement;
   let editor: Editor | null = null;
   let finished = false;
+  // Texte enregistré que l'éditeur ne sait pas lire : TipTap ouvre une zone vide, qui ne doit pas l'effacer.
+  let unreadable = false;
   let stopFlush: (() => void) | null = null;
 
   function finish() {
     if (finished || !editor) return;
     finished = true;
-    ondone(tiptapToRich(editor.getJSON(), props.style));
+    ondone(unreadable ? props.content : tiptapToRich(editor.getJSON(), props.style));
   }
 
   onMount(() => {
+    const content = richToTiptap(props.content);
     editor = new Editor({
       element: host,
       extensions: [
-        Document,
-        Paragraph,
-        Text,
+        ...textNodes,
         Bold,
         Italic,
         Underline,
@@ -67,10 +66,9 @@
         FontSize,
         TextAlign.configure({ types: ["paragraph"], alignments: ["left", "center", "right", "justify"] }),
         UndoRedo,
-        ClassField,
         Placeholder.configure({ placeholder: props.prompt ?? "" }),
       ],
-      content: richToTiptap(props.content),
+      content,
       editorProps: {
         attributes: { class: "tiptap-host", spellcheck: "true", lang: "fr" },
         // Copie : le texte va au presse-papiers, le passage et sa mise en forme (avec le style de la zone) sont
@@ -94,7 +92,7 @@
               // Passage illisible pour cet éditeur : collé en texte brut.
             }
           }
-          view.dispatch(view.state.tr.insertText(sanitizePlainText(text)));
+          view.dispatch(insertLines(view.state, text));
           return true;
         },
         handleDrop(view, event) {
@@ -102,7 +100,7 @@
           if (!text) return false;
           event.preventDefault();
           const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? view.state.selection.from;
-          view.dispatch(view.state.tr.insertText(sanitizePlainText(text), pos));
+          view.dispatch(insertLines(view.state, text, pos));
           return true;
         },
         handleKeyDown(_view, event) {
@@ -121,6 +119,7 @@
       onSelectionUpdate: () => queueMicrotask(() => textEditing.tick++),
       onTransaction: () => queueMicrotask(() => textEditing.tick++),
     });
+    unreadable = !readable(editor.schema, content);
     textEditing.current = editor;
     // Enregistrer ou fermer pendant la saisie : le texte tapé est validé d'abord.
     stopFlush = doc.onFlush(finish);

@@ -68,7 +68,8 @@ function paragraphFrom(node: JSONContent, style: TextStyle): Paragraph {
     if (child.type === "text") pushRun(runs, runFrom(child, style));
     // Un champ de la classe (pastille) redevient ses accolades, avec la mise en forme de la pastille.
     else if (child.type === "classField") pushRun(runs, { ...runFrom({ text: "", marks: child.marks }, style), text: `{${child.attrs?.key}}` });
-    else if (child.type === "hardBreak") pushRun(runs, { ...(runs.at(-1) ?? runFrom({ text: "" }, style)), text: "\n" });
+    // Un retour à la ligne garde la mise en forme de son passage : le texte se rouvre et s'enregistre à l'identique.
+    else if (child.type === "hardBreak") pushRun(runs, { ...runFrom({ text: "", marks: child.marks }, style), text: "\n" });
   }
   const css = node.attrs?.textAlign;
   const align = typeof css === "string" ? (CSS_TO_ALIGN[css] ?? null) : null;
@@ -96,16 +97,16 @@ export function richToTiptap(rt: RichText): JSONContent {
       const node: JSONContent = { type: "paragraph", attrs: { textAlign: p.align ? ALIGN_TO_CSS[p.align] : null } };
       const content: JSONContent[] = [];
       for (const r of p.runs) {
+        const marks: JSONContent["marks"] = [];
+        if (r.bold) marks.push({ type: "bold" });
+        if (r.italic) marks.push({ type: "italic" });
+        if (r.underline) marks.push({ type: "underline" });
+        if (r.color || r.font || r.size_pt) {
+          marks.push({ type: "textStyle", attrs: { color: r.color, fontFamily: r.font, fontSize: r.size_pt ? `${r.size_pt}pt` : null } });
+        }
         r.text.split("\n").forEach((piece, i) => {
-          if (i > 0) content.push({ type: "hardBreak" });
+          if (i > 0) content.push(marks.length ? { type: "hardBreak", marks } : { type: "hardBreak" });
           if (!piece) return;
-          const marks: JSONContent["marks"] = [];
-          if (r.bold) marks.push({ type: "bold" });
-          if (r.italic) marks.push({ type: "italic" });
-          if (r.underline) marks.push({ type: "underline" });
-          if (r.color || r.font || r.size_pt) {
-            marks.push({ type: "textStyle", attrs: { color: r.color, fontFamily: r.font, fontSize: r.size_pt ? `${r.size_pt}pt` : null } });
-          }
           // Chaque champ de la classe devient une pastille, un seul caractère pour l'éditeur.
           for (const part of splitFields(piece)) {
             if ("field" in part) content.push(marks.length ? { type: "classField", attrs: { key: part.field }, marks } : { type: "classField", attrs: { key: part.field } });

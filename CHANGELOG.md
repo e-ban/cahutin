@@ -1,6 +1,11 @@
 # Journal des versions
 
 
+## Non publié
+
+- Texte : un texte collé sur plusieurs lignes ne s'efface plus quand on le reprend ; Maj+Entrée va à la ligne.
+
+
 ## 0.17.0
 
 - Fiches de graphisme : dans le tiroir Formes > Graphisme, « Pointillés » (toute la ligne, la moitié, quelques-uns ou aucun, pour que l'enfant continue seul ; ou « De moins en moins, ligne après ligne »), « Lignes guides » (ligne de base, couloir de deux lignes ou aucune) et « Flèche de départ », qui montre dans quel sens commencer.

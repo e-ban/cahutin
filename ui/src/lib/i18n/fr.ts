@@ -502,7 +502,7 @@ export const fr = {
     "Entendu, cette question ne reviendra plus. Vos photos restent comme elles sont. Le lien « Retrouver les originaux » reste en bas de la colonne de gauche.",
   librarySearching: "Recherche des originaux…",
   libraryOriginalsFound: (n: number, m: number) =>
-    `${n > 1 ? `${n} photos retrouvées` : `${n} photo retrouvée`}, ${m > 1 ? `${m} non retrouvées` : `${m} non retrouvée`}. ${n > 1 ? `Mettre les ${n} copies à la corbeille ?` : "Mettre la copie à la corbeille ?"} Les enfants et activités sont reportés sur les originaux.`,
+    `${n > 1 ? `${n} photos retrouvées` : `${n} photo retrouvée`}${m > 1 ? `, ${m} non retrouvées` : m === 1 ? ", 1 non retrouvée" : ""}. ${n > 1 ? `Mettre les ${n} copies à la corbeille ?` : "Mettre la copie à la corbeille ?"} Les enfants et activités sont reportés sur les originaux.`,
   libraryOriginalsNone:
     "Aucun original retrouvé dans les dossiers suivis : rien n'a changé. Ajoutez le dossier où sont vos originaux, puis « Retrouver les originaux ».",
   libraryOriginalsDone: (n: number) =>

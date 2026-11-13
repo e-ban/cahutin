@@ -64,8 +64,15 @@ test("the migration banner and its result", () => {
   expect(fr.libraryOriginalsFound(1, 1)).toBe(
     "1 photo retrouvée, 1 non retrouvée. Mettre la copie à la corbeille ? Les enfants et activités sont reportés sur les originaux.",
   );
+  // Rien de manquant : on ne parle pas de « 0 non retrouvée ».
   expect(fr.libraryOriginalsFound(2, 0)).toBe(
-    "2 photos retrouvées, 0 non retrouvée. Mettre les 2 copies à la corbeille ? Les enfants et activités sont reportés sur les originaux.",
+    "2 photos retrouvées. Mettre les 2 copies à la corbeille ? Les enfants et activités sont reportés sur les originaux.",
+  );
+  expect(fr.libraryOriginalsFound(1, 0)).toBe(
+    "1 photo retrouvée. Mettre la copie à la corbeille ? Les enfants et activités sont reportés sur les originaux.",
+  );
+  expect(fr.libraryOriginalsFound(3, 2)).toBe(
+    "3 photos retrouvées, 2 non retrouvées. Mettre les 3 copies à la corbeille ? Les enfants et activités sont reportés sur les originaux.",
   );
   expect(fr.libraryOriginalsNone).toContain("rien n'a changé");
   expect(fr.libraryOriginalsDone(1)).toBe("1 copie mise à la corbeille de l'ordinateur. Les enfants et activités sont sur l'original.");

@@ -6,11 +6,13 @@
   import { classes } from "../../lib/classStore.svelte";
   import { CLASS_PHOTO_MIME, ASSET_MIME, MY_IMAGE_MIME } from "../../lib/dnd";
   import { editor } from "../../lib/docStore.svelte";
+  import { DRAWN_STEP, drawMoreNearEnd } from "../../lib/drawMore";
   import { useImages } from "../../lib/editActions";
   import { fr } from "../../lib/i18n/fr";
   import { libraryView, mineView, photosView, type Source, type WideFilter } from "../../lib/imageSources";
   import { myImages } from "../../lib/myImages.svelte";
   import { startFilter, type PhotoFilter } from "../../lib/photoLibrary";
+  import { firstDays } from "../../lib/phototheque";
   import { classLibrary } from "../../lib/phototheque.svelte";
   import { readPref, writePref } from "../../lib/prefs";
   import { pick, toggleAll } from "../../lib/selection";
@@ -64,6 +66,20 @@
         : mineView(myImages.images, filters.mine),
   );
   const order = $derived(view.groups.flatMap((g) => g.items.map((i) => i.key)));
+  // Comme la page Photothèque : les premières vignettes seulement, puis davantage quand le bas approche. Le
+  // choix (Maj, le jour entier) porte toujours sur toutes les images, dessinées ou non.
+  let drawnCount = $state(DRAWN_STEP);
+  const drawnGroups = $derived(firstDays(view.groups.map((g) => ({ ...g, photos: g.items })), drawnCount));
+  let more = $state<HTMLElement>();
+  // Une autre source ou un autre filtre : la grille repart des premières images.
+  $effect(() => {
+    void [source, filters[source]];
+    drawnCount = DRAWN_STEP;
+  });
+  $effect(() => {
+    void drawnCount;
+    if (more) return drawMoreNearEnd(more, () => (drawnCount += DRAWN_STEP));
+  });
   // Les filtres de la colonne, par rubrique (« Enfants », « Dossiers »…).
   const sections = $derived.by(() => {
     const out: { heading: string | null; filters: WideFilter[] }[] = [];
@@ -162,11 +178,11 @@
 
     <section class="groups">
       {#if view.empty}<p class="hint">{view.empty}</p>{/if}
-      {#each view.groups as g (g.title)}
+      {#each drawnGroups as g (g.title)}
         {@const keys = g.items.map((i) => i.key)}
         <button class="group" title={fr.imagesChooseDay} onclick={() => (selected = toggleAll(selected, keys))}>{g.title} <span>· {g.items.length}</span></button>
         <div class="thumbs" style:--thumb="{thumbSize}px">
-          {#each g.items as it (it.key)}
+          {#each g.drawn as it (it.key)}
             <div class="cell">
               <button
                 class="thumb"
@@ -198,6 +214,7 @@
           {/each}
         </div>
       {/each}
+      {#if order.length > drawnCount}<div class="more" bind:this={more}></div>{/if}
     </section>
   </div>
 
@@ -325,6 +342,9 @@
   }
   .cell {
     position: relative;
+  }
+  .more {
+    height: 1px;
   }
   .thumb {
     width: 100%;

@@ -161,11 +161,11 @@ export function displayNames(students: Student[]): Map<string, string> {
   return names;
 }
 
-/** Les jours qui portent les `n` premières photos : `drawn`, celles du jour à dessiner ; `photos`, toutes celles
- *  du jour (son en-tête les compte et les choisit). Des milliers de vignettes dessinées d'un coup gèleraient la
- *  page : elle n'en dessine que `n`, et davantage quand on fait défiler. */
-export function firstDays(days: { day: string; photos: ClassPhoto[] }[], n: number): { day: string; photos: ClassPhoto[]; drawn: ClassPhoto[] }[] {
-  const out: { day: string; photos: ClassPhoto[]; drawn: ClassPhoto[] }[] = [];
+/** Les jours (ou groupes) qui portent les `n` premières photos : `drawn`, celles du jour à dessiner ; `photos`,
+ *  toutes celles du jour (son en-tête les compte et les choisit). Des milliers de vignettes dessinées d'un coup
+ *  gèleraient la page : elle n'en dessine que `n`, et davantage quand on fait défiler (`drawMoreNearEnd`). */
+export function firstDays<D extends { photos: unknown[] }>(days: D[], n: number): (D & { drawn: D["photos"] })[] {
+  const out: (D & { drawn: D["photos"] })[] = [];
   let left = n;
   for (const d of days) {
     if (left <= 0) break;

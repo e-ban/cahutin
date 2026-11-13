@@ -8,6 +8,7 @@
   // des photos copiées par une version précédente.
   import { open } from "@tauri-apps/plugin-dialog";
   import { classPhotoUrl } from "../../lib/api";
+  import { DRAWN_STEP, drawMoreNearEnd } from "../../lib/drawMore";
   import { ask } from "../../lib/ask";
   import { classes } from "../../lib/classStore.svelte";
   import { editor } from "../../lib/docStore.svelte";
@@ -37,8 +38,6 @@
   const PERIODS: Period[] = ["month", "trimester", "year", "all"];
   /** Enfants nommés dans le bandeau d'équité avant « et N autres ». */
   const BEHIND_SHOWN = 6;
-  /** Vignettes dessinées d'abord, puis à chaque fois que le bas de la grille approche. */
-  const DRAWN_STEP = 300;
 
   let filter = $state<LibraryFilter>({ period: "year" });
   let selected = $state<string[]>([]);
@@ -106,23 +105,11 @@
     void [filter.period, filter.student, filter.tag, filter.untagged, filter.folder];
     drawnCount = DRAWN_STEP;
   });
-  // Le repère à moins de 1500 px du bas de l'écran, ou déjà passé au-dessus (un saut tout en bas ; la colonne
-  // des filtres, plus longue que la grille, fait descendre la page plus bas que lui) : on en dessine davantage.
-  // Vu à chaque défilement, et une image après chaque ajout, au cas où il serait encore proche.
+  // Le repère approche du bas de l'écran (ou un saut tout en bas l'a dépassé) : on en dessine davantage. Revu
+  // une image après chaque ajout, au cas où il serait encore proche.
   $effect(() => {
     void drawnCount;
-    const mark = more;
-    const page = mark?.closest(".library-page");
-    if (!mark || !page) return;
-    const check = () => {
-      if (mark.getBoundingClientRect().top < page.getBoundingClientRect().bottom + 1500) drawnCount += DRAWN_STEP;
-    };
-    page.addEventListener("scroll", check, { passive: true });
-    const frame = requestAnimationFrame(check);
-    return () => {
-      page.removeEventListener("scroll", check);
-      cancelAnimationFrame(frame);
-    };
+    if (more) return drawMoreNearEnd(more, () => (drawnCount += DRAWN_STEP));
   });
 
   function close() {

@@ -34,6 +34,12 @@ fn with_open<T>(state: &AppState, f: impl FnOnce(&Path, &mut Phototheque) -> Res
     f(dir, index)
 }
 
+/// Enregistre l'index et attend que ce soit fait (dossiers suivis, parcours, migration). Il remplace ce qui
+/// attendait d'être écrit pour ce dossier : il est plus récent.
+fn save_now(state: &AppState, dir: &Path, index: &Phototheque) -> Result<(), String> {
+    state.phototheque_writer.save_now(dir, &phototheque::to_json(index)?)
+}
+
 /// Le dossier et une copie de l'index ouvert, pour un long travail fait sans tenir le verrou.
 fn snapshot(state: &AppState) -> Result<(PathBuf, Phototheque), String> {
     with_open(state, |dir, index| Ok((dir.to_path_buf(), index.clone())))
@@ -43,9 +49,19 @@ fn snapshot(state: &AppState) -> Result<(PathBuf, Phototheque), String> {
 /// n'est parcouru qu'ensuite (`phototheque_scan`).
 pub fn open_in(state: &AppState, class_path: &Path) -> Result<Phototheque, String> {
     let dir = library_dir(&state.classes_dir, class_path)?;
+    // Sous le verrou : aucun clic entre l'écriture de ce qui attend et la relecture du disque.
+    let mut open = state.phototheque.lock().unwrap();
+    if state.phototheque_writer.flush().is_err() {
+        log::error!("phototheque_save_failed at=open");
+        // Pas écrit : la même classe garde son index en mémoire plutôt que de relire un disque en retard.
+        if let Some((d, index)) = open.as_ref()
+            && *d == dir
+        {
+            return Ok(index.clone());
+        }
+    }
     let index = phototheque::open(&dir)?;
     log::info!("phototheque_open photos={} folders={}", index.photos.len(), index.folders.len());
-    let mut open = state.phototheque.lock().unwrap();
     // Une autre classe : le remplissage des vignettes de la précédente s'arrête.
     if open.as_ref().is_none_or(|(d, _)| *d != dir) {
         state.thumb_fill.fetch_add(1, Ordering::SeqCst);
@@ -79,13 +95,16 @@ fn merge_saved(state: &AppState, dir: &Path, photos: &[ClassPhoto], folders: &[F
     match open.as_mut() {
         Some((d, index)) if d == dir => {
             let merged = phototheque::merge_scan(index, photos, folders);
-            phototheque::save(dir, index)?;
+            // Sans attendre le disque, comme un clic : un clic pendant le parcours n'attend pas non plus.
+            state.phototheque_writer.request(dir, phototheque::to_json(index)?)?;
             Ok(merged)
         }
         _ => {
+            // L'index est relu du disque : ce qui attend d'y être écrit l'est d'abord, sinon rien n'est reporté.
+            state.phototheque_writer.flush()?;
             let mut index = phototheque::open(dir)?;
             let merged = phototheque::merge_scan(&mut index, photos, folders);
-            phototheque::save(dir, &index)?;
+            save_now(state, dir, &index)?;
             Ok(merged)
         }
     }
@@ -208,7 +227,7 @@ pub fn follow_in(state: &AppState, folder: &str) -> Result<Phototheque, String> 
             taken = !photos.is_empty();
             phototheque::restore_photos(&mut followed, photos);
         }
-        phototheque::save(dir, &followed)?;
+        save_now(state, dir, &followed)?;
         *index = followed;
         if taken {
             *kept = undo.filter(|r| !r.is_empty()).map(|r| (dir.to_path_buf(), r));
@@ -230,7 +249,7 @@ pub fn phototheque_follow(state: State<'_, AppState>, folder: String) -> Result<
 pub fn unfollow_in(state: &AppState, folder: &str) -> Result<Phototheque, String> {
     with_open(state, |dir, index| {
         let removed = phototheque::unfollow(index, folder);
-        phototheque::save(dir, index)?;
+        save_now(state, dir, index)?;
         // Un dossier qui n'était pas suivi ne retire rien : ce que garde « Annuler » pour un autre reste.
         if let Some(r) = removed {
             *state.phototheque_unfollowed.lock().unwrap() = Some((dir.to_path_buf(), r));
@@ -259,7 +278,7 @@ pub fn refollow_in(state: &AppState, folder: &str) -> Result<Phototheque, String
         };
         let mut restored = index.clone();
         phototheque::refollow(&mut restored, removed.clone());
-        phototheque::save(dir, &restored)?;
+        save_now(state, dir, &restored)?;
         *index = restored;
         *kept = None;
         log::info!("phototheque_refollow folders={} photos={}", index.folders.len(), index.photos.len());
@@ -283,7 +302,7 @@ fn changed(index: &Phototheque, ids: &[String]) -> Vec<ClassPhoto> {
 pub fn hide_in(state: &AppState, ids: &[String], hidden: bool) -> Result<Vec<ClassPhoto>, String> {
     with_open(state, |dir, index| {
         phototheque::hide(index, ids, hidden);
-        phototheque::save(dir, index)?;
+        state.phototheque_writer.request(dir, phototheque::to_json(index)?)?;
         log::info!("phototheque_hide photos={} hidden={hidden}", ids.len());
         Ok(changed(index, ids))
     })
@@ -298,7 +317,7 @@ pub fn phototheque_hide(state: State<'_, AppState>, ids: Vec<String>, hidden: bo
 pub fn tag_in(state: &AppState, ids: &[String], change: &TagChange) -> Result<Vec<ClassPhoto>, String> {
     with_open(state, |dir, index| {
         phototheque::tag(index, ids, change);
-        phototheque::save(dir, index)?;
+        state.phototheque_writer.request(dir, phototheque::to_json(index)?)?;
         Ok(changed(index, ids))
     })
 }
@@ -356,7 +375,7 @@ pub async fn phototheque_find_originals(app: AppHandle) -> Result<OriginalsRepor
 pub fn settle_migration_in(state: &AppState) -> Result<Phototheque, String> {
     with_open(state, |dir, index| {
         index.migration_settled = true;
-        phototheque::save(dir, index)?;
+        save_now(state, dir, index)?;
         Ok(index.clone())
     })
 }
@@ -402,7 +421,7 @@ pub fn apply_originals_in(state: &AppState, matches: &[Match], mut to_trash: imp
         if !gone.is_empty() {
             index.migration_settled = true;
         }
-        phototheque::save(dir, index)?;
+        save_now(state, dir, index)?;
         log::info!("phototheque_apply_originals trashed={} not_trashed={not_trashed}", gone.len());
         Ok(OriginalsApplied { phototheque: index.clone(), not_trashed })
     })
@@ -490,6 +509,8 @@ mod tests {
         }
         follow_in(&s, &folder.to_string_lossy()).unwrap();
         let (_, _, lib) = scan(&s);
+        // Tout est écrit : un test qui regarde le disque part d'un index à jour.
+        s.phototheque_writer.flush().unwrap();
         (s, class, lib)
     }
 
@@ -539,7 +560,7 @@ mod tests {
         hide_in(&s, &[lib.photos[1].id.clone()], true).unwrap();
         let before = with_open(&s, |dir, index| {
             phototheque::tag(index, &[index.photos[0].id.clone()], &TagChange { add_tags: vec!["Ferme".into()], ..Default::default() });
-            phototheque::save(dir, index)?;
+            save_now(&s, dir, index)?;
             Ok(index.clone())
         })
         .unwrap();
@@ -820,8 +841,8 @@ mod tests {
         assert_eq!(reopened.photos.iter().find(|p| p.id == id).unwrap(), &hidden[0], "enregistré");
     }
 
-    /// Un enregistrement qui échoue (disque plein, fichier bloqué) laisse l'index d'avant lisible, et
-    /// l'étiquette posée reste en mémoire : le prochain enregistrement la garde.
+    /// Un enregistrement qui échoue (disque plein, fichier bloqué) laisse l'index d'avant lisible ; l'étiquette
+    /// posée reste en mémoire, le clic suivant apprend l'échec, et l'enregistrement suivant la garde.
     #[test]
     fn a_failed_save_leaves_the_previous_index_and_loses_no_tag() {
         let dir = tempfile::tempdir().unwrap();
@@ -832,14 +853,117 @@ mod tests {
         let blocker = library.join(format!("{INDEX_FILE}.tmp"));
         std::fs::create_dir(&blocker).unwrap();
         let (a, b) = (lib.photos[0].id.clone(), lib.photos[1].id.clone());
-        assert!(tag_in(&s, std::slice::from_ref(&a), &TagChange { add_tags: vec!["Ferme".into()], ..Default::default() }).is_err());
+        tag_in(&s, std::slice::from_ref(&a), &TagChange { add_tags: vec!["Ferme".into()], ..Default::default() }).unwrap();
+        assert!(s.phototheque_writer.flush().is_err());
         assert_eq!(std::fs::read(library.join(INDEX_FILE)).unwrap(), before, "l'index d'avant est intact");
         assert!(phototheque::open(&library).is_ok());
         std::fs::remove_dir(&blocker).unwrap();
-        tag_in(&s, std::slice::from_ref(&b), &TagChange { add_tags: vec!["Motricité".into()], ..Default::default() }).unwrap();
+        // Le clic suivant dit l'échec si le fil d'écriture l'a vu (selon qui a écrit le premier) ; son
+        // changement est fait quand même.
+        if let Err(e) = tag_in(&s, std::slice::from_ref(&b), &TagChange { add_tags: vec!["Motricité".into()], ..Default::default() }) {
+            assert_eq!(e, "La photothèque ne peut pas être enregistrée.");
+        }
+        s.phototheque_writer.flush().unwrap();
         let saved = phototheque::open(&library).unwrap();
         assert_eq!(saved.photos.iter().find(|p| p.id == a).unwrap().tags, ["Ferme"]);
         assert_eq!(saved.photos.iter().find(|p| p.id == b).unwrap().tags, ["Motricité"]);
+    }
+
+    /// Un enregistrement lent : chaque écriture attend `ms` avant d'écrire pour de bon.
+    fn slow_writer(ms: u64) -> crate::index_writer::IndexWriter {
+        crate::index_writer::IndexWriter::with_write(move |d, json| {
+            std::thread::sleep(std::time::Duration::from_millis(ms));
+            phototheque::write_index(d, json)
+        })
+    }
+
+    /// Le clic n'attend pas l'écriture de l'index : il répond pendant qu'elle est retenue.
+    #[test]
+    fn a_tag_click_does_not_wait_for_the_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut s, class, lib) = followed_three(dir.path());
+        let (go, gate) = std::sync::mpsc::channel::<()>();
+        let gate = Mutex::new(gate);
+        s.phototheque_writer = crate::index_writer::IndexWriter::with_write(move |d, json| {
+            gate.lock().unwrap().recv().map_err(|_| "fermé".to_string())?;
+            phototheque::write_index(d, json)
+        });
+        let s = std::sync::Arc::new(s);
+        let (id, clicker) = (lib.photos[0].id.clone(), s.clone());
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || tx.send(tag_in(&clicker, &[id], &TagChange { add_tags: vec!["Ferme".into()], ..Default::default() })).unwrap());
+        let answer = rx.recv_timeout(std::time::Duration::from_secs(5));
+        go.send(()).unwrap();
+        assert!(answer.expect("le clic répond sans attendre le disque").is_ok());
+        s.phototheque_writer.flush().unwrap();
+        let library = library_dir(&s.classes_dir, &class).unwrap();
+        assert_eq!(phototheque::open(&library).unwrap().photos[0].tags, ["Ferme"], "écrit ensuite");
+    }
+
+    /// Un parcours n'attend pas le disque non plus : pendant une écriture retenue, il finit, et un clic répond.
+    #[test]
+    fn a_scan_and_a_click_do_not_wait_for_a_slow_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut s, class, lib) = followed_three(dir.path());
+        let (go, gate) = std::sync::mpsc::channel::<()>();
+        let gate = Mutex::new(gate);
+        s.phototheque_writer = crate::index_writer::IndexWriter::with_write(move |d, json| {
+            gate.lock().unwrap().recv().map_err(|_| "fermé".to_string())?;
+            phototheque::write_index(d, json)
+        });
+        jpeg(&dir.path().join("Sortie/p9.jpg"), 9);
+        let s = std::sync::Arc::new(s);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (scanner, id) = (s.clone(), lib.photos[0].id.clone());
+        std::thread::spawn(move || {
+            let (report, _, _) = scan(&scanner);
+            let click = tag_in(&scanner, &[id], &TagChange { add_tags: vec!["Ferme".into()], ..Default::default() });
+            tx.send((report.added, click.is_ok())).unwrap();
+        });
+        let done = rx.recv_timeout(std::time::Duration::from_secs(10));
+        // Les écritures sont permises ensuite : ce qui attend est écrit, le dernier état en dernier.
+        for _ in 0..100 {
+            go.send(()).unwrap();
+        }
+        assert_eq!(done.expect("le parcours et le clic finissent sans attendre le disque"), (1, true));
+        s.phototheque_writer.flush().unwrap();
+        let library = library_dir(&s.classes_dir, &class).unwrap();
+        let saved = with_open(&s, |_, index| Ok(index.clone())).unwrap();
+        assert_eq!(phototheque::open(&library).unwrap(), saved);
+        assert_eq!(saved.photos.len(), 4);
+        assert_eq!(saved.photos[0].tags, ["Ferme"]);
+    }
+
+    /// Une étiquette pas encore écrite n'est pas perdue en rouvrant la classe (l'index est relu du disque).
+    #[test]
+    fn a_tag_not_yet_written_survives_reopening_the_class() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut s, class, lib) = followed_three(dir.path());
+        s.phototheque_writer = slow_writer(100);
+        let id = lib.photos[0].id.clone();
+        tag_in(&s, std::slice::from_ref(&id), &TagChange { add_tags: vec!["Ferme".into()], ..Default::default() }).unwrap();
+        assert_eq!(open_in(&s, &class).unwrap().photos.iter().find(|p| p.id == id).unwrap().tags, ["Ferme"]);
+        // Une autre classe, puis celle-ci : toujours là.
+        self::class(&s, "GS");
+        tag_in(&s, &[], &TagChange::default()).unwrap();
+        assert_eq!(open_in(&s, &class).unwrap().photos.iter().find(|p| p.id == id).unwrap().tags, ["Ferme"]);
+    }
+
+    /// Une étiquette pas encore écrite n'est pas écrasée par le parcours, qui enregistre lui aussi l'index.
+    #[test]
+    fn a_tag_not_yet_written_survives_a_scan() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut s, class, lib) = followed_three(dir.path());
+        s.phototheque_writer = slow_writer(100);
+        let id = lib.photos[0].id.clone();
+        jpeg(&dir.path().join("Sortie/p9.jpg"), 9);
+        tag_in(&s, std::slice::from_ref(&id), &TagChange { add_tags: vec!["Ferme".into()], ..Default::default() }).unwrap();
+        let (_, _, done) = scan(&s);
+        assert_eq!(done.photos.len(), 4);
+        s.phototheque_writer.flush().unwrap();
+        let saved = phototheque::open(&library_dir(&s.classes_dir, &class).unwrap()).unwrap();
+        assert_eq!(saved.photos.len(), 4);
+        assert_eq!(saved.photos.iter().find(|p| p.id == id).unwrap().tags, ["Ferme"]);
     }
 
     /// Mesure (lancée à la main, `--ignored --nocapture`, de préférence `--release`) : le coût d'un clic
@@ -883,14 +1007,38 @@ mod tests {
             payload = serde_json::to_vec(&answer).unwrap().len();
         }
         let per_click = started.elapsed() / runs;
+        s.phototheque_writer.flush().unwrap();
         let dir_lib = library_dir(&s.classes_dir, &s.classes_dir.join("MS.cahutin-classe")).unwrap();
         let index_size = std::fs::metadata(dir_lib.join(INDEX_FILE)).unwrap().len();
         let save_started = std::time::Instant::now();
         for _ in 0..runs {
-            with_open(&s, |dir, index| phototheque::save(dir, index)).unwrap();
+            with_open(&s, |dir, index| save_now(&s, dir, index)).unwrap();
         }
         let per_save = save_started.elapsed() / runs;
         println!("tag click: {per_click:?} per click, save alone {per_save:?}, index {index_size} bytes, answer {payload} bytes");
+
+        // Un disque lent (300 ms par écriture) : le clic qui attend l'écriture (comme avant), puis le clic qui
+        // la laisse au fil d'écriture.
+        let mut s = s;
+        s.phototheque_writer = slow_writer(300);
+        let runs = 5;
+        let started = std::time::Instant::now();
+        for _ in 0..runs {
+            with_open(&s, |dir, index| {
+                phototheque::tag(index, &ids, &change);
+                s.phototheque_writer.save_now(dir, &phototheque::to_json(index)?)
+            })
+            .unwrap();
+        }
+        let waiting = started.elapsed() / runs;
+        let started = std::time::Instant::now();
+        for _ in 0..runs {
+            tag_in(&s, &ids, &change).unwrap();
+        }
+        let not_waiting = started.elapsed() / runs;
+        let flush_started = std::time::Instant::now();
+        s.phototheque_writer.flush().unwrap();
+        println!("slow disk (300 ms): click waiting for the save {waiting:?}, click not waiting {not_waiting:?}, flush after {:?}", flush_started.elapsed());
     }
 
     const V1: &str =r#"{"format_version": 1, "photos": [
@@ -918,6 +1066,7 @@ mod tests {
         class(&s, "MS");
         follow_in(&s, &originals.to_string_lossy()).unwrap();
         scan(&s);
+        s.phototheque_writer.flush().unwrap();
         (s, library, originals)
     }
 

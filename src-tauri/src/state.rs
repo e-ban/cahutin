@@ -30,6 +30,9 @@ pub struct AppState {
     pub phototheque_unfollowed: Mutex<Option<(PathBuf, carnet_core::phototheque::Unfollowed)>>,
     /// Tenu pendant un parcours des dossiers suivis : un seul à la fois.
     pub phototheque_scan: Mutex<()>,
+    /// Enregistre l'index de la photothèque, sans faire attendre un clic (étiqueter, retirer)
+    /// ni le parcours.
+    pub phototheque_writer: crate::index_writer::IndexWriter,
     /// Numéro du remplissage de vignettes en cours : changé quand une autre classe s'ouvre ou qu'un
     /// nouveau remplissage commence, ce qui arrête le précédent.
     pub thumb_fill: AtomicU64,
@@ -54,6 +57,7 @@ impl AppState {
             phototheque: Mutex::new(None),
             phototheque_unfollowed: Mutex::new(None),
             phototheque_scan: Mutex::new(()),
+            phototheque_writer: crate::index_writer::IndexWriter::new(),
             thumb_fill: AtomicU64::new(0),
             my_images: Mutex::new(Default::default()),
             backup_dir,

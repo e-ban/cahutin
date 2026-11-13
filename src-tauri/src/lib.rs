@@ -4,6 +4,7 @@ mod assistant;
 mod backup;
 mod class_commands;
 mod images_commands;
+mod index_writer;
 mod phototheque_commands;
 pub mod commands;
 mod legacy;
@@ -184,6 +185,14 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("échec du démarrage de l'application")
         .run(|app, event| {
+            // Fermeture demandée, puis sortie : l'index de la photothèque qui attend d'être écrit l'est, et on
+            // l'attend (les étiquettes des derniers clics ne se perdent pas).
+            if matches!(event, RunEvent::ExitRequested { .. } | RunEvent::Exit)
+                && let Some(state) = app.try_state::<AppState>()
+                && state.phototheque_writer.flush().is_err()
+            {
+                log::error!("phototheque_save_failed at=exit");
+            }
             if let RunEvent::Exit = event
                 && let Some(guard) = app.try_state::<CacheGuard>()
             {

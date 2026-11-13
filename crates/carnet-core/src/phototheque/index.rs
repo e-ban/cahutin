@@ -167,9 +167,19 @@ pub fn open(dir: &Path) -> Result<Phototheque, String> {
 }
 
 pub fn save(dir: &Path, lib: &Phototheque) -> Result<(), String> {
+    write_index(dir, &to_json(lib)?)
+}
+
+/// L'index tel qu'il est écrit dans `phototheque.json`.
+pub fn to_json(lib: &Phototheque) -> Result<Vec<u8>, String> {
+    serde_json::to_vec_pretty(lib).map_err(|_| "La photothèque ne peut pas être enregistrée.".to_string())
+}
+
+/// Écrit un index déjà mis en forme (`to_json`) : dans un fichier temporaire, puis renommé, pour qu'un arrêt
+/// en plein milieu laisse l'index d'avant entier.
+pub fn write_index(dir: &Path, json: &[u8]) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|_| "Le dossier des photos ne peut pas être créé.".to_string())?;
-    let json = serde_json::to_vec_pretty(lib).map_err(|_| "La photothèque ne peut pas être enregistrée.".to_string())?;
-    write_atomically::<std::io::Error>(&dir.join(INDEX_FILE), |f| f.write_all(&json)).map_err(|_| "La photothèque ne peut pas être enregistrée.".to_string())
+    write_atomically::<std::io::Error>(&dir.join(INDEX_FILE), |f| f.write_all(json)).map_err(|_| "La photothèque ne peut pas être enregistrée.".to_string())
 }
 
 #[cfg(test)]

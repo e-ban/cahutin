@@ -339,10 +339,11 @@ pub fn remove_col(page: &mut Page, cell: &str) -> Result<(), TableError> {
     remove(page, cell, Axis::Col)
 }
 
-/// Fusionne `a` et `b` en leur rectangle englobant, dans la case `a`. Rien n'est effacé sans raison : la case
-/// fusionnée prend le contenu de la première case non vide (ordre de lecture) et, si c'est un texte, le texte
-/// de toutes les cases écrites, chacune sur sa ligne. Un pictogramme ou une photo à côté d'un autre contenu
-/// est perdu (une case n'en montre qu'un) ; l'annulation le rend.
+/// Fusionne `a` et `b` en leur rectangle englobant, dans la case `a`. Un texte écrit n'est jamais perdu : dès
+/// qu'une case contient du texte non vide, la case fusionnée est un texte (style de la première case écrite)
+/// qui réunit le texte de toutes les cases écrites dans l'ordre de lecture, et les pictogrammes et photos sont
+/// perdus. Sans texte écrit, elle prend le premier pictogramme ou la première photo remplie (ordre de
+/// lecture) et les autres sont perdus. Une case ne montre qu'un contenu ; l'annulation rend ce qui est perdu.
 pub fn merge(page: &mut Page, a: &str, b: &str) -> Result<(), TableError> {
     let i = table_of(page, a)?;
     let t = props_mut(page, i);
@@ -380,7 +381,7 @@ pub fn merge(page: &mut Page, a: &str, b: &str) -> Result<(), TableError> {
             _ => true,
         })
         .collect();
-    if let Some(first) = filled.first() {
+    if let Some(first) = filled.iter().find(|k| matches!(k, ElementKind::Text(_))).or(filled.first()) {
         let mut kind = first.clone();
         if let ElementKind::Text(tx) = &mut kind {
             tx.content.paragraphs = filled
@@ -713,8 +714,8 @@ mod tests {
     }
 
     #[test]
-    fn merge_of_a_text_and_a_picture_keeps_the_first_in_reading_order() {
-        // Une case ne montre qu'un contenu : l'autre est perdu (l'annulation le rend).
+    fn merge_never_loses_written_text_beside_a_picture() {
+        // Une case ne montre qu'un contenu : le texte écrit gagne, le pictogramme est perdu (l'annulation le rend).
         let (mut p, t) = table(2, 1);
         let (c0, c1) = (cell_at(&p, &t, 0, 0), cell_at(&p, &t, 1, 0));
         write(&mut p, &c0, "Lundi");
@@ -726,7 +727,7 @@ mod tests {
         set_cell_content(&mut p, &c0, CellContent::Picto("1F98A".into())).unwrap();
         write(&mut p, &c1, "Lundi");
         merge(&mut p, &c0, &c1).unwrap();
-        assert!(matches!(&el(&p, &c0).kind, ElementKind::Image(_)));
+        assert_eq!(lines(&p, &c0), ["Lundi"]);
     }
 
     #[test]

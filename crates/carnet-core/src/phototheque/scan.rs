@@ -26,6 +26,31 @@ pub struct ScanReport {
     pub missing: usize,
     /// Dossiers suivis introuvables.
     pub missing_folders: Vec<String>,
+    /// Fichiers images qui n'ont pas pu être lus (abîmés, illisibles) : sautés, repris au parcours suivant.
+    /// Pour le journal seulement.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub skipped: usize,
+}
+
+/// Ce que le parcours lit d'un fichier image : seulement son en-tête.
+pub(crate) struct FileInfo {
+    fingerprint: String,
+    width_px: u32,
+    height_px: u32,
+    taken: Option<String>,
+}
+
+pub(crate) fn read_file(path: &Path) -> Option<FileInfo> {
+    let fingerprint = super::fingerprint(path)?;
+    let (width_px, height_px) = image::image_dimensions(path).ok()?;
+    Some(FileInfo { fingerprint, width_px, height_px, taken: taken_of_file(path) })
+}
+
+/// Lit un fichier sans que sa lecture puisse arrêter le parcours : un fichier abîmé qui fait paniquer le
+/// lecteur d'en-tête est sauté comme un fichier illisible.
+fn read_guarded(read: fn(&Path) -> Option<FileInfo>, path: &Path) -> Option<FileInfo> {
+    std::panic::catch_unwind(|| read(path)).ok().flatten()
 }
 
 /// Un fichier image trouvé sur le disque.
@@ -109,7 +134,12 @@ impl Batcher<'_> {
 /// Met l'index à jour d'après le disque. `on_batch` reçoit les photos nouvelles, retrouvées ailleurs,
 /// changées ou de retour, par paquets de 50. `_library_dir` (le dossier de la classe) est déjà écarté
 /// par la règle des dossiers cachés (`.vignettes`) et celle de `phototheque.json`.
-pub fn scan(lib: &mut Phototheque, _library_dir: &Path, on_batch: &mut dyn FnMut(&[ClassPhoto])) -> ScanReport {
+pub fn scan(lib: &mut Phototheque, library_dir: &Path, on_batch: &mut dyn FnMut(&[ClassPhoto])) -> ScanReport {
+    scan_reading(lib, library_dir, on_batch, read_file)
+}
+
+/// `scan`, avec le lecteur de fichiers donné (un test lui fait lire un fichier abîmé).
+pub(crate) fn scan_reading(lib: &mut Phototheque, _library_dir: &Path, on_batch: &mut dyn FnMut(&[ClassPhoto]), read: fn(&Path) -> Option<FileInfo>) -> ScanReport {
     let mut report = ScanReport::default();
     let mut files = Vec::new();
     for folder in &mut lib.folders {
@@ -140,8 +170,11 @@ pub fn scan(lib: &mut Phototheque, _library_dir: &Path, on_batch: &mut dyn FnMut
             continue;
         }
         if changed {
-            let (Some(fp), Ok((w, h))) = (super::fingerprint(&f.path), image::image_dimensions(&f.path)) else { continue };
-            (p.width_px, p.height_px, p.size, p.modified, p.fingerprint) = (w, h, f.size, f.modified, fp);
+            let Some(info) = read_guarded(read, &f.path) else {
+                report.skipped += 1;
+                continue;
+            };
+            (p.width_px, p.height_px, p.size, p.modified, p.fingerprint) = (info.width_px, info.height_px, f.size, f.modified, info.fingerprint);
         }
         p.missing = false;
         batcher.push(p);
@@ -150,21 +183,24 @@ pub fn scan(lib: &mut Phototheque, _library_dir: &Path, on_batch: &mut dyn FnMut
     // Chemins inconnus : une photo devenue absente de même empreinte prend sa place, sinon c'est une nouvelle photo.
     let mut vanished: Vec<usize> = (0..lib.photos.len()).filter(|&i| !seen_paths.contains(&lib.photos[i].path)).collect();
     for f in unknown {
-        let Some(fp) = super::fingerprint(&f.path) else { continue };
-        if let Some(pos) = vanished.iter().position(|&i| lib.photos[i].fingerprint == fp) {
+        let Some(info) = read_guarded(read, &f.path) else {
+            report.skipped += 1;
+            continue;
+        };
+        if let Some(pos) = vanished.iter().position(|&i| lib.photos[i].fingerprint == info.fingerprint) {
             let p = &mut lib.photos[vanished.remove(pos)];
             (p.path, p.folder, p.size, p.modified, p.missing) = (f.key, f.folder, f.size, f.modified, false);
             batcher.push(p);
             report.moved += 1;
             continue;
         }
-        let Ok((width_px, height_px)) = image::image_dimensions(&f.path) else { continue };
+        let FileInfo { fingerprint: fp, width_px, height_px, taken } = info;
         let photo = ClassPhoto {
             id: new_id(),
             width_px,
             height_px,
             mime: f.mime,
-            taken: taken_of_file(&f.path),
+            taken,
             added: iso(class::today()),
             students: vec![],
             tags: vec![],
@@ -312,7 +348,7 @@ mod tests {
         std::fs::write(folder.join("notes.txt"), b"x").unwrap();
         std::fs::write(folder.join("faux.jpg"), b"pas une image").unwrap();
         let (report, batches) = run(&mut lib, &library);
-        assert_eq!(report, ScanReport { added: 2, moved: 0, missing: 0, missing_folders: vec![] });
+        assert_eq!(report, ScanReport { added: 2, skipped: 1, ..Default::default() }, "faux.jpg ne se lit pas");
         assert_eq!(batches, [2]);
         assert_eq!(lib.photos.len(), 2);
         assert_eq!(by_name(&lib, "a.jpg").folder, "Sortie");
@@ -320,6 +356,28 @@ mod tests {
         let a = by_name(&lib, "a.jpg");
         assert_eq!((a.width_px, a.height_px), (40, 30));
         assert!(a.taken.is_some() && !a.added.is_empty() && a.size > 0 && a.modified > 0 && !a.fingerprint.is_empty());
+    }
+
+    /// Un fichier abîmé qui fait paniquer la lecture de son en-tête : sauté et compté, le parcours continue ; le
+    /// parcours suivant le reprend s'il se lit.
+    #[test]
+    fn a_file_that_makes_the_reader_panic_is_skipped() {
+        let (_tmp, library, folder, mut lib) = setup();
+        for (name, shade) in [("a.jpg", 10), ("b.jpg", 20), ("c.jpg", 30)] {
+            jpeg(&folder.join(name), shade);
+        }
+        fn broken(path: &Path) -> Option<FileInfo> {
+            if path.ends_with("b.jpg") {
+                panic!("fichier abîmé");
+            }
+            read_file(path)
+        }
+        let report = scan_reading(&mut lib, &library, &mut |_| {}, broken);
+        assert_eq!((report.added, report.skipped), (2, 1));
+        assert!(lib.photos.iter().all(|p| !p.path.ends_with("b.jpg")));
+        let (report, _) = run(&mut lib, &library);
+        assert_eq!((report.added, report.skipped), (1, 0));
+        assert_eq!(lib.photos.len(), 3);
     }
 
     #[test]

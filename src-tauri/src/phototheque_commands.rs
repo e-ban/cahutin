@@ -113,7 +113,7 @@ pub fn scan_in(state: &AppState, on_event: impl Fn(ScanEvent)) -> Result<ScanRep
         Ok((d, index)) if d == dir => index,
         _ => phototheque::open(&dir)?,
     };
-    log::info!("phototheque_scan added={} moved={} missing={} missing_folders={}", report.added, report.moved, report.missing, report.missing_folders.len());
+    log::info!("phototheque_scan added={} moved={} missing={} missing_folders={} skipped={}", report.added, report.moved, report.missing, report.missing_folders.len(), report.skipped);
     on_event(ScanEvent::Done { report: report.clone(), phototheque: index });
     Ok(report)
 }
@@ -134,6 +134,13 @@ pub fn phototheque_scan(app: AppHandle, state: State<'_, AppState>, on_progress:
 /// celles qui ne servent plus (fichiers du cache de Cahutin, jamais ceux de l'enseignant). S'arrête dès
 /// que `thumb_fill` change : une autre classe ouverte ou un nouveau remplissage.
 pub fn fill_thumbs(state: &AppState, epoch: u64) {
+    fill_thumbs_with(state, epoch, thumbs::thumb);
+}
+
+/// `fill_thumbs`, avec la fabrique de vignettes donnée (un test lui fait décoder une photo abîmée). Une photo
+/// qui fait paniquer le décodeur est sautée et comptée : les autres se font quand même. Le verrou de la
+/// photothèque n'est jamais tenu pendant une vignette.
+fn fill_thumbs_with(state: &AppState, epoch: u64, make: fn(&Path, &ClassPhoto) -> Result<PathBuf, carnet_core::photo::ImportError>) {
     let current = || state.thumb_fill.load(Ordering::SeqCst) == epoch;
     if !current() {
         return;
@@ -152,9 +159,9 @@ pub fn fill_thumbs(state: &AppState, epoch: u64) {
         if !current() {
             break;
         }
-        match thumbs::thumb(&dir, p) {
-            Ok(_) => made += 1,
-            Err(_) => failed += 1,
+        match std::panic::catch_unwind(|| make(&dir, p)) {
+            Ok(Ok(_)) => made += 1,
+            _ => failed += 1,
         }
     }
     log::info!("phototheque_thumbs photos={made} failed={failed}");
@@ -491,7 +498,26 @@ mod tests {
         assert_eq!(count(), lib.photos.len() + 1);
     }
 
-    const V1: &str = r#"{"format_version": 1, "photos": [
+    /// Une photo abîmée qui fait paniquer le décodeur : sautée, les autres vignettes se font quand même.
+    #[test]
+    fn a_photo_that_makes_the_thumbnail_panic_does_not_stop_the_others() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, class, lib) = followed_three(dir.path());
+        let thumbs_dir = library_dir(&s.classes_dir, &class).unwrap().join(".vignettes");
+        fn broken(dir: &Path, p: &ClassPhoto) -> Result<PathBuf, carnet_core::photo::ImportError> {
+            if p.path.ends_with("p0.jpg") {
+                panic!("fichier abîmé");
+            }
+            thumbs::thumb(dir, p)
+        }
+        let epoch = s.thumb_fill.load(Ordering::SeqCst);
+        fill_thumbs_with(&s, epoch, broken);
+        assert_eq!(std::fs::read_dir(&thumbs_dir).unwrap().count(), lib.photos.len() - 1);
+        // Le verrou de la photothèque n'est pas empoisonné : elle sert encore.
+        assert!(hide_in(&s, &[lib.photos[1].id.clone()], true).is_ok());
+    }
+
+    const V1: &str =r#"{"format_version": 1, "photos": [
         {"id": "c1", "width_px": 400, "height_px": 300, "mime": "Jpeg", "taken": null, "added": "2026-10-15",
          "students": ["lea"], "tags": ["Sortie à la ferme"]},
         {"id": "c2", "width_px": 400, "height_px": 300, "mime": "Jpeg", "taken": null, "added": "2026-10-16",

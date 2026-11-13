@@ -42,10 +42,15 @@ pub struct OriginalsReport {
     pub unmatched: Vec<Id>,
 }
 
-/// Empreinte d'une photo, lue sur sa vignette du cache (jamais sur le fichier en pleine taille).
+/// Empreinte d'une photo, lue sur sa vignette du cache (jamais sur le fichier en pleine taille). Une photo
+/// abîmée qui fait paniquer le décodeur n'a pas d'empreinte, comme une photo illisible.
 fn hash_of(library_dir: &Path, p: &ClassPhoto) -> Option<u64> {
-    let img = image::open(thumb(library_dir, p).ok()?).ok()?;
-    Some(dhash(&img))
+    std::panic::catch_unwind(|| {
+        let img = image::open(thumb(library_dir, p).ok()?).ok()?;
+        Some(dhash(&img))
+    })
+    .ok()
+    .flatten()
 }
 
 /// Une copie faite par l'ancienne photothèque : dans le dossier des copies, sous le nom `<id>.<ext>` de sa photo

@@ -2,4 +2,9 @@
 import type { ClassPhoto } from "./ClassPhoto";
 import type { FollowedFolder } from "./FollowedFolder";
 
-export type Phototheque = { format_version: number, folders: Array<FollowedFolder>, photos: Array<ClassPhoto>, };
+export type Phototheque = { format_version: number, folders: Array<FollowedFolder>, photos: Array<ClassPhoto>, 
+/**
+ * L'enseignant a tranché la question de la migration (faite, ou « Non merci ») : le bandeau ne revient
+ * plus. Absent d'un index plus ancien : pas encore tranchée.
+ */
+migration_settled: boolean, };

@@ -21,6 +21,8 @@ export const photothequeFollow = (folder: string) => invoke<Phototheque>("photot
 export const photothequeUnfollow = (folder: string) => invoke<Phototheque>("phototheque_unfollow", { folder });
 export const photothequeHide = (ids: string[], hidden: boolean) => invoke<Phototheque>("phototheque_hide", { ids, hidden });
 export const photothequeFindOriginals = () => invoke<OriginalsReport>("phototheque_find_originals");
+/** « Non merci » : la question de la migration ne revient plus. */
+export const photothequeSettleMigration = () => invoke<Phototheque>("phototheque_settle_migration");
 export const photothequeApplyOriginals = (matches: Match[]) => invoke<OriginalsApplied>("phototheque_apply_originals", { matches });
 export const photothequeTag = (ids: string[], change: TagChange) => invoke<Phototheque>("phototheque_tag", { ids, change });
 export const photothequeUse = (ids: string[]) => invoke<AssetMeta[]>("phototheque_use", { ids });

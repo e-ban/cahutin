@@ -192,7 +192,7 @@ mod tests {
         for (i, s) in original_seeds.iter().enumerate() {
             std::fs::write(originals.join(format!("o{i}-{s}.jpg")), jpeg(&pattern(*s))).unwrap();
         }
-        let mut lib = Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![] };
+        let mut lib = Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![], migration_settled: false };
         follow(&mut lib, &library).unwrap();
         follow(&mut lib, &originals).unwrap();
         scan(&mut lib, &library, &mut |_| {});
@@ -284,7 +284,7 @@ mod tests {
         assert!(copy.meta.height_px > copy.meta.width_px, "la copie est redressée, en portrait");
         std::fs::write(library.join("copie.jpg"), &*copy.bytes).unwrap();
         std::fs::write(originals.join("IMG_0001.jpg"), &raw).unwrap();
-        let mut lib = Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![] };
+        let mut lib = Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![], migration_settled: false };
         follow(&mut lib, &library).unwrap();
         follow(&mut lib, &originals).unwrap();
         scan(&mut lib, &library, &mut |_| {});

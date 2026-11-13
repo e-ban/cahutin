@@ -65,6 +65,10 @@ pub struct Phototheque {
     pub format_version: u32,
     pub folders: Vec<FollowedFolder>,
     pub photos: Vec<ClassPhoto>,
+    /// L'enseignant a tranché la question de la migration (faite, ou « Non merci ») : le bandeau ne revient
+    /// plus. Absent d'un index plus ancien : pas encore tranchée.
+    #[serde(default)]
+    pub migration_settled: bool,
 }
 
 /// Une photo de l'index version 1 : copiée dans le dossier de la classe sous `<id>.<ext>`.
@@ -135,7 +139,7 @@ fn convert_v1(dir: &Path, old: PhototequeV1) -> Phototheque {
             }
         })
         .collect();
-    Phototheque { format_version: FORMAT_VERSION, folders: vec![FollowedFolder { path: dir.to_string_lossy().into_owned(), missing: false }], photos }
+    Phototheque { format_version: FORMAT_VERSION, folders: vec![FollowedFolder { path: dir.to_string_lossy().into_owned(), missing: false }], photos, migration_settled: false }
 }
 
 /// La photothèque du dossier ; vide s'il n'y en a pas encore. Un index qui existe mais ne peut pas être lu
@@ -146,7 +150,7 @@ pub fn open(dir: &Path) -> Result<Phototheque, String> {
     let path = dir.join(INDEX_FILE);
     let bytes = match std::fs::read(&path) {
         Ok(bytes) => bytes,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![] }),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![], migration_settled: false }),
         Err(_) => return Err("La photothèque de cette classe ne peut pas être lue.".into()),
     };
     let unreadable = || "La photothèque de cette classe est illisible.".to_string();
@@ -235,6 +239,18 @@ mod tests {
         lib.folders.push(FollowedFolder { path: "/ailleurs".into(), missing: true });
         save(tmp.path(), &lib).unwrap();
         assert_eq!(open(tmp.path()).unwrap(), lib);
+    }
+
+    /// Un index de la version 2 écrit avant la question de la migration : elle n'est pas tranchée.
+    #[test]
+    fn the_migration_question_is_open_until_settled_and_then_kept() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(INDEX_FILE), br#"{"format_version": 2, "folders": [], "photos": []}"#).unwrap();
+        let mut lib = open(tmp.path()).unwrap();
+        assert!(!lib.migration_settled);
+        lib.migration_settled = true;
+        save(tmp.path(), &lib).unwrap();
+        assert!(open(tmp.path()).unwrap().migration_settled);
     }
 
     #[test]

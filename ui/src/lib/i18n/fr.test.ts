@@ -52,6 +52,11 @@ test("the migration banner and its result", () => {
   );
   expect(fr.libraryFindOriginals).toBe("Retrouver les originaux");
   expect(fr.libraryLater).toBe("Plus tard");
+  // Refuser la migration : la question ne revient plus, et l'on dit où retrouver l'action.
+  expect(fr.libraryNoThanks).toBe("Non merci");
+  expect(fr.libraryMigrationDeclined).toBe(
+    "Entendu, cette question ne reviendra plus. Vos photos restent comme elles sont. Le lien « Retrouver les originaux » reste en bas de la colonne de gauche.",
+  );
   expect(fr.libraryOriginalsFound(12, 3)).toBe(
     "12 photos retrouvées, 3 non retrouvées. Mettre les 12 copies à la corbeille ? Les enfants et activités sont reportés sur les originaux.",
   );

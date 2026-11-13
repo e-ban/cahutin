@@ -162,6 +162,14 @@
     }
   }
 
+  /** « Non merci » : la question ne revient plus ; le lien « Retrouver les originaux » reste dans la colonne. */
+  async function declineMigration() {
+    await run(async () => {
+      await classLibrary.settleMigration();
+      editor.notice = fr.libraryMigrationDeclined;
+    });
+  }
+
   /** Clic : une photo ; Ctrl : en ajouter ou en retirer une ; Maj : toutes celles entre deux. En mode
    *  « marquer un enfant », le clic l'ajoute à la photo ou l'en retire. */
   function pick(id: string, ev: MouseEvent) {
@@ -267,12 +275,13 @@
     {#each classLibrary.missingFolders as path (path)}
       <p class="note" role="note" title={path}><Icon name="warning" /> {fr.libraryFolderMissing(baseName(path))}</p>
     {/each}
-    {#if copies && !migrationLater}
+    {#if copies && !classLibrary.migrationSettled && !migrationLater}
       <div class="note migration" role="note">
         <p>{fr.libraryMigration}</p>
         <div class="row">
           <button class="primary" disabled={busy} onclick={findOriginals}>{searching ? fr.librarySearching : fr.libraryFindOriginals}</button>
           <button onclick={() => (migrationLater = true)}>{fr.libraryLater}</button>
+          <button disabled={busy} onclick={declineMigration}>{fr.libraryNoThanks}</button>
         </div>
       </div>
     {/if}

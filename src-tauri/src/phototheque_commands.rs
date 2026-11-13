@@ -279,6 +279,21 @@ pub async fn phototheque_find_originals(app: AppHandle) -> Result<OriginalsRepor
     off_runtime(move || find_originals_in(&app.state::<AppState>())).await
 }
 
+/// « Non merci » : l'enseignant refuse la migration ; le bandeau ne revient plus, le lien « Retrouver les
+/// originaux » reste dans la photothèque. Rien n'est touché.
+pub fn settle_migration_in(state: &AppState) -> Result<Phototheque, String> {
+    with_open(state, |dir, index| {
+        index.migration_settled = true;
+        phototheque::save(dir, index)?;
+        Ok(index.clone())
+    })
+}
+
+#[tauri::command(async)]
+pub fn phototheque_settle_migration(state: State<'_, AppState>) -> Result<Phototheque, String> {
+    settle_migration_in(&state)
+}
+
 /// Ce que la fin de la migration a fait.
 #[derive(Serialize, Clone, Debug, TS)]
 #[ts(export)]
@@ -310,6 +325,11 @@ pub fn apply_originals_in(state: &AppState, matches: &[Match], mut to_trash: imp
             }
         }
         originals::apply_originals(index, &gone);
+        // L'enseignant a dit oui et des copies sont parties : la question est tranchée (le lien reste pour les
+        // copies restées). Si la corbeille les a toutes refusées, rien n'a changé : la question reste ouverte.
+        if !gone.is_empty() {
+            index.migration_settled = true;
+        }
         phototheque::save(dir, index)?;
         log::info!("phototheque_apply_originals trashed={} not_trashed={not_trashed}", gone.len());
         Ok(OriginalsApplied { phototheque: index.clone(), not_trashed })
@@ -619,6 +639,23 @@ mod tests {
         assert!(lib.photos.iter().filter(|p| p.id == "c1" || p.id == "c2").all(|p| p.hidden));
         // Enregistré.
         assert_eq!(phototheque::open(&library).unwrap(), lib);
+    }
+
+    /// « Non merci » ou une migration faite : la question est tranchée pour de bon, même après un parcours.
+    #[test]
+    fn the_migration_question_once_settled_stays_settled() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, _library, _originals) = old_library(dir.path());
+        let class = s.classes_dir.join("MS.cahutin-classe");
+        assert!(!open_in(&s, &class).unwrap().migration_settled);
+        assert!(settle_migration_in(&s).unwrap().migration_settled);
+        scan(&s);
+        assert!(open_in(&s, &class).unwrap().migration_settled, "enregistré, et gardé par le parcours");
+
+        let dir = tempfile::tempdir().unwrap();
+        let (s, _library, _originals) = old_library(dir.path());
+        let report = find_originals_in(&s).unwrap();
+        assert!(apply_originals_in(&s, &report.matches, |_| Ok(())).unwrap().phototheque.migration_settled);
     }
 
     #[test]

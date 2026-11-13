@@ -10,6 +10,7 @@ import {
   photothequeHide,
   photothequeOpen,
   photothequeScan,
+  photothequeSettleMigration,
   photothequeTag,
   photothequeUnfollow,
   photothequeUse,
@@ -27,6 +28,8 @@ class ClassLibrary {
   /** Tout l'index, photos retirées et absentes comprises (pour les autorisations des photos déjà posées). */
   photos = $state.raw<ClassPhoto[]>([]);
   folders = $state.raw<FollowedFolder[]>([]);
+  /** La question de la migration est tranchée (faite, ou « Non merci ») : son bandeau ne revient plus. */
+  migrationSettled = $state(false);
   /** Les photos montrées : ni retirées ni absentes. */
   visible = $derived(visiblePhotos(this.photos));
   /** Dossiers suivis introuvables au dernier parcours (clé USB débranchée…). */
@@ -42,6 +45,7 @@ class ClassLibrary {
   #set(lib: Phototheque) {
     this.photos = lib.photos;
     this.folders = lib.folders;
+    this.migrationSettled = lib.migration_settled;
   }
 
   /** Ouverture en cours : une seconde demande pour la même classe (page et tiroir) attend la même. */
@@ -142,6 +146,11 @@ class ClassLibrary {
   /** Les originaux des anciennes copies, cherchés dans les dossiers suivis ; rien n'est changé. */
   findOriginals(): Promise<OriginalsReport> {
     return photothequeFindOriginals();
+  }
+
+  /** « Non merci » : l'enseignant ne veut pas de la migration ; rien n'est touché, le bandeau ne revient plus. */
+  async settleMigration() {
+    this.#set(await photothequeSettleMigration());
   }
 
   /** Met les copies à la corbeille de l'ordinateur et reporte enfants et activités de celles parties sur les

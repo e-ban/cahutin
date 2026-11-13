@@ -19,11 +19,12 @@ const photo = (id: string): ClassPhoto => ({
   hidden: false,
   missing: false,
 });
-const lib = (ids: string[]): Phototheque => ({ format_version: 2, folders: [{ path: "/Images/Sortie", missing: false }], photos: ids.map(photo) });
+const lib = (ids: string[], migration_settled = false): Phototheque => ({ format_version: 2, folders: [{ path: "/Images/Sortie", missing: false }], photos: ids.map(photo), migration_settled });
 const scans: { send: (e: ScanEvent) => void; finish: () => void }[] = [];
 
 vi.mock("./api", () => ({
   photothequeOpen: async () => lib(["a"]),
+  photothequeSettleMigration: async () => lib(["a"], true),
   photothequeScan: (onEvent: (e: ScanEvent) => void) =>
     new Promise((resolve) => scans.push({ send: onEvent, finish: () => resolve({ added: 0, moved: 0, missing: 0, missing_folders: [] }) })),
 }));
@@ -54,4 +55,11 @@ test("rouvrir la photothèque d'une classe déjà chargée relance un parcours, 
   await tick();
   expect(classLibrary.photos.map((p) => p.id)).toEqual(["a", "b"]);
   expect(classLibrary.scanning).toBeNull();
+});
+
+test("« Non merci » : la question de la migration est tranchée et le reste", async () => {
+  await classLibrary.open("/classes/ms.cahutin");
+  expect(classLibrary.migrationSettled).toBe(false);
+  await classLibrary.settleMigration();
+  expect(classLibrary.migrationSettled).toBe(true);
 });

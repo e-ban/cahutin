@@ -87,7 +87,7 @@ mod tests {
         std::fs::create_dir_all(&library).unwrap();
         std::fs::create_dir_all(&folder).unwrap();
         jpeg(&folder.join("a.jpg"), 800, 600, 10);
-        let mut lib = Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![] };
+        let mut lib = Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![], migration_settled: false };
         follow(&mut lib, &folder).unwrap();
         scan(&mut lib, &library, &mut |_| {});
         (tmp, library, folder, lib)

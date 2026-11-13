@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn photos_are_tagged_and_hidden() {
-        let mut lib = Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![photo("a"), photo("b")] };
+        let mut lib = Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![photo("a"), photo("b")], migration_settled: false };
         let ids: Vec<Id> = vec!["a".into(), "b".into()];
         tag(&mut lib, &ids, &TagChange { add_students: vec!["lea".into(), "noe".into()], add_tags: vec![" Sortie à la ferme ".into(), "".into()], ..Default::default() });
         tag(&mut lib, &ids[1..], &TagChange { remove_students: vec!["noe".into()], ..Default::default() });

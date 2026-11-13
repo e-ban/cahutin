@@ -307,7 +307,7 @@ mod tests {
     }
 
     fn empty() -> Phototheque {
-        Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![] }
+        Phototheque { format_version: FORMAT_VERSION, folders: vec![], photos: vec![], migration_settled: false }
     }
 
     fn run(lib: &mut Phototheque, library: &Path) -> (ScanReport, Vec<usize>) {

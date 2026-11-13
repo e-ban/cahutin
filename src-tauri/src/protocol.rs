@@ -308,7 +308,7 @@ mod tests {
         image::RgbImage::from_pixel(800, 600, image::Rgb([10, 120, 200])).save(folder.join("a.jpg")).unwrap();
         image::RgbImage::from_pixel(40, 30, image::Rgb([200, 120, 10])).save(folder.join("b.webp")).unwrap();
         let library = dir.path().join("Classe");
-        let mut lib = carnet_core::phototheque::Phototheque { format_version: 2, folders: vec![], photos: vec![] };
+        let mut lib = carnet_core::phototheque::Phototheque { format_version: 2, folders: vec![], photos: vec![], migration_settled: false };
         carnet_core::phototheque::follow(&mut lib, &folder).unwrap();
         carnet_core::phototheque::scan(&mut lib, &library, &mut |_| {});
         let state = AppState::new(Default::default(), carnet_core::templates::Library::open(dir.path().join("m")).unwrap(), dir.path().join("p"), dir.path().join("c"), dir.path().join("s"));

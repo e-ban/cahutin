@@ -424,14 +424,14 @@ async function libraryWithPhotos({ tagged = false } = {}) {
     await run(
       `const c = window.__carnet, lib = c.classLibrary;
       await lib.open(c.classes.current.path);
-      if (!lib.photos.length) await lib.add(arguments[0]);
+      if (!lib.photos.length) await lib.follow(arguments[0]);
       if (arguments[1]) {
-        const ids = lib.photos.map((p) => p.id);
-        await lib.tag(ids.slice(0, 3), { add_students: ["eleve-1", "eleve-3"], add_activities: ["Peinture"] });
-        await lib.tag(ids.slice(3, 6), { add_students: ["eleve-1", "eleve-5"], add_activities: ["Jardin"] });
+        const ids = (kind) => lib.photos.filter((p) => p.path.split(/[\\/]/).pop().startsWith(kind)).map((p) => p.id);
+        await lib.tag(ids("peinture-"), { add_students: ["eleve-1", "eleve-3"], add_activities: ["Peinture"] });
+        await lib.tag(ids("jardin-"), { add_students: ["eleve-1", "eleve-5"], add_activities: ["Jardin"] });
       }
       window.__editor.showPhototheque = true;`,
-      [["peinture-1", "peinture-2", "peinture-3", "jardin-1", "jardin-2", "jardin-3", "jeux-1", "jeux-2"].map((n) => `${IMAGES}/photos/${n}.jpg`), tagged],
+      [`${IMAGES}/photos`, tagged],
     ),
   );
   await sleep(1500);

@@ -12,7 +12,7 @@ import { fonts } from "./fonts.svelte";
 import { fr } from "./i18n/fr";
 import { importReportText, placeImported } from "./importPages";
 import { summarizeImport } from "./importSummary";
-import { pendingPaths } from "./photoLibrary";
+import { pendingPaths, type LibraryPhoto } from "./photoLibrary";
 import { addRecent, withoutRecent, writeRecents } from "./recents";
 import { missingFamilies } from "./fontNames";
 import type { Document, ImportedPages, ImportOutcome, OpenedDocument } from "./types";
@@ -90,11 +90,18 @@ export async function confirmLeave(): Promise<boolean> {
   return leave;
 }
 
+/** Les photos d'un document, pour le panneau Photos : un document qui s'ouvre ou se crée y montre les siennes,
+ *  jamais celles du document quitté. */
+function docPhotos(doc: Document): LibraryPhoto[] {
+  return Object.values(doc.assets).flatMap((meta) => (meta ? [{ meta, path: "", folder: "" }] : []));
+}
+
 export async function newDoc() {
   if (!(await confirmLeave())) return;
   editor.reset(newDocument(), null);
   assistant.clear();
   editor.carriedPending = [];
+  editor.replaceLibrary([]);
   editor.templateMode = false;
   if (editor.drawer === "grid") editor.drawer = null;
   editor.welcomeOverDoc = false;
@@ -118,6 +125,7 @@ export async function freshFromHome(): Promise<boolean> {
   editor.reset(newDocument(), null);
   assistant.clear();
   editor.carriedPending = [];
+  editor.replaceLibrary([]);
   editor.templateMode = false;
   editor.welcomeOverDoc = false;
   return true;
@@ -131,6 +139,7 @@ export async function openExampleDoc(id: string) {
   editor.reset(doc, null);
   assistant.clear();
   editor.carriedPending = [];
+  editor.replaceLibrary(docPhotos(doc));
   editor.templateMode = false;
   if (editor.drawer === "grid") editor.drawer = null;
   editor.showWelcome = false;
@@ -191,7 +200,7 @@ export async function openPath(path: string, confirm = true) {
 export async function showOpened(opened: OpenedDocument) {
   editor.carriedPending = opened.doc.pending_photos;
   void checkDocumentFonts(opened.doc, opened.offered_fonts);
-  editor.replaceLibrary(Object.values(opened.doc.assets).flatMap((meta) => (meta ? [{ meta, path: "", folder: "" }] : [])));
+  editor.replaceLibrary(docPhotos(opened.doc));
   editor.showWelcome = false;
   editor.templateMode = false;
   if (editor.drawer === "grid") editor.drawer = null;
@@ -244,6 +253,7 @@ export async function importFiles(paths?: string[], opts: { fresh?: boolean } = 
       editor.reset(placed.doc, null);
       assistant.clear();
       editor.carriedPending = [];
+      editor.replaceLibrary(docPhotos(placed.doc));
       editor.showWelcome = false;
       editor.templateMode = false;
     } else {

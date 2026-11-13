@@ -296,6 +296,18 @@ impl Unfollowed {
     pub fn path(&self) -> &str {
         &self.folder.path
     }
+
+    /// Plus aucune photo gardée.
+    pub fn is_empty(&self) -> bool {
+        self.photos.is_empty()
+    }
+
+    /// Retire de ce qui est gardé les photos qui sont dans `folder`, et les rend (pour `restore_photos`).
+    pub fn take_under(&mut self, folder: &Path) -> Vec<(usize, ClassPhoto)> {
+        let (inside, kept) = std::mem::take(&mut self.photos).into_iter().partition(|(_, p)| Path::new(&p.path).starts_with(folder));
+        self.photos = kept;
+        inside
+    }
 }
 
 /// Oublie le dossier et ses photos : aucun fichier n'est touché. Rend ce qui a été retiré (`refollow` le
@@ -318,16 +330,24 @@ pub fn unfollow(lib: &mut Phototheque, folder: &str) -> Option<Unfollowed> {
 }
 
 /// « Annuler » après « Ne plus suivre » : le dossier et ses photos reviennent à leurs places, avec leurs
-/// élèves, activités et masquage. Rien n'est mis en double : un dossier déjà suivi (ou dans un dossier suivi,
-/// ou qui en contient un) n'est pas ajouté, une photo dont l'identifiant ou le chemin est déjà là non plus.
+/// élèves, activités et masquage. Rien n'est mis en double : un dossier déjà suivi (ou dans un dossier suivi)
+/// n'est pas ajouté ; des dossiers suivis entre-temps à l'intérieur du dossier sont remplacés par lui ; une
+/// photo dont l'identifiant ou le chemin est déjà là n'est pas remise.
 pub fn refollow(lib: &mut Phototheque, removed: Unfollowed) {
     let root = Path::new(&removed.folder.path);
-    if !lib.folders.iter().any(|f| root.starts_with(&f.path) || Path::new(&f.path).starts_with(root)) {
+    if !lib.folders.iter().any(|f| root.starts_with(&f.path)) {
+        lib.folders.retain(|f| !Path::new(&f.path).starts_with(root));
         lib.folders.insert(removed.folder_at.min(lib.folders.len()), removed.folder);
     }
+    restore_photos(lib, removed.photos);
+}
+
+/// Remet des photos gardées par « Ne plus suivre » à leurs places, sauf celles dont l'identifiant ou le
+/// chemin est déjà là.
+pub fn restore_photos(lib: &mut Phototheque, photos: Vec<(usize, ClassPhoto)>) {
     let mut ids: HashSet<String> = lib.photos.iter().map(|p| p.id.clone()).collect();
     let mut paths: HashSet<String> = lib.photos.iter().map(|p| p.path.clone()).collect();
-    for (at, p) in removed.photos {
+    for (at, p) in photos {
         if !ids.contains(&p.id) && !paths.contains(&p.path) {
             ids.insert(p.id.clone());
             paths.insert(p.path.clone());

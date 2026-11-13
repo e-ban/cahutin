@@ -184,25 +184,29 @@ fn fill_thumbs_with(state: &AppState, epoch: u64, make: fn(&Path, &ClassPhoto) -
     log::info!("phototheque_thumbs photos={made} failed={failed}");
 }
 
-/// Suit un dossier. Si c'est celui que « Ne plus suivre » vient de retirer (gardé pour « Annuler »), ses
-/// photos reviennent avec leurs élèves, activités et masquage, au lieu de revenir neuves au parcours.
+/// Suit un dossier. Les photos que « Ne plus suivre » vient de retirer (gardées pour « Annuler ») et qui sont
+/// dans ce dossier reviennent avec leurs élèves, activités et masquage, au lieu de revenir neuves au parcours :
+/// le même dossier, celui qui le contient, ou un de ses sous-dossiers. Elles ne sont plus gardées ; s'il n'en
+/// reste aucune, « Annuler » n'a plus rien à remettre.
 pub fn follow_in(state: &AppState, folder: &str) -> Result<Phototheque, String> {
     with_open(state, |dir, index| {
         let mut kept = state.phototheque_unfollowed.lock().unwrap();
-        let undo = kept.as_ref().filter(|(d, r)| d == dir && Path::new(r.path()) == Path::new(folder)).map(|(_, r)| r.clone());
+        let root = Path::new(folder);
         let mut followed = index.clone();
         // Les mêmes refus que pour un dossier neuf (introuvable, déjà suivi, dans un dossier suivi).
-        phototheque::follow(&mut followed, Path::new(folder))?;
-        let restored = undo.is_some();
-        if let Some(removed) = undo {
-            // Le dossier reprend sa place d'avant, avec ses photos.
+        phototheque::follow(&mut followed, root)?;
+        let mut undo = kept.as_ref().filter(|(d, _)| d == dir).map(|(_, r)| r.clone());
+        if let Some(removed) = undo.take_if(|r| Path::new(r.path()) == root) {
+            // Le même dossier : il reprend sa place d'avant, avec ses photos.
             followed.folders.pop();
             phototheque::refollow(&mut followed, removed);
+        } else if let Some(removed) = undo.as_mut() {
+            phototheque::restore_photos(&mut followed, removed.take_under(root));
         }
         phototheque::save(dir, &followed)?;
         *index = followed;
-        if restored {
-            *kept = None;
+        if kept.as_ref().is_some_and(|(d, _)| d == dir) {
+            *kept = undo.filter(|r| !r.is_empty()).map(|r| (dir.to_path_buf(), r));
         }
         log::info!("phototheque_follow folders={}", index.folders.len());
         Ok(index.clone())
@@ -239,8 +243,9 @@ pub fn refollow_in(state: &AppState, folder: &str) -> Result<Phototheque, String
     with_open(state, |dir, index| {
         let mut kept = state.phototheque_unfollowed.lock().unwrap();
         let Some((_, removed)) = kept.as_ref().filter(|(d, r)| d == dir && r.path() == folder) else {
-            // Déjà suivi de nouveau (« Ajouter un dossier » l'a remis avec ses photos) : rien à faire.
-            if index.folders.iter().any(|f| Path::new(&f.path) == Path::new(folder)) {
+            // Déjà suivi de nouveau, lui ou un dossier qui le contient (« Ajouter un dossier » a remis ses
+            // photos) : rien à faire.
+            if index.folders.iter().any(|f| Path::new(folder).starts_with(&f.path)) {
                 return Ok(index.clone());
             }
             return Err("Ce dossier ne peut plus être remis : suivez-le de nouveau avec « Ajouter un dossier ».".into());
@@ -559,6 +564,69 @@ mod tests {
         assert_eq!(refollow_in(&s, &folder).unwrap(), before, "« Annuler » resté à l'écran ne change rien");
         // Plus rien de gardé : ne plus suivre de nouveau, puis suivre, donne un dossier neuf.
         assert!(s.phototheque_unfollowed.lock().unwrap().is_none());
+    }
+
+    /// Une classe qui suit `Images/Sortie` : `Matin/p0.jpg`, `Matin/p1.jpg` et `Soir/p2.jpg`, parcouru, avec
+    /// une activité sur p0 et p2 et p1 retirée. Rend aussi les identifiants de p0, p1 et p2.
+    fn followed_nested(dir: &Path) -> (AppState, PathBuf, [String; 3]) {
+        let s = state(dir);
+        class(&s, "MS");
+        let sortie = dir.join("Images").join("Sortie");
+        jpeg(&sortie.join("Matin/p0.jpg"), 0);
+        jpeg(&sortie.join("Matin/p1.jpg"), 1);
+        jpeg(&sortie.join("Soir/p2.jpg"), 2);
+        follow_in(&s, &sortie.to_string_lossy()).unwrap();
+        let (_, _, lib) = scan(&s);
+        let ids = ["p0.jpg", "p1.jpg", "p2.jpg"].map(|n| by_name(&lib, n).id.clone());
+        tag_in(&s, &[ids[0].clone(), ids[2].clone()], &TagChange { add_students: vec!["lea".into()], add_tags: vec!["Ferme".into()], ..Default::default() }).unwrap();
+        hide_in(&s, std::slice::from_ref(&ids[1]), true).unwrap();
+        (s, sortie, ids)
+    }
+
+    /// « Ne plus suivre » un dossier, puis suivre le dossier qui le contient : ses photos reviennent avec leurs
+    /// élèves, activités et masquage ; plus rien n'est gardé pour « Annuler », qui ne fait plus rien.
+    #[test]
+    fn following_the_parent_of_a_folder_just_unfollowed_brings_back_its_tags() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, sortie, ids) = followed_nested(dir.path());
+        let before = with_open(&s, |_, i| Ok(i.photos.clone())).unwrap();
+        unfollow_in(&s, &sortie.to_string_lossy()).unwrap();
+        follow_in(&s, &dir.path().join("Images").to_string_lossy()).unwrap();
+        let (_, _, lib) = scan(&s);
+        assert_eq!(lib.photos.len(), 3, "aucun double");
+        for p in &before {
+            assert_eq!(lib.photos.iter().find(|q| q.id == p.id).map(|q| (&q.students, &q.tags, q.hidden)), Some((&p.students, &p.tags, p.hidden)));
+        }
+        assert!(s.phototheque_unfollowed.lock().unwrap().is_none());
+        let again = refollow_in(&s, &sortie.to_string_lossy()).unwrap();
+        assert_eq!(again, lib, "« Annuler » resté à l'écran ne change rien");
+        assert!(lib.photos.iter().any(|p| p.id == ids[1] && p.hidden));
+    }
+
+    /// « Ne plus suivre » un dossier, puis suivre un de ses sous-dossiers : les photos du sous-dossier reviennent
+    /// avec leurs étiquettes ; les autres restent gardées, et « Annuler » les remet sans double, le dossier
+    /// d'avant remplaçant le sous-dossier.
+    #[test]
+    fn following_a_subfolder_of_a_folder_just_unfollowed_brings_back_its_tags() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, sortie, ids) = followed_nested(dir.path());
+        let before = with_open(&s, |_, i| Ok(i.clone())).unwrap();
+        unfollow_in(&s, &sortie.to_string_lossy()).unwrap();
+        follow_in(&s, &sortie.join("Matin").to_string_lossy()).unwrap();
+        let (_, _, lib) = scan(&s);
+        assert_eq!(lib.photos.len(), 2);
+        let p0 = lib.photos.iter().find(|p| p.id == ids[0]).unwrap();
+        assert_eq!((p0.students.as_slice(), p0.tags.as_slice()), (["lea".to_string()].as_slice(), ["Ferme".to_string()].as_slice()));
+        assert!(lib.photos.iter().find(|p| p.id == ids[1]).unwrap().hidden);
+        assert!(s.phototheque_unfollowed.lock().unwrap().is_some(), "p2 reste gardée pour « Annuler »");
+        // « Annuler » : le dossier d'avant revient à la place du sous-dossier, avec p2 et ses étiquettes.
+        let undone = refollow_in(&s, &sortie.to_string_lossy()).unwrap();
+        assert_eq!(undone.folders, before.folders);
+        let (_, _, lib) = scan(&s);
+        assert_eq!(lib.photos.len(), 3, "aucun double");
+        for p in &before.photos {
+            assert_eq!(lib.photos.iter().find(|q| q.id == p.id).map(|q| (&q.students, &q.tags, q.hidden)), Some((&p.students, &p.tags, p.hidden)));
+        }
     }
 
     /// Suivre de nouveau garde les refus de « Ajouter un dossier » : un dossier disparu n'est pas remis.

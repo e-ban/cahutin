@@ -11,7 +11,7 @@ pub mod thumbs;
 use crate::class;
 use crate::model::Id;
 pub use index::*;
-pub use scan::{ScanReport, Unfollowed, follow, merge_scan, refollow, scan, unfollow};
+pub use scan::{ScanReport, Unfollowed, follow, merge_scan, refollow, restore_photos, scan, unfollow};
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, Seek};
 use std::path::Path;

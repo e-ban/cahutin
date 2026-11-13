@@ -135,21 +135,28 @@ class ClassLibrary {
     return true;
   }
 
+  /** Les photos changées par un clic rejoignent la liste à leur place ; une réponse arrivée après le
+   *  changement de classe est laissée. */
+  #merge(token: number, changed: ClassPhoto[]) {
+    if (token === this.#opening) this.photos = upsertPhotos(this.photos, changed);
+  }
+
   async tag(ids: string[], change: Partial<TagChange>) {
-    this.#set(await photothequeTag(ids, { add_students: [], remove_students: [], add_tags: [], remove_tags: [], ...change }));
+    const token = this.#opening;
+    this.#merge(token, await photothequeTag(ids, { add_students: [], remove_students: [], add_tags: [], remove_tags: [], ...change }));
   }
 
   /** « Retirer » : les photos ne sont plus montrées (aucun fichier touché) ; « Annuler » les remet. */
   async hide(ids: string[]) {
     if (!ids.length) return;
     const token = this.#opening;
-    this.#set(await photothequeHide(ids, true));
+    this.#merge(token, await photothequeHide(ids, true));
     editor.notify(fr.libraryHidden(ids.length), {
       label: fr.undo,
       run: () => {
         if (token !== this.#opening) return;
         photothequeHide(ids, false)
-          .then((lib) => token === this.#opening && this.#set(lib))
+          .then((changed) => this.#merge(token, changed))
           .catch((e) => (editor.notice = String(e)));
       },
     });

@@ -9,6 +9,7 @@ use carnet_core::class::CLASS_EXTENSION;
 use carnet_core::phototheque::originals::{self, Match, OriginalsReport};
 use carnet_core::phototheque::{self, ClassPhoto, FollowedFolder, Phototheque, ScanReport, TagChange, thumbs};
 use serde::Serialize;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use tauri::ipc::Channel;
@@ -236,28 +237,40 @@ pub fn phototheque_refollow(state: State<'_, AppState>, folder: String) -> Resul
     refollow_in(&state, &folder)
 }
 
-/// « Retirer » (et son annulation) : la photo est masquée, gardée dans l'index avec ses étiquettes.
-pub fn hide_in(state: &AppState, ids: &[String], hidden: bool) -> Result<Phototheque, String> {
+/// Les photos `ids` telles qu'elles sont maintenant dans l'index : la réponse d'un clic, sans tout l'index.
+fn changed(index: &Phototheque, ids: &[String]) -> Vec<ClassPhoto> {
+    let ids: HashSet<&String> = ids.iter().collect();
+    index.photos.iter().filter(|p| ids.contains(&p.id)).cloned().collect()
+}
+
+/// « Retirer » (et son annulation) : la photo est masquée, gardée dans l'index avec ses étiquettes. Rend
+/// les photos changées.
+pub fn hide_in(state: &AppState, ids: &[String], hidden: bool) -> Result<Vec<ClassPhoto>, String> {
     with_open(state, |dir, index| {
         phototheque::hide(index, ids, hidden);
         phototheque::save(dir, index)?;
         log::info!("phototheque_hide photos={} hidden={hidden}", ids.len());
-        Ok(index.clone())
+        Ok(changed(index, ids))
     })
 }
 
 #[tauri::command(async)]
-pub fn phototheque_hide(state: State<'_, AppState>, ids: Vec<String>, hidden: bool) -> Result<Phototheque, String> {
+pub fn phototheque_hide(state: State<'_, AppState>, ids: Vec<String>, hidden: bool) -> Result<Vec<ClassPhoto>, String> {
     hide_in(&state, &ids, hidden)
 }
 
-#[tauri::command(async)]
-pub fn phototheque_tag(state: State<'_, AppState>, ids: Vec<String>, change: TagChange) -> Result<Phototheque, String> {
-    with_open(&state, |dir, index| {
-        phototheque::tag(index, &ids, &change);
+/// Élèves et activités de plusieurs photos : l'index est enregistré, seules les photos changées sont rendues.
+pub fn tag_in(state: &AppState, ids: &[String], change: &TagChange) -> Result<Vec<ClassPhoto>, String> {
+    with_open(state, |dir, index| {
+        phototheque::tag(index, ids, change);
         phototheque::save(dir, index)?;
-        Ok(index.clone())
+        Ok(changed(index, ids))
     })
+}
+
+#[tauri::command(async)]
+pub fn phototheque_tag(state: State<'_, AppState>, ids: Vec<String>, change: TagChange) -> Result<Vec<ClassPhoto>, String> {
+    tag_in(&state, &ids, &change)
 }
 
 /// Les photos choisies, prêtes pour le document (copiées dedans, réduites) : elles rejoignent les images de
@@ -516,12 +529,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (s, class, lib) = followed_three(dir.path());
         let id = lib.photos[0].id.clone();
-        assert!(hide_in(&s, std::slice::from_ref(&id), true).unwrap().photos[0].hidden);
+        assert!(hide_in(&s, std::slice::from_ref(&id), true).unwrap()[0].hidden);
         let lib = open_in(&s, &class).unwrap();
         assert!(lib.photos.iter().find(|p| p.id == id).unwrap().hidden);
         scan(&s);
         assert!(open_in(&s, &class).unwrap().photos.iter().find(|p| p.id == id).unwrap().hidden, "même après un parcours");
-        assert!(!hide_in(&s, &[id], false).unwrap().photos[0].hidden);
+        assert!(!hide_in(&s, &[id], false).unwrap()[0].hidden);
     }
 
     #[test]
@@ -625,6 +638,96 @@ mod tests {
         assert_eq!(std::fs::read_dir(&thumbs_dir).unwrap().count(), lib.photos.len() - 1);
         // Le verrou de la photothèque n'est pas empoisonné : elle sert encore.
         assert!(hide_in(&s, &[lib.photos[1].id.clone()], true).is_ok());
+    }
+
+    /// Étiqueter ou retirer ne renvoie que les photos changées : à 10 000 photos, tout l'index à chaque clic
+    /// pèse des mégaoctets. L'index est enregistré quand même.
+    #[test]
+    fn tagging_or_hiding_answers_only_the_photos_changed() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, class, lib) = followed_three(dir.path());
+        let id = lib.photos[1].id.clone();
+        let tagged = tag_in(&s, std::slice::from_ref(&id), &TagChange { add_tags: vec!["Ferme".into()], ..Default::default() }).unwrap();
+        assert_eq!(tagged.len(), 1);
+        assert_eq!((tagged[0].id.as_str(), tagged[0].tags.as_slice()), (id.as_str(), ["Ferme".to_string()].as_slice()));
+        let hidden = hide_in(&s, std::slice::from_ref(&id), true).unwrap();
+        assert_eq!(hidden.len(), 1);
+        assert!(hidden[0].hidden && hidden[0].tags == ["Ferme"]);
+        let reopened = open_in(&s, &class).unwrap();
+        assert_eq!(reopened.photos.iter().find(|p| p.id == id).unwrap(), &hidden[0], "enregistré");
+    }
+
+    /// Un enregistrement qui échoue (disque plein, fichier bloqué) laisse l'index d'avant lisible, et
+    /// l'étiquette posée reste en mémoire : le prochain enregistrement la garde.
+    #[test]
+    fn a_failed_save_leaves_the_previous_index_and_loses_no_tag() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, class, lib) = followed_three(dir.path());
+        let library = library_dir(&s.classes_dir, &class).unwrap();
+        let before = std::fs::read(library.join(INDEX_FILE)).unwrap();
+        // Le fichier temporaire ne peut pas être créé : l'enregistrement échoue avant de toucher l'index.
+        let blocker = library.join(format!("{INDEX_FILE}.tmp"));
+        std::fs::create_dir(&blocker).unwrap();
+        let (a, b) = (lib.photos[0].id.clone(), lib.photos[1].id.clone());
+        assert!(tag_in(&s, std::slice::from_ref(&a), &TagChange { add_tags: vec!["Ferme".into()], ..Default::default() }).is_err());
+        assert_eq!(std::fs::read(library.join(INDEX_FILE)).unwrap(), before, "l'index d'avant est intact");
+        assert!(phototheque::open(&library).is_ok());
+        std::fs::remove_dir(&blocker).unwrap();
+        tag_in(&s, std::slice::from_ref(&b), &TagChange { add_tags: vec!["Motricité".into()], ..Default::default() }).unwrap();
+        let saved = phototheque::open(&library).unwrap();
+        assert_eq!(saved.photos.iter().find(|p| p.id == a).unwrap().tags, ["Ferme"]);
+        assert_eq!(saved.photos.iter().find(|p| p.id == b).unwrap().tags, ["Motricité"]);
+    }
+
+    /// Mesure (lancée à la main, `--ignored --nocapture`, de préférence `--release`) : le coût d'un clic
+    /// d'étiquette sur une photothèque de 10 000 photos (enregistrement, taille de l'index, réponse envoyée).
+    #[test]
+    #[ignore]
+    fn measure_a_tag_click_on_ten_thousand_photos() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = state(dir.path());
+        class(&s, "MS");
+        with_open(&s, |_, index| {
+            index.photos = (0..10_000)
+                .map(|i| ClassPhoto {
+                    id: format!("photo-{i:05}"),
+                    width_px: 4032,
+                    height_px: 3024,
+                    mime: carnet_core::model::Mime::Jpeg,
+                    taken: Some("2026-10-14".into()),
+                    added: "2026-10-15".into(),
+                    students: vec!["lea".into(), "noe".into()],
+                    tags: vec!["Sortie à la ferme".into()],
+                    path: format!("/home/enseignant/Images/Sortie à la ferme/IMG_{i:05}.jpg"),
+                    folder: "Sortie à la ferme".into(),
+                    size: 3_500_000,
+                    modified: 1_790_000_000,
+                    fingerprint: format!("{:x}-{:016x}", 3_500_000, i),
+                    hidden: false,
+                    missing: false,
+                })
+                .collect();
+            Ok(())
+        })
+        .unwrap();
+        let ids = vec!["photo-04242".to_string()];
+        let change = TagChange { add_tags: vec!["Motricité".into()], ..Default::default() };
+        let runs = 20;
+        let started = std::time::Instant::now();
+        let mut payload = 0;
+        for _ in 0..runs {
+            let answer = tag_in(&s, &ids, &change).unwrap();
+            payload = serde_json::to_vec(&answer).unwrap().len();
+        }
+        let per_click = started.elapsed() / runs;
+        let dir_lib = library_dir(&s.classes_dir, &s.classes_dir.join("MS.cahutin-classe")).unwrap();
+        let index_size = std::fs::metadata(dir_lib.join(INDEX_FILE)).unwrap().len();
+        let save_started = std::time::Instant::now();
+        for _ in 0..runs {
+            with_open(&s, |dir, index| phototheque::save(dir, index)).unwrap();
+        }
+        let per_save = save_started.elapsed() / runs;
+        println!("tag click: {per_click:?} per click, save alone {per_save:?}, index {index_size} bytes, answer {payload} bytes");
     }
 
     const V1: &str =r#"{"format_version": 1, "photos": [

@@ -27,6 +27,9 @@ vi.mock("./api", () => ({
   photothequeSettleMigration: async () => lib(["a"], true),
   photothequeUnfollow: async () => ({ format_version: 2, folders: [], photos: [], migration_settled: false }),
   photothequeRefollow: vi.fn(async () => lib(["a"])),
+  // Étiqueter et retirer ne renvoient que les photos changées.
+  photothequeTag: vi.fn(async (ids: string[]) => ids.map((id) => ({ ...photo(id), tags: ["Ferme"] }))),
+  photothequeHide: vi.fn(async (ids: string[], hidden: boolean) => ids.map((id) => ({ ...photo(id), hidden }))),
   photothequeScan: (onEvent: (e: ScanEvent) => void) =>
     new Promise((resolve) => scans.push({ send: onEvent, finish: () => resolve({ added: 0, moved: 0, missing: 0, missing_folders: [] }) })),
 }));
@@ -82,4 +85,32 @@ test("« Ne plus suivre », puis « Annuler » dans l'avis : le dossier et ses p
   expect(api.photothequeRefollow).toHaveBeenCalledWith("/Images/Sortie");
   expect(classLibrary.photos.map((p) => p.id)).toEqual(["a"]);
   expect(classLibrary.folders.map((f) => f.path)).toEqual(["/Images/Sortie"]);
+});
+
+test("étiqueter et retirer : seules les photos changées reviennent, et rejoignent la liste à leur place", async () => {
+  await classLibrary.open("/classes/ms.cahutin");
+  scans.at(-1)!.send({ type: "Done", report: { added: 0, moved: 0, missing: 0, missing_folders: [] }, phototheque: lib(["a", "b", "c"]) });
+  await classLibrary.tag(["b"], { add_tags: ["Ferme"] });
+  expect(classLibrary.photos.map((p) => [p.id, p.tags])).toEqual([
+    ["a", []],
+    ["b", ["Ferme"]],
+    ["c", []],
+  ]);
+  await classLibrary.hide(["c"]);
+  expect(classLibrary.photos.map((p) => p.hidden)).toEqual([false, false, true]);
+  expect(classLibrary.folders.map((f) => f.path)).toEqual(["/Images/Sortie"]);
+  editor.runNoticeAction();
+  await tick();
+  expect(classLibrary.photos.map((p) => p.hidden)).toEqual([false, false, false]);
+});
+
+test("une réponse d'étiquette arrivée après le changement de classe ne touche pas la nouvelle liste", async () => {
+  await classLibrary.open("/classes/ms.cahutin");
+  let answer!: (photos: ClassPhoto[]) => void;
+  vi.mocked(api.photothequeTag).mockImplementationOnce(() => new Promise((r) => (answer = r)));
+  const tagging = classLibrary.tag(["a"], { add_tags: ["Ferme"] });
+  await classLibrary.open("/classes/gs.cahutin");
+  answer([{ ...photo("z"), tags: ["Ferme"] }]);
+  await tagging;
+  expect(classLibrary.photos.map((p) => p.id)).toEqual(["a"]);
 });

@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AssistantEvent, AssistantRequest, AssistantSettings, AssetMeta, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind, Match, OriginalsApplied, OriginalsReport, Phototheque, ScanEvent, ScanReport, TagChange, MyImage, MyImagesAdded, MyImageKept, ReportMail, BackupOffer, RestoredDocument } from "./types";
+import type { AssistantEvent, AssistantRequest, AssistantSettings, AssetMeta, ClassPhoto, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind, Match, OriginalsApplied, OriginalsReport, Phototheque, ScanEvent, ScanReport, TagChange, MyImage, MyImagesAdded, MyImageKept, ReportMail, BackupOffer, RestoredDocument } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -21,12 +21,14 @@ export const photothequeFollow = (folder: string) => invoke<Phototheque>("photot
 export const photothequeUnfollow = (folder: string) => invoke<Phototheque>("phototheque_unfollow", { folder });
 /** « Annuler » après « Ne plus suivre » : le dossier revient avec ses photos et leurs étiquettes. */
 export const photothequeRefollow = (folder: string) => invoke<Phototheque>("phototheque_refollow", { folder });
-export const photothequeHide = (ids: string[], hidden: boolean) => invoke<Phototheque>("phototheque_hide", { ids, hidden });
+/** « Retirer » ou remettre : rend seulement les photos changées. */
+export const photothequeHide = (ids: string[], hidden: boolean) => invoke<ClassPhoto[]>("phototheque_hide", { ids, hidden });
 export const photothequeFindOriginals = () => invoke<OriginalsReport>("phototheque_find_originals");
 /** « Non merci » : la question de la migration ne revient plus. */
 export const photothequeSettleMigration = () => invoke<Phototheque>("phototheque_settle_migration");
 export const photothequeApplyOriginals = (matches: Match[]) => invoke<OriginalsApplied>("phototheque_apply_originals", { matches });
-export const photothequeTag = (ids: string[], change: TagChange) => invoke<Phototheque>("phototheque_tag", { ids, change });
+/** Élèves et activités : rend seulement les photos changées. */
+export const photothequeTag = (ids: string[], change: TagChange) => invoke<ClassPhoto[]>("phototheque_tag", { ids, change });
 export const photothequeUse = (ids: string[]) => invoke<AssetMeta[]>("phototheque_use", { ids });
 export const myImagesList = () => invoke<MyImage[]>("my_images_list");
 export const myImagesAdd = (paths: string[]) => invoke<MyImagesAdded>("my_images_add", { paths });

@@ -121,7 +121,9 @@ retenu sur la branche `worktree-photo-dossiers` au commit `3dcb0d5` :
 
 - La grille dessine 300 vignettes, puis 300 de plus quand son bas approche de l'écran (regardé à chaque
   défilement, y compris après un saut tout en bas) ; un jour loin de l'écran n'est ni mis en page ni dessiné
-  (`content-visibility`). Les jours, filtres, le choix et la vue en grand portent toujours sur toutes les photos
+  (`content-visibility`), sa place réservée d'après son nombre de photos (commit `1b2dbdc`, après le passage
+  retenu : sans cela, en remontant après un saut tout en bas, la grille sautait jusqu'à 469 px ; ensuite aucun
+  saut, essai à 1 000 photos). Les jours, filtres, le choix et la vue en grand portent toujours sur toutes les photos
   montrées ; un autre filtre repart de 300.
 - Le fil du protocole sert la demande la plus récente d'abord (toujours un seul fil).
 - La vignette du cache se fait par une réduction par moyenne jusqu'à 512 px, puis Lanczos3 : 109 ms au lieu de
@@ -152,9 +154,9 @@ près de 10 000 vignettes sont dessinées. Après un changement de filtre, la gr
   varie d'un passage à l'autre (3,1 et 5,9 s).
 - **Première grille à 10 000 photos** : 39 s, alors que le parcours dure 65 s. Les sous-dossiers sont parcourus
   par ordre alphabétique (`sortie-01` … `sortie-09`, `sortie-10`, `sortie-100` … `sortie-109`, `sortie-11`, …) :
-  les photos les plus récentes (`sortie-200`, mars) arrivent en 121e position sur 200. Mesuré dans trois essais :
-  elles arrivent dans la page 2,0 s avant la première grille (43,2 s puis 45,2 s ; 40,2 puis 42,2 ; 37,5 puis
-  39,5). Avant cela, chaque nouveau paquet plus récent remplace le haut de la grille deux à trois fois par
+  les photos les plus récentes (`sortie-200`, mars) arrivent en 121e position sur 200. Mesuré dans cinq essais :
+  elles arrivent dans la page 1,8 à 2,0 s avant la première grille (43,2 s puis 45,2 s ; 39,9 puis 41,7 ; 40,5
+  puis 42,4 ; 40,2 puis 42,0 ; 37,5 puis 39,5). Avant cela, chaque nouveau paquet plus récent remplace le haut de la grille deux à trois fois par
   seconde, et aucune vignette n'a le temps d'arriver. **Un dossier rangé par date ne montre donc ses vignettes
   qu'à la fin du parcours** (environ 65 s à 10 000 photos). Pour faire mieux, il faudrait changer l'ordre dans
   lequel le parcours annonce les photos (les plus récentes d'abord) ou garder le haut de la grille immobile

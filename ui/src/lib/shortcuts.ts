@@ -154,6 +154,9 @@ export function handleShortcut(ev: KeyboardEvent) {
     if (editor.selection.length === 0) return;
     ev.preventDefault();
     deleteSelection();
+  } else if (ev.key === "Escape" && ev.defaultPrevented) {
+    // Échap déjà pris par l'éditeur de texte, qui vient de fermer l'écriture (et a pu quitter la page avant que la
+    // touche arrive ici) : l'élément reste sélectionné, l'Échap suivant remonte d'un niveau.
   } else if (ev.key === "Escape" && (editor.focusedMember || editor.inside.length)) {
     // Retour d'un niveau : de l'élément modifié seul à son groupe, d'un sous-groupe au groupe qui le contient.
     const id = editor.focusedMember ?? editor.selection[0];

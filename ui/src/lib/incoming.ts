@@ -60,15 +60,19 @@ export function isImageFile(f: { name: string; type: string }): boolean {
   return /^image\/(png|jpeg|webp|svg\+xml|heic|heif)$/.test(f.type) || /\.(png|jpe?g|webp|svg|heic|heif)$/i.test(f.name);
 }
 
-/** Nouveau bloc de texte au centre de la page, assez grand pour le texte (estimé), sans en sortir. */
+/**
+ * Nouveau bloc de texte au centre de la page, assez grand pour le texte (estimé), sans en sortir. Avec de la marge :
+ * lettres comptées plus larges qu'en gras et une ligne de plus, pour que le gras ou une autre police ne déborde pas.
+ */
 export function pastedTextElement(page: Page, text: string): Element {
   const t = clean(text);
   const style = defaultTextStyle();
-  const lineMm = style.size_pt * 0.3528 * 1.3;
+  // Andika : lignes de 1,6 em, 0,46 em par lettre (0,48 en gras).
+  const lineMm = style.size_pt * 0.3528 * 1.6;
   const w = Math.min(120, page.size.width_mm - 20);
-  const perLine = Math.max(1, Math.floor(w / (style.size_pt * 0.3528 * 0.5)));
+  const perLine = Math.max(1, Math.floor((w - 2 * TEXT_PADDING_MM) / (style.size_pt * 0.3528 * 0.55)));
   const lines = t.split("\n").reduce((n, l) => n + Math.max(1, Math.ceil(l.length / perLine)), 0);
-  const h = Math.min(page.size.height_mm - 20, Math.round(lines * lineMm + 2 * TEXT_PADDING_MM + 2));
+  const h = Math.min(page.size.height_mm - 20, Math.round((lines + 1) * lineMm + 2 * TEXT_PADDING_MM));
   const el = textElement(centeredFrame(page, w, h));
   if (el.kind.type === "Text") el.kind.content = { paragraphs: [{ align: null, runs: [{ text: t, bold: false, italic: false, underline: false, color: null, font: null, size_pt: null }] }] };
   return el;
@@ -117,7 +121,7 @@ export function armPaste() {
   setTimeout(() => {
     if (!armed) return;
     armed = false;
-    void pasteFromMenu();
+    void pasteFromMenu(true);
   }, 0);
 }
 
@@ -142,8 +146,12 @@ async function readSystemClipboard(): Promise<Incoming> {
   return c;
 }
 
-/** « Coller » du clic droit : le presse-papiers du système s'il est lisible ; sinon la copie de Cahutin. */
-export async function pasteFromMenu() {
+/**
+ * « Coller » du clic droit : le presse-papiers du système s'il est lisible ; sinon la copie de Cahutin, avec un
+ * mot pour coller ce qui vient d'ailleurs. Sous Linux, la vue web laisse toujours relire ce que Cahutin y a mis :
+ * un refus après une copie marquée veut dire qu'on a copié ailleurs depuis, et l'ancienne copie n'est pas collée.
+ */
+export async function pasteFromMenu(keyboard = false) {
   // Copie de Cahutin non marquée : elle l'emporte de toute façon, inutile de lire le presse-papiers.
   if (hasClipboard() && !lastMark()) {
     paste();
@@ -156,8 +164,12 @@ export async function pasteFromMenu() {
     // Lecture refusée par la vue web.
   }
   if (c) await pasteIncoming(c);
-  else if (hasClipboard()) paste();
-  else editor.notice = fr.pasteUseKeyboard;
+  else if (keyboard && hasClipboard()) paste();
+  else if (!hasClipboard() || /Linux/.test(navigator.userAgent)) editor.notice = fr.pasteUseKeyboard;
+  else {
+    paste();
+    editor.notice = fr.pastedFromCahutin;
+  }
 }
 
 /** Fichiers lâchés sur la page depuis l'explorateur : chaque image posée là où elle tombe (un peu décalées). */

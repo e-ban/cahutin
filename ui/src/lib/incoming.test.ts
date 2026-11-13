@@ -1,5 +1,9 @@
 import { beforeEach, expect, test, vi } from "vitest";
 
+// La marque de la dernière copie de Cahutin : sans vue web, elle ne s'écrit jamais ; les tests la posent.
+const copy = vi.hoisted(() => ({ mark: null as { token: string; text: string } | null }));
+vi.mock("./systemClipboard", async (orig) => ({ ...(await orig<typeof import("./systemClipboard")>()), lastMark: () => copy.mark }));
+
 const imported: number[] = [];
 vi.mock("./api", async (orig) => ({
   ...(await orig<typeof import("./api")>()),
@@ -10,12 +14,13 @@ vi.mock("./api", async (orig) => ({
   },
 }));
 
-const { armPaste, choosePaste, dropFiles, guardWindowDrop, handlePasteEvent, htmlText, isImageFile, pastedTextElement, pasteIncoming } = await import("./incoming");
-const { plainTextOf } = await import("./systemClipboard");
+const { armPaste, choosePaste, dropFiles, guardWindowDrop, handlePasteEvent, htmlText, isImageFile, pastedTextElement, pasteFromMenu, pasteIncoming } = await import("./incoming");
+const { COPY_MIME, plainTextOf } = await import("./systemClipboard");
 const { editor } = await import("./docStore.svelte");
 const { newDocument, textElement } = await import("./factory");
 const { copySelection } = await import("./editActions");
 const { fr } = await import("./i18n/fr");
+const { TEXT_PADDING_MM } = await import("./richtext");
 
 const mark = { token: "t1", text: "Bonjour" };
 const sys = (c: Partial<{ token: string; text: string; html: string; image: boolean }>) => ({ token: "", text: "", html: "", image: false, ...c });
@@ -79,6 +84,18 @@ test("a pasted text becomes a new text block, inside the page", () => {
   expect(el.frame.x_mm + el.frame.w_mm).toBeLessThanOrEqual(page.size.width_mm);
   const long = pastedTextElement(page, "mot ".repeat(5000));
   expect(long.frame.y_mm + long.frame.h_mm).toBeLessThanOrEqual(page.size.height_mm);
+});
+
+test("a pasted text keeps room to be put in bold or in a slightly wider font", () => {
+  const page = editor.page;
+  // Andika, la police des textes : 0,48 em par lettre en gras, lignes de 1,6 em (mesuré dans la vue web).
+  const em = 14 * 0.3528;
+  for (const text of ["Bonjour les enfants, aujourd'hui nous allons au parc.", "Nous avons planté des graines de haricots dans des pots. ".repeat(5)]) {
+    const el = pastedTextElement(page, text);
+    const inner = el.frame.w_mm - 2 * TEXT_PADDING_MM;
+    const lines = Math.ceil((text.trim().length * 0.53 * em) / inner);
+    expect(el.frame.h_mm).toBeGreaterThanOrEqual(lines * 1.6 * em + 2 * TEXT_PADDING_MM);
+  }
 });
 
 test("each pasted text or image is one undo step", async () => {
@@ -198,4 +215,59 @@ test("« Coller » of the menu keeps Cahutin's copy without reading the system c
   expect(read).not.toHaveBeenCalled();
   expect(editor.page.elements).toHaveLength(before + 1);
   vi.unstubAllGlobals();
+});
+
+const refused = (userAgent: string) => ({
+  userAgent,
+  clipboard: {
+    read: async () => {
+      throw new DOMException("refusé", "NotAllowedError");
+    },
+  },
+});
+const LINUX = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15";
+const WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edg/120.0";
+
+test("« Coller » of the menu under Linux: a refused read means something was copied elsewhere since, the old copy is not pasted", async () => {
+  copy.mark = { token: "t9", text: "" };
+  vi.stubGlobal("navigator", refused(LINUX));
+  const before = editor.page.elements.length;
+  await pasteFromMenu();
+  expect(editor.page.elements).toHaveLength(before);
+  expect(editor.notice).toBe(fr.pasteUseKeyboard);
+  vi.unstubAllGlobals();
+  copy.mark = null;
+});
+
+test("« Coller » of the menu elsewhere: a refused read pastes Cahutin's copy and says how to paste from another program", async () => {
+  copy.mark = { token: "t9", text: "" };
+  vi.stubGlobal("navigator", refused(WINDOWS));
+  const before = editor.page.elements.length;
+  await pasteFromMenu();
+  expect(editor.page.elements).toHaveLength(before + 1);
+  expect(editor.notice).toBe(fr.pastedFromCahutin);
+  vi.unstubAllGlobals();
+  copy.mark = null;
+});
+
+test("« Coller » of the menu with a readable clipboard still holding Cahutin's copy: pasted, no message", async () => {
+  copy.mark = { token: "t9", text: "" };
+  vi.stubGlobal("navigator", { userAgent: LINUX, clipboard: { read: async () => [{ types: [COPY_MIME], getType: async () => new Blob(["t9"]) }] } });
+  const before = editor.page.elements.length;
+  await pasteFromMenu();
+  expect(editor.page.elements).toHaveLength(before + 1);
+  expect(editor.notice).toBeNull();
+  vi.unstubAllGlobals();
+  copy.mark = null;
+});
+
+test("Ctrl+V without a paste event and a refused read keeps Cahutin's copy, without telling to press Ctrl+V", async () => {
+  copy.mark = { token: "t9", text: "" };
+  vi.stubGlobal("navigator", refused(LINUX));
+  const before = editor.page.elements.length;
+  armPaste();
+  await vi.waitFor(() => expect(editor.page.elements).toHaveLength(before + 1));
+  expect(editor.notice).toBeNull();
+  vi.unstubAllGlobals();
+  copy.mark = null;
 });

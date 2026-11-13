@@ -125,9 +125,10 @@
             return true;
           }
           // Tab dans une case de tableau : la case est validée, la suivante (Maj : la précédente) s'ouvre ; après
-          // la dernière, rien ne s'ouvre. Hors tableau, Tab garde son comportement.
+          // la dernière, rien ne s'ouvre. Hors tableau, Tab garde son comportement. Sous Linux, Maj+Tab arrive
+          // sans nom de touche (`key` « Unidentified ») : la touche se reconnaît alors à `code`.
           const id = doc.editingText;
-          if (event.key === "Tab" && !event.ctrlKey && !event.altKey && !event.metaKey && id && isTableCell(doc.page, id)) {
+          if ((event.key === "Tab" || event.code === "Tab") && !event.ctrlKey && !event.altKey && !event.metaKey && id && isTableCell(doc.page, id)) {
             const next = nextCell(doc.page, id, event.shiftKey);
             finish();
             if (next) {

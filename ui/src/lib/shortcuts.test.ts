@@ -248,3 +248,34 @@ test("une flèche ne sort pas un élément de la page", async () => {
   handleKeyUp(ev("ArrowRight"));
   expect(x()).toBe(width - 5);
 });
+
+test("Échap qui vient de fermer l'écriture d'un texte (zone à remplir) garde l'élément sélectionné", async () => {
+  const { editor } = await import("./docStore.svelte");
+  const { handleShortcut } = await import("./shortcuts");
+  const { newDocument, textElement } = await import("./factory");
+  const doc = newDocument();
+  const frame = { x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 };
+  const zone = textElement(frame, true);
+  const a = { ...textElement(frame), group: "g" };
+  const b = { ...textElement(frame), group: "g" };
+  doc.pages[0].elements.push(zone, a, b);
+  editor.reset(doc, null);
+  // L'éditeur a déjà traité la touche (et a pu quitter la page) : ce n'est plus une zone de saisie qui la reçoit.
+  const esc = (handled: boolean) => handleShortcut({ key: "Escape", ctrlKey: false, metaKey: false, shiftKey: false, repeat: false, target: null, defaultPrevented: handled, preventDefault() {} } as unknown as KeyboardEvent);
+
+  editor.selection = [zone.id];
+  esc(true);
+  expect(editor.selection).toEqual([zone.id]);
+  esc(false);
+  expect(editor.selection).toEqual([]);
+
+  // Dans un groupe, de même : on sort de l'écriture, puis du groupe.
+  editor.insideGroup = ["g"];
+  editor.focusedMember = a.id;
+  editor.selection = [a.id];
+  esc(true);
+  expect(editor.selection).toEqual([a.id]);
+  expect(editor.focusedMember).toBe(a.id);
+  esc(false);
+  expect(editor.selection).toEqual([a.id, b.id]);
+});

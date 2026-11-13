@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { pick, toggleAll } from "./selection";
+import { groupClick, pick, toggleAll } from "./selection";
 
 const order = ["a", "b", "c", "d", "e"];
 const none = { ctrl: false, shift: false };
@@ -32,4 +32,12 @@ test("toggleAll ajoute un groupe, puis le retire s'il y est déjà tout entier",
   expect(toggleAll(["a"], ["b", "c"])).toEqual(["a", "b", "c"]);
   expect(toggleAll(["a", "b", "c"], ["b", "c"])).toEqual(["a"]);
   expect(toggleAll(["b"], ["b", "c"])).toEqual(["b", "c"]);
+});
+
+test("clic sur la zone d'une sélection de plusieurs éléments : Ctrl ou Maj retire un élément déjà choisi", () => {
+  expect(groupClick("b", ["a", "b"], true)).toBe("b");
+  // Sans touche, un élément déjà choisi ne change rien : la sélection reste à déplacer.
+  expect(groupClick("b", ["a", "b"], false)).toBeUndefined();
+  expect(groupClick("c", ["a", "b"], false)).toBe("c");
+  expect(groupClick(null, ["a", "b"], false)).toBeNull();
 });

@@ -14,6 +14,7 @@
   import { PX_PER_MM, mmToPx } from "../lib/units";
   import { IS_LINUX, moveableCursorCss } from "../lib/cursors";
   import { pixelRatio } from "../lib/pixelRatio.svelte";
+  import { groupClick } from "../lib/selection";
 
   let { pageEl, zoom, onpick }: { pageEl: HTMLElement | undefined; zoom: number; onpick: (id: string | null, add: boolean) => void } = $props();
 
@@ -167,14 +168,15 @@
       })
       .on("rotateGroupEnd", () => end(targets))
       // La zone du groupe recouvre la boîte englobante : un clic sur un autre élément (ou sur la page)
-      // dessous le sélectionne. Le double-clic est traité par la page.
+      // dessous le sélectionne ; Ctrl ou Maj retire un élément déjà choisi. Le double-clic est traité par la page.
       .on("clickGroup", (ev) => {
         const input = ev.inputEvent as MouseEvent;
         // Alt+clic : la page a déjà choisi l'élément dessous.
         if (ev.isDouble || input.altKey) return;
         const id = document.elementsFromPoint(input.clientX, input.clientY).map((n) => n.closest<HTMLElement>(".element")).find((n) => n && pageEl?.contains(n))?.dataset.id ?? null;
-        if (id && ids?.includes(id)) return;
-        onpick(id, input.shiftKey || input.ctrlKey || input.metaKey);
+        const add = input.shiftKey || input.ctrlKey || input.metaKey;
+        const pick = groupClick(id, ids ?? [], add);
+        if (pick !== undefined) onpick(pick, add);
       });
     return m;
   }

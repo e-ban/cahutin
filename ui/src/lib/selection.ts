@@ -15,3 +15,11 @@ export function pick(selected: string[], order: string[], key: string, mods: { c
 export function toggleAll(selected: string[], keys: string[]): string[] {
   return keys.every((k) => selected.includes(k)) ? selected.filter((k) => !keys.includes(k)) : [...new Set([...selected, ...keys])];
 }
+
+/**
+ * Clic (sans glisser) sur la zone d'une sélection de plusieurs éléments de la page : l'élément à choisir sous le
+ * pointeur (null : la page vide), ou undefined pour ne rien changer. Ctrl ou Maj sur un élément déjà choisi le retire.
+ */
+export function groupClick(id: string | null, selected: string[], add: boolean): string | null | undefined {
+  return id && selected.includes(id) && !add ? undefined : id;
+}

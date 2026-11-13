@@ -10,8 +10,7 @@ use carnet_core::{Mime, fonts};
 use std::borrow::Cow;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, Sender, channel};
-use std::sync::OnceLock;
+use std::sync::{Condvar, Mutex, Once};
 use tauri::http::{Request, Response, StatusCode, header};
 use tauri::{AppHandle, Manager, Runtime, UriSchemeContext, UriSchemeResponder};
 
@@ -25,11 +24,42 @@ struct Job {
     reply: Box<dyn FnOnce(Body) + Send>,
 }
 
+/// Les demandes en attente, servies de la plus récente à la plus ancienne : pendant le premier parcours d'un
+/// gros dossier, la page demande des milliers de vignettes ; celles qu'elle vient de demander sont à l'écran,
+/// les plus anciennes souvent plus du tout.
+struct Jobs {
+    waiting: Mutex<Vec<Job>>,
+    ready: Condvar,
+}
+
+impl Jobs {
+    const fn new() -> Self {
+        Jobs { waiting: Mutex::new(Vec::new()), ready: Condvar::new() }
+    }
+
+    fn push(&self, job: Job) {
+        self.waiting.lock().unwrap_or_else(|e| e.into_inner()).push(job);
+        self.ready.notify_one();
+    }
+
+    /// La demande la plus récente ; attend s'il n'y en a aucune.
+    fn newest(&self) -> Job {
+        let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
+        loop {
+            if let Some(job) = waiting.pop() {
+                return job;
+            }
+            waiting = self.ready.wait(waiting).unwrap_or_else(|e| e.into_inner());
+        }
+    }
+}
+
 /// La boucle du fil de travail : chaque demande reçoit une réponse, et le fil survit à une demande qui
 /// échoue (un décodeur qui panique sur un fichier abîmé, un verrou empoisonné) ; elle reçoit alors une erreur.
-fn run_jobs(jobs: Receiver<Job>) {
+fn run_jobs(jobs: &Jobs) {
     let mut failures = 0u64;
-    for Job { work, reply } in jobs {
+    loop {
+        let Job { work, reply } = jobs.newest();
         let response = catch_unwind(AssertUnwindSafe(work)).unwrap_or_else(|_| {
             failures += 1;
             log::error!("library_job_panicked count={failures}");
@@ -41,15 +71,15 @@ fn run_jobs(jobs: Receiver<Job>) {
 }
 
 /// Fil de travail de la photothèque : lire une photo ou faire sa vignette prend du temps, jamais sur le
-/// fil de l'interface. Un seul fil, qui sert les demandes dans l'ordre : jamais des centaines de photos
+/// fil de l'interface. Un seul fil, la demande la plus récente d'abord : jamais des centaines de photos
 /// décodées à la fois.
-fn library_jobs() -> &'static Sender<Job> {
-    static JOBS: OnceLock<Sender<Job>> = OnceLock::new();
-    JOBS.get_or_init(|| {
-        let (tx, rx) = channel::<Job>();
-        std::thread::spawn(move || run_jobs(rx));
-        tx
-    })
+fn library_jobs() -> &'static Jobs {
+    static JOBS: Jobs = Jobs::new();
+    static WORKER: Once = Once::new();
+    WORKER.call_once(|| {
+        std::thread::spawn(|| run_jobs(&JOBS));
+    });
+    &JOBS
 }
 
 fn server_error() -> Body {
@@ -62,13 +92,9 @@ pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>
     if let Some(rest) = path.strip_prefix("lib/") {
         let app = ctx.app_handle().clone();
         let rest = rest.to_string();
-        let job = Job { work: Box::new(move || library_response(&app.state::<AppState>(), &rest)), reply: Box::new(move |r| responder.respond(r)) };
-        // Le fil de travail ne s'arrête pas (voir `run_jobs`). S'il avait disparu malgré tout, la demande
-        // reçoit une erreur : le travail ne se fait jamais sur le fil de l'interface.
-        if let Err(e) = library_jobs().send(job) {
-            log::error!("library_worker_gone");
-            (e.0.reply)(server_error());
-        }
+        // Le fil de travail ne s'arrête pas (voir `run_jobs`) : le travail ne se fait jamais sur le fil de
+        // l'interface.
+        library_jobs().push(Job { work: Box::new(move || library_response(&app.state::<AppState>(), &rest)), reply: Box::new(move |r| responder.respond(r)) });
         return;
     }
     responder.respond(respond(ctx.app_handle(), path));
@@ -321,20 +347,51 @@ mod tests {
         assert_eq!(library_response(&state, "inconnue").status(), StatusCode::NOT_FOUND);
     }
 
+    type Work = Box<dyn FnOnce() -> Body + Send>;
+
+    /// Un fil de travail à lui : de quoi lui envoyer un travail, et le code de chaque réponse.
+    fn worker() -> (impl Fn(Work), std::sync::mpsc::Receiver<StatusCode>) {
+        let jobs = std::sync::Arc::new(Jobs::new());
+        let served = jobs.clone();
+        std::thread::spawn(move || run_jobs(&served));
+        let (replies, answers) = std::sync::mpsc::channel::<StatusCode>();
+        let send = move |work: Work| {
+            let replies = replies.clone();
+            jobs.push(Job { work, reply: Box::new(move |r| replies.send(r.status()).unwrap()) });
+        };
+        (send, answers)
+    }
+
+    const WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
     #[test]
     fn a_job_that_panics_gets_an_error_and_the_worker_keeps_serving() {
-        let (jobs, rx) = channel::<Job>();
-        std::thread::spawn(move || run_jobs(rx));
-        let (replies, answers) = channel::<StatusCode>();
-        let send = |work: Box<dyn FnOnce() -> Body + Send>| {
-            let replies = replies.clone();
-            jobs.send(Job { work, reply: Box::new(move |r| replies.send(r.status()).unwrap()) }).unwrap();
-        };
+        let (send, answers) = worker();
         send(Box::new(|| panic!("décodeur en panne")));
+        assert_eq!(answers.recv_timeout(WAIT), Ok(StatusCode::INTERNAL_SERVER_ERROR), "la demande qui a échoué reçoit une erreur");
         send(Box::new(not_found));
-        let wait = std::time::Duration::from_secs(5);
-        assert_eq!(answers.recv_timeout(wait), Ok(StatusCode::INTERNAL_SERVER_ERROR), "la demande qui a échoué reçoit une erreur");
-        assert_eq!(answers.recv_timeout(wait), Ok(StatusCode::NOT_FOUND), "la suivante est encore servie");
+        assert_eq!(answers.recv_timeout(WAIT), Ok(StatusCode::NOT_FOUND), "la suivante est encore servie");
+    }
+
+    /// Des milliers de vignettes demandées pendant un parcours : celles que la page vient de demander (à l'écran)
+    /// passent avant les plus anciennes.
+    #[test]
+    fn the_newest_request_is_served_first() {
+        let (send, answers) = worker();
+        let (started, busy) = std::sync::mpsc::channel();
+        let (release, held) = std::sync::mpsc::channel::<()>();
+        send(Box::new(move || {
+            started.send(()).unwrap();
+            held.recv().unwrap();
+            Response::builder().status(StatusCode::OK).body(Cow::Borrowed(&[][..])).unwrap()
+        }));
+        busy.recv_timeout(WAIT).unwrap();
+        for code in [StatusCode::CREATED, StatusCode::ACCEPTED, StatusCode::NO_CONTENT] {
+            send(Box::new(move || Response::builder().status(code).body(Cow::Borrowed(&[][..])).unwrap()));
+        }
+        release.send(()).unwrap();
+        let order: Vec<_> = (0..4).map(|_| answers.recv_timeout(WAIT).unwrap()).collect();
+        assert_eq!(order, [StatusCode::OK, StatusCode::NO_CONTENT, StatusCode::ACCEPTED, StatusCode::CREATED]);
     }
 
     #[test]

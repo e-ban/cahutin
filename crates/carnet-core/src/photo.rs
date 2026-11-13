@@ -380,6 +380,10 @@ pub fn thumbnail_of(path: &Path) -> Result<(Vec<u8>, Mime), ImportError> {
     let data = std::fs::read(path).map_err(|_| ImportError::Io)?;
     let img = decode_upright(&data, None)?;
     let mime = if has_transparency(&img) { Mime::Png } else { Mime::Jpeg };
+    // Lanczos sur une photo de 12 Mpx coûte 450 ms : d'abord une réduction par moyenne (dix fois plus rapide)
+    // jusqu'au double de la vignette, puis Lanczos pour la netteté habituelle.
+    let edge = 2 * THUMB_LONG_EDGE_PX;
+    let img = if img.width().max(img.height()) > edge { img.thumbnail(edge, edge) } else { img };
     Ok((encode(&fit(&img, THUMB_LONG_EDGE_PX), mime)?, mime))
 }
 

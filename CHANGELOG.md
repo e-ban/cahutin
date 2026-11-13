@@ -4,6 +4,7 @@
 ## Non publié
 
 - Texte : un texte collé sur plusieurs lignes ne s'efface plus quand on le reprend ; Maj+Entrée va à la ligne.
+- Tableaux : fusionner des cases garde leur texte, réuni ligne par ligne.
 
 
 ## 0.17.0

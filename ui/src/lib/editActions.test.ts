@@ -345,3 +345,26 @@ test("a size typed in Réglages keeps the proportions when asked, and a group gr
   expect(b).toMatchObject({ x_mm: 100, w_mm: 20, h_mm: 10 });
   expect(c.x_mm).toBe(130);
 });
+
+test("undoing a table merge brings back the text of every cell", async () => {
+  const { runOnPage } = await import("./editActions");
+  const { textElement } = await import("./factory");
+  const doc = newDocument("tableau");
+  const cells = ["Lundi", "Mardi"].map((text, i) => {
+    const e = textElement({ x_mm: 10 + 20 * i, y_mm: 10, w_mm: 20, h_mm: 10, rotation_deg: 0 });
+    if (e.kind.type === "Text") e.kind.content = { paragraphs: [{ align: null, runs: [{ text, bold: false, italic: false, underline: false, color: null, font: null, size_pt: null }] }] };
+    return e;
+  });
+  doc.pages[0].elements.push(...cells);
+  editor.reset(doc, null);
+  const before = JSON.parse(JSON.stringify(editor.page));
+  // Ce que rend le moteur (carnet_core::table::merge) : une case qui réunit les deux textes.
+  await runOnPage(async (p) => {
+    const [a, b] = p.elements;
+    const kind = a.kind.type === "Text" && b.kind.type === "Text" ? { ...a.kind, content: { paragraphs: [...a.kind.content.paragraphs, ...b.kind.content.paragraphs] } } : a.kind;
+    return { ...p, elements: [{ ...a, kind, frame: { ...a.frame, w_mm: 40 } }] };
+  });
+  expect(editor.page.elements).toHaveLength(1);
+  editor.undo();
+  expect(editor.page).toEqual(before);
+});

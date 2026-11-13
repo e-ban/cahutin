@@ -339,7 +339,10 @@ pub fn remove_col(page: &mut Page, cell: &str) -> Result<(), TableError> {
     remove(page, cell, Axis::Col)
 }
 
-/// Fusionne `a` et `b` en leur rectangle englobant ; la case `a` garde son contenu.
+/// Fusionne `a` et `b` en leur rectangle englobant, dans la case `a`. Rien n'est effacé sans raison : la case
+/// fusionnée prend le contenu de la première case non vide (ordre de lecture) et, si c'est un texte, le texte
+/// de toutes les cases écrites, chacune sur sa ligne. Un pictogramme ou une photo à côté d'un autre contenu
+/// est perdu (une case n'en montre qu'un) ; l'annulation le rend.
 pub fn merge(page: &mut Page, a: &str, b: &str) -> Result<(), TableError> {
     let i = table_of(page, a)?;
     let t = props_mut(page, i);
@@ -361,10 +364,35 @@ pub fn merge(page: &mut Page, a: &str, b: &str) -> Result<(), TableError> {
             return Err(TableError::NotRectangular);
         }
     }
+    let mut order: Vec<_> = t.cells.iter().filter(|c| c.element_id == a || absorbed.contains(&c.element_id)).map(|c| (c.row, c.col, c.element_id.clone())).collect();
+    order.sort();
     t.cells.retain(|c| !absorbed.contains(&c.element_id));
     let ca = t.cells.iter_mut().find(|c| c.element_id == a).unwrap();
     *ca = GridCell { element_id: a.to_string(), col: c0, row: r0, col_span: c1 - c0, row_span: r1 - r0 };
     let table = page.elements[i].id.clone();
+    let filled: Vec<ElementKind> = order
+        .iter()
+        .filter_map(|(_, _, id)| page.elements.iter().find(|e| &e.id == id))
+        .map(|e| e.kind.clone())
+        .filter(|k| match k {
+            ElementKind::Text(tx) => !tx.content.is_blank(),
+            ElementKind::Photo(ph) => ph.asset.is_some(),
+            _ => true,
+        })
+        .collect();
+    if let Some(first) = filled.first() {
+        let mut kind = first.clone();
+        if let ElementKind::Text(tx) = &mut kind {
+            tx.content.paragraphs = filled
+                .iter()
+                .flat_map(|k| match k {
+                    ElementKind::Text(t) => t.content.paragraphs.clone(),
+                    _ => Vec::new(),
+                })
+                .collect();
+        }
+        page.elements.iter_mut().find(|e| e.id == a).unwrap().kind = kind;
+    }
     page.elements.retain(|e| !absorbed.contains(&e.id));
     layout(page, &table);
     Ok(())
@@ -645,6 +673,60 @@ mod tests {
         let c0 = cell_at(&p, &t, 1, 1);
         let c1 = cell_at(&p, &t, 2, 0);
         assert_eq!(merge(&mut p, &c0, &c1), Err(TableError::NotRectangular));
+    }
+
+    fn write(page: &mut Page, cell: &str, text: &str) {
+        if let Some(ElementKind::Text(tx)) = page.elements.iter_mut().find(|e| e.id == cell).map(|e| &mut e.kind) {
+            tx.content = RichText::plain(text);
+        }
+    }
+
+    fn lines(page: &Page, cell: &str) -> Vec<String> {
+        let ElementKind::Text(tx) = &el(page, cell).kind else { panic!("pas un texte") };
+        tx.content.paragraphs.iter().map(|p| p.runs.iter().map(|r| r.text.as_str()).collect()).collect()
+    }
+
+    #[test]
+    fn merge_gathers_the_text_of_every_cell_in_reading_order() {
+        let (mut p, t) = table(2, 2);
+        let (c00, c10, c01, c11) = (cell_at(&p, &t, 0, 0), cell_at(&p, &t, 1, 0), cell_at(&p, &t, 0, 1), cell_at(&p, &t, 1, 1));
+        write(&mut p, &c00, "Lundi");
+        write(&mut p, &c10, " ");
+        write(&mut p, &c01, "Mardi\nmatin");
+        write(&mut p, &c11, "Jeudi");
+        // La case gardée est celle du bas à droite : l'ordre reste celui de la lecture.
+        merge(&mut p, &c11, &c00).unwrap();
+        assert_eq!(props(&p, &t).cells.len(), 1);
+        assert_eq!(lines(&p, &c11), ["Lundi", "Mardi", "matin", "Jeudi"]);
+    }
+
+    #[test]
+    fn merge_keeps_the_first_picture_when_the_merged_cell_is_empty() {
+        let (mut p, t) = table(3, 1);
+        let (c0, c1, c2) = (cell_at(&p, &t, 0, 0), cell_at(&p, &t, 1, 0), cell_at(&p, &t, 2, 0));
+        set_cell_content(&mut p, &c0, CellContent::Photo).unwrap();
+        set_cell_content(&mut p, &c1, CellContent::Picto("1F98A".into())).unwrap();
+        merge(&mut p, &c0, &c2).unwrap();
+        assert_eq!(el(&p, &c0).kind, ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None }));
+        let f = el(&p, &c0).frame;
+        assert!(close(f.w_mm, 87.0) && close(f.h_mm, 87.0), "{f:?}");
+    }
+
+    #[test]
+    fn merge_of_a_text_and_a_picture_keeps_the_first_in_reading_order() {
+        // Une case ne montre qu'un contenu : l'autre est perdu (l'annulation le rend).
+        let (mut p, t) = table(2, 1);
+        let (c0, c1) = (cell_at(&p, &t, 0, 0), cell_at(&p, &t, 1, 0));
+        write(&mut p, &c0, "Lundi");
+        set_cell_content(&mut p, &c1, CellContent::Picto("1F98A".into())).unwrap();
+        merge(&mut p, &c1, &c0).unwrap();
+        assert_eq!(lines(&p, &c1), ["Lundi"]);
+        let (mut p, t) = table(2, 1);
+        let (c0, c1) = (cell_at(&p, &t, 0, 0), cell_at(&p, &t, 1, 0));
+        set_cell_content(&mut p, &c0, CellContent::Picto("1F98A".into())).unwrap();
+        write(&mut p, &c1, "Lundi");
+        merge(&mut p, &c0, &c1).unwrap();
+        assert!(matches!(&el(&p, &c0).kind, ElementKind::Image(_)));
     }
 
     #[test]

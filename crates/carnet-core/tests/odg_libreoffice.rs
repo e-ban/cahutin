@@ -1660,3 +1660,240 @@ fn mirrored_and_turned_shape_keeps_its_orientation() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Vrais tableaux de LibreOffice (`table:table` dans un `draw:frame`), écrits à la main dans le paquet d'un export de
+// Cahutin (ses polices intégrées comprises) : l'import les relit, et la sonde mesure ce qu'en fait le LibreOffice du
+// poste avant que l'export n'en écrive.
+
+/// Style de case d'essai : sans fond (`draw:fill="none"`), marges de 1,5 mm à gauche et à droite et de `vertical_mm`
+/// en haut et en bas, alignée en haut, trait `border` ; `text` : l'allure du texte de la case (`style:text-properties`).
+fn cell_style(name: &str, border: &str, vertical_mm: f64, text: &str) -> String {
+    format!(
+        r#"<style:style style:name="{name}" style:family="table-cell"><loext:graphic-properties draw:fill="none" fo:padding-top="{vertical_mm}mm" fo:padding-bottom="{vertical_mm}mm" fo:padding-left="1.5mm" fo:padding-right="1.5mm" draw:textarea-vertical-align="top"/><style:paragraph-properties fo:border="{border}"/>{text}</style:style>"#
+    )
+}
+
+/// Un vrai tableau à (`x`, `y`) : colonnes et lignes aux tailles données (mm), puis les cases de chaque ligne. Les
+/// styles de colonne et de ligne vont dans `styles`, nommés d'après `name`.
+fn drawn_table(styles: &mut String, name: &str, x: f64, y: f64, cols: &[f64], rows: &[f64], cells: &[String]) -> String {
+    let mut out = format!(r#"<draw:frame svg:x="{x}mm" svg:y="{y}mm" svg:width="{}mm" svg:height="{}mm"><table:table>"#, cols.iter().sum::<f64>(), rows.iter().sum::<f64>());
+    for (i, w) in cols.iter().enumerate() {
+        styles.push_str(&format!(r#"<style:style style:name="{name}c{i}" style:family="table-column"><style:table-column-properties style:column-width="{w}mm"/></style:style>"#));
+        out.push_str(&format!(r#"<table:table-column table:style-name="{name}c{i}"/>"#));
+    }
+    for (i, (h, row)) in rows.iter().zip(cells).enumerate() {
+        styles.push_str(&format!(r#"<style:style style:name="{name}r{i}" style:family="table-row"><style:table-row-properties style:row-height="{h}mm"/></style:style>"#));
+        out.push_str(&format!(r#"<table:table-row table:style-name="{name}r{i}">{row}</table:table-row>"#));
+    }
+    out + "</table:table></draw:frame>"
+}
+
+/// L'export de `doc`, dont `content.xml` reçoit en plus `styles` (styles automatiques) et `objects` (sur la première
+/// page, après ce qu'y met l'export).
+fn export_with_drawn(doc: &Document, dir: &Path, name: &str, styles: &str, objects: &str) -> PathBuf {
+    let base = dir.join("base.odg");
+    export_odg_to_path(doc, &AssetStore::default(), &FontSet::builtin(), &base).unwrap();
+    let mut zin = zip::ZipArchive::new(std::fs::File::open(&base).unwrap()).unwrap();
+    let mut content = String::new();
+    std::io::Read::read_to_string(&mut zin.by_name("content.xml").unwrap(), &mut content).unwrap();
+    for (prefix, ns) in [("table", "urn:oasis:names:tc:opendocument:xmlns:table:1.0"), ("loext", "urn:org:documentfoundation:names:experimental:office:xmlns:loext:1.0")] {
+        if !content.contains(&format!("xmlns:{prefix}=")) {
+            content = content.replacen("<office:document-content ", &format!(r#"<office:document-content xmlns:{prefix}="{ns}" "#), 1);
+        }
+    }
+    let content = content.replacen("</office:automatic-styles>", &format!("{styles}</office:automatic-styles>"), 1).replacen("</draw:page>", &format!("{objects}</draw:page>"), 1);
+    let path = dir.join(name);
+    let mut zout = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+    // Le paquet de l'export, dans son ordre (`mimetype` en premier), `content.xml` remplacé.
+    for i in 0..zin.len() {
+        let entry = zin.by_index(i).unwrap();
+        if entry.name().is_ok_and(|n| n == "content.xml") {
+            drop(entry);
+            zout.start_file("content.xml", zip::write::SimpleFileOptions::default()).unwrap();
+            std::io::Write::write_all(&mut zout, content.as_bytes()).unwrap();
+        } else {
+            zout.raw_copy_file(entry).unwrap();
+        }
+    }
+    zout.finish().unwrap();
+    path
+}
+
+fn soffice_convert(dir: &Path, to: &str, input: &Path, out: &Path) {
+    std::fs::create_dir_all(out).unwrap();
+    let profile = format!("-env:UserInstallation=file://{}", dir.join("profil").display());
+    run(Command::new("soffice").arg(profile).args(["--headless", "--convert-to", to, "--outdir"]).arg(out).arg(input));
+}
+
+/// Un tableau fait par LibreOffice lui-même (un tableau écrit à la main, réenregistré par `soffice --convert-to odg`)
+/// se relit en tableau de Cahutin : colonnes, lignes, fusions et textes à leur place.
+#[test]
+#[ignore]
+fn a_table_saved_by_libreoffice_is_imported_as_a_table() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut styles = cell_style("ceA", "0.567mm solid #000000", 1.5, "");
+    let p = |t: &str| format!("<text:p>{t}</text:p>");
+    let cell = |t: &str| format!(r#"<table:table-cell table:style-name="ceA">{}</table:table-cell>"#, p(t));
+    let rows = [
+        format!(r#"<table:table-cell table:style-name="ceA" table:number-columns-spanned="2">{}</table:table-cell><table:covered-table-cell/>{}"#, p("Alpha"), cell("Bravo")),
+        format!(r#"{}{}<table:table-cell table:style-name="ceA" table:number-rows-spanned="2">{}</table:table-cell>"#, cell("Delta"), cell("Echo"), p("Golf")),
+        format!("{}{}<table:covered-table-cell/>", cell("Hotel"), cell("Kilo")),
+    ];
+    let table = drawn_table(&mut styles, "t", 30.0, 40.0, &[75.0, 37.5, 37.5], &[30.0, 60.0, 30.0], &rows);
+    let odg = export_with_drawn(&Document::new("tableau"), dir.path(), "tableau.odg", &styles, &table);
+    let out = dir.path().join("relu");
+    soffice_convert(dir.path(), "odg", &odg, &out);
+    let saved = out.join("tableau.odg");
+    let mut content = String::new();
+    std::io::Read::read_to_string(&mut zip::ZipArchive::new(std::fs::File::open(&saved).unwrap()).unwrap().by_name("content.xml").unwrap(), &mut content).unwrap();
+    assert!(content.contains("<table:table"), "LibreOffice n'a pas gardé de tableau : {content}");
+    let known: Vec<String> = FontSet::builtin().families().into_iter().map(|f| f.name).collect();
+    let back = carnet_core::import::odg::read_drawing(std::fs::File::open(&saved).unwrap(), &known).unwrap();
+    assert_eq!((back.report.skipped, back.report.images), (0, 0), "{:?}", back.report);
+    let page = &back.pages[0];
+    let tables: Vec<&Element> = page.elements.iter().filter(|e| matches!(e.kind, ElementKind::Table(_))).collect();
+    assert_eq!(tables.len(), 1, "{:?}", page.elements);
+    let ElementKind::Table(t) = &tables[0].kind else { unreachable!() };
+    let close = |a: &[f64], b: &[f64]| a.len() == b.len() && a.iter().zip(b).all(|(x, y)| (x - y).abs() < 0.05);
+    assert!(close(&t.cols, &[75.0, 37.5, 37.5]) && close(&t.rows, &[30.0, 60.0, 30.0]), "colonnes {:?}, lignes {:?}", t.cols, t.rows);
+    let f = tables[0].frame;
+    assert!((f.x_mm - 30.0).abs() < 0.05 && (f.y_mm - 40.0).abs() < 0.05, "{f:?}");
+    let mut got: Vec<(u8, u8, u8, u8, String)> = t
+        .cells
+        .iter()
+        .map(|c| {
+            let e = page.elements.iter().find(|e| e.id == c.element_id).expect("case sans élément");
+            assert_eq!(e.group, tables[0].group, "case hors du groupe du tableau");
+            let text = match &e.kind {
+                ElementKind::Text(tx) => tx.content.paragraphs.iter().flat_map(|p| p.runs.iter().map(|r| r.text.as_str())).collect(),
+                k => format!("{k:?}"),
+            };
+            (c.col, c.row, c.col_span, c.row_span, text)
+        })
+        .collect();
+    got.sort();
+    let want = [(0, 0, 2, 1, "Alpha"), (0, 1, 1, 1, "Delta"), (0, 2, 1, 1, "Hotel"), (1, 1, 1, 1, "Echo"), (1, 2, 1, 1, "Kilo"), (2, 0, 1, 1, "Bravo"), (2, 1, 1, 2, "Golf")];
+    assert_eq!(got, want.map(|(c, r, cs, rs, w)| (c, r, cs, rs, w.to_string())));
+    assert_eq!(t.border, Some(Stroke { width_mm: 1.0, color: "#000000".into(), style: None }));
+}
+
+/// Encre en travers d'un trait (somme de la noirceur, en mm d'encre pleine) et son centre (moyenne pondérée), sur
+/// ±`half` mm autour de `at`, le long de la droite `along` ; vertical : un trait vertical (profil horizontal).
+fn ink_across(r: &Raster, vertical: bool, at: f64, along: f64, half: f64) -> (f64, f64) {
+    let k = r.px_per_mm;
+    let (lo, hi) = (((at - half) * k).max(0.0) as usize, ((at + half) * k) as usize);
+    let (mut sum, mut moment) = (0.0, 0.0);
+    for i in lo..hi {
+        let v = (i as f64 + 0.5) / k;
+        let d = (255.0 - if vertical { r.level(v, along) } else { r.level(along, v) } as f64) / 255.0;
+        sum += d;
+        moment += d * v;
+    }
+    (sum / k, if sum > 0.0 { moment / sum } else { f64::NAN })
+}
+
+/// Sonde du LibreOffice du poste (la CI installe la 24.2, ce poste la 26.8), avant d'écrire les tableaux de Cahutin en
+/// vrais tableaux : (a) un trait de case écrit à 0,567 mm est dessiné à 1 mm (facteur 1,764) ; (b) le centre des traits
+/// tombe sur la grille, colonnes et lignes inégales, avec une fusion ; (c) six lignes de 3 mm aux cases vides tenues
+/// par une U+200B en 1 pt gardent leur hauteur ; (d) le premier mot d'une case tombe où le pose une zone de texte de
+/// Cahutin de même marge ; (e) toutes les cases ont `draw:fill="none"`. Chaque échec donne toutes les mesures.
+#[test]
+#[ignore]
+fn libreoffice_tables_behave_as_measured() {
+    const DPI: u32 = 508; // 20 pixels par millimètre
+    const DRAWN_MM: f64 = 1.0; // 0,567 mm écrit, fois 1,764
+    let dir = tempfile::tempdir().unwrap();
+    let border = "0.567mm solid #000000";
+    let mut styles = cell_style("ceP", border, 1.5, "");
+    styles.push_str(&cell_style("ceTiny", border, 0.0, r#"<style:text-properties fo:font-size="1pt"/>"#));
+    styles.push_str(r#"<style:style style:name="PTiny" style:family="paragraph"><style:text-properties fo:font-size="1pt"/></style:style><style:style style:name="TTiny" style:family="text"><style:text-properties fo:font-size="1pt"/></style:style>"#);
+    let empty = r#"<table:table-cell table:style-name="ceP"/>"#;
+    // A : colonnes 40 | 20 | 30, lignes 15 | 25 | 20, la première ligne fusionnée sur les deux premières colonnes ;
+    // bords 30 | 70 | 90 | 120 et 40 | 55 | 80 | 100.
+    let a_rows = [format!(r#"<table:table-cell table:style-name="ceP" table:number-columns-spanned="2"/><table:covered-table-cell/>{empty}"#), empty.repeat(3), empty.repeat(3)];
+    let mut objects = drawn_table(&mut styles, "a", 30.0, 40.0, &[40.0, 20.0, 30.0], &[15.0, 25.0, 20.0], &a_rows);
+    // B : 4 colonnes de 20 mm, 6 lignes de 3 mm, cases vides tenues par une espace sans largeur en 1 pt ; bas à 138.
+    let tiny = "<table:table-cell table:style-name=\"ceTiny\"><text:p text:style-name=\"PTiny\"><text:span text:style-name=\"TTiny\">\u{200B}</text:span></text:p></table:table-cell>";
+    let b_rows: Vec<String> = (0..6).map(|_| tiny.repeat(4)).collect();
+    objects.push_str(&drawn_table(&mut styles, "b", 30.0, 120.0, &[20.0; 4], &[3.0; 6], &b_rows));
+    // C : une case de 60 × 20 mm à (130, 160), le mot écrit avec les styles de paragraphe et de texte de la zone de
+    // texte de Cahutin posée à (130, 120), même marge de 1,5 mm, en haut à gauche.
+    let mut doc = Document::new("sonde");
+    doc.pages[0].elements.push(element(frame_at(130.0, 120.0, 60.0, 20.0, 0.0), text_kind("Repere", 14.0)));
+    let base = dir.path().join("zone.odg");
+    export_odg_to_path(&doc, &AssetStore::default(), &FontSet::builtin(), &base).unwrap();
+    let mut exported = String::new();
+    std::io::Read::read_to_string(&mut zip::ZipArchive::new(std::fs::File::open(&base).unwrap()).unwrap().by_name("content.xml").unwrap(), &mut exported).unwrap();
+    let before = &exported[..exported.find("Repere</text:span>").expect("mot de la zone")];
+    let style_of = |tag: &str| {
+        let from = before.rfind(&format!(r#"<{tag} text:style-name=""#)).expect(tag) + tag.len() + 19;
+        before[from..from + before[from..].find('"').unwrap()].to_string()
+    };
+    let (p_style, t_style) = (style_of("text:p"), style_of("text:span"));
+    let word = format!(r#"<table:table-cell table:style-name="ceP"><text:p text:style-name="{p_style}"><text:span text:style-name="{t_style}">Repere</text:span></text:p></table:table-cell>"#);
+    objects.push_str(&drawn_table(&mut styles, "c", 130.0, 160.0, &[60.0], &[20.0], &[word]));
+    assert!(!styles.contains("draw:fill=\"solid\"") && styles.matches("draw:fill=\"none\"").count() == 2, "(e) toutes les cases sans fond");
+    let odg = export_with_drawn(&doc, dir.path(), "sonde.odg", &styles, &objects);
+    soffice_convert(dir.path(), "pdf", &odg, dir.path());
+    let pdf = dir.path().join("sonde.pdf");
+    let r = Raster::gray(&pdf, 1, DPI);
+
+    // (a) et (b) : traits du tableau A, relevés loin des croisements, sur ±6 mm (les traits sont à 15 mm au moins).
+    let lines: [(bool, f64, &[f64]); 8] = [
+        (true, 30.0, &[47.5, 67.5, 90.0]),
+        (true, 70.0, &[67.5, 90.0]),
+        (true, 90.0, &[47.5, 67.5, 90.0]),
+        (true, 120.0, &[47.5, 67.5, 90.0]),
+        (false, 40.0, &[50.0, 105.0]),
+        (false, 55.0, &[50.0, 80.0, 105.0]),
+        (false, 80.0, &[50.0, 80.0, 105.0]),
+        (false, 100.0, &[50.0, 80.0, 105.0]),
+    ];
+    let measured: Vec<(bool, f64, f64, f64, f64)> = lines.iter().flat_map(|(v, at, alongs)| alongs.iter().map(move |&al| (*v, *at, al))).map(|(v, at, al)| {
+        let (ink, centre) = ink_across(&r, v, at, al, 6.0);
+        (v, at, al, ink, centre)
+    }).collect();
+    let thickness = measured.iter().map(|m| m.3).sum::<f64>() / measured.len() as f64;
+    // Un relevé sans encre (trait absent ou déplacé) a un centre NaN : il fait échouer (b), comme il fait échouer (a).
+    let worst_thickness = measured.iter().map(|m| (m.3 - DRAWN_MM).abs()).fold(0.0, f64::max);
+    let worst_centre = measured.iter().map(|m| (m.4 - m.1).abs()).fold(0.0, |a: f64, d| if d.is_nan() { f64::INFINITY } else { a.max(d) });
+    let (merged_ink, _) = ink_across(&r, true, 70.0, 47.5, 6.0);
+
+    // (c) : bas du tableau B, le dernier trait horizontal sous y = 120 dans la première colonne.
+    let mut runs: Vec<(f64, f64)> = Vec::new();
+    let k = r.px_per_mm;
+    for i in (121.0 * k) as usize..(200.0 * k) as usize {
+        let y = (i as f64 + 0.5) / k;
+        if r.level(40.0, y) < 128 {
+            match runs.last_mut() {
+                Some((_, end)) if y - *end < 0.2 => *end = y,
+                _ => runs.push((y, y)),
+            }
+        }
+    }
+    let b_lines: Vec<f64> = runs.iter().map(|(s, e)| (s + e) / 2.0).collect();
+    let b_bottom = b_lines.last().copied().unwrap_or(f64::NAN);
+
+    // (d) : le mot de la case et celui de la zone, chacun depuis le coin de son cadre.
+    let words = words(&pdf);
+    let find = |y0: f64, y1: f64| words.iter().find(|w| w.page == 0 && w.text == "Repere" && (y0..y1).contains(&(w.y_min / PT_PER_MM))).map(|w| (w.x_min / PT_PER_MM, w.y_min / PT_PER_MM));
+    let (zone, case) = (find(115.0, 155.0), find(155.0, 200.0));
+    let offset = match (zone, case) {
+        (Some(z), Some(c)) => Some((c.0 - 130.0 - (z.0 - 130.0), c.1 - 160.0 - (z.1 - 120.0))),
+        _ => None,
+    };
+
+    let samples: Vec<String> = measured.iter().map(|(v, at, al, ink, c)| format!("{} {at} (relevé à {al}) : encre {ink:.3}, centre {c:.3}", if *v { "vertical" } else { "horizontal" })).collect();
+    let report = format!(
+        "mesures : épaisseur moyenne {thickness:.3} mm (attendu {DRAWN_MM}), écart le plus grand {worst_thickness:.3} mm ; écart de centre le plus grand {worst_centre:.3} mm ; encre à travers la fusion {merged_ink:.3} mm ; \
+         traits : {} ; tableau B : traits horizontaux à {b_lines:.2?}, bas {b_bottom:.2} (attendu 138) ; \
+         mot de la zone {zone:.2?}, de la case {case:.2?}, décalage case moins zone {offset:.2?}",
+        samples.join(" ; ")
+    );
+    assert!(worst_thickness <= 0.1, "(a) épaisseur des traits de case : {report}");
+    assert!(worst_centre <= 0.1, "(b) traits sur la grille : {report}");
+    assert!(merged_ink < 0.05, "(b) pas de trait dans la case fusionnée : {report}");
+    assert!((b_bottom - 138.0).abs() <= 0.2, "(c) lignes de 3 mm gardées : {report}");
+    assert!(offset.is_some_and(|(dx, dy)| dx.abs() <= 0.3 && dy.abs() <= 0.3), "(d) premier mot à la place de la zone de texte : {report}");
+}

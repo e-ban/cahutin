@@ -1,7 +1,7 @@
 //! Export ODG (LibreOffice Draw) : chaque élément devient un objet natif, les polices sont intégrées.
 
 mod content;
-pub(crate) use content::{TURNED_FILL, turned_box_mm, turned_image};
+pub(crate) use content::{PICTO_CELL_FILL, TURNED_FILL, turned_box_mm, turned_image};
 mod package;
 mod styles;
 mod xml;
@@ -17,7 +17,7 @@ use styles::{Registry, mm};
 /// Marge intérieure des zones de texte, identique à l'écran (CSS `padding`).
 pub use crate::model::TEXT_PADDING_MM;
 
-pub(crate) const NS: [(&str, &str); 11] = [
+pub(crate) const NS: [(&str, &str); 12] = [
     ("xmlns:office", "urn:oasis:names:tc:opendocument:xmlns:office:1.0"),
     ("xmlns:style", "urn:oasis:names:tc:opendocument:xmlns:style:1.0"),
     ("xmlns:text", "urn:oasis:names:tc:opendocument:xmlns:text:1.0"),
@@ -29,7 +29,14 @@ pub(crate) const NS: [(&str, &str); 11] = [
     ("xmlns:meta", "urn:oasis:names:tc:opendocument:xmlns:meta:1.0"),
     ("xmlns:dc", "http://purl.org/dc/elements/1.1/"),
     ("xmlns:loext", "urn:org:documentfoundation:names:experimental:office:xmlns:loext:1.0"),
+    ("xmlns:table", "urn:oasis:names:tc:opendocument:xmlns:table:1.0"),
 ];
+
+/// LibreOffice dessine un trait de case de tableau 1,764 fois plus épais que l'épaisseur écrite (0,567 mm écrit :
+/// 1 mm rendu ; mesuré en PDF, en image et par UNO sur LibreOffice 26.8 et 24.2, gardé par la sonde du banc
+/// `libreoffice_tables_behave_as_measured`). L'export écrit donc l'épaisseur voulue divisée par ce facteur (× 0,5669),
+/// l'import multiplie l'épaisseur lue.
+pub(crate) const CELL_BORDER_DRAWN: f64 = 1.764;
 
 /// Mention de licence des images OpenMoji (propriétés du fichier, écran À propos).
 pub const OPENMOJI_CREDIT: &str = "Pictogrammes : OpenMoji (openmoji.org), licence CC BY-SA 4.0";
@@ -998,24 +1005,434 @@ mod tests {
         assert!(!plain.contains("text-outline"));
     }
 
-    #[test]
-    fn table_borders_are_lines() {
+    /// Un tableau de `cols` x `rows` cases à (20, 20), 100 x 50 mm, et l'id de chaque case par (colonne, ligne).
+    fn table_doc(cols: u8, rows: u8) -> (Document, Id) {
         let mut d = Document::new("essai");
-        let page = &mut d.pages[0];
-        let t = crate::table::add_table(page, frame(20.0, 20.0, 100.0, 50.0), 2, 2);
-        if let ElementKind::Text(tx) = &mut page.elements[0].kind {
-            tx.content = RichText::plain("Lundi");
+        let t = crate::table::add_table(&mut d.pages[0], frame(20.0, 20.0, 100.0, 50.0), cols, rows);
+        (d, t)
+    }
+
+    fn cell_id(d: &Document, t: &str, col: u8, row: u8) -> Id {
+        let e = d.pages[0].elements.iter().find(|e| e.id == t).unwrap();
+        let ElementKind::Table(p) = &e.kind else { unreachable!() };
+        p.cells.iter().find(|c| c.col == col && c.row == row).unwrap().element_id.clone()
+    }
+
+    fn el_mut<'a>(d: &'a mut Document, id: &str) -> &'a mut Element {
+        d.pages[0].elements.iter_mut().find(|e| e.id == id).unwrap()
+    }
+
+    fn table_mut<'a>(d: &'a mut Document, t: &str) -> &'a mut TableProps {
+        let ElementKind::Table(p) = &mut el_mut(d, t).kind else { unreachable!() };
+        p
+    }
+
+    fn set_text(d: &mut Document, id: &str, text: &str) {
+        let ElementKind::Text(t) = &mut el_mut(d, id).kind else { panic!("case sans texte") };
+        t.content = RichText::plain(text);
+    }
+
+    fn is_simple(d: &Document, t: &str) -> bool {
+        let e = d.pages[0].elements.iter().find(|e| e.id == t).unwrap();
+        content::is_simple(e, &d.pages[0].elements)
+    }
+
+    /// La définition d'un style automatique de `content.xml`.
+    fn style_def<'a>(content: &'a str, name: &str) -> &'a str {
+        let def = content.split(&format!(r#"<style:style style:name="{name}""#)).nth(1).unwrap_or_else(|| panic!("style {name}"));
+        def.split("</style:style>").next().unwrap()
+    }
+
+    /// Valeurs d'un attribut, dans l'ordre du document.
+    fn attr_values<'a>(xml: &'a str, attr: &str) -> Vec<&'a str> {
+        xml.split(&format!(r#" {attr}=""#)).skip(1).map(|v| v.split('"').next().unwrap()).collect()
+    }
+
+    /// Un tableau simple sort en vrai tableau de LibreOffice : un cadre à la place et à la taille du tableau (pas dans
+    /// un groupe), ses colonnes et ses lignes, ses cases et leur texte ; aucun trait ni cadre de texte à part, aucune
+    /// image d'aperçu ; le trait écrit divisé par 1,764 ; chaque case sans fond le dit (`draw:fill="none"`).
+    #[test]
+    fn a_simple_table_is_a_real_table() {
+        let (mut d, t) = table_doc(2, 2);
+        let a = cell_id(&d, &t, 0, 0);
+        set_text(&mut d, &a, "Lundi");
+        assert!(is_simple(&d, &t));
+        let mut out = export(&d, &AssetStore::default());
+        let content = out.xml("content.xml");
+        assert!(content.contains(r#"xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0""#));
+        assert!(!content.contains("<draw:line") && !content.contains("<draw:g") && !content.contains("draw:text-box"), "{content}");
+        assert!(out.names().iter().all(|n| !n.ends_with(".svm")));
+        assert!(content.contains(r#"svg:x="20.000mm" svg:y="20.000mm" svg:width="100.000mm" svg:height="50.000mm"><table:table>"#), "{content}");
+        assert_eq!(content.matches("<table:table-column ").count(), 2);
+        assert_eq!(content.matches("<table:table-row ").count(), 2);
+        assert_eq!(content.matches("<table:table-cell ").count(), 4);
+        assert_eq!(attr_values(&content, "style:column-width"), ["50.000mm"]);
+        assert_eq!(attr_values(&content, "style:row-height"), ["25.000mm"]);
+        assert!(content.contains(r#"style:use-optimal-row-height="false""#) && !content.contains("min-row-height"));
+        // Trait par défaut de 0,5 mm : 0,283 mm écrit, que LibreOffice dessine à 0,5 mm.
+        assert_eq!(attr_values(&content, "fo:border").into_iter().collect::<std::collections::HashSet<_>>(), ["0.283mm solid #333333"].into());
+        let cells: Vec<&str> = attr_values(&content, "table:style-name").into_iter().filter(|s| s.starts_with("ce")).collect();
+        for c in &cells {
+            let def = style_def(&content, c);
+            assert!(def.contains(r#"style:family="table-cell""#) && def.contains(r#"<loext:graphic-properties draw:fill="none""#), "{def}");
+            assert!(def.contains(r#"fo:padding-left="1.500mm""#) && def.contains(r#"draw:textarea-vertical-align="middle""#), "{def}");
         }
+        let first = content.split("<table:table-cell ").nth(1).unwrap().split("</table:table-cell>").next().unwrap();
+        assert!(first.contains(">Lundi</text:span>"), "{first}");
+    }
+
+    /// Le trait du tableau est écrit à son épaisseur divisée par 1,764 (`CELL_BORDER_DRAWN`) ; sans trait : `none`.
+    #[test]
+    fn a_real_table_compensates_the_border_libreoffice_thickens() {
+        let (mut d, t) = table_doc(1, 1);
+        for (width, want) in [(1.0, "0.567mm"), (2.0, "1.134mm"), (0.6, "0.340mm")] {
+            table_mut(&mut d, &t).border = Some(Stroke { width_mm: width, color: "#6b5444".into(), style: Some(StrokeStyle::Solid) });
+            let content = export(&d, &AssetStore::default()).xml("content.xml");
+            assert_eq!(attr_values(&content, "fo:border"), [format!("{want} solid #6b5444")]);
+        }
+        table_mut(&mut d, &t).border = None;
+        let content = export(&d, &AssetStore::default()).xml("content.xml");
+        assert_eq!(attr_values(&content, "fo:border"), ["none"]);
+        assert!(content.contains("<table:table>"));
+    }
+
+    /// Chaque largeur de colonne et hauteur de ligne est la différence de deux bords arrondis au 1/100 mm, et le cadre
+    /// leur somme : LibreOffice garde ses tailles au 1/100 mm, les erreurs ne s'additionnent pas.
+    #[test]
+    fn a_real_table_rounds_its_edges_to_the_hundredth() {
+        let mut d = Document::new("essai");
+        let t = crate::table::add_table(&mut d.pages[0], frame(10.004, 20.0, 100.0, 70.0), 3, 3);
+        let content = export(&d, &AssetStore::default()).xml("content.xml");
+        // Bords 10,004 | 43,337 | 76,671 | 110,004 arrondis : 10 | 43,34 | 76,67 | 110.
+        let widths: Vec<String> = attr_values(&content, "table:style-name").into_iter().filter(|s| s.starts_with("co")).map(|s| attr_values(style_def(&content, s), "style:column-width")[0].to_string()).collect();
+        assert_eq!(widths, ["33.340mm", "33.330mm", "33.330mm"]);
+        // Lignes : 20 | 43,333 | 66,667 | 90 arrondis : 20 | 43,33 | 66,67 | 90.
+        let heights: Vec<String> = attr_values(&content, "table:style-name").into_iter().filter(|s| s.starts_with("ro")).map(|s| attr_values(style_def(&content, s), "style:row-height")[0].to_string()).collect();
+        assert_eq!(heights, ["23.330mm", "23.340mm", "23.330mm"]);
+        assert!(content.contains(r#"svg:x="10.000mm" svg:y="20.000mm" svg:width="100.000mm" svg:height="70.000mm"><table:table>"#), "{content}");
+        assert!(is_simple(&d, &t));
+    }
+
+    /// Cases fusionnées : la case porte le nombre de colonnes ou de lignes qu'elle couvre, et chaque place couverte
+    /// est une `table:covered-table-cell`, à sa place dans la ligne.
+    #[test]
+    fn merged_cells_span_and_cover_their_places() {
+        let (mut d, t) = table_doc(3, 3);
+        let (a, b) = (cell_id(&d, &t, 0, 0), cell_id(&d, &t, 1, 0));
+        crate::table::merge(&mut d.pages[0], &a, &b).unwrap();
+        let (a, b) = (cell_id(&d, &t, 2, 1), cell_id(&d, &t, 2, 2));
+        crate::table::merge(&mut d.pages[0], &a, &b).unwrap();
+        assert!(is_simple(&d, &t));
+        let content = export(&d, &AssetStore::default()).xml("content.xml");
+        let rows: Vec<Vec<String>> = content
+            .split("<table:table-row ")
+            .skip(1)
+            .map(|r| {
+                let r = r.split("</table:table-row>").next().unwrap();
+                r.split('<')
+                    .filter(|t| t.starts_with("table:table-cell") || t.starts_with("table:covered-table-cell"))
+                    .map(|t| {
+                        let spans = attr_values(t, "table:number-columns-spanned").first().map(|v| format!(" c{v}")).unwrap_or_default() + &attr_values(t, "table:number-rows-spanned").first().map(|v| format!(" r{v}")).unwrap_or_default();
+                        format!("{}{spans}", if t.starts_with("table:covered") { "couverte" } else { "case" })
+                    })
+                    .collect()
+            })
+            .collect();
+        assert_eq!(rows, [vec!["case c2", "couverte", "case"], vec!["case", "case", "case r2"], vec!["case", "case", "couverte"]]);
+    }
+
+    /// Case vide : une espace sans largeur dans un passage à la police et à la taille de la case, marges gardées, quand
+    /// une ligne de ce texte et ses marges tiennent dans la case ; sinon en 1 pt, sans marge en haut ni en bas. Une
+    /// case pictogramme est toujours en 1 pt.
+    #[test]
+    fn an_empty_cell_holds_a_zero_width_space() {
+        let style_of_span = |content: &str, cell: &str| -> (String, String) {
+            let span = cell.split(r#"<text:span text:style-name=""#).nth(1).unwrap().split('"').next().unwrap();
+            let cell_style = cell.split('"').nth(1).unwrap();
+            (style_def(content, span).to_string(), style_def(content, cell_style).to_string())
+        };
+        // Lignes de 25 mm : la police de la case (Andika 14 pt) tient.
+        let (d, _) = table_doc(1, 2);
+        let content = export(&d, &AssetStore::default()).xml("content.xml");
+        let cell = content.split("<table:table-cell ").nth(1).unwrap().split("</table:table-cell>").next().unwrap();
+        assert!(cell.contains("\u{200B}</text:span>"), "{cell}");
+        let (span, cell_style) = style_of_span(&content, cell);
+        assert!(span.contains(r#"style:font-name="Andika""#) && span.contains(r#"fo:font-size="14pt""#), "{span}");
+        assert!(cell_style.contains(r#"fo:padding-top="1.500mm""#), "{cell_style}");
+        // Lignes de 5 mm : 14 pt n'y tient pas.
+        let mut d = Document::new("essai");
+        crate::table::add_table(&mut d.pages[0], frame(20.0, 20.0, 100.0, 50.0), 2, 10);
+        let content = export(&d, &AssetStore::default()).xml("content.xml");
+        let cell = content.split("<table:table-cell ").nth(1).unwrap().split("</table:table-cell>").next().unwrap();
+        let (span, cell_style) = style_of_span(&content, cell);
+        assert!(span.contains(r#"fo:font-size="1pt""#), "{span}");
+        assert!(cell_style.contains(r#"fo:padding-top="0.000mm""#) && cell_style.contains(r#"fo:padding-bottom="0.000mm""#) && cell_style.contains(r#"fo:padding-left="1.500mm""#), "{cell_style}");
+        // La règle : une ligne de texte et deux marges dans la hauteur de la case.
+        assert!(content::empty_cell_fits(7.96, 1.5, 10.96) && !content::empty_cell_fits(7.96, 1.5, 10.9));
+    }
+
+    /// Fond de couleur d'une case : le fond de la case du tableau.
+    #[test]
+    fn a_colored_cell_fills_its_table_cell() {
+        let (mut d, t) = table_doc(2, 1);
+        let a = cell_id(&d, &t, 1, 0);
+        set_text(&mut d, &a, "Mardi");
+        let ElementKind::Text(tx) = &mut el_mut(&mut d, &a).kind else { unreachable!() };
+        tx.frame = Some(TextFrame { fill: Some("#d6e8ff".into()), stroke: None, corner_radius_mm: 0.0, image: None, pattern: None, write_on_lines: None });
+        assert!(is_simple(&d, &t));
+        let content = export(&d, &AssetStore::default()).xml("content.xml");
+        let cell = content.split("<table:table-cell ").nth(2).unwrap();
+        let def = style_def(&content, cell.split('"').nth(1).unwrap());
+        assert!(def.contains(r##"<loext:graphic-properties draw:fill="solid" draw:fill-color="#d6e8ff""##), "{def}");
+        assert!(cell.contains(">Mardi</text:span>"));
+    }
+
+    /// Pictogramme et photo d'une case : le fond de la case, non étiré, à leur taille dans Cahutin, au centre ; le SVG
+    /// du pictogramme reste un SVG, déclaré une fois même s'il revient dans plusieurs cases ; la photo est recadrée
+    /// comme à l'écran.
+    #[test]
+    fn pictures_fill_their_cell_unstretched() {
+        let (mut d, t) = table_doc(3, 1);
+        let mut store = AssetStore::default();
+        let asset = raw_asset(300, 200);
+        let id = asset.meta.id.clone();
+        d.assets.insert(id.clone(), asset.meta.clone());
+        store.insert(asset).unwrap();
+        for (col, content) in [(0, crate::table::CellContent::Picto("1F98A".into())), (1, crate::table::CellContent::Picto("1F98A".into())), (2, crate::table::CellContent::Photo)] {
+            let c = cell_id(&d, &t, col, 0);
+            crate::table::set_cell_content(&mut d.pages[0], &c, content).unwrap();
+        }
+        let p = cell_id(&d, &t, 2, 0);
+        if let ElementKind::Photo(ph) = &mut el_mut(&mut d, &p).kind {
+            ph.asset = Some(id);
+        }
+        assert!(is_simple(&d, &t));
+        let c0 = cell_id(&d, &t, 0, 0);
+        let picto = el_mut(&mut d, &c0).frame;
+        let photo = el_mut(&mut d, &p).frame;
+        let mut out = export(&d, &store);
+        let content = out.xml("content.xml");
+        let styles = out.xml("styles.xml");
+        assert!(!content.contains("<draw:image"), "{content}");
+        assert_eq!(styles.matches("Pictures/openmoji-1F98A.svg").count(), 1, "{styles}");
+        assert!(out.names().contains(&"Pictures/openmoji-1F98A.svg".to_string()));
+        let cells: Vec<&str> = content.split("<table:table-cell ").skip(1).map(|c| c.split('"').nth(1).unwrap()).collect();
+        for (cell, f) in [(cells[0], picto), (cells[2], photo)] {
+            let def = style_def(&content, cell);
+            for want in [
+                r#"draw:fill="bitmap""#.to_string(),
+                r#"style:repeat="no-repeat""#.into(),
+                format!(r#"draw:fill-image-width="{}""#, mm(f.w_mm)),
+                format!(r#"draw:fill-image-height="{}""#, mm(f.h_mm)),
+                r#"draw:fill-image-ref-point="center""#.into(),
+            ] {
+                assert!(def.contains(&want), "{want} : {def}");
+            }
+            let name = attr_values(def, "draw:fill-image-name")[0];
+            assert!(styles.contains(&format!(r#"draw:name="{name}""#)), "{name}");
+        }
+        assert_eq!(cells[0], cells[1], "même pictogramme, même style");
+        // La photo recadrée a les proportions de son cadre (case moins 1,5 mm de chaque côté).
+        let href = styles.split(&format!(r#"draw:name="{}""#, attr_values(style_def(&content, cells[2]), "draw:fill-image-name")[0])).nth(1).unwrap();
+        let href = attr_values(href, "xlink:href")[0].to_string();
+        let img = image::load_from_memory(&out.read(&href)).unwrap();
+        assert!((img.width() as f64 / img.height() as f64 - photo.w_mm / photo.h_mm).abs() < 0.02, "{}x{} pour {photo:?}", img.width(), img.height());
+    }
+
+    /// Ce qu'un vrai tableau ne rend pas comme l'écran : le tableau garde ses traits et ses cases à part. Chaque cas,
+    /// un à un, sur un tableau simple au départ.
+    #[test]
+    fn a_table_that_is_not_simple_keeps_its_lines() {
+        let base = || {
+            let (mut d, t) = table_doc(2, 2);
+            let p = cell_id(&d, &t, 1, 1);
+            crate::table::set_cell_content(&mut d.pages[0], &p, crate::table::CellContent::Photo).unwrap();
+            let a = cell_id(&d, &t, 0, 0);
+            set_text(&mut d, &a, "Lundi");
+            (d, t, a, p)
+        };
+        let text_frame = |d: &mut Document, a: &str, f: TextFrame| {
+            let ElementKind::Text(tx) = &mut el_mut(d, a).kind else { unreachable!() };
+            tx.frame = Some(f);
+        };
+        let photo = |d: &mut Document, p: &str, change: &dyn Fn(&mut PhotoProps)| {
+            let ElementKind::Photo(ph) = &mut el_mut(d, p).kind else { unreachable!() };
+            change(ph);
+        };
+        let plain = TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: None, pattern: None, write_on_lines: None };
+        let cases: Vec<(&str, Box<dyn Fn(&mut Document, &str, &str, &str)>)> = vec![
+            ("trait en tirets", Box::new(|d, t, _, _| table_mut(d, t).border = Some(Stroke { width_mm: 1.0, color: "#c0392b".into(), style: Some(StrokeStyle::Dashed) }))),
+            ("trait en pointillés", Box::new(|d, t, _, _| table_mut(d, t).border = Some(Stroke { width_mm: 1.0, color: "#c0392b".into(), style: Some(StrokeStyle::Dotted) }))),
+            ("lignes d'écriture", Box::new({ let f = plain.clone(); move |d, _, a, _| text_frame(d, a, TextFrame { pattern: Some(Pattern::Seyes), ..f.clone() }) })),
+            ("bordure de case", Box::new({ let f = plain.clone(); move |d, _, a, _| text_frame(d, a, TextFrame { stroke: Some(Stroke { width_mm: 0.5, color: "#000000".into(), style: None }), ..f.clone() }) })),
+            ("case aux coins arrondis", Box::new({ let f = plain.clone(); move |d, _, a, _| text_frame(d, a, TextFrame { fill: Some("#ffd6d6".into()), corner_radius_mm: 2.0, ..f.clone() }) })),
+            ("image de fond d'une case texte", Box::new({ let f = plain.clone(); move |d, _, a, _| text_frame(d, a, TextFrame { image: Some("a1".into()), ..f.clone() }) })),
+            ("texte retourné", Box::new(|d, _, a, _| el_mut(d, a).flip_h = true)),
+            ("photo aux coins arrondis", Box::new(move |d, _, _, p| photo(d, p, &|ph| ph.corner_radius_mm = 3.0))),
+            ("photo bordée", Box::new(move |d, _, _, p| photo(d, p, &|ph| ph.border = Some(Stroke { width_mm: 0.5, color: "#000000".into(), style: None })))),
+            ("photo ombrée", Box::new(move |d, _, _, p| photo(d, p, &|ph| ph.shadow = true))),
+            ("photo en miroir", Box::new(move |d, _, _, p| photo(d, p, &|ph| ph.mirrored = true))),
+            ("photo retournée de haut en bas", Box::new(|d, _, _, p| el_mut(d, p).flip_v = true)),
+            ("case tournée", Box::new(|d, _, _, p| el_mut(d, p).frame.rotation_deg = 10.0)),
+            ("tableau tourné", Box::new(|d, t, _, _| el_mut(d, t).frame.rotation_deg = 15.0)),
+            ("case déplacée", Box::new(|d, _, a, _| el_mut(d, a).frame.x_mm += 2.0)),
+            ("forme dans une case", Box::new(|d, _, a, _| el_mut(d, a).kind = shape_el(ShapeKind::Rect, frame(0.0, 0.0, 1.0, 1.0)).kind)),
+            ("place sans case", Box::new(|d, t, _, _| { table_mut(d, t).cells.pop(); })),
+            ("deux cases à la même place", Box::new(|d, t, _, _| { let tp = table_mut(d, t); tp.cells[1].col = 0; })),
+            ("élément entre les cases et le tableau", Box::new(|d, _, _, _| { let s = shape_el(ShapeKind::Rect, frame(150.0, 20.0, 10.0, 10.0)); let at = d.pages[0].elements.len() - 1; d.pages[0].elements.insert(at, s); })),
+            ("élément étranger dans le groupe", Box::new(|d, t, _, _| { let mut s = shape_el(ShapeKind::Rect, frame(150.0, 20.0, 10.0, 10.0)); s.group = el_mut(d, t).group.clone(); d.pages[0].elements.push(s); })),
+        ];
+        let (d, t, ..) = base();
+        assert!(is_simple(&d, &t), "le tableau de départ est simple");
+        let mut store = AssetStore::default();
+        let mut asset = raw_asset(40, 30);
+        asset.meta.id = "a1".into();
+        store.insert(asset).unwrap();
+        for (name, change) in &cases {
+            let (mut d, t, a, p) = base();
+            change(&mut d, &t, &a, &p);
+            assert!(!is_simple(&d, &t), "{name} : classé simple");
+            let content = export(&d, &store).xml("content.xml");
+            assert!(!content.contains("<table:table"), "{name} : vrai tableau");
+            if !name.contains("tirets") && !name.contains("pointillés") {
+                assert!(content.matches("<draw:line").count() >= 6, "{name} : traits absents");
+            }
+        }
+        // Les tirets restent les traits d'avant : six segments en tirets, la case écrite à part.
+        let (mut d, t, ..) = base();
+        cases[0].1(&mut d, &t, "", "");
         let content = export(&d, &AssetStore::default()).xml("content.xml");
         let g = content.split("<draw:g>").nth(1).expect("draw:g").split("</draw:g>").next().unwrap();
         assert_eq!(g.matches("<draw:line").count(), 6);
-        assert_eq!(g.matches("<draw:frame").count(), 1, "la case écrite, les cases vides disparaissent");
         assert!(g.contains(r#"svg:x1="70.000mm" svg:y1="20.000mm" svg:x2="70.000mm" svg:y2="70.000mm""#), "{g}");
-        if let ElementKind::Table(tp) = &mut d.pages[0].elements.iter_mut().find(|e| e.id == t).unwrap().kind {
-            tp.border = None;
+        assert!(g.contains("draw:text-box") && content.contains(r#"draw:stroke-dash="CarnetDashed""#), "{g}");
+    }
+
+    /// Aller-retour : un tableau simple exporté puis relu par Cahutin est le même tableau. Même cadre, colonnes, lignes,
+    /// fusions et trait ; mêmes textes, puces, fonds, police et taille, alignements et marge ; même pictogramme (miroir
+    /// compris) et une photo dans leurs cases ; une case vide garde sa police et sa taille.
+    #[test]
+    fn a_real_table_comes_back_as_the_same_table() {
+        let mut d = Document::new("essai");
+        let t = crate::table::add_table(&mut d.pages[0], frame(15.0, 36.0, 267.0, 162.0), 4, 3);
+        {
+            let tp = table_mut(&mut d, &t);
+            tp.cols = vec![1.3, 1.0, 1.0, 1.0];
+            tp.rows = vec![0.8, 1.0, 1.0];
+            tp.border = Some(Stroke { width_mm: 0.6, color: "#6b5444".into(), style: None });
         }
-        let content = export(&d, &AssetStore::default()).xml("content.xml");
-        assert_eq!(content.matches("<draw:line").count(), 0);
+        crate::table::layout(&mut d.pages[0], &t);
+        let (a, b) = (cell_id(&d, &t, 1, 1), cell_id(&d, &t, 3, 1));
+        crate::table::merge(&mut d.pages[0], &a, &b).unwrap();
+        let mut store = AssetStore::default();
+        let asset = raw_asset(300, 200);
+        let aid = asset.meta.id.clone();
+        d.assets.insert(aid.clone(), asset.meta.clone());
+        store.insert(asset).unwrap();
+        let (head, list, picto, photo, empty) = (cell_id(&d, &t, 0, 0), cell_id(&d, &t, 0, 1), cell_id(&d, &t, 1, 0), cell_id(&d, &t, 2, 0), cell_id(&d, &t, 1, 2));
+        if let ElementKind::Text(tx) = &mut el_mut(&mut d, &head).kind {
+            tx.content = RichText::plain("Quand ?");
+            tx.style.size_pt = 18.0;
+            tx.style.valign = Some(VAlign::Top);
+            tx.frame = Some(TextFrame { fill: Some("#f1e6d6".into()), stroke: None, corner_radius_mm: 0.0, image: None, pattern: None, write_on_lines: None });
+        }
+        if let ElementKind::Text(tx) = &mut el_mut(&mut d, &list).kind {
+            tx.content = RichText { paragraphs: vec![
+                Paragraph { align: None, runs: vec![Run::plain("Pomme")], list: Some(ListKind::Bullet) },
+                Paragraph { align: None, runs: vec![Run { bold: true, ..Run::plain("Poire") }], list: Some(ListKind::Bullet) },
+            ] };
+            tx.style.align = Align::Left;
+        }
+        if let ElementKind::Text(tx) = &mut el_mut(&mut d, &empty).kind {
+            tx.style.font = "Playwrite FR Moderne".into();
+            tx.style.size_pt = 20.0;
+        }
+        crate::table::set_cell_content(&mut d.pages[0], &picto, crate::table::CellContent::Picto("1F98A".into())).unwrap();
+        el_mut(&mut d, &picto).flip_h = true;
+        crate::table::set_cell_content(&mut d.pages[0], &photo, crate::table::CellContent::Photo).unwrap();
+        if let ElementKind::Photo(ph) = &mut el_mut(&mut d, &photo).kind {
+            ph.asset = Some(aid);
+        }
+        assert!(is_simple(&d, &t));
+        let mut buf = Cursor::new(Vec::new());
+        export_odg(&d, &store, &FontSet::builtin(), &mut buf).unwrap();
+        buf.set_position(0);
+        let known: Vec<String> = FontSet::builtin().families().into_iter().map(|f| f.name).collect();
+        let back = crate::import::odg::read_drawing(buf, &known).unwrap();
+        assert_eq!(back.report.skipped, 0, "{:?}", back.report);
+        let page = &back.pages[0];
+        let tables: Vec<&Element> = page.elements.iter().filter(|e| matches!(e.kind, ElementKind::Table(_))).collect();
+        assert_eq!(tables.len(), 1);
+        let (before, after) = (d.pages[0].elements.iter().find(|e| e.id == t).unwrap(), tables[0]);
+        let (ElementKind::Table(tb), ElementKind::Table(ta)) = (&before.kind, &after.kind) else { unreachable!() };
+        let near = |a: f64, b: f64| (a - b).abs() < 0.01;
+        let f = (before.frame, after.frame);
+        assert!(near(f.0.x_mm, f.1.x_mm) && near(f.0.y_mm, f.1.y_mm) && near(f.0.w_mm, f.1.w_mm) && near(f.0.h_mm, f.1.h_mm), "{f:?}");
+        let sizes = |v: &[f64], len: f64| v.iter().map(|s| s / v.iter().sum::<f64>() * len).collect::<Vec<_>>();
+        for (x, y) in sizes(&tb.cols, f.0.w_mm).into_iter().zip(sizes(&ta.cols, f.1.w_mm)).chain(sizes(&tb.rows, f.0.h_mm).into_iter().zip(sizes(&ta.rows, f.1.h_mm))) {
+            assert!(near(x, y), "colonnes {:?} / {:?}, lignes {:?} / {:?}", tb.cols, ta.cols, tb.rows, ta.rows);
+        }
+        assert_eq!(ta.border, tb.border.clone().map(|b| Stroke { style: None, ..b }));
+        // Chaque case : place, fusion, et ce qu'elle montre.
+        let describe = |els: &[Element], tp: &TableProps| -> Vec<String> {
+            let mut v: Vec<String> = tp
+                .cells
+                .iter()
+                .map(|c| {
+                    let e = els.iter().find(|e| e.id == c.element_id).unwrap();
+                    let what = match &e.kind {
+                        ElementKind::Text(tx) => format!(
+                            "texte {:?} {:?} {:?} {} {} {:?} {:?}",
+                            tx.content.paragraphs.iter().map(|p| (p.runs.iter().map(|r| (r.text.clone(), r.bold)).collect::<Vec<_>>(), p.list)).collect::<Vec<_>>(),
+                            tx.style.align,
+                            tx.style.valign.unwrap_or_default(),
+                            tx.style.font,
+                            tx.style.size_pt,
+                            tx.style.padding(),
+                            tx.frame.as_ref().and_then(|f| f.fill.clone())
+                        ),
+                        ElementKind::Image(i) => format!("picto {} miroir {} {}", i.code, e.flip_h, e.flip_v),
+                        ElementKind::Photo(p) => format!("photo {}", p.asset.is_some()),
+                        k => format!("{k:?}"),
+                    };
+                    format!("{} {} {} {} : {what}", c.col, c.row, c.col_span, c.row_span)
+                })
+                .collect();
+            v.sort();
+            v
+        };
+        assert_eq!(describe(&page.elements, ta), describe(&d.pages[0].elements, tb));
+        // Chaque case à sa place, au 1/100 mm près (les bords arrondis de l'export).
+        for c in &tb.cells {
+            let e = d.pages[0].elements.iter().find(|e| e.id == c.element_id).unwrap().frame;
+            let g = ta.cells.iter().find(|g| (g.col, g.row) == (c.col, c.row)).unwrap();
+            let r = page.elements.iter().find(|e| e.id == g.element_id).unwrap().frame;
+            let near = |a: f64, b: f64| (a - b).abs() < 0.011;
+            assert!(near(e.x_mm, r.x_mm) && near(e.y_mm, r.y_mm) && near(e.w_mm, r.w_mm) && near(e.h_mm, r.h_mm), "case {} {} : {e:?} / {r:?}", c.col, c.row);
+        }
+    }
+
+    /// Lettres creuses, police cursive et pictogramme en miroir dans une case : mesurés au même rendu qu'en cadres à
+    /// part (mesure faite à la main : chaque mot à 0,01 mm près, aucun pixel d'écart dans la case), le tableau reste
+    /// simple.
+    #[test]
+    fn outlined_cursive_and_mirrored_picto_cells_stay_simple() {
+        let (mut d, t) = table_doc(3, 1);
+        let (a, b, c) = (cell_id(&d, &t, 0, 0), cell_id(&d, &t, 1, 0), cell_id(&d, &t, 2, 0));
+        set_text(&mut d, &a, "IIoo");
+        set_text(&mut d, &b, "Bonjour");
+        if let ElementKind::Text(tx) = &mut el_mut(&mut d, &a).kind {
+            tx.style.outline = Some(true);
+        }
+        if let ElementKind::Text(tx) = &mut el_mut(&mut d, &b).kind {
+            tx.style.font = "Playwrite FR Moderne".into();
+        }
+        crate::table::set_cell_content(&mut d.pages[0], &c, crate::table::CellContent::Picto("1F98A".into())).unwrap();
+        el_mut(&mut d, &c).flip_h = true;
+        assert!(is_simple(&d, &t));
+        let mut out = export(&d, &AssetStore::default());
+        assert!(out.xml("styles.xml").contains("Pictures/openmoji-1F98A-miroir-h.svg"));
+        assert!(out.xml("content.xml").contains(r#"style:text-outline="true""#));
     }
 
     #[test]

@@ -171,6 +171,18 @@ impl Writer<'_> {
 
     /// Image OpenMoji : le SVG d'origine, ajouté une seule fois à l'archive.
     fn picture(&mut self, e: &Element, code: &str, outline: bool) -> Result<(), OdgError> {
+        let path = self.picto_path(e, code, outline)?;
+        let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", vec![("draw:stroke", "none".into()), ("draw:fill", "none".into())])]);
+        let mut a = vec![("draw:style-name", style)];
+        a.extend(geometry(&e.frame));
+        self.body.open("draw:frame", &attrs(&a));
+        self.body.empty("draw:image", &[("xlink:href", &path), ("xlink:type", "simple"), ("xlink:show", "embed"), ("xlink:actuate", "onLoad")]);
+        self.body.close();
+        Ok(())
+    }
+
+    /// Chemin dans l'archive du SVG OpenMoji de l'élément (en miroir s'il l'est), ajouté une seule fois.
+    fn picto_path(&mut self, e: &Element, code: &str, outline: bool) -> Result<String, OdgError> {
         // En miroir : une copie retournée, nommée `…-miroir-h.svg` (`-v`, `-hv`) pour être relue en miroir.
         let mirror = match (e.flip_h, e.flip_v) {
             (false, false) => "",
@@ -186,13 +198,7 @@ impl Writer<'_> {
             let bytes = if mirror.is_empty() { Some(svg) } else { picto::mirrored_svg(&svg, e.flip_h, e.flip_v) };
             self.pictures.push(Picture { path: path.clone(), media_type: "image/svg+xml", bytes: bytes.ok_or_else(|| OdgError::MissingPicture(code.to_string()))? });
         }
-        let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", vec![("draw:stroke", "none".into()), ("draw:fill", "none".into())])]);
-        let mut a = vec![("draw:style-name", style)];
-        a.extend(geometry(&e.frame));
-        self.body.open("draw:frame", &attrs(&a));
-        self.body.empty("draw:image", &[("xlink:href", &path), ("xlink:type", "simple"), ("xlink:show", "embed"), ("xlink:actuate", "onLoad")]);
-        self.body.close();
-        Ok(())
+        Ok(path)
     }
 
     /// Mention de licence OpenMoji, en bas de la page, verrouillée dans LibreOffice.
@@ -400,6 +406,16 @@ impl Writer<'_> {
         let radius = frame.map(|f| f.corner_radius_mm).filter(|r| *r > 0.0).map(mm);
         let box_attrs: Vec<(&str, &str)> = radius.iter().map(|r| ("draw:corner-radius", r.as_str())).collect();
         self.body.open("draw:text-box", &box_attrs);
+        self.paragraphs(t, on_lines);
+        self.body.close();
+        self.body.close();
+        Ok(())
+    }
+
+    /// Paragraphes d'un texte (cadre de texte ou case de tableau) : styles, puces, interligne, champs de la classe.
+    /// `on_lines` : le texte s'écrit sur les lignes de son cadre.
+    fn paragraphs(&mut self, t: &TextProps, on_lines: Option<crate::background::WritingLines>) {
+        let blank = t.content.is_blank();
         // Éléments de liste : une `text:list` par suite de paragraphes à puce. L'étiquette (la puce, au bord du texte)
         // a la largeur du retrait, où commencent le texte et ses lignes suivantes. La puce est dans la police et à la
         // taille du bloc, pour que la ligne garde sa hauteur ; LibreOffice ne connaît qu'une taille relative au premier
@@ -470,9 +486,6 @@ impl Writer<'_> {
         if list.is_some() {
             self.body.close();
         }
-        self.body.close();
-        self.body.close();
-        Ok(())
     }
 
     /// Style de la liste d'un paragraphe à puce : l'étiquette large du retrait, la puce dans la police, la couleur et
@@ -487,6 +500,153 @@ impl Writer<'_> {
         ];
         let indent = LIST_INDENT_EM * style.size_pt * 25.4 / 72.0;
         self.reg.list_style(vec![("text:min-label-width", mm(indent))], bullet)
+    }
+
+    /// Vrai tableau de LibreOffice (`table:table` dans un `draw:frame`) pour un tableau simple (voir `is_simple`) : ses
+    /// cases y sont écrites, à la place des éléments à part. Colonnes et lignes aux bords arrondis au 1/100 mm (LibreOffice
+    /// garde ses tailles au 1/100 mm : chaque taille est la différence de deux bords arrondis, les erreurs ne s'additionnent
+    /// pas), le cadre à leur somme (sinon LibreOffice redistribue les lignes). Le trait est écrit divisé par
+    /// `CELL_BORDER_DRAWN`, centré sur la grille comme à l'écran. Un pictogramme ou une photo est le fond de sa case, non
+    /// étiré, à sa taille dans Cahutin, au centre. Aucune image d'aperçu (`.svm`) n'est écrite.
+    fn real_table(&mut self, e: &Element, elements: &[Element]) -> Result<(), OdgError> {
+        let ElementKind::Table(t) = &e.kind else { return Ok(()) };
+        let f = e.frame;
+        let hundredth = |v: f64| (v * 100.0).round() / 100.0;
+        let xs: Vec<f64> = crate::table::edges(&t.cols, f.x_mm, f.w_mm).into_iter().map(hundredth).collect();
+        let ys: Vec<f64> = crate::table::edges(&t.rows, f.y_mm, f.h_mm).into_iter().map(hundredth).collect();
+        let border = match &t.border {
+            Some(b) => format!("{} solid {}", mm(b.width_mm / super::CELL_BORDER_DRAWN), b.color),
+            None => "none".into(),
+        };
+        let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", vec![])]);
+        let (x0, y0, x1, y1) = (xs[0], ys[0], xs[xs.len() - 1], ys[ys.len() - 1]);
+        self.body.open("draw:frame", &[("draw:style-name", &style), ("svg:x", &mm(x0)), ("svg:y", &mm(y0)), ("svg:width", &mm(x1 - x0)), ("svg:height", &mm(y1 - y0))]);
+        self.body.open("table:table", &[]);
+        for w in xs.windows(2) {
+            let s = self.reg.style("table-column", "co", vec![("style:table-column-properties", vec![("style:column-width", mm(w[1] - w[0])), ("style:use-optimal-column-width", "false".into())])]);
+            self.body.empty("table:table-column", &[("table:style-name", &s)]);
+        }
+        let mut covered = std::collections::HashSet::new();
+        for c in &t.cells {
+            for dc in 0..c.col_span {
+                for dr in 0..c.row_span {
+                    if (dc, dr) != (0, 0) {
+                        covered.insert((c.col + dc, c.row + dr));
+                    }
+                }
+            }
+        }
+        for (r, h) in ys.windows(2).enumerate() {
+            // `style:row-height` : la hauteur de la ligne (`style:min-row-height` est ignoré par LibreOffice).
+            let s = self.reg.style("table-row", "ro", vec![("style:table-row-properties", vec![("style:row-height", mm(h[1] - h[0])), ("style:use-optimal-row-height", "false".into())])]);
+            self.body.open("table:table-row", &[("table:style-name", &s)]);
+            for c in 0..xs.len() - 1 {
+                let (c, r) = (c as u8, r as u8);
+                if covered.contains(&(c, r)) {
+                    self.body.empty("table:covered-table-cell", &[]);
+                    continue;
+                }
+                let Some(cell) = t.cells.iter().find(|g| g.col == c && g.row == r) else { continue };
+                let Some(el) = elements.iter().find(|x| x.id == cell.element_id) else { continue };
+                let height = ys[(r + cell.row_span) as usize] - ys[r as usize];
+                self.table_cell(el, cell, height, &border)?;
+            }
+            self.body.close();
+        }
+        self.body.close();
+        self.body.close();
+        Ok(())
+    }
+
+    /// Une case du vrai tableau : son style (fond, marges, alignement vertical, trait), puis son contenu. Une case sans
+    /// texte reçoit une espace sans largeur (U+200B) : sans contenu, LibreOffice lui donnerait 7,1 mm de haut. Elle est
+    /// dans la police et à la taille de la case (le texte tapé ensuite dans LibreOffice en hérite), sauf si la ligne est
+    /// trop basse pour elles : alors en 1 pt, sans marge en haut ni en bas (voir `empty_cell_fits`).
+    fn table_cell(&mut self, el: &Element, cell: &GridCell, height: f64, border: &str) -> Result<(), OdgError> {
+        let tiny = || TextProps { content: RichText::plain(ZERO_WIDTH), style: TextStyle { size_pt: TINY_CELL_PT, ..TextStyle::default_zone() }, prompt: None, frame: None };
+        let no_fill = || vec![("draw:fill", "none".into())];
+        // L'image remplit la case sans être étirée : à sa taille dans Cahutin, au centre.
+        let picture_fill = |reg: &mut Registry, name: String, path: String, f: &Frame| {
+            if !reg.fill_images.iter().any(|(n, _)| *n == name) {
+                reg.fill_image(name.clone(), path);
+            }
+            vec![
+                ("draw:fill", "bitmap".into()),
+                ("draw:fill-image-name", name),
+                ("style:repeat", "no-repeat".into()),
+                ("draw:fill-image-width", mm(f.w_mm)),
+                ("draw:fill-image-height", mm(f.h_mm)),
+                ("draw:fill-image-ref-point", "center".into()),
+            ]
+        };
+        let (fill, pad, pad_v, valign, content) = match &el.kind {
+            ElementKind::Text(tp) => {
+                let fill = match tp.frame.as_ref().and_then(|f| f.fill.clone()) {
+                    Some(c) => vec![("draw:fill", "solid".into()), ("draw:fill-color", c)],
+                    None => no_fill(),
+                };
+                let pad = tp.style.padding();
+                let valign = match tp.style.valign.unwrap_or_default() {
+                    VAlign::Top => "top",
+                    VAlign::Middle => "middle",
+                    VAlign::Bottom => "bottom",
+                };
+                let (pad_v, content) = if !tp.content.is_blank() {
+                    (pad, tp.clone())
+                } else if empty_cell_fits(self.line_height_mm(&tp.style.font, tp.style.size_pt), pad, height) {
+                    (pad, TextProps { content: RichText::plain(ZERO_WIDTH), style: tp.style.clone(), prompt: None, frame: None })
+                } else {
+                    (0.0, TextProps { content: RichText::plain(ZERO_WIDTH), style: TextStyle { size_pt: TINY_CELL_PT, ..tp.style.clone() }, prompt: None, frame: None })
+                };
+                (fill, pad, pad_v, valign, content)
+            }
+            ElementKind::Image(i) => {
+                let path = self.picto_path(el, &i.code, i.outline == Some(true))?;
+                let name = format!("{PICTO_CELL_FILL}{}", path.trim_start_matches("Pictures/").trim_end_matches(".svg"));
+                (picture_fill(self.reg, name, path, &el.frame), 0.0, 0.0, "middle", tiny())
+            }
+            ElementKind::Photo(p) => {
+                let fill = match &p.asset {
+                    Some(asset) => {
+                        let path = self.cropped_picture(asset, &el.frame, &p.crop, (false, false), None, &el.id)?;
+                        picture_fill(self.reg, format!("img_{}", el.id), path, &el.frame)
+                    }
+                    None => no_fill(),
+                };
+                (fill, 0.0, 0.0, "middle", tiny())
+            }
+            // Écartés par `is_simple`.
+            ElementKind::Shape(_) | ElementKind::Table(_) => (no_fill(), 0.0, 0.0, "middle", tiny()),
+        };
+        let graphic = [fill, vec![
+            ("fo:padding-top", mm(pad_v)),
+            ("fo:padding-bottom", mm(pad_v)),
+            ("fo:padding-left", mm(pad)),
+            ("fo:padding-right", mm(pad)),
+            ("draw:textarea-vertical-align", valign.into()),
+        ]]
+        .concat();
+        let style = self.reg.style("table-cell", "ce", vec![("loext:graphic-properties", graphic), ("style:paragraph-properties", vec![("fo:border", border.to_string())])]);
+        let (cs, rs) = (cell.col_span.to_string(), cell.row_span.to_string());
+        let mut a = vec![("table:style-name", style.as_str())];
+        if cell.col_span > 1 {
+            a.push(("table:number-columns-spanned", &cs));
+        }
+        if cell.row_span > 1 {
+            a.push(("table:number-rows-spanned", &rs));
+        }
+        self.body.open("table:table-cell", &a);
+        self.paragraphs(&content, None);
+        self.body.close();
+        Ok(())
+    }
+
+    /// Hauteur d'une ligne de texte dans cette police à cette taille, en mm (celle du moteur, qui surestime celle de
+    /// LibreOffice : une case jugée assez haute l'est).
+    fn line_height_mm(&self, family: &str, size_pt: f64) -> f64 {
+        crate::fonts::builtin_line_height_mm(family, size_pt)
+            .or_else(|| self.reg.fonts.face(family, false, false).and_then(|f| f.metrics).map(|m| (m.ascent + m.descent) / m.units_per_em as f64 * size_pt * 25.4 / 72.0))
+            .unwrap_or(size_pt * 25.4 / 72.0 * 1.6)
     }
 
     /// Traits d'un tableau : une ligne par segment ; les cases sont des éléments à part.
@@ -561,6 +721,82 @@ impl Writer<'_> {
     }
 }
 
+/// Début du nom de l'image de remplissage d'une case pictogramme, suivi du nom de son SVG (`case_openmoji-1F98A`) :
+/// LibreOffice renomme le fichier en réenregistrant, pas l'image de remplissage ; l'import y retrouve le pictogramme.
+pub(crate) const PICTO_CELL_FILL: &str = "case_";
+/// Contenu d'une case vide du vrai tableau : une espace sans largeur, qui donne sa hauteur à la ligne sans rien montrer.
+pub(crate) const ZERO_WIDTH: &str = "\u{200B}";
+/// Taille de l'espace sans largeur d'une case trop basse pour sa police (ou d'une case pictogramme ou photo).
+pub(crate) const TINY_CELL_PT: f64 = 1.0;
+
+/// Une case vide garde sa police et sa taille si une ligne de ce texte et ses marges du haut et du bas tiennent dans sa
+/// hauteur (`line_mm` : la hauteur de ligne du moteur, qui surestime celle de LibreOffice) ; sinon LibreOffice
+/// agrandirait la ligne, et les autres lignes rétréciraient d'autant.
+pub(crate) fn empty_cell_fits(line_mm: f64, padding_mm: f64, height_mm: f64) -> bool {
+    line_mm + 2.0 * padding_mm <= height_mm + 1e-9
+}
+
+/// Vrai si le tableau s'écrit en vrai tableau de LibreOffice au même rendu qu'à l'écran ; sinon il garde l'export en
+/// traits et cadres. Dans le doute, faux. Il faut : un tableau droit (ni tourné ni retourné), au trait plein ou sans
+/// trait ; une grille de colonnes et de lignes de tailles positives dont chaque place est couverte par une case et une
+/// seule ; un groupe fait du tableau et de ses cases seulement, les cases juste avant le tableau (rien entre elles), à
+/// la place que leur donne `table::layout` ; et chaque case simple (voir `cell_is_simple`).
+pub(crate) fn is_simple(table: &Element, elements: &[Element]) -> bool {
+    let ElementKind::Table(t) = &table.kind else { return false };
+    if table.frame.rotation_deg != 0.0 || table.flip_h || table.flip_v || t.border.as_ref().is_some_and(|b| !b.is_solid()) {
+        return false;
+    }
+    let (ncols, nrows) = (t.cols.len(), t.rows.len());
+    if ncols == 0 || nrows == 0 || t.cols.iter().chain(&t.rows).any(|v| !v.is_finite() || *v <= 0.0) {
+        return false;
+    }
+    let mut taken = vec![false; ncols * nrows];
+    for c in &t.cells {
+        let (c0, r0, cs, rs) = (c.col as usize, c.row as usize, c.col_span as usize, c.row_span as usize);
+        if cs == 0 || rs == 0 || c0 + cs > ncols || r0 + rs > nrows {
+            return false;
+        }
+        for r in r0..r0 + rs {
+            for k in c0..c0 + cs {
+                if std::mem::replace(&mut taken[r * ncols + k], true) {
+                    return false;
+                }
+            }
+        }
+    }
+    if taken.contains(&false) {
+        return false;
+    }
+    let path = crate::groups::path(table);
+    let (Some(own), Some(at)) = (path.last(), elements.iter().position(|e| e.id == table.id)) else { return false };
+    let members: Vec<usize> = elements.iter().enumerate().filter(|(_, e)| crate::groups::path(e).contains(own)).map(|(i, _)| i).collect();
+    if members.len() != t.cells.len() + 1 || members.last() != Some(&at) || members.windows(2).any(|w| w[1] != w[0] + 1) {
+        return false;
+    }
+    let cells: Vec<&Element> = members[..members.len() - 1].iter().map(|&i| &elements[i]).collect();
+    if !cells.iter().all(|e| crate::groups::path(e) == path && t.cells.iter().any(|c| c.element_id == e.id)) {
+        return false;
+    }
+    // Chaque case à la place que lui donne la grille.
+    let mut page = Page::new(A4_PORTRAIT);
+    page.elements = members.iter().map(|&i| elements[i].clone()).collect();
+    crate::table::layout(&mut page, &table.id);
+    let same = |a: &Frame, b: &Frame| [a.x_mm - b.x_mm, a.y_mm - b.y_mm, a.w_mm - b.w_mm, a.h_mm - b.h_mm].iter().all(|d| d.abs() < 0.01) && a.rotation_deg == 0.0 && b.rotation_deg == 0.0;
+    cells.iter().zip(&page.elements).all(|(e, placed)| same(&e.frame, &placed.frame) && cell_is_simple(e))
+}
+
+/// Une case que le vrai tableau rend comme l'écran : un texte sans bordure propre, sans coins arrondis, sans lignes
+/// d'écriture ni image de fond, à l'endroit ; un pictogramme (en miroir compris : son SVG est retourné) ; une photo sans
+/// coins arrondis, bordure, ombre ni miroir (vide comprise). Un autre élément (forme, tableau) : non.
+pub(crate) fn cell_is_simple(e: &Element) -> bool {
+    match &e.kind {
+        ElementKind::Text(t) => !e.flip_h && !e.flip_v && t.frame.as_ref().is_none_or(|f| f.stroke.is_none() && f.corner_radius_mm == 0.0 && f.pattern.is_none() && f.image.is_none()),
+        ElementKind::Image(_) => true,
+        ElementKind::Photo(p) => p.corner_radius_mm == 0.0 && p.border.is_none() && !p.shadow && !p.mirrored && !e.flip_h && !e.flip_v,
+        ElementKind::Shape(_) | ElementKind::Table(_) => false,
+    }
+}
+
 /// Espaces multiples, tabulations et retours à la ligne, que l'ODF ne garde pas tels quels.
 fn write_run_text(x: &mut Xml, text: &str, at_start: &mut bool) {
     let mut chars = text.chars().peekable();
@@ -612,8 +848,27 @@ pub(crate) fn content_xml(doc: &Document, store: &AssetStore, reg: &mut Registry
         // Les membres consécutifs d'un même groupe sont écrits dans un groupe LibreOffice, un groupe dans un
         // groupe dans un groupe LibreOffice imbriqué.
         let mut open: Vec<Id> = Vec::new();
+        // Tableaux simples : écrits en vrais tableaux, leurs cases dedans. Le groupe du tableau, fait de lui et de ses
+        // cases seulement, n'est pas écrit (un tableau seul dans un groupe ne se modifie pas d'un clic).
+        let simple: Vec<&Id> = page.elements.iter().filter(|e| is_simple(e, &page.elements)).map(|e| &e.id).collect();
+        let inside: std::collections::HashSet<&Id> = page
+            .elements
+            .iter()
+            .filter(|e| simple.contains(&&e.id))
+            .flat_map(|e| match &e.kind {
+                ElementKind::Table(t) => t.cells.iter().map(|c| &c.element_id).collect::<Vec<_>>(),
+                _ => Vec::new(),
+            })
+            .collect();
         for e in &page.elements {
-            let path = crate::groups::path(e);
+            if inside.contains(&e.id) {
+                continue;
+            }
+            let real = simple.contains(&&e.id);
+            let mut path = crate::groups::path(e);
+            if real {
+                path.pop();
+            }
             let common = open.iter().zip(&path).take_while(|(a, b)| a == b).count();
             for _ in common..open.len() {
                 w.body.close();
@@ -623,7 +878,11 @@ pub(crate) fn content_xml(doc: &Document, store: &AssetStore, reg: &mut Registry
                 w.body.open("draw:g", &[]);
                 open.push(g.clone());
             }
-            w.element(e)?;
+            if real {
+                w.real_table(e, &page.elements)?;
+            } else {
+                w.element(e)?;
+            }
         }
         for _ in 0..open.len() {
             w.body.close();

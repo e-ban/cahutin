@@ -27,11 +27,12 @@ const FALLBACK_FONT: &str = "Andika";
 const EDITABLE_TRACES: usize = 60;
 /// Trait « fin » d'une forme dont l'épaisseur vaut 0.
 const HAIRLINE_MM: f64 = 0.2;
-/// LibreOffice dessine un trait de case de tableau 1,764 fois plus épais que l'épaisseur écrite (0,567 mm écrit :
-/// 1 mm rendu ; mesuré en PDF, en image et par UNO sur LibreOffice 26.8).
-const CELL_BORDER_DRAWN: f64 = 1.764;
-/// Épaisseurs du trait d'un tableau de Cahutin (le réglage « Traits ») : de 0,5 à 3 mm, par pas de 0,5.
-const TABLE_BORDER_STEP_MM: f64 = 0.5;
+use crate::odg::CELL_BORDER_DRAWN;
+/// Épaisseurs du trait d'un tableau relu : de 0,5 à 3 mm (celles du réglage « Traits »), au 1/20 de mm (un tableau
+/// de Cahutin peut en avoir une autre que le réglage, comme les 0,6 mm de l'exemple « Notre semaine », qui revient
+/// tel quel de son export : 0,340 mm écrit, 0,5998 mm dessiné).
+const TABLE_BORDER_STEP_MM: f64 = 0.05;
+const TABLE_BORDER_MIN_MM: f64 = 0.5;
 const TABLE_BORDER_MAX_MM: f64 = 3.0;
 /// Une case vide plus petite (l'astuce qui tient basse une ligne vide) prend la taille d'un texte ordinaire.
 const MIN_CELL_TEXT_PT: f64 = 6.0;
@@ -58,8 +59,60 @@ fn table_border(sides: &[Option<CellBorder>]) -> Option<Stroke> {
     }
     let (width, color) = best?.0.clone()?;
     let drawn = width as f64 / 1000.0 * CELL_BORDER_DRAWN;
-    let width_mm = ((drawn / TABLE_BORDER_STEP_MM).round() * TABLE_BORDER_STEP_MM).clamp(TABLE_BORDER_STEP_MM, TABLE_BORDER_MAX_MM);
+    let width_mm = (((drawn / TABLE_BORDER_STEP_MM).round() * TABLE_BORDER_STEP_MM * 1000.0).round() / 1000.0).clamp(TABLE_BORDER_MIN_MM, TABLE_BORDER_MAX_MM);
     Some(Stroke { width_mm, color, style: None })
+}
+
+/// Hauteur de ligne estimée d'un texte de tableau relu, en multiple de sa taille (Liberation Sans, la police d'un
+/// tableau neuf de LibreOffice : 1,149 ; Andika telle que LibreOffice la pose : 1,36) : une estimation, plutôt basse pour
+/// les polices de Cahutin, qui ne sert qu'aux tableaux dont le cadre et les lignes se contredisent.
+const CELL_LINE_EM: f64 = 1.15;
+
+/// Hauteurs des lignes d'un tableau dont le cadre (`frame_mm`) ne vaut pas la somme des hauteurs écrites (`written`),
+/// comme les pose LibreOffice (`svx/source/table/tablelayouter.cxx`, `LayoutTableHeight` puis `distribute`, au 1/100 mm
+/// comme lui) : chaque ligne d'abord agrandie à ce que demande son contenu (`mins`), puis la différence avec le cadre
+/// répartie au prorata des hauteurs, sur toutes les lignes quand le cadre est plus grand, sur celles qui dépassent leur
+/// contenu quand il est plus petit ; une ligne passée sous son contenu y est remise, et la répartition recommence
+/// avec ce qu'elle a coûté en plus (LibreOffice la refait sur toute la différence : le tableau peut finir plus petit que
+/// son cadre, et c'est ce qu'il montre). Mesuré sur le poste (LibreOffice 26.8) : lignes de 10 et 20 mm dans un cadre
+/// de 50 mm, 16,67 et 33,33 ; de 20 mm, 6,67 et 13,33 ; lignes de 20 et 20 mm dont la première demande 36,65 mm, dans
+/// un cadre de 80 mm, 51,76 et 28,24 ; de 40 mm, 36,65 et 3,35 ; lignes de 10 et 20 mm demandant chacune 9,73 mm, dans
+/// un cadre de 20 mm, 9,73 et 9,75.
+fn fit_rows(written: &[f64], mins: &[f64], frame_mm: f64) -> Vec<f64> {
+    let hundredths = |v: f64| (v * 100.0).round() as i64;
+    let mins: Vec<i64> = mins.iter().map(|m| hundredths(*m)).collect();
+    let mut sizes: Vec<i64> = written.iter().zip(&mins).map(|(h, m)| hundredths(*h).max(*m)).collect();
+    let mut distribute = hundredths(frame_mm) - sizes.iter().sum::<i64>();
+    let last = sizes.len().saturating_sub(1);
+    for _ in 0..100 {
+        if distribute == 0 {
+            break;
+        }
+        for (s, m) in sizes.iter_mut().zip(&mins) {
+            if *s < *m {
+                distribute -= *m - *s;
+                *s = *m;
+            }
+        }
+        let eligible = |s: i64, m: i64, d: i64| d > 0 || s > m;
+        let pool: i64 = sizes.iter().zip(&mins).filter(|(s, m)| eligible(**s, **m, distribute)).map(|(s, _)| *s).sum();
+        if pool == 0 || distribute == 0 {
+            break;
+        }
+        let (mut left, mut broken) = (distribute, false);
+        for (i, (s, m)) in sizes.iter_mut().zip(&mins).enumerate() {
+            if eligible(*s, *m, distribute) {
+                let n = if i == last { left } else { distribute * *s / pool };
+                *s += n;
+                left -= n;
+                broken |= *s < *m;
+            }
+        }
+        if !broken {
+            break;
+        }
+    }
+    sizes.into_iter().map(|s| s as f64 / 100.0).collect()
 }
 
 /// Longueur ODF (`1.5cm`, `12mm`, `1in`, `12pt`) en millimètres.
@@ -159,6 +212,8 @@ struct CellStyle {
     /// Image de remplissage : son nom et `style:repeat` (`repeat` quand il manque, comme le veut l'ODF).
     fill_image: Option<Option<(String, String)>>,
     padding_mm: Option<f64>,
+    /// Marges du haut et du bas, ensemble (la hauteur que la case prend en plus de son texte).
+    padding_v_mm: Option<f64>,
     valign: Option<VAlign>,
     /// Traits gauche, droit, haut, bas : `Some(None)` pour un côté sans trait.
     borders: [Option<Option<CellBorder>>; 4],
@@ -176,6 +231,11 @@ impl CellStyle {
                 (f == "bitmap").then(|| g.attribute((DRAW, "fill-image-name")).map(|n| (n.to_string(), g.attribute((STYLE, "repeat")).unwrap_or("repeat").to_string()))).flatten()
             });
             c.padding_mm = attr_mm(g, FO, "padding-left").or(attr_mm(g, FO, "padding"));
+            let all = attr_mm(g, FO, "padding");
+            c.padding_v_mm = match (attr_mm(g, FO, "padding-top").or(all), attr_mm(g, FO, "padding-bottom").or(all)) {
+                (None, None) => None,
+                (t, b) => Some(t.unwrap_or(0.0) + b.unwrap_or(0.0)),
+            };
             c.valign = g.attribute((DRAW, "textarea-vertical-align")).map(|v| match v {
                 "middle" => VAlign::Middle,
                 "bottom" => VAlign::Bottom,
@@ -198,12 +258,18 @@ impl CellStyle {
 fn table_styles(docs: &[&roxmltree::Document], known_fonts: &[String]) -> (HashMap<String, CellStyle>, HashMap<String, f64>, HashMap<String, f64>) {
     let fonts = Fonts::new(docs, known_fonts);
     let (mut cells, mut columns, mut rows) = (HashMap::new(), HashMap::new(), HashMap::new());
+    let mut drawing: HashMap<String, CellStyle> = HashMap::new();
     for s in docs.iter().flat_map(|d| d.descendants()).filter(|n| n.has_tag_name((STYLE, "style"))) {
         let Some(name) = s.attribute((STYLE, "name")) else { continue };
         let props = |tag: &str| s.children().find(|n| n.has_tag_name((STYLE, tag)));
         match s.attribute((STYLE, "family")) {
             Some("table-cell") => {
                 cells.entry(name.to_string()).or_insert_with(|| CellStyle::read(s, &fonts));
+            }
+            // Une ligne ajoutée dans LibreOffice a pour style de case par défaut un style de dessin (`standard` :
+            // fond vert, marges, Liberation Sans 18 pt), que LibreOffice applique à ses cases.
+            Some("graphic") => {
+                drawing.entry(name.to_string()).or_insert_with(|| CellStyle::read(s, &fonts));
             }
             Some("table-column") => {
                 if let Some(w) = props("table-column-properties").and_then(|p| attr_mm(p, STYLE, "column-width")) {
@@ -217,6 +283,9 @@ fn table_styles(docs: &[&roxmltree::Document], known_fonts: &[String]) -> (HashM
             }
             _ => {}
         }
+    }
+    for (name, style) in drawing {
+        cells.entry(name).or_insert(style);
     }
     (cells, columns, rows)
 }
@@ -232,6 +301,7 @@ impl Styles {
             out.fill = out.fill.or(s.fill.clone());
             out.fill_image = out.fill_image.or(s.fill_image.clone());
             out.padding_mm = out.padding_mm.or(s.padding_mm);
+            out.padding_v_mm = out.padding_v_mm.or(s.padding_v_mm);
             out.valign = out.valign.or(s.valign);
             for i in 0..4 {
                 out.borders[i] = out.borders[i].take().or(s.borders[i].clone());
@@ -595,6 +665,13 @@ fn openmoji(href: &str) -> Option<(ImageProps, bool, bool)> {
     crate::picto::svg(code).is_some().then(|| (ImageProps { code: code.to_string(), outline }, flip_h, flip_v))
 }
 
+/// Image de remplissage d'une case pictogramme exportée par Cahutin (`odg::PICTO_CELL_FILL`), même quand LibreOffice a
+/// renommé son fichier en réenregistrant : son nom garde celui du SVG (`_` y est écrit `_5f_`).
+fn openmoji_cell_fill(name: &str) -> Option<(ImageProps, bool, bool)> {
+    let name = name.replace("_5f_", "_");
+    openmoji(&format!("Pictures/{}.svg", name.strip_prefix(crate::odg::PICTO_CELL_FILL)?))
+}
+
 /// Polygone à quatre angles droits, côtés horizontaux et verticaux.
 fn is_axis_rectangle(points: &str) -> bool {
     let pts: Vec<(f64, f64)> = points
@@ -918,8 +995,10 @@ impl<R: Read + Seek> PageReader<'_, R> {
     }
 
     /// Un tableau de LibreOffice (`table:table` dans un `draw:frame`) : un tableau de Cahutin à la place du cadre, ses
-    /// cases des éléments du même groupe placés par `table::layout`. Colonnes et lignes aux tailles écrites (LibreOffice
-    /// écrit les hauteurs réelles, agrandies pour le texte ; la taille du cadre peut être périmée) ; cases fusionnées ;
+    /// cases des éléments du même groupe placés par `table::layout`. Colonnes aux largeurs écrites ; lignes aux hauteurs
+    /// écrites, sauf quand le cadre ne vaut pas leur somme : LibreOffice écrit la hauteur demandée d'une ligne, pas
+    /// celle qu'il lui donne (agrandie pour son texte), et le cadre à la hauteur rendue ; les lignes sont alors posées
+    /// comme il les pose (voir `fit_rows`, contenu estimé) ; cases fusionnées ;
     /// texte, fond, marge et alignement vertical de chaque case ; un trait pour tout le tableau (voir `table_border`).
     /// Une image de fond non étirée d'une case vide devient le pictogramme ou la photo de la case ; une autre image de
     /// fond, un tableau dans une case et ce qui dépasse `table::MAX_LINES` sont comptés comme non repris. L'aperçu
@@ -951,7 +1030,10 @@ impl<R: Read + Seek> PageReader<'_, R> {
         let spare = if missing > 0 { ((frame_w - known) / missing as f64).max(5.0) } else { 0.0 };
         let widths: Vec<f64> = (0..ncols).map(|i| cols.get(i).and_then(|c| c.0).filter(|w| *w > 0.0).unwrap_or(spare)).collect();
         let row_h = attr_mm(frame_node, SVG, "height").unwrap_or(0.0) / nrows as f64;
-        let heights: Vec<f64> = rows.iter().take(nrows).map(|r| r.attribute((TABLE, "style-name")).and_then(|s| self.styles.rows.get(s)).copied().filter(|h| *h > 0.0).unwrap_or(row_h.max(5.0))).collect();
+        // Hauteur écrite de chaque ligne ; une ligne sans hauteur (ou de hauteur nulle, comme l'écrit LibreOffice pour une
+        // ligne ajoutée) prend en attendant une part du cadre, puis sa hauteur rendue (voir plus bas, `fit_rows`).
+        let row_written: Vec<Option<f64>> = rows.iter().take(nrows).map(|r| r.attribute((TABLE, "style-name")).and_then(|s| self.styles.rows.get(s)).copied().filter(|h| *h > 0.0)).collect();
+        let heights: Vec<f64> = row_written.iter().map(|h| h.unwrap_or(row_h.max(5.0))).collect();
         // Les cases écrites, à leur place dans la grille ; une case couverte par une fusion n'est qu'une place.
         let mut taken = vec![vec![false; ncols]; nrows];
         let mut cells: Vec<(GridCell, Option<(Node, Option<&str>)>)> = Vec::new();
@@ -992,6 +1074,8 @@ impl<R: Read + Seek> PageReader<'_, R> {
         let mut sides: Vec<Option<CellBorder>> = Vec::new();
         let mut elements: Vec<Element> = Vec::new();
         let mut blank = Vec::new();
+        // Ce que demande le contenu de chaque case (marges et lignes de texte estimées) : (ligne, lignes couvertes, mm).
+        let mut needs: Vec<(usize, usize, f64)> = Vec::new();
         for (g, node) in &mut cells {
             let (c, r, cs, rs) = (g.col as usize, g.row as usize, g.col_span as usize, g.row_span as usize);
             let rect = Frame { x_mm: xs[c], y_mm: ys[r], w_mm: xs[c + cs] - xs[c], h_mm: ys[r + rs] - ys[r], rotation_deg: 0.0 };
@@ -1016,6 +1100,20 @@ impl<R: Read + Seek> PageReader<'_, R> {
             let first = paragraphs.first().map(|p| ReadParagraph { align: p.align, runs: Vec::new(), first: p.first.clone(), bullet: false });
             let first = first.unwrap_or(ReadParagraph { align: None, runs: Vec::new(), first: Run { font: fallback.font.clone(), size_pt: fallback.size_pt, color: fallback.color.clone(), ..Run::plain("") }, bullet: false });
             let text_style = text_style(&first, outline, style.valign, style.padding_mm);
+            // Une case sans paragraphe a la hauteur d'une ligne vide (LibreOffice : celle de sa police).
+            let line_mm = |size_pt: f64| size_pt * CELL_LINE_EM * 25.4 / 72.0;
+            let lines: f64 = if paragraphs.is_empty() {
+                line_mm(text_style.size_pt)
+            } else {
+                paragraphs
+                    .iter()
+                    .map(|p| {
+                        let size = p.runs.iter().filter_map(|r| r.size_pt).fold(p.first.size_pt.unwrap_or(text_style.size_pt), f64::max);
+                        (1 + p.runs.iter().map(|r| r.text.matches('\n').count()).sum::<usize>()) as f64 * line_mm(size)
+                    })
+                    .sum()
+            };
+            needs.push((r, rs, style.padding_v_mm.unwrap_or(0.0) + lines));
             let content = if empty { RichText::default() } else { rich_text(paragraphs, &text_style) };
             let fill = style.fill.clone().flatten();
             let frame = fill.map(|f| TextFrame { fill: Some(f), stroke: None, corner_radius_mm: 0.0, image: None, pattern: None, write_on_lines: None });
@@ -1024,7 +1122,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
             if let Some(Some((name, repeat))) = &style.fill_image {
                 let href = self.fill_images.get(name).cloned();
                 let picture = match href {
-                    Some(href) if empty && repeat == "no-repeat" => match openmoji(&href) {
+                    Some(href) if empty && repeat == "no-repeat" => match openmoji(&href).or_else(|| openmoji_cell_fill(name)) {
                         Some((picto, h, v)) => {
                             (flip_h, flip_v) = (h, v);
                             Some(ElementKind::Image(picto))
@@ -1039,19 +1137,23 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 }
             }
             if empty && matches!(kind, ElementKind::Text(_)) {
-                blank.push(elements.len());
+                // Une case vide de Cahutin porte une espace sans largeur à sa police et à sa taille : elle les garde,
+                // sauf en toute petite taille (une ligne trop basse pour elles).
+                let marked = node.is_some_and(|(n, _)| n.descendants().any(|d| d.text().is_some_and(|t| t.contains('\u{200B}'))));
+                let keeps = marked && matches!(&kind, ElementKind::Text(t) if t.style.size_pt >= MIN_CELL_TEXT_PT);
+                blank.push((elements.len(), keeps));
             }
             let e = Element { group: Some(group.clone()), flip_h, flip_v, ..element(rect, kind) };
             g.element_id = e.id.clone();
             elements.push(e);
         }
-        // Une case vide prend la police, la taille et la couleur de la première case écrite : le texte qu'on y tapera
-        // ressemble aux autres, et non à la toute petite taille qui tient basse une ligne vide.
+        // Une autre case vide prend la police, la taille et la couleur de la première case écrite : le texte qu'on y
+        // tapera ressemble aux autres, et non à la toute petite taille qui tient basse une ligne vide.
         let written = elements.iter().enumerate().find_map(|(i, e)| match &e.kind {
-            ElementKind::Text(t) if !blank.contains(&i) => Some(t.style.clone()),
+            ElementKind::Text(t) if !blank.iter().any(|b| b.0 == i) => Some(t.style.clone()),
             _ => None,
         });
-        for &i in &blank {
+        for &(i, _) in blank.iter().filter(|b| !b.1) {
             if let ElementKind::Text(t) = &mut elements[i].kind {
                 match &written {
                     Some(w) => (t.style.font, t.style.size_pt, t.style.color) = (w.font.clone(), w.size_pt, w.color.clone()),
@@ -1063,6 +1165,24 @@ impl<R: Read + Seek> PageReader<'_, R> {
         if truncated {
             self.skipped += 1;
         }
+        let mut heights = heights;
+        let missing = row_written.iter().any(Option::is_none);
+        let written_sum: f64 = row_written.iter().flatten().sum();
+        // LibreOffice écrit souvent le cadre au 1/100 mm près de la somme (11,999 cm pour 12 cm) : ce n'est pas un désaccord.
+        if let Some(frame_h) = attr_mm(frame_node, SVG, "height").filter(|h| (missing || (h - written_sum).abs() > 0.05) && !truncated) {
+            let heights_written: Vec<f64> = row_written.iter().map(|h| h.unwrap_or(0.0)).collect();
+            let mut mins = vec![0.0; nrows];
+            for &(r, _, need) in needs.iter().filter(|n| n.1 == 1) {
+                mins[r] = f64::max(mins[r], need);
+            }
+            // Une case fusionnée sur plusieurs lignes : ce qui manque aux premières, à la dernière.
+            for &(r, rs, need) in needs.iter().filter(|n| n.1 > 1) {
+                let last = r + rs - 1;
+                mins[last] = f64::max(mins[last], need - heights_written[r..last].iter().sum::<f64>());
+            }
+            heights = fit_rows(&heights_written, &mins, frame_h);
+        }
+        let ys: Vec<f64> = std::iter::once(y).chain(heights.iter().scan(y, |a, h| { *a += h; Some(*a) })).collect();
         let frame = Frame { x_mm: x, y_mm: y, w_mm: xs[ncols] - x, h_mm: ys[nrows] - y, rotation_deg: 0.0 };
         let props = TableProps { cols: widths, rows: heights, cells: cells.into_iter().map(|(g, _)| g).collect(), border: table_border(&sides) };
         let table = Element { group: Some(group), ..element(frame, ElementKind::Table(props)) };
@@ -2013,14 +2133,77 @@ mod tests {
         assert!(frame_close(cell_at(p, 2, 1).frame, 60.0, 40.0, 20.0, 35.0), "{:?}", cell_at(p, 2, 1).frame);
     }
 
-    /// LibreOffice écrit les hauteurs réelles des lignes (agrandies pour leur texte) ; le cadre, lui, peut être périmé.
+    /// LibreOffice écrit la hauteur demandée de chaque ligne et le cadre à la hauteur rendue : un cadre plus petit que
+    /// ses lignes les rétrécit, mais jamais sous leur texte (une ligne de 12 pt et ses marges de 1,5 mm).
     #[test]
-    fn written_row_heights_win_over_a_stale_frame() {
+    fn a_frame_smaller_than_its_rows_shrinks_them_down_to_their_text() {
         let body = table_frame("1cm", &["co20"], &[("ro25", &cell_p("Grand")), ("ro25", &cell_p("Aussi"))]);
         let p = &read_table_body(&body, "", &[]).pages[0];
         assert_real_table(p);
-        assert!(frame_close(the_table(p).0.frame, 20.0, 30.0, 20.0, 50.0), "{:?}", the_table(p).0.frame);
-        assert!(frame_close(cell_at(p, 0, 1).frame, 20.0, 55.0, 20.0, 25.0), "{:?}", cell_at(p, 0, 1).frame);
+        let need = 3.0 + 12.0 * CELL_LINE_EM * 25.4 / 72.0;
+        assert!(frame_close(the_table(p).0.frame, 20.0, 30.0, 20.0, 2.0 * need), "{:?}", the_table(p).0.frame);
+        assert!(frame_close(cell_at(p, 0, 1).frame, 20.0, 30.0 + need, 20.0, need), "{:?}", cell_at(p, 0, 1).frame);
+    }
+
+    /// Le pictogramme d'une case se retrouve au nom de son image de remplissage, que LibreOffice garde (en écrivant `_`
+    /// `_5f_`) quand il renomme le fichier.
+    #[test]
+    fn a_picto_cell_fill_is_recognized_by_its_name() {
+        let (p, h, v) = openmoji_cell_fill("case_5f_openmoji-1F98A-miroir-h").unwrap();
+        assert_eq!((p.code.as_str(), p.outline, h, v), ("1F98A", None, true, false));
+        assert_eq!(openmoji_cell_fill("case_openmoji-contour-1F98A").map(|x| x.0.outline), Some(Some(true)));
+        assert!(openmoji_cell_fill("img_5f_abc").is_none() && openmoji_cell_fill("case_inconnu").is_none());
+    }
+
+    /// Une ligne ajoutée dans LibreOffice : hauteur écrite nulle, style de case par défaut `standard` (un style de
+    /// dessin : fond vert, marges de 1,25 mm en haut et en bas, 18 pt). Ses cases en prennent l'allure, et la ligne la
+    /// hauteur de son texte, le reste du cadre aux autres lignes.
+    #[test]
+    fn a_row_added_in_libreoffice_takes_its_default_style_and_its_text_height() {
+        let standard = r##"<style:style style:name="standard" style:family="graphic"><style:graphic-properties draw:fill="solid" draw:fill-color="#18a303" fo:padding-top="0.125cm" fo:padding-bottom="0.125cm" fo:padding-left="0.25cm" fo:padding-right="0.25cm"/><style:text-properties style:font-name="Liberation Sans" fo:font-size="18pt"/></style:style><style:style style:name="ro0" style:family="table-row"><style:table-row-properties style:row-height="0cm"/></style:style>"##;
+        let need = 2.5 + 18.0 * CELL_LINE_EM * 25.4 / 72.0;
+        let body = format!(
+            r#"<draw:frame draw:style-name="gr2" svg:width="2cm" svg:height="{}mm" svg:x="2cm" svg:y="3cm"><table:table><table:table-column table:style-name="co20"/><table:table-row table:style-name="ro10" table:default-cell-style-name="ce1">{}</table:table-row><table:table-row table:style-name="ro0" table:default-cell-style-name="standard"><table:table-cell><text:p>Ajout</text:p></table:table-cell></table:table-row></table:table></draw:frame>"#,
+            10.0 + need,
+            cell_p("Haut")
+        );
+        let p = &read_table_body(&body, standard, &[]).pages[0];
+        assert_real_table(p);
+        let (t, props) = the_table(p);
+        assert!((props.rows[1] - need).abs() < 0.02 && (props.rows[0] - 10.0).abs() < 0.02 && (t.frame.h_mm - 10.0 - need).abs() < 0.02, "{:?}", props.rows);
+        let added = cell_props(p, 0, 1);
+        assert_eq!((added.style.size_pt, added.frame.as_ref().and_then(|f| f.fill.as_deref())), (18.0, Some("#18a303")));
+    }
+
+    /// Lignes et cadre qui se contredisent : comme LibreOffice, chaque ligne agrandie à son contenu, puis la différence
+    /// avec le cadre répartie au prorata, sans descendre sous le contenu. Les mesures du poste (voir `fit_rows`).
+    #[test]
+    fn rows_are_fitted_to_the_frame_as_libreoffice_does() {
+        let near = |got: Vec<f64>, want: &[f64]| got.len() == want.len() && got.iter().zip(want).all(|(g, w)| (g - w).abs() < 0.02);
+        let fit = |w: &[f64], m: &[f64], f: f64| fit_rows(w, m, f);
+        assert!(near(fit(&[10.0, 20.0], &[0.5, 0.5], 50.0), &[16.67, 33.33]));
+        assert!(near(fit(&[10.0, 20.0], &[0.5, 0.5], 20.0), &[6.67, 13.33]));
+        assert!(near(fit(&[20.0, 20.0], &[36.65, 0.5], 80.0), &[51.76, 28.24]));
+        assert!(near(fit(&[20.0, 20.0], &[36.65, 0.5], 58.05), &[37.56, 20.49]));
+        assert!(near(fit(&[20.0, 20.0], &[36.65, 0.5], 40.0), &[36.65, 3.35]));
+        assert!(near(fit(&[10.0, 20.0], &[9.73, 9.75], 20.0), &[9.73, 9.75]), "{:?}", fit(&[10.0, 20.0], &[9.73, 9.75], 20.0));
+        assert!(near(fit(&[10.0, 20.0, 30.0], &[0.0; 3], 90.0), &[15.0, 30.0, 45.0]));
+        // Lignes de 1 + 1 cm aux cases vides dans un cadre de 5 cm : 2,5 + 2,5 cm ; le tableau à la hauteur du cadre.
+        let tiny = "<table:table-cell table:style-name=\"ceTiny\"><text:p text:style-name=\"PTiny\"><text:span text:style-name=\"TTiny\">\u{200B}</text:span></text:p></table:table-cell>";
+        let body = table_frame("5cm", &["co20", "co40"], &[("ro10", &tiny.repeat(2)), ("ro10", &tiny.repeat(2))]);
+        let p = &read_table_body(&body, "", &[]).pages[0];
+        let (t, props) = the_table(p);
+        assert!((t.frame.h_mm - 50.0).abs() < 0.01 && near(props.rows.clone(), &[25.0, 25.0]), "{:?} {:?}", t.frame, props.rows);
+        // La première ligne demande cinq lignes de texte (12 pt, marges de 1,5 mm) : elle les garde, la seconde a le reste
+        // à sa part.
+        let five = format!(r#"<table:table-cell table:style-name="ce1">{}</table:table-cell>"#, ["Un", "Deux", "Trois", "Quatre", "Cinq"].map(|w| format!("<text:p>{w}</text:p>")).concat());
+        let body = table_frame("5cm", &["co20", "co40"], &[("ro10", &(five + tiny)), ("ro10", &tiny.repeat(2))]);
+        let p = &read_table_body(&body, "", &[]).pages[0];
+        let (t, props) = the_table(p);
+        let need = 3.0 + 5.0 * 12.0 * CELL_LINE_EM * 25.4 / 72.0;
+        assert!((t.frame.h_mm - 50.0).abs() < 0.02, "{:?}", t.frame);
+        assert!(near(props.rows.clone(), &[50.0 * need / (need + 10.0), 50.0 * 10.0 / (need + 10.0)]), "{:?}, contenu {need:.2}", props.rows);
+        assert_real_table(p);
     }
 
     #[test]
@@ -2063,7 +2246,7 @@ mod tests {
     }
 
     /// Le trait du tableau : le plus fréquent des côtés des cases, l'épaisseur écrite fois 1,764 (ce que dessine
-    /// LibreOffice) ramenée aux pas de 0,5 mm de Cahutin, au moins 0,5 mm, plein.
+    /// LibreOffice) au 1/20 de mm, de 0,5 à 3 mm, plein.
     #[test]
     fn the_table_border_is_the_usual_cell_border_as_drawn() {
         let sides = r#"<table:table-cell table:style-name="ceSides"><text:p>A</text:p></table:table-cell>"#;
@@ -2073,7 +2256,8 @@ mod tests {
         let borders = |sides: &[Option<CellBorder>]| table_border(sides).map(|s| s.width_mm);
         let b = |w: f64| Some(CellBorder { width_mm: w, color: "#000000".into() });
         assert_eq!(borders(&[b(0.0988), b(0.0988)]), Some(0.5), "0,28 pt : le plus fin");
-        assert_eq!(borders(&[b(1.0), b(1.0)]), Some(2.0), "1 mm écrit, 1,76 mm dessiné");
+        assert_eq!(borders(&[b(1.0), b(1.0)]), Some(1.75), "1 mm écrit, 1,76 mm dessiné");
+        assert_eq!(borders(&[b(0.34)]), Some(0.6), "0,6 mm exporté par Cahutin");
         assert_eq!(borders(&[b(5.0)]), Some(3.0));
         assert_eq!(borders(&[None, None, b(1.0)]), None, "la plupart des côtés sans trait");
         assert_eq!(cell_border("none"), None);

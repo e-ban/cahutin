@@ -1365,7 +1365,10 @@ fn tables_and_grids_are_rendered_in_place() {
         p.asset = Some(asset);
     }
     doc.pages.push(grid_page);
-    let (_dir, pdf) = render(&doc, &store);
+    let (dir, pdf) = render(&doc, &store);
+    // Un tableau simple : un vrai tableau de LibreOffice, sans traits à part.
+    let content = odg_content(&dir.path().join("banc.odg"));
+    assert!(content.contains("<table:table>") && !content.contains("<draw:line"), "vrai tableau attendu");
 
     // Traits de 1 mm : à 10 pixels par millimètre, le centre de l'encre sur une bande de ±1,5 mm en travers du trait
     // doit tomber à 0,3 mm du bord attendu ; « pas de trait » : rien de sombre sur cette bande.
@@ -1896,4 +1899,227 @@ fn libreoffice_tables_behave_as_measured() {
     assert!(merged_ink < 0.05, "(b) pas de trait dans la case fusionnée : {report}");
     assert!((b_bottom - 138.0).abs() <= 0.2, "(c) lignes de 3 mm gardées : {report}");
     assert!(offset.is_some_and(|(dx, dy)| dx.abs() <= 0.3 && dy.abs() <= 0.3), "(d) premier mot à la place de la zone de texte : {report}");
+}
+
+/// Contenu (`content.xml`) d'un ODG.
+fn odg_content(odg: &Path) -> String {
+    let mut content = String::new();
+    std::io::Read::read_to_string(&mut zip::ZipArchive::new(std::fs::File::open(odg).unwrap()).unwrap().by_name("content.xml").unwrap(), &mut content).unwrap();
+    content
+}
+
+/// L'id de la case qui commence en (`col`, `row`) du tableau `table`.
+fn cell_of(page: &Page, table: &str, col: u8, row: u8) -> Id {
+    let t = page.elements.iter().find(|e| e.id == table).unwrap();
+    let ElementKind::Table(t) = &t.kind else { unreachable!() };
+    t.cells.iter().find(|c| c.col == col && c.row == row).unwrap().element_id.clone()
+}
+
+/// Un tableau simple exporté en vrai tableau de LibreOffice a le rendu de l'écran : (a) trait de 1 mm rendu à 1 mm,
+/// centré sur la grille ; (b) coins extérieurs pleins ; (c) fond de couleur d'une case ; (d) pictogramme au centre de
+/// sa case et à sa taille (sa boîte d'encre à la place de celle du même pictogramme posé à part) ; (e) photo recadrée
+/// dans sa case ; (f) huit lignes de 4 mm aux cases vides : chaque trait à sa place, le bas du tableau compris ;
+/// (g) un tableau en tirets reste en traits et cadres, ses tirets rendus. Chaque échec donne toutes les mesures.
+#[test]
+#[ignore]
+fn a_real_table_is_rendered_as_on_screen() {
+    const DPI: u32 = 508;
+    let mut doc = Document::new("vrai tableau");
+    let mut store = AssetStore::default();
+    let photo = png_asset(&mut doc, &mut store, &quarters());
+    let page = &mut doc.pages[0];
+    // A : 3 x 3 cases de 50 x 30 mm à (30, 30), trait noir de 1 mm.
+    let a = carnet_core::table::add_table(page, frame_at(30.0, 30.0, 150.0, 90.0, 0.0), 3, 3);
+    if let ElementKind::Table(t) = &mut page.elements.iter_mut().find(|e| e.id == a).unwrap().kind {
+        t.border = Some(Stroke { width_mm: 1.0, color: "#000000".into(), style: None });
+    }
+    let colored = cell_of(page, &a, 0, 0);
+    if let ElementKind::Text(t) = &mut page.elements.iter_mut().find(|e| e.id == colored).unwrap().kind {
+        t.content = RichText::plain("Alpha");
+        t.frame = Some(TextFrame { fill: Some("#ffd6d6".into()), stroke: None, corner_radius_mm: 0.0, image: None, pattern: None, write_on_lines: None });
+    }
+    let (picto, photo_cell) = (cell_of(page, &a, 1, 0), cell_of(page, &a, 2, 0));
+    carnet_core::table::set_cell_content(page, &picto, carnet_core::table::CellContent::Picto("1F98A".into())).unwrap();
+    carnet_core::table::set_cell_content(page, &photo_cell, carnet_core::table::CellContent::Photo).unwrap();
+    if let ElementKind::Photo(p) = &mut page.elements.iter_mut().find(|e| e.id == photo_cell).unwrap().kind {
+        p.asset = Some(photo.clone());
+    }
+    let picto_frame = page.elements.iter().find(|e| e.id == picto).unwrap().frame;
+    assert_eq!((picto_frame.x_mm, picto_frame.y_mm, picto_frame.w_mm), (91.5, 31.5, 27.0));
+    // Le même pictogramme posé à part, 170 mm plus bas : le témoin.
+    page.elements.push(element(frame_at(91.5, 201.5, 27.0, 27.0, 0.0), ElementKind::Image(ImageProps { code: "1F98A".into(), outline: None })));
+    // B : 4 x 8 lignes de 4 mm aux cases vides, à (30, 130) ; bas à 162.
+    carnet_core::table::add_table(page, frame_at(30.0, 130.0, 120.0, 32.0, 0.0), 4, 8);
+    // C : tirets rouges de 1 mm, à (30, 250).
+    let c = carnet_core::table::add_table(page, frame_at(30.0, 250.0, 150.0, 30.0, 0.0), 3, 1);
+    if let ElementKind::Table(t) = &mut page.elements.iter_mut().find(|e| e.id == c).unwrap().kind {
+        t.border = Some(Stroke { width_mm: 1.0, color: "#000000".into(), style: Some(StrokeStyle::Dashed) });
+    }
+    let (dir, pdf) = render(&doc, &store);
+    let content = odg_content(&dir.path().join("banc.odg"));
+    assert_eq!(content.matches("<table:table>").count(), 2, "A et B en vrais tableaux, C en traits");
+    assert!(content.matches("<draw:line").count() >= 4, "C en traits");
+    let r = Raster::rgb(&pdf, 1, DPI);
+
+    // (a) Traits de A, loin des croisements, des cases écrites et des images.
+    let lines: [(bool, f64, &[f64]); 8] = [
+        (true, 30.0, &[75.0, 105.0]),
+        (true, 80.0, &[75.0, 105.0]),
+        (true, 130.0, &[75.0, 105.0]),
+        (true, 180.0, &[75.0, 105.0]),
+        (false, 30.0, &[84.0, 125.0]),
+        (false, 60.0, &[84.0, 125.0]),
+        (false, 90.0, &[55.0, 105.0, 155.0]),
+        (false, 120.0, &[55.0, 105.0, 155.0]),
+    ];
+    let measured: Vec<(bool, f64, f64, f64, f64)> = lines.iter().flat_map(|(v, at, al)| al.iter().map(move |&al| (*v, *at, al))).map(|(v, at, al)| {
+        // ±1,2 mm : les images des cases du haut commencent à 1,5 mm des traits.
+        let (ink, centre) = ink_across(&r, v, at, al, 1.2);
+        (v, at, al, ink, centre)
+    }).collect();
+    let worst_thickness = measured.iter().map(|m| (m.3 - 1.0).abs()).fold(0.0, f64::max);
+    let worst_centre = measured.iter().map(|m| (m.4 - m.1).abs()).fold(0.0, |a: f64, d| if d.is_nan() { f64::INFINITY } else { a.max(d) });
+    // (b) Coins extérieurs : pleins jusqu'au bord du trait (0,4 mm hors de la grille sur les deux axes).
+    let corners: Vec<u8> = [(29.6, 29.6), (180.4, 29.6), (29.6, 120.4), (180.4, 120.4)].iter().map(|&(x, y)| r.level(x, y)).collect();
+    // (c) Fond de la case colorée, loin de son texte.
+    let fill = [r.color(34.0, 34.0), r.color(76.0, 56.0)];
+    // (d) Pictogramme : boîte d'encre dans sa case, comparée à celle du témoin décalé de 170 mm.
+    let in_cell = r.ink_box(81.0, 31.0, 129.0, 59.0, 200);
+    let witness = r.ink_box(81.0, 201.0, 129.0, 229.0, 200).map(|(x0, y0, x1, y1)| (x0, y0 - 170.0, x1, y1 - 170.0));
+    let picto_gap = match (in_cell, witness) {
+        (Some(a), Some(b)) => [a.0 - b.0, a.1 - b.1, a.2 - b.2, a.3 - b.3].iter().map(|d| d.abs()).fold(0.0, f64::max),
+        _ => f64::INFINITY,
+    };
+    // (e) Photo : cadre 131,5..178,5 x 31,5..58,5, les quatre quarts à leur place, blanc dans la marge de 1,5 mm.
+    let quarters_seen = [(140.0, 38.0, RED), (170.0, 38.0, BLUE), (140.0, 52.0, GREEN), (170.0, 52.0, YELLOW), (131.0, 45.0, WHITE), (155.0, 59.0, WHITE)];
+    let photo_ok = quarters_seen.iter().all(|&(x, y, want)| near(r.color(x, y), want));
+    // (f) Traits horizontaux de B le long de x = 45 (premières cases).
+    let mut runs: Vec<(f64, f64)> = Vec::new();
+    let k = r.px_per_mm;
+    for i in (128.0 * k) as usize..(170.0 * k) as usize {
+        let y = (i as f64 + 0.5) / k;
+        if r.level(45.0, y) < 128 {
+            match runs.last_mut() {
+                Some((_, end)) if y - *end < 0.2 => *end = y,
+                _ => runs.push((y, y)),
+            }
+        }
+    }
+    let b_lines: Vec<f64> = runs.iter().map(|(s, e)| (s + e) / 2.0).collect();
+    let b_worst = if b_lines.len() == 9 { b_lines.iter().enumerate().map(|(i, y)| (y - (130.0 + 4.0 * i as f64)).abs()).fold(0.0, f64::max) } else { f64::INFINITY };
+    // (g) Tirets de C : le trait du haut alterne encre et blanc entre x = 40 et 70.
+    let mut switches = 0;
+    let mut last = None;
+    for i in (40.0 * k) as usize..(70.0 * k) as usize {
+        let dark = r.level((i as f64 + 0.5) / k, 250.0) < 128;
+        if last.is_some_and(|l| l != dark) {
+            switches += 1;
+        }
+        last = Some(dark);
+    }
+    let report = format!(
+        "traits {:?} ; épaisseur écart max {worst_thickness:.3}, centre écart max {worst_centre:.3} ; coins {corners:?} ; fond {fill:?} ; picto case {in_cell:?} témoin {witness:?} écart {picto_gap:.3} ; photo {:?} ; B traits {b_lines:.2?} écart {b_worst:.3} ; tirets {switches} changements",
+        measured.iter().map(|m| format!("{}{}@{}: {:.3}/{:.3}", if m.0 { 'V' } else { 'H' }, m.1, m.2, m.3, m.4)).collect::<Vec<_>>(),
+        quarters_seen.iter().map(|&(x, y, _)| r.color(x, y)).collect::<Vec<_>>()
+    );
+    assert!(worst_thickness <= 0.1, "(a) épaisseur : {report}");
+    assert!(worst_centre <= 0.1, "(a) traits sur la grille : {report}");
+    assert!(corners.iter().all(|&l| l < 100), "(b) coins pleins : {report}");
+    assert!(fill.iter().all(|&c| near(c, (255, 214, 214))), "(c) fond de case : {report}");
+    assert!(picto_gap <= 0.15, "(d) pictogramme : {report}");
+    assert!(photo_ok, "(e) photo : {report}");
+    assert!(b_worst <= 0.15, "(f) lignes basses : {report}");
+    assert!(switches >= 6, "(g) tirets : {report}");
+}
+
+/// Aller-retour par LibreOffice : un tableau simple exporté, réenregistré par `soffice --convert-to odg`, puis relu par
+/// Cahutin, est le même tableau : cadre, colonnes, lignes, fusions, trait, textes et puces, fond, pictogramme (miroir
+/// compris) et photo dans leurs cases.
+#[test]
+#[ignore]
+fn a_real_table_comes_back_through_libreoffice() {
+    let mut doc = Document::new("aller-retour");
+    let mut store = AssetStore::default();
+    let photo = png_asset(&mut doc, &mut store, &quarters());
+    let page = &mut doc.pages[0];
+    let t = carnet_core::table::add_table(page, frame_at(15.0, 36.0, 180.0, 120.0, 0.0), 4, 3);
+    if let ElementKind::Table(p) = &mut page.elements.iter_mut().find(|e| e.id == t).unwrap().kind {
+        p.cols = vec![1.3, 1.0, 1.0, 1.0];
+        p.rows = vec![0.8, 1.0, 1.0];
+        p.border = Some(Stroke { width_mm: 0.6, color: "#6b5444".into(), style: None });
+    }
+    carnet_core::table::layout(page, &t);
+    let (a, b) = (cell_of(page, &t, 1, 1), cell_of(page, &t, 3, 1));
+    carnet_core::table::merge(page, &a, &b).unwrap();
+    let (head, list, picto, photo_cell) = (cell_of(page, &t, 0, 0), cell_of(page, &t, 0, 1), cell_of(page, &t, 1, 0), cell_of(page, &t, 2, 0));
+    if let ElementKind::Text(tx) = &mut page.elements.iter_mut().find(|e| e.id == head).unwrap().kind {
+        tx.content = RichText::plain("Quand ?");
+        tx.frame = Some(TextFrame { fill: Some("#f1e6d6".into()), stroke: None, corner_radius_mm: 0.0, image: None, pattern: None, write_on_lines: None });
+    }
+    if let ElementKind::Text(tx) = &mut page.elements.iter_mut().find(|e| e.id == list).unwrap().kind {
+        tx.content = RichText { paragraphs: vec![
+            Paragraph { align: None, runs: vec![Run::plain("Pomme")], list: Some(ListKind::Bullet) },
+            Paragraph { align: None, runs: vec![Run::plain("Poire")], list: Some(ListKind::Bullet) },
+        ] };
+        tx.style.align = Align::Left;
+    }
+    carnet_core::table::set_cell_content(page, &picto, carnet_core::table::CellContent::Picto("1F98A".into())).unwrap();
+    page.elements.iter_mut().find(|e| e.id == picto).unwrap().flip_h = true;
+    carnet_core::table::set_cell_content(page, &photo_cell, carnet_core::table::CellContent::Photo).unwrap();
+    if let ElementKind::Photo(p) = &mut page.elements.iter_mut().find(|e| e.id == photo_cell).unwrap().kind {
+        p.asset = Some(photo);
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let odg = dir.path().join("tableau.odg");
+    export_odg_to_path(&doc, &store, &FontSet::builtin(), &odg).unwrap();
+    assert!(odg_content(&odg).contains("<table:table>"));
+    let out = dir.path().join("relu");
+    soffice_convert(dir.path(), "odg", &odg, &out);
+    let saved = out.join("tableau.odg");
+    assert!(odg_content(&saved).contains("<table:table"), "LibreOffice n'a pas gardé de tableau");
+    let known: Vec<String> = FontSet::builtin().families().into_iter().map(|f| f.name).collect();
+    let back = carnet_core::import::odg::read_drawing(std::fs::File::open(&saved).unwrap(), &known).unwrap();
+    assert_eq!(back.report.skipped, 0, "{:?}", back.report);
+    let p = &back.pages[0];
+    let tables: Vec<&Element> = p.elements.iter().filter(|e| matches!(e.kind, ElementKind::Table(_))).collect();
+    assert_eq!(tables.len(), 1, "{:?}", p.elements);
+    let ElementKind::Table(tp) = &tables[0].kind else { unreachable!() };
+    let f = tables[0].frame;
+    assert!([f.x_mm - 15.0, f.y_mm - 36.0, f.w_mm - 180.0, f.h_mm - 120.0].iter().all(|d| d.abs() < 0.02), "{f:?}");
+    let shares = |v: &[f64]| v.iter().map(|x| x / v.iter().sum::<f64>()).collect::<Vec<_>>();
+    let close = |a: &[f64], b: &[f64]| a.len() == b.len() && shares(a).iter().zip(shares(b)).all(|(x, y)| (x - y).abs() < 0.001);
+    assert!(close(&tp.cols, &[1.3, 1.0, 1.0, 1.0]) && close(&tp.rows, &[0.8, 1.0, 1.0]), "colonnes {:?}, lignes {:?}", tp.cols, tp.rows);
+    assert_eq!(tp.border, Some(Stroke { width_mm: 0.6, color: "#6b5444".into(), style: None }));
+    let mut got: Vec<String> = tp
+        .cells
+        .iter()
+        .map(|c| {
+            let e = p.elements.iter().find(|e| e.id == c.element_id).unwrap();
+            let what = match &e.kind {
+                ElementKind::Text(tx) => format!(
+                    "{:?} {:?}",
+                    tx.content.paragraphs.iter().map(|q| (q.runs.iter().map(|r| r.text.as_str()).collect::<String>(), q.list)).collect::<Vec<_>>(),
+                    tx.frame.as_ref().and_then(|f| f.fill.clone())
+                ),
+                ElementKind::Image(i) => format!("picto {} {}", i.code, e.flip_h),
+                ElementKind::Photo(ph) => format!("photo {}", ph.asset.is_some()),
+                k => format!("{k:?}"),
+            };
+            format!("{} {} {} {} {what}", c.col, c.row, c.col_span, c.row_span)
+        })
+        .collect();
+    got.sort();
+    let want = [
+        "0 0 1 1 [(\"Quand ?\", None)] Some(\"#f1e6d6\")",
+        "0 1 1 1 [(\"Pomme\", Some(Bullet)), (\"Poire\", Some(Bullet))] None",
+        "0 2 1 1 [] None",
+        "1 0 1 1 picto 1F98A true",
+        "1 1 3 1 [] None",
+        "1 2 1 1 [] None",
+        "2 0 1 1 photo true",
+        "2 2 1 1 [] None",
+        "3 0 1 1 [] None",
+        "3 2 1 1 [] None",
+    ];
+    assert_eq!(got, want);
 }

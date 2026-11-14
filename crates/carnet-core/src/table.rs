@@ -115,7 +115,7 @@ pub fn add_table(page: &mut Page, frame: Frame, cols: u8, rows: u8) -> Id {
 }
 
 /// Bords des colonnes (ou des lignes) en mm, de `start` à `start + len`.
-fn edges(sizes: &[f64], start: f64, len: f64) -> Vec<f64> {
+pub(crate) fn edges(sizes: &[f64], start: f64, len: f64) -> Vec<f64> {
     let total: f64 = sizes.iter().sum();
     let mut out = vec![start];
     let mut acc = 0.0;

@@ -892,6 +892,94 @@ fn text_written_on_lines_sits_on_the_frame_lines() {
     eprintln!("pire écart ligne de base / ligne du cadre : {worst:.3} mm");
 }
 
+/// Puces : dans le rendu de LibreOffice, chaque élément de liste a sa puce « • » au bord du texte, dans la police
+/// du bloc ; son texte commence au retrait (`LIST_INDENT_EM` fois la taille), et les lignes suivantes d'un élément
+/// long aussi ; le paragraphe sans puce du milieu reste au bord. Les lignes ont le pas d'un bloc témoin sans puce,
+/// rendu dans le même PDF. Réenregistré par LibreOffice, l'ODG redonne les mêmes puces.
+#[test]
+#[ignore]
+fn bullets_hang_their_lines_under_the_text() {
+    const SIZE_PT: f64 = 14.0;
+    let mut doc = Document::new("puces");
+    let long: String = (1..=14).map(|i| format!("{{p}}Long{i}")).collect::<Vec<_>>().join(" ");
+    let block = |x_mm: f64, p: &str, bullets: bool| {
+        let mut style = TextStyle::default_zone();
+        style.size_pt = SIZE_PT;
+        let text = ["Avant", "Colle", &long, "Milieu", "Fin"].map(|t| if t.contains("{p}") { t.replace("{p}", p) } else { format!("{p}{t}") }).join("\n");
+        let mut content = RichText::plain(&text);
+        for i in [1, 2, 4] {
+            content.paragraphs[i].list = bullets.then_some(ListKind::Bullet);
+        }
+        Element {
+            id: new_id(),
+            frame: Frame { x_mm, y_mm: ORIGIN_MM, w_mm: 80.0, h_mm: 120.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Text(TextProps { content, style, prompt: None, frame: None }),
+            subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
+        }
+    };
+    doc.pages[0].elements.push(block(ORIGIN_MM, "L", true));
+    doc.pages[0].elements.push(block(ORIGIN_MM + 90.0, "T", false));
+    let (dir, pdf) = render(&doc, &AssetStore::default());
+    let words = words(&pdf);
+    let find = |t: &str| words.iter().find(|w| w.text == t).unwrap_or_else(|| panic!("{t} absent : {:?}", words.iter().map(|w| &w.text).collect::<Vec<_>>()));
+    let left = (ORIGIN_MM + TEXT_PADDING_MM) * PT_PER_MM;
+    let indent = LIST_INDENT_EM * SIZE_PT;
+    // Tolérance : 0,3 mm, pour un LibreOffice plus ancien que celui des mesures (26.8 : 0,01 mm d'écart).
+    let tol = 0.3 * PT_PER_MM;
+    let near = |what: &str, got: f64, want: f64| assert!((got - want).abs() < tol, "{what} à {:.2} mm du bord du texte au lieu de {:.2} mm", (got - left) / PT_PER_MM, (want - left) / PT_PER_MM);
+    let bullets: Vec<&Word> = words.iter().filter(|w| w.text.starts_with('\u{2022}')).collect();
+    assert_eq!(bullets.len(), 3, "trois puces : {:?}", bullets.iter().map(|w| &w.text).collect::<Vec<_>>());
+    for b in &bullets {
+        assert_eq!(b.text, "\u{2022}", "la puce est collée au texte");
+        near("la puce", b.x_min, left);
+    }
+    for (t, want) in [("LAvant", left), ("LColle", left + indent), ("LMilieu", left), ("LFin", left + indent)] {
+        near(t, find(t).x_min, want);
+    }
+    // Élément long : le premier mot de chaque ligne au retrait (lignes suivantes sous le texte, pas sous la puce).
+    let mut starts: Vec<&Word> = Vec::new();
+    for w in words.iter().filter(|w| w.text.starts_with("LLong")) {
+        match starts.iter_mut().find(|s| (s.y_min - w.y_min).abs() < 1.0) {
+            Some(s) if w.x_min < s.x_min => *s = w,
+            Some(_) => {}
+            None => starts.push(w),
+        }
+    }
+    assert!(starts.len() >= 2, "l'élément long tient sur une ligne : {} lignes", starts.len());
+    for s in &starts {
+        near(&format!("la ligne de {}", s.text), s.x_min, left + indent);
+    }
+    // Chaque puce sur la ligne de son élément.
+    for (b, t) in bullets.iter().zip(["LColle", "LLong1", "LFin"]) {
+        assert!((b.y_max - find(t).y_max).abs() < TOLERANCE_PT, "puce de {t} : bas à {:.2} pt, texte à {:.2} pt", b.y_max, find(t).y_max);
+    }
+    // Pas des lignes : celui du témoin, la puce ne grandit pas la ligne.
+    let pitch = find("TColle").y_min - find("TAvant").y_min;
+    let tops: Vec<f64> = [find("LAvant"), find("LColle")].into_iter().chain(starts.iter().copied()).chain([find("LMilieu"), find("LFin")]).map(|w| w.y_min).collect();
+    assert!((tops[0] - find("TAvant").y_min).abs() < TOLERANCE_PT);
+    for w in tops.windows(2) {
+        assert!((w[1] - w[0] - pitch).abs() < TOLERANCE_PT, "pas {:.2} pt au lieu de {pitch:.2} pt : {tops:?}", w[1] - w[0]);
+    }
+    let fonts = run(Command::new("pdffonts").arg(&pdf));
+    assert!(!fonts.contains("OpenSymbol"), "la puce est sortie dans une police de symboles : {fonts}");
+    // Réenregistré par LibreOffice : les mêmes paragraphes à puce.
+    let odg = dir.path().join("banc.odg");
+    let out = dir.path().join("relu");
+    std::fs::create_dir(&out).unwrap();
+    let profile = format!("-env:UserInstallation=file://{}", dir.path().join("profil").display());
+    run(Command::new("soffice").arg(profile).args(["--headless", "--convert-to", "odg", "--outdir"]).arg(&out).arg(&odg));
+    let back = carnet_core::import::odg::read_drawing(std::fs::File::open(out.join("banc.odg")).unwrap(), &["Andika".to_string()]).unwrap();
+    let lists: Vec<Vec<bool>> = back.pages[0].elements.iter().filter_map(|e| match &e.kind {
+        ElementKind::Text(t) => Some(t.content.paragraphs.iter().map(|p| p.list == Some(ListKind::Bullet)).collect()),
+        _ => None,
+    }).collect();
+    assert!(lists.contains(&vec![false, true, true, false, true]) && lists.contains(&vec![false; 5]), "relu après LibreOffice : {lists:?}");
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Rotation, miroir, tableaux et grilles, lettres creuses, formats de page : la géométrie attendue est écrite ici à
 // partir de la convention de l'écran (cadre tourné dans le sens horaire autour de son centre, miroir dans le cadre

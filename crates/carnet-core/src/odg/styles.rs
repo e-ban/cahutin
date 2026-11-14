@@ -27,6 +27,15 @@ pub(crate) struct Registry {
     pub arrow_marker: bool,
     /// Styles de tirets utilisés, déclarés dans `styles.xml` (`draw:stroke-dash`).
     pub dashes: Vec<StrokeStyle>,
+    /// Styles de liste à puces (`text:list-style`), dédupliqués : propriétés de l'étiquette, puis de la puce.
+    pub lists: Vec<ListStyle>,
+}
+
+#[derive(PartialEq)]
+pub(crate) struct ListStyle {
+    pub name: String,
+    pub level: Vec<(&'static str, String)>,
+    pub bullet: Vec<(&'static str, String)>,
 }
 
 /// Nom de la définition de tirets d'un style, `None` pour un trait plein.
@@ -47,7 +56,7 @@ pub(crate) fn mm(v: f64) -> String {
 
 impl Registry {
     pub fn new(fonts: &FontSet) -> Registry {
-        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], masters: vec![], arrow_marker: false, dashes: vec![] }
+        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], masters: vec![], arrow_marker: false, dashes: vec![], lists: vec![] }
     }
 
     /// Style automatique dédupliqué ; renvoie son nom.
@@ -58,6 +67,16 @@ impl Registry {
         let n = self.styles.iter().filter(|s| s.family == family).count() + 1;
         let name = format!("{prefix}{n}");
         self.styles.push(AutoStyle { name: name.clone(), family, props });
+        name
+    }
+
+    /// Style de liste à puces dédupliqué : `level`, les propriétés de l'étiquette ; `bullet`, celles de la puce.
+    pub fn list_style(&mut self, level: Vec<(&'static str, String)>, bullet: Vec<(&'static str, String)>) -> String {
+        if let Some(l) = self.lists.iter().find(|l| l.level == level && l.bullet == bullet) {
+            return l.name.clone();
+        }
+        let name = format!("L{}", self.lists.len() + 1);
+        self.lists.push(ListStyle { name: name.clone(), level, bullet });
         name
     }
 
@@ -144,6 +163,18 @@ impl Registry {
                 let attrs: Vec<(&str, &str)> = attrs.iter().map(|(k, v)| (*k, v.as_str())).collect();
                 x.empty(element, &attrs);
             }
+            x.close();
+        }
+        for l in &self.lists {
+            let char = crate::model::LIST_BULLET.to_string();
+            x.open("text:list-style", &[("style:name", &l.name)]);
+            x.open("text:list-level-style-bullet", &[("text:level", "1"), ("text:bullet-char", &char)]);
+            fn attrs<'a>(v: &'a [(&'static str, String)]) -> Vec<(&'static str, &'a str)> {
+                v.iter().map(|(k, v)| (*k, v.as_str())).collect()
+            }
+            x.empty("style:list-level-properties", &attrs(&l.level));
+            x.empty("style:text-properties", &attrs(&l.bullet));
+            x.close();
             x.close();
         }
         x.close();

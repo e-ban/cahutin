@@ -82,6 +82,20 @@ struct Styles {
     graphic: HashMap<String, GraphicStyle>,
     /// Alignement des styles de paragraphe.
     align: HashMap<String, Align>,
+    /// Styles de liste : vrai quand leur premier niveau est une puce (un caractère ou une image), faux pour des numéros.
+    bullet_lists: HashMap<String, bool>,
+}
+
+/// Styles de liste (`text:list-style`) de `content.xml`, puis de `styles.xml` : le premier niveau est-il une puce ?
+fn bullet_lists(docs: &[&roxmltree::Document]) -> HashMap<String, bool> {
+    let mut out = HashMap::new();
+    for l in docs.iter().flat_map(|d| d.descendants()).filter(|n| n.has_tag_name((TEXT, "list-style"))) {
+        let Some(name) = l.attribute((STYLE, "name")) else { continue };
+        let first = l.children().find(|n| n.is_element() && n.attribute((TEXT, "level")) == Some("1"));
+        let bullet = first.is_some_and(|n| n.has_tag_name((TEXT, "list-level-style-bullet")) || n.has_tag_name((TEXT, "list-level-style-image")));
+        out.entry(name.to_string()).or_insert(bullet);
+    }
+    out
 }
 
 /// Images de remplissage (`draw:fill-image`, le plus souvent dans `styles.xml`) : leur nom, et le chemin de
@@ -127,7 +141,7 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String], dashes: &HashM
             None => (FALLBACK_FONT.to_string(), !family.eq_ignore_ascii_case(FALLBACK_FONT), false),
         }
     };
-    let mut styles = Styles { text: HashMap::new(), graphic: HashMap::new(), align: HashMap::new() };
+    let mut styles = Styles { text: HashMap::new(), graphic: HashMap::new(), align: HashMap::new(), bullet_lists: HashMap::new() };
     for s in doc.descendants().filter(|n| n.has_tag_name((STYLE, "style"))) {
         let Some(name) = s.attribute((STYLE, "name")) else { continue };
         if let Some(t) = s.children().find(|n| n.has_tag_name((STYLE, "text-properties"))) {
@@ -502,6 +516,18 @@ impl<R: Read + Seek> PageReader<'_, R> {
         }
     }
 
+    /// Premier paragraphe d'un élément d'une liste à puces d'un seul niveau : une liste numérotée, une liste dans une
+    /// liste ou qui en contient une, un titre de liste (`text:list-header`) et les paragraphes suivants d'un élément
+    /// restent des paragraphes simples (leur texte gardé, sans marque).
+    fn bulleted(&self, p: Node) -> bool {
+        let Some(item) = p.parent().filter(|n| n.has_tag_name((TEXT, "list-item"))) else { return false };
+        let Some(list) = item.parent().filter(|n| n.has_tag_name((TEXT, "list"))) else { return false };
+        item.children().find(|n| n.is_element()) == Some(p)
+            && !list.ancestors().skip(1).any(|n| n.has_tag_name((TEXT, "list")))
+            && !list.descendants().skip(1).any(|n| n.has_tag_name((TEXT, "list")))
+            && list.attribute((TEXT, "style-name")).and_then(|s| self.styles.bullet_lists.get(s)).copied().unwrap_or(false)
+    }
+
     /// Un cadre de texte entier : ses paragraphes et leur alignement, l'alignement vertical, la marge, le fond,
     /// la bordure et l'arrondi du cadre. La mention de licence OpenMoji, ajoutée par l'export, est laissée.
     fn whole_text_box(&mut self, frame: Frame, frame_node: Node, text_box: Node) {
@@ -536,13 +562,13 @@ impl<R: Read + Seek> PageReader<'_, R> {
             }
             // Le style du paragraphe donne la police d'une ligne vide.
             let first = runs.first().cloned().unwrap_or(Run { font: base.font.clone(), size_pt: base.size_pt, color: base.color.clone(), ..Run::plain("") });
-            paragraphs.push((p_style.and_then(|s| self.styles.align.get(s)).copied(), runs, first));
+            paragraphs.push((p_style.and_then(|s| self.styles.align.get(s)).copied(), runs, first, self.bulleted(p)));
         }
-        let plain: String = paragraphs.iter().flat_map(|(_, r, _)| r.iter().map(|r| r.text.as_str())).collect();
+        let plain: String = paragraphs.iter().flat_map(|(_, r, _, _)| r.iter().map(|r| r.text.as_str())).collect();
         if plain.trim() == crate::odg::OPENMOJI_CREDIT_PAGE || plain.trim() == crate::odg::OPENMOJI_CREDIT {
             return;
         }
-        let Some((align, _, first)) = paragraphs.first().cloned() else { return };
+        let Some((align, _, first, _)) = paragraphs.first().cloned() else { return };
         let style = TextStyle {
             font: first.font.clone().unwrap_or_else(|| FALLBACK_FONT.into()),
             size_pt: first.size_pt.unwrap_or(12.0),
@@ -558,7 +584,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
         // Ce qui ne fait que répéter le style du texte est retiré des morceaux, comme dans un texte de Cahutin.
         let paragraphs = paragraphs
             .into_iter()
-            .map(|(a, runs, _)| Paragraph {
+            .map(|(a, runs, _, bullet)| Paragraph {
                 align: a.filter(|a| *a != style.align),
                 runs: runs
                     .into_iter()
@@ -575,6 +601,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
                         r
                     })
                     .collect(),
+                list: bullet.then_some(ListKind::Bullet),
             })
             .collect();
         let radius = text_box.attribute((DRAW, "corner-radius")).and_then(length_mm).unwrap_or(0.0);
@@ -969,7 +996,8 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
     let docs = [Some(&doc), styles_doc.as_ref()].into_iter().flatten().collect::<Vec<_>>();
     let dashes = stroke_dashes(&docs);
     let fills = fill_images(&docs);
-    let styles = read_styles(&doc, known_fonts, &dashes);
+    let mut styles = read_styles(&doc, known_fonts, &dashes);
+    styles.bullet_lists = bullet_lists(&docs);
     let sizes = page_sizes(styles_xml.as_deref());
     let generator = read_entry(&mut zip, "meta.xml").and_then(|b| String::from_utf8(b).ok()).and_then(|x| {
         let meta = roxmltree::Document::parse(&x).ok()?;
@@ -1060,13 +1088,15 @@ mod tests {
 <style:style style:name="T3" style:family="text"><style:text-properties fo:color="#000000" style:font-name="Liberation Serif" fo:font-size="12pt" fo:font-weight="bold"/></style:style>
 <style:style style:name="T4" style:family="text"><style:text-properties fo:color="#000000" style:font-name="Comic Inconnue" fo:font-size="12pt" fo:font-style="italic" style:text-underline-style="solid"/></style:style>
 <style:style style:name="T5" style:family="text"><style:text-properties fo:color="#000000" style:font-name="Helvetica" fo:font-size="12pt"/></style:style>
+<text:list-style style:name="LB"><text:list-level-style-bullet text:level="1" text:bullet-char="●"><style:list-level-properties text:min-label-width="0.6cm"/><style:text-properties fo:font-family="OpenSymbol" style:use-window-font-color="true" fo:font-size="45%"/></text:list-level-style-bullet><text:list-level-style-bullet text:level="2" text:bullet-char="●"><style:list-level-properties text:space-before="0.6cm" text:min-label-width="0.6cm"/><style:text-properties fo:font-family="OpenSymbol" style:use-window-font-color="true" fo:font-size="45%"/></text:list-level-style-bullet></text:list-style>
+<text:list-style style:name="LN"><text:list-level-style-number text:level="1" style:num-suffix="." style:num-format="1"><style:list-level-properties text:min-label-width="0.6cm"/></text:list-level-style-number></text:list-style>
 </office:automatic-styles>
 <office:body><office:drawing>{pages}</office:drawing></office:body></office:document-content>"##
         );
         let styles = format!(
             r#"<?xml version="1.0" encoding="UTF-8"?>
-<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink">
-<office:styles><draw:fill-image draw:name="Bitmap_5f_1" xlink:href="Pictures/remplissage.png" xlink:type="simple"/></office:styles>
+<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink">
+<office:styles><draw:fill-image draw:name="Bitmap_5f_1" xlink:href="Pictures/remplissage.png" xlink:type="simple"/><text:list-style style:name="LS"><text:list-level-style-bullet text:level="1" text:bullet-char="◦"/></text:list-style></office:styles>
 <office:automatic-styles>{layouts}</office:automatic-styles>
 <office:master-styles>{masters}</office:master-styles>
 </office:document-styles>"#
@@ -1380,6 +1410,24 @@ mod tests {
         assert_eq!(plain(t[0]), "• un pique-nique et une gourde");
         assert_eq!(t[0].style.font, "Liberation Serif");
         assert!((imported.pages[0].elements[0].frame.x_mm - 20.0).abs() < 2.0, "{:?}", imported.pages[0].elements[0].frame);
+    }
+
+    /// Une liste à puces de LibreOffice (style de l'ODG ou de `styles.xml`, quelle que soit la puce) redonne des
+    /// paragraphes à puce, son texte gardé tel quel ; une liste numérotée, une liste imbriquée, un titre de liste et
+    /// le deuxième paragraphe d'un élément restent des paragraphes simples.
+    #[test]
+    fn a_bullet_list_of_a_drawing_gives_bulleted_paragraphs() {
+        let p = |t: &str| format!(r#"<text:p><text:span text:style-name="T1">{t}</text:span></text:p>"#);
+        let item = |t: &str| format!("<text:list-item>{}</text:list-item>", p(t));
+        let body = format!(
+            r#"<draw:frame draw:style-name="gr2" svg:width="10cm" svg:height="8cm" svg:x="2cm" svg:y="2cm"><draw:text-box>{}<text:list text:style-name="LB">{}<text:list-header>{}</text:list-header><text:list-item>{}{}</text:list-item></text:list><text:list text:style-name="LN">{}</text:list><text:list text:style-name="LB"><text:list-item>{}<text:list>{}</text:list></text:list-item></text:list><text:list text:continue-numbering="true" text:style-name="LS">{}</text:list>{}</draw:text-box></draw:frame>"#,
+            p("Titre"), item("Colle"), p("Sans puce"), p("Ciseaux"), p("suite"), item("Un"), p("Haut"), item("Dedans"), item("Commun"), p("• tapée")
+        );
+        let imported = read_drawing(Cursor::new(odg_fixture(&body, A4_LAYOUT, &[])), &known()).unwrap();
+        let ElementKind::Text(t) = &imported.pages[0].elements[0].kind else { panic!() };
+        let got: Vec<(String, bool)> = t.content.paragraphs.iter().map(|p| (p.runs.iter().map(|r| r.text.as_str()).collect(), p.list == Some(ListKind::Bullet))).collect();
+        let want = [("Titre", false), ("Colle", true), ("Sans puce", false), ("Ciseaux", true), ("suite", false), ("Un", false), ("Haut", false), ("Dedans", false), ("Commun", true), ("• tapée", false)];
+        assert_eq!(got, want.map(|(t, b)| (t.to_string(), b)));
     }
 
     /// Le motif d'un pointillé de LibreOffice : trait et espace en mm ; une longueur en pourcentage est ignorée.

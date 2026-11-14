@@ -695,10 +695,16 @@ mod tests {
         write(&mut p, &c10, " ");
         write(&mut p, &c01, "Mardi\nmatin");
         write(&mut p, &c11, "Jeudi");
+        // Une puce devant « Mardi » la suit dans la case fusionnée.
+        if let Some(ElementKind::Text(tx)) = p.elements.iter_mut().find(|e| e.id == c01).map(|e| &mut e.kind) {
+            tx.content.paragraphs[0].list = Some(ListKind::Bullet);
+        }
         // La case gardée est celle du bas à droite : l'ordre reste celui de la lecture.
         merge(&mut p, &c11, &c00).unwrap();
         assert_eq!(props(&p, &t).cells.len(), 1);
         assert_eq!(lines(&p, &c11), ["Lundi", "Mardi", "matin", "Jeudi"]);
+        let Some(ElementKind::Text(tx)) = p.elements.iter().find(|e| e.id == c11).map(|e| &e.kind) else { panic!() };
+        assert_eq!(tx.content.paragraphs.iter().map(|p| p.list.is_some()).collect::<Vec<_>>(), [false, true, false, false]);
     }
 
     #[test]

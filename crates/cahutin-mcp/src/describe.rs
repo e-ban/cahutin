@@ -144,6 +144,10 @@ fn changes(doc: &Document, b: &Element, a: &Element) -> Vec<String> {
             if sb.line_spacing != sa.line_spacing {
                 out.push("interligne changé".into());
             }
+            let bullets = |t: &carnet_core::TextProps| t.content.paragraphs.iter().map(|p| p.list).collect::<Vec<_>>();
+            if bullets(tb) != bullets(ta) && plain(tb) == plain(ta) {
+                out.push("puces changées".into());
+            }
             let (frb, fra) = (tb.frame.clone().unwrap_or_default(), ta.frame.clone().unwrap_or_default());
             if frb.pattern != fra.pattern {
                 out.push(lines_fr(fra.pattern));
@@ -598,6 +602,16 @@ mod tests {
             describe(&b, &a),
             ["Texte : lettres creuses", "Texte : centré en hauteur", "Texte : lignes d'écriture (quadrillage Seyès)", "Texte : fond changé", "Texte : bord changé"]
         );
+    }
+
+    #[test]
+    fn bullets_changed_in_the_panel() {
+        let (b, a) = after(|d| {
+            if let ElementKind::Text(t) = &mut d.pages[0].elements[0].kind {
+                t.content.paragraphs[0].list = Some(carnet_core::ListKind::Bullet);
+            }
+        });
+        assert_eq!(describe(&b, &a), ["Texte : puces changées"]);
     }
 
     #[test]

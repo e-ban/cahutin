@@ -400,7 +400,26 @@ impl Writer<'_> {
         let radius = frame.map(|f| f.corner_radius_mm).filter(|r| *r > 0.0).map(mm);
         let box_attrs: Vec<(&str, &str)> = radius.iter().map(|r| ("draw:corner-radius", r.as_str())).collect();
         self.body.open("draw:text-box", &box_attrs);
+        // Éléments de liste : une `text:list` par suite de paragraphes à puce. L'étiquette (la puce, au bord du texte)
+        // a la largeur du retrait, où commencent le texte et ses lignes suivantes. La puce est dans la police et à la
+        // taille du bloc, pour que la ligne garde sa hauteur ; LibreOffice ne connaît qu'une taille relative au premier
+        // caractère du paragraphe : un premier mot d'une autre taille demande sa propre liste.
+        let mut list: Option<String> = None;
         for p in t.content.paragraphs.iter().filter(|_| !blank) {
+            let style = p.list.is_some().then(|| self.list_style(p, &t.style));
+            if style != list {
+                if list.is_some() {
+                    self.body.close();
+                }
+                if let Some(l) = &style {
+                    self.body.open("text:list", &[("text:style-name", l)]);
+                }
+                list = style;
+            }
+            let bullet = list.is_some();
+            if bullet {
+                self.body.open("text:list-item", &[]);
+            }
             let mut props: Props = vec![(
                 "style:paragraph-properties",
                 vec![
@@ -444,10 +463,30 @@ impl Writer<'_> {
                 }
             }
             self.body.close();
+            if bullet {
+                self.body.close();
+            }
+        }
+        if list.is_some() {
+            self.body.close();
         }
         self.body.close();
         self.body.close();
         Ok(())
+    }
+
+    /// Style de la liste d'un paragraphe à puce : l'étiquette large du retrait, la puce dans la police, la couleur et
+    /// à la taille du bloc (en pour cent du premier caractère, seule taille que LibreOffice lit).
+    fn list_style(&mut self, p: &Paragraph, style: &TextStyle) -> String {
+        let first = p.runs.iter().find(|r| !r.text.is_empty()).and_then(|r| r.size_pt).filter(|s| *s > 0.0).unwrap_or(style.size_pt);
+        // Les lettres creuses ne s'appliquent pas à la puce : LibreOffice la dessine toujours pleine.
+        let bullet = vec![
+            ("style:font-name", self.reg.font(&style.font, false, false)),
+            ("fo:font-size", format!("{}%", (style.size_pt / first * 100.0).round())),
+            ("fo:color", style.color.clone()),
+        ];
+        let indent = LIST_INDENT_EM * style.size_pt * 25.4 / 72.0;
+        self.reg.list_style(vec![("text:min-label-width", mm(indent))], bullet)
     }
 
     /// Traits d'un tableau : une ligne par segment ; les cases sont des éléments à part.

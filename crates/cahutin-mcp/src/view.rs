@@ -79,6 +79,8 @@ fn element_view(doc: &Document, page: &Page, e: &Element, selected: bool) -> Val
             "valign": t.style.valign.map(|a| format!("{a:?}").to_lowercase()),
             "outline": t.style.outline.unwrap_or(false),
             "line_spacing": t.style.line_spacing,
+            // Paragraphes à puce (une liste) ; leur texte n'est pas montré.
+            "bullets": Some(t.content.paragraphs.iter().filter(|p| p.list.is_some()).count()).filter(|n| *n > 0),
             "padding_mm": t.style.padding(),
             "style": t.style.named,
             // Les champs de la classe du texte ({prenom}…), noms de Cahutin ; jamais les mots autour.
@@ -336,6 +338,7 @@ mod tests {
             t.style.outline = Some(true);
             t.style.padding_mm = Some(3.0);
             t.style.named = Some("titre".into());
+            t.content.paragraphs[0].list = Some(ListKind::Bullet);
         }
         page.elements.push(Element {
             id: "i1".into(),
@@ -353,7 +356,7 @@ mod tests {
         doc.pages.push(grid);
         let v = layout(&doc, None, &[]);
         let els = &v["pages"][0]["elements"];
-        assert_eq!((els[0]["outline"].clone(), els[0]["padding_mm"].clone(), els[0]["style"].clone()), (json!(true), json!(3.0), json!("titre")));
+        assert_eq!((els[0]["outline"].clone(), els[0]["padding_mm"].clone(), els[0]["style"].clone(), els[0]["bullets"].clone()), (json!(true), json!(3.0), json!("titre"), json!(1)));
         assert_eq!((els[1].get("flip_h"), els[1]["flip_v"].clone()), (None, json!(true)));
         assert_eq!((els[2]["flip_h"].clone(), els[2]["to_color"].clone(), els[2]["subgroups"].clone()), (json!(true), json!(true), json!(["g2"])));
         assert!(els[0].get("in_grid").is_none());
@@ -375,7 +378,7 @@ mod tests {
         let v = layout(&doc, None, &[]);
         let text = v["pages"][0]["elements"][0].as_object().unwrap().clone();
         assert_eq!(text["h_mm"], 36.14);
-        for absent in ["rotation_deg", "locked", "group", "subgroups", "flip_h", "selected", "in_grid", "fill", "border"] {
+        for absent in ["rotation_deg", "locked", "group", "subgroups", "flip_h", "selected", "in_grid", "fill", "border", "bullets"] {
             assert!(!text.contains_key(absent), "{absent} dans {text:?}");
         }
     }

@@ -49,9 +49,9 @@ pub fn renew_ids(page: &mut Page) {
 /// miroir, lignes d'écriture, styles nommés ; 6 : image à colorier ou en couleur de peau, tracé libre, groupe dans
 /// un groupe ; 7 : miroir d'un élément autre qu'une photo, ou de haut en bas ; 8 : champs de la classe sans
 /// accents, `{prenom}` ; 9 : recette des lignes de graphisme, lue seulement : une version plus ancienne voit des
-/// lignes ordinaires ; 11 : interligne d'un texte ; 12 : texte écrit sur les lignes de son cadre ; 11 et 12, les
-/// seules versions que `native::written_version` écrit au-delà de 8).
-pub const FORMAT_VERSION: u32 = 12;
+/// lignes ordinaires ; 11 : interligne d'un texte ; 12 : texte écrit sur les lignes de son cadre ; 13 : puce devant un
+/// paragraphe ; 11, 12 et 13, les seules versions que `native::written_version` écrit au-delà de 8).
+pub const FORMAT_VERSION: u32 = 13;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -387,6 +387,13 @@ pub enum VAlign {
 /// Marge intérieure des textes sans réglage, identique à l'écran et dans l'ODG.
 pub const TEXT_PADDING_MM: f64 = 1.5;
 
+/// Retrait d'un élément de liste, en multiple de la taille du texte du bloc (`TextStyle.size_pt`) : la puce au bord
+/// du texte, le texte et ses lignes suivantes à ce retrait (à l'écran : `padding-left` en `em`).
+pub const LIST_INDENT_EM: f64 = 1.2;
+
+/// Puce d'un élément de liste, dans la police et à la taille du texte du bloc (la hauteur des lignes ne change pas).
+pub const LIST_BULLET: char = '\u{2022}';
+
 impl TextStyle {
     pub fn padding(&self) -> f64 {
         self.padding_mm.unwrap_or(TEXT_PADDING_MM)
@@ -421,7 +428,7 @@ impl RichText {
         RichText {
             paragraphs: s
                 .split('\n')
-                .map(|line| Paragraph { align: None, runs: vec![Run::plain(line)] })
+                .map(|line| Paragraph { align: None, runs: vec![Run::plain(line)], list: None })
                 .collect(),
         }
     }
@@ -432,6 +439,18 @@ impl RichText {
 pub struct Paragraph {
     pub align: Option<Align>,
     pub runs: Vec<Run>,
+    /// Élément d'une liste : une puce devant le paragraphe, ses lignes suivantes alignées sous le texte. Le retrait
+    /// et la puce ne sont pas stockés (`LIST_INDENT_EM`, `LIST_BULLET`). Absent : un paragraphe simple.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub list: Option<ListKind>,
+}
+
+/// Marque d'un élément de liste : la puce seulement (un seul niveau, pas de numéros).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export)]
+pub enum ListKind {
+    Bullet,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -602,6 +621,7 @@ mod tests {
                             font: None,
                             size_pt: Some(20.0),
                         }],
+                        list: None,
                     }],
                 },
                 style: TextStyle::default_zone(),

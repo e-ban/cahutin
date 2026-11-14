@@ -595,6 +595,72 @@ mod tests {
         assert!(content.contains(r#"fo:line-height="100%""#) && !content.contains(r#"fo:line-height="150%""#), "{content}");
     }
 
+    /// Paragraphes « Avant, •Colle, •Ciseaux, Milieu, •Fin » ; le premier mot de « Fin » en `fin_pt`.
+    fn bulleted(fin_pt: Option<f64>) -> Element {
+        let mut content = RichText::plain("Avant\nColle\nCiseaux\nMilieu\nFin");
+        for i in [1, 2, 4] {
+            content.paragraphs[i].list = Some(ListKind::Bullet);
+        }
+        content.paragraphs[4].runs[0].size_pt = fin_pt;
+        text(content, None)
+    }
+
+    /// Une suite de paragraphes à puce est une liste de LibreOffice : la puce « • » dans la police et à la taille
+    /// du bloc (100 %, ou relative au premier mot quand il a sa taille), l'étiquette large du retrait. Un
+    /// paragraphe sans puce coupe la liste ; un texte sans puce n'a pas de liste.
+    #[test]
+    fn bullets_are_a_libreoffice_list_in_the_block_font() {
+        const TEXT_NS: &str = "urn:oasis:names:tc:opendocument:xmlns:text:1.0";
+        const STYLE_NS: &str = "urn:oasis:names:tc:opendocument:xmlns:style:1.0";
+        const FO_NS: &str = "urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0";
+        let mut e = export(&doc_with(vec![bulleted(Some(28.0))]), &AssetStore::default());
+        let content = e.xml("content.xml");
+        let doc = roxmltree::Document::parse(&content).unwrap();
+        let tb = doc.descendants().find(|n| n.tag_name().name() == "text-box").unwrap();
+        let shape: Vec<String> = tb
+            .children()
+            .filter(|n| n.is_element())
+            .map(|n| match n.tag_name().name() {
+                "list" => {
+                    let items: Vec<String> = n.children().filter(|i| i.tag_name().name() == "list-item").map(|i| i.descendants().filter(|t| t.is_text()).map(|t| t.text().unwrap()).collect()).collect();
+                    format!("list[{}]", items.join(","))
+                }
+                other => other.to_string(),
+            })
+            .collect();
+        assert_eq!(shape, ["p", "list[Colle,Ciseaux]", "p", "list[Fin]"], "{content}");
+        let lists: Vec<_> = doc.descendants().filter(|n| n.tag_name().name() == "list").map(|n| n.attribute((TEXT_NS, "style-name")).unwrap().to_string()).collect();
+        let style = |name: &str| doc.descendants().find(|n| n.tag_name().name() == "list-style" && n.attribute((STYLE_NS, "name")) == Some(name)).unwrap();
+        for (name, size) in [(&lists[0], "100%"), (&lists[1], "50%")] {
+            let level = style(name).children().find(|n| n.is_element()).unwrap();
+            assert_eq!((level.tag_name().name(), level.attribute((TEXT_NS, "level")), level.attribute((TEXT_NS, "bullet-char"))), ("list-level-style-bullet", Some("1"), Some("•")));
+            let props = level.children().find(|n| n.tag_name().name() == "list-level-properties").unwrap();
+            // 1,2 × 14 pt = 5,927 mm.
+            assert_eq!(props.attribute((TEXT_NS, "min-label-width")), Some("5.927mm"));
+            let t = level.children().find(|n| n.tag_name().name() == "text-properties").unwrap();
+            assert_eq!((t.attribute((STYLE_NS, "font-name")), t.attribute((FO_NS, "font-size")), t.attribute((FO_NS, "color"))), (Some("Andika"), Some(size), Some("#222222")));
+        }
+        let mut e = export(&doc_with(vec![text(RichText::plain("Colle\nCiseaux"), None)]), &AssetStore::default());
+        let content = e.xml("content.xml");
+        assert!(!content.contains("text:list"), "{content}");
+    }
+
+    /// Les puces reviennent de l'ODG : mêmes paragraphes à puce, la taille du premier mot gardée.
+    #[test]
+    fn bullets_come_back_from_the_odg() {
+        let doc = doc_with(vec![bulleted(Some(28.0))]);
+        let mut buf = Cursor::new(Vec::new());
+        export_odg(&doc, &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
+        buf.set_position(0);
+        let back = crate::import::odg::read_drawing(buf, &["Andika".to_string()]).unwrap();
+        let ElementKind::Text(t) = &back.pages[0].elements[0].kind else { panic!() };
+        let lists: Vec<_> = t.content.paragraphs.iter().map(|p| p.list).collect();
+        let b = Some(ListKind::Bullet);
+        assert_eq!(lists, [None, b, b, None, b]);
+        assert_eq!(t.content.paragraphs[4].runs[0].size_pt, Some(28.0));
+        assert_eq!(t.content.paragraphs.iter().map(|p| p.runs.iter().map(|r| r.text.as_str()).collect::<String>()).collect::<Vec<_>>(), ["Avant", "Colle", "Ciseaux", "Milieu", "Fin"]);
+    }
+
     #[test]
     fn vertical_alignment_and_padding_are_exported() {
         let mut t = text(RichText::plain("milieu"), None);

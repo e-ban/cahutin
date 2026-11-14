@@ -419,7 +419,7 @@ mod tests {
         let mut p = Page::new(A4_PORTRAIT);
         let mut e = text(None, "", false, frame(0.0, 0.0, 50.0, 10.0));
         if let ElementKind::Text(t) = &mut e.kind {
-            t.content = RichText { paragraphs: vec![Paragraph { align: None, runs: vec![Run { bold: true, ..Run::plain("{pre") }, Run::plain("nom}")] }] };
+            t.content = RichText { paragraphs: vec![Paragraph { align: None, runs: vec![Run { bold: true, ..Run::plain("{pre") }, Run::plain("nom}")], list: None }] };
         }
         p.elements = vec![e];
         assert!(!has_fields(&p));

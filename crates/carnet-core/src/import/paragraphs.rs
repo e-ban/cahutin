@@ -243,7 +243,7 @@ pub fn block_element(b: &Block) -> Element {
         zone: false,
         group: None,
         kind: ElementKind::Text(TextProps {
-            content: RichText { paragraphs: paragraphs.into_iter().map(|runs| Paragraph { align: None, runs }).collect() },
+            content: RichText { paragraphs: paragraphs.into_iter().map(|runs| Paragraph { align: None, runs, list: None }).collect() },
             style,
             prompt: None,
             frame: None,

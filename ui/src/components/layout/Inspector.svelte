@@ -5,13 +5,14 @@
   import ColorPicker from "../ColorPicker.svelte";
   import StrokeStylePicker from "../StrokeStylePicker.svelte";
   import FontPicker from "../FontPicker.svelte";
+  import FontSizeField from "../FontSizeField.svelte";
   import Icon from "../Icon.svelte";
   import Section from "./InspectorSection.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { hasTemplateRole, templateRole, withTemplateRole } from "../../lib/templateRole";
   import { isStrokeOnly } from "../../lib/shapePaths";
-  import { FONT_SIZES, fonts } from "../../lib/fonts.svelte";
+  import { fonts } from "../../lib/fonts.svelte";
   import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
   import { endPreview, previewPhoto, previewShape, previewTextStyle, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
   import { cropPosition, photoTrims, roundedFrame, wholePhoto, withPosition, withTrims, type Trims } from "../../lib/crop";
@@ -294,9 +295,7 @@
       </div>
       <div class="field">
         <span>Taille</span>
-        <select value={String(currentSize(t))} onchange={(e) => setSize(Number(e.currentTarget.value))}>
-          {#each FONT_SIZES as size}<option value={String(size)}>{size} pt</option>{/each}
-        </select>
+        <FontSizeField value={currentSize(t)} onpick={setSize} unit />
       </div>
       <div class="row">
         <button class:on={isMarkActive("bold", t)} disabled={family && !family.has_bold} onpointerdown={(e) => e.preventDefault()} onclick={() => toggleMark("bold")}><b>G</b></button>

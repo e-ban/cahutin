@@ -1,0 +1,67 @@
+import type { Editor } from "@tiptap/core";
+import { afterEach, expect, test } from "vitest";
+import { editor } from "./docStore.svelte";
+import { newDocument, textElement } from "./factory";
+import { setColor, setFont, setSize } from "./textFormat.svelte";
+import { textEditing } from "./textEditing.svelte";
+import type { Element, TextProps } from "./types";
+
+const run = (text: string, size_pt: number | null) => ({ text, bold: false, italic: false, underline: false, color: size_pt ? "#ff0000" : null, font: size_pt ? "Arial" : null, size_pt });
+
+function open(): string {
+  const doc = newDocument("t");
+  const e: Element = textElement({ x_mm: 0, y_mm: 0, w_mm: 50, h_mm: 20, rotation_deg: 0 });
+  if (e.kind.type === "Text") e.kind.content = { paragraphs: [{ align: null, runs: [run("Bonjour ", null), run("Léa", 30)] }] };
+  doc.pages[0].elements.push(e);
+  editor.reset(doc, null);
+  editor.selection = [e.id];
+  return e.id;
+}
+
+const props = (): TextProps => {
+  const k = editor.page.elements[0].kind;
+  if (k.type !== "Text") throw new Error();
+  return k;
+};
+
+/** Un éditeur en cours d'écriture, sélection de `from` à `to` dans « Bonjour Léa » (document de taille 13). */
+function writing(id: string, from: number, to: number): string[] {
+  const calls: string[] = [];
+  const chain: Record<string, unknown> = {};
+  for (const c of ["focus", "setFontSize", "setFontFamily", "setColor"]) chain[c] = (v?: string) => (calls.push(v ? `${c} ${v}` : c), chain);
+  chain.run = () => true;
+  textEditing.current = { chain: () => chain, state: { selection: { from, to }, doc: { content: { size: 13 } } } } as unknown as Editor;
+  editor.editingText = id;
+  return calls;
+}
+
+afterEach(() => {
+  textEditing.current = null;
+  editor.editingText = null;
+});
+
+test("sans écriture, taille, police et couleur vont à tout le bloc, mots compris", () => {
+  open();
+  setSize(144);
+  setFont("OpenDyslexic");
+  setColor("#1f2c4a");
+  expect(props().style).toMatchObject({ size_pt: 144, font: "OpenDyslexic", color: "#1f2c4a" });
+  expect(props().content.paragraphs[0].runs[1]).toMatchObject({ text: "Léa", size_pt: null, font: null, color: null });
+});
+
+test("pendant l'écriture, une sélection partielle ne change que le passage", () => {
+  const id = open();
+  const calls = writing(id, 9, 12);
+  setSize(96);
+  expect(calls).toContain("setFontSize 96pt");
+  expect(props().style.size_pt).toBe(14);
+});
+
+test("pendant l'écriture, tout le texte sélectionné donne la taille au bloc", () => {
+  const id = open();
+  const calls = writing(id, 1, 12);
+  setSize(96);
+  setFont("OpenDyslexic");
+  expect(calls).toEqual(expect.arrayContaining(["setFontSize 96pt", "setFontFamily OpenDyslexic"]));
+  expect(props().style).toMatchObject({ size_pt: 96, font: "OpenDyslexic" });
+});

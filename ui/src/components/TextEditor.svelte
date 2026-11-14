@@ -11,6 +11,7 @@
   import { onDestroy, onMount } from "svelte";
   import { editor as doc } from "../lib/docStore.svelte";
   import { plainText } from "../lib/fieldNode";
+  import { FrenchSpacing } from "../lib/frenchTypo";
   import { fr } from "../lib/i18n/fr";
   import { cssFontFamily, fontFamilyName, richToTiptap, tiptapToRich } from "../lib/richtext";
   import { isTableCell, nextCell, pasteCells } from "../lib/table";
@@ -68,6 +69,7 @@
         FontSize,
         TextAlign.configure({ types: ["paragraph"], alignments: ["left", "center", "right", "justify"] }),
         UndoRedo,
+        FrenchSpacing,
         Placeholder.configure({ placeholder: props.prompt ?? "" }),
       ],
       content,

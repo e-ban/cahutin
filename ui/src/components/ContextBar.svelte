@@ -9,6 +9,7 @@
   import StrokeStylePicker from "./StrokeStylePicker.svelte";
   import VAlignIcon from "./VAlignIcon.svelte";
   import FontPicker from "./FontPicker.svelte";
+  import FontSizeField from "./FontSizeField.svelte";
   import { alignFrames, distributeFrames, pageArea, type AlignMode } from "../lib/align";
   import { placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
@@ -18,7 +19,7 @@
   import { fitCount, repeatBlock } from "../lib/repeat";
   import { endPreview, previewPhoto, previewShape, previewTable, updateTable, previewTextFrame, previewTextStyle, updatePhoto, updateShape, updateTextFrame, updateTextStyle } from "../lib/elementEdit";
   import { textPadding } from "../lib/richtext";
-  import { FONT_SIZES, fonts } from "../lib/fonts.svelte";
+  import { fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
   import { settings } from "../lib/settings.svelte";
   import { handlePadding } from "../lib/geometry";
@@ -27,6 +28,7 @@
   import { fieldsOf, removeField } from "../lib/fieldEdit";
   import { placeField } from "../lib/fieldPlacing.svelte";
   import FieldMenu from "./FieldMenu.svelte";
+  import CharPalette from "./CharPalette.svelte";
   import { fitInWindow } from "../lib/popover";
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
@@ -539,9 +541,7 @@
         {/if}
       </div>
       <FontPicker value={currentFont(t)} onpick={setFont} compact />
-      <select title={fr.size} value={String(currentSize(t))} onchange={(e) => setSize(Number(e.currentTarget.value))}>
-        {#each FONT_SIZES as s (s)}<option value={String(s)}>{s}</option>{/each}
-      </select>
+      <FontSizeField value={currentSize(t)} onpick={setSize} />
       <span class="sep"></span>
       <button title={fr.bold} class:on={isMarkActive("bold", t)} disabled={family && !family.has_bold} onclick={() => toggleMark("bold")}><b>G</b></button>
       <button title={fr.italic} class:on={isMarkActive("italic", t)} disabled={family && !family.has_italic} onclick={() => toggleMark("italic")}><i>I</i></button>
@@ -554,6 +554,7 @@
           </div>
         {/if}
       </div>
+      <CharPalette />
       <button title={fr.outlineHint} class:on={!!t.style.outline} aria-pressed={!!t.style.outline} onclick={() => updateTextStyle({ outline: !t.style.outline })}><span class="hollow-a">A</span></button>
       <div class="wrap">
         <button title={fr.color} aria-label={fr.color} onclick={() => toggle("color")}><span class="dot" style:background={t.style.color}></span></button>

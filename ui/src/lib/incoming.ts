@@ -1,13 +1,15 @@
 // Ce qui vient d'un autre logiciel : une image ou un texte collé (Ctrl+V, « Coller »), des fichiers image lâchés
 // sur la page. Les images passent par la filière de l'import des photos (sans métadonnées, réduites, copiées dans
 // le dossier temporaire). Rien n'est jamais chargé depuis internet : une image dont on n'a que l'adresse est refusée.
+import { flushSync } from "svelte";
 import { importPhotoBytes } from "./api";
 import { editor } from "./docStore.svelte";
 import { addPhotoAt, hasClipboard, paste, usePhoto } from "./editActions";
 import { centeredFrame, defaultTextStyle, textElement } from "./factory";
 import { fr } from "./i18n/fr";
-import { sanitizePlainText, TEXT_PADDING_MM } from "./richtext";
+import { sanitizePlainText, TEXT_PADDING_MM, textPadding } from "./richtext";
 import { COPY_MIME, lastMark, type CopyMark } from "./systemClipboard";
+import { contentHeightPx, neededHeightMm } from "./textFit";
 import type { AssetMeta, Element, Page } from "./types";
 
 /** Le contenu du presse-papiers du système, tel que la vue web le donne. */
@@ -63,6 +65,7 @@ export function isImageFile(f: { name: string; type: string }): boolean {
 /**
  * Nouveau bloc de texte au centre de la page, assez grand pour le texte (estimé), sans en sortir. Avec de la marge :
  * lettres comptées plus larges qu'en gras et une ligne de plus, pour que le gras ou une autre police ne déborde pas.
+ * L'estimation ne sert que si la mesure sur la page affichée est impossible (`placePastedText`).
  */
 export function pastedTextElement(page: Page, text: string): Element {
   const t = clean(text);
@@ -76,6 +79,49 @@ export function pastedTextElement(page: Page, text: string): Element {
   const el = textElement(centeredFrame(page, w, h));
   if (el.kind.type === "Text") el.kind.content = { paragraphs: [{ align: null, runs: [{ text: t, bold: false, italic: false, underline: false, color: null, font: null, size_pt: null }] }] };
   return el;
+}
+
+/** Un bloc plus haut que la page moins cette marge serait trop grand pour être déplacé à l'aise (comme l'estimation). */
+const PASTE_PAGE_MARGIN_MM = 20;
+
+/**
+ * Pose le texte collé : sa police chargée, le bloc est montré un instant en aperçu sur la page affichée, mesuré
+ * comme « Agrandir le cadre », puis ajouté à sa hauteur mesurée, centré. Un seul pas d'annulation : l'aperçu n'en
+ * crée pas, Ctrl+Z retire le texte collé.
+ */
+async function placePastedText(text: string) {
+  const fonts = typeof document !== "undefined" ? document.fonts : undefined;
+  if (fonts) {
+    const style = defaultTextStyle();
+    try {
+      await fonts.load(`${style.size_pt}pt "${style.font}"`, text);
+      await fonts.ready;
+    } catch {
+      // Police introuvable : la mesure se fait avec la police de remplacement, comme l'affichage.
+    }
+  }
+  const page = editor.page;
+  let el = pastedTextElement(page, text);
+  // Pendant une proposition de l'assistant, ou sans page affichée : l'estimation.
+  if (fonts && !editor.proposing && el.kind.type === "Text") {
+    const base = editor.doc;
+    const index = editor.pageIndex;
+    const withEl = (e: Element) => ({ ...base, pages: base.pages.map((p, i) => (i === index ? { ...p, elements: [...p.elements, e] } : p)) });
+    editor.preview(withEl(el));
+    flushSync();
+    const box = document.querySelector<HTMLElement>(`.stage [data-id="${CSS.escape(el.id)}"] > .text`);
+    const content = box ? contentHeightPx(box) : 0;
+    if (content > 0) {
+      // Au millimètre, comme l'estimation : le bloc centré reste sur la grille des 0,1 mm des gestes à la souris.
+      const h = Math.min(page.size.height_mm - PASTE_PAGE_MARGIN_MM, Math.ceil(neededHeightMm(content + 1, textPadding(el.kind.style))));
+      el = { ...el, frame: centeredFrame(page, el.frame.w_mm, h) };
+    }
+    editor.preview(withEl(el));
+    editor.endPreview();
+  } else {
+    editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+  }
+  editor.selection = [el.id];
 }
 
 /** L'image passe par l'import des photos et rejoint le tiroir Photos ; une erreur dit pourquoi. */
@@ -98,12 +144,9 @@ export async function pasteIncoming(c: Incoming) {
         editor.notice = fr.imageNotPlaced(String(e));
       }
       return;
-    case "text": {
-      const el = pastedTextElement(editor.page, clean(c.text) || htmlText(c.html));
-      editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
-      editor.selection = [el.id];
+    case "text":
+      await placePastedText(clean(c.text) || htmlText(c.html));
       return;
-    }
     case "remoteImage":
       editor.notice = fr.pasteRemoteImage;
       return;

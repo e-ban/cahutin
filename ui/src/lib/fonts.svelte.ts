@@ -33,5 +33,3 @@ class Fonts {
 }
 
 export const fonts = new Fonts();
-
-export const FONT_SIZES = [10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 60, 72];

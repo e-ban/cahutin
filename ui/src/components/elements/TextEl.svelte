@@ -8,6 +8,12 @@
   import { alignToCss, textPadding } from "../../lib/richtext";
   import { dashArray } from "../../lib/strokes";
   import { onFontsLoaded } from "../../lib/fontsLoaded";
+  import { editor } from "../../lib/docStore.svelte";
+  import { handlePadding } from "../../lib/geometry";
+  import { fr } from "../../lib/i18n/fr";
+  import { settings } from "../../lib/settings.svelte";
+  import { actionsPlace, contentHeightPx, fitActions, grownHeight, neededHeightMm, shrunkText } from "../../lib/textFit";
+  import { mmToPx } from "../../lib/units";
   import type { Element, RichText, Run, TextProps } from "../../lib/types";
 
   let {
@@ -47,6 +53,73 @@
     measure();
     return onFontsLoaded(document.fonts, measure);
   });
+
+  // Pendant l'écriture, le texte change sans que `props` change : la zone d'écriture qui grandit ou rapetisse
+  // remet le signal à jour.
+  $effect(() => {
+    const flow = box?.firstElementChild;
+    if (!box || !flow || typeof ResizeObserver === "undefined") return;
+    const el = box;
+    const ro = new ResizeObserver(() => (overflow = el.scrollHeight > el.clientHeight + 1));
+    ro.observe(flow);
+    return () => ro.disconnect();
+  });
+
+  // Corriger d'un clic : seulement sur la page qu'on modifie, pour le bloc choisi seul.
+  const fix = $derived(
+    alerts && !editor.proposing && editor.selection.length === 1 && editor.selection[0] === element.id && editor.page.elements.includes(element)
+      ? fitActions(editor.page, element, editor.inside)
+      : { grow: false, shrink: false },
+  );
+  // Sous le bloc, au-delà des poignées (plus grandes, et écartées d'un petit bloc) ; dans le bloc s'il touche le bas
+  // de la page. Les boutons gardent leur taille à tous les zooms.
+  const handleHalf = $derived(settings.bigHandles ? 13 : 7);
+  const fixGap = $derived(handleHalf + 6 + handlePadding(mmToPx(element.frame.h_mm, zoom), settings.bigHandles));
+  const FIX_HEIGHT_PX = 30;
+  let fixWidth = $state(270);
+  const fixPlace = $derived(actionsPlace(element.frame, editor.page.size, zoom, fixGap + FIX_HEIGHT_PX, fixWidth));
+
+  /** Un seul pas d'annulation, et aucun si rien ne change. */
+  function growFrame() {
+    if (!box) return;
+    const need = Math.max(neededHeightMm(contentHeightPx(box) + 1, textPadding(props.style)), neededHeightMm(box.scrollHeight + 1, 0));
+    const g = grownHeight(need, element.frame, editor.page.size.height_mm);
+    if (g) editor.updateElement(element.id, (e) => ({ ...e, frame: { ...e.frame, h_mm: g.h_mm } }));
+  }
+
+  /** Le texte essayé à d'autres tailles dans une copie cachée du bloc, à côté de lui (mêmes styles, même largeur). */
+  function fitsAt(p: TextProps): boolean {
+    if (!box) return true;
+    const clone = box.cloneNode(true) as HTMLDivElement;
+    clone.style.visibility = "hidden";
+    clone.style.fontSize = `${p.style.size_pt}pt`;
+    clone.setAttribute("aria-hidden", "true");
+    const paras = clone.querySelectorAll<HTMLElement>(":scope > .flow > p");
+    p.content.paragraphs.forEach((q, i) =>
+      q.runs.forEach((r, j) => {
+        const span = paras[i]?.children[j] as HTMLElement | undefined;
+        if (span && r.size_pt) span.style.fontSize = `${r.size_pt}pt`;
+      }),
+    );
+    box.after(clone);
+    const fits = clone.scrollHeight <= clone.clientHeight + 1;
+    clone.remove();
+    return fits;
+  }
+
+  function shrinkText() {
+    const next = shrunkText(props, fitsAt);
+    if (next) editor.updateElement(element.id, (e) => (e.kind.type === "Text" ? { ...e, kind: { ...e.kind, style: next.style, content: next.content } } : e));
+  }
+
+  /** Un appui sur les boutons ne prend ni ne déplace le bloc, et deux clics de suite ne l'ouvrent pas à l'écriture.
+   *  Écouteurs posés directement : les poignées (Moveable) écoutent le bloc sans passer par Svelte. */
+  function shield(node: HTMLElement) {
+    const stop = (ev: Event) => ev.stopPropagation();
+    const types = ["pointerdown", "mousedown", "touchstart", "dblclick"];
+    for (const t of types) node.addEventListener(t, stop);
+    return { destroy: () => types.forEach((t) => node.removeEventListener(t, stop)) };
+  }
 </script>
 
 {#if props.frame}
@@ -102,6 +175,7 @@
   style:color={props.style.color}
   style:text-align={alignToCss(props.style.align)}
   class:outline={props.style.outline}
+  class:editing
 >
   <!-- Alignement vertical par marges automatiques : un texte trop long part du haut, sans déborder vers le haut. -->
   <div class="flow" class:middle={props.style.valign === "Middle"} class:bottom={props.style.valign === "Bottom"}>
@@ -125,7 +199,23 @@
 </div>
 <!-- Une invite trop longue n'est qu'une indication : pas d'alerte. -->
 {#if alerts && overflow && !editing && !blank}
-  <span class="badge" style:transform="scale({Math.max(zoom, 0.6)})">Texte trop long</span>
+  {#if fix.grow || fix.shrink}
+    <div
+      class="badge fix"
+      class:inside={fixPlace.inside}
+      class:left={fixPlace.left}
+      style:--gap="{fixGap}px"
+      style:--edge="{handleHalf + 4}px"
+      role="presentation"
+      use:shield
+      bind:offsetWidth={fixWidth}
+    >
+      {#if fix.grow}<button type="button" title={fr.textGrowFrameHint} onclick={(ev) => (ev.currentTarget.blur(), growFrame())}>{fr.textGrowFrame}</button>{/if}
+      {#if fix.shrink}<button type="button" title={fr.textShrinkHint} onclick={(ev) => (ev.currentTarget.blur(), shrinkText())}>{fr.textShrink}</button>{/if}
+    </div>
+  {:else}
+    <span class="badge" style:transform="scale({Math.max(zoom, 0.6)})">{fr.textTooLong}</span>
+  {/if}
 {/if}
 
 <style>
@@ -177,6 +267,10 @@
     outline: 2px solid #e74c3c;
     outline-offset: -2px;
   }
+  /* Pendant l'écriture, le surplus reste visible (et le curseur avec lui) : rien ne bouge, il dépasse du cadre. */
+  .text.editing {
+    overflow: visible;
+  }
   .prompt {
     color: #9a9a9a;
     font-style: italic;
@@ -192,6 +286,46 @@
     padding: 2px 6px;
     border-radius: 4px;
     white-space: nowrap;
+  }
+  /* Le bloc qui montre les boutons passe devant ses voisins : un élément posé dessous ne les couvre pas. */
+  :global(.element:has(> .badge.fix)) {
+    z-index: 1;
+  }
+  .badge.fix {
+    bottom: auto;
+    top: calc(100% + var(--gap));
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    border-radius: 6px;
+  }
+  .badge.fix.inside {
+    top: auto;
+    bottom: var(--edge);
+    right: var(--edge);
+  }
+  .badge.fix.left {
+    right: auto;
+    left: 0;
+  }
+  .badge.fix.inside.left {
+    left: var(--edge);
+  }
+  .fix button {
+    font: 600 13px var(--ui-font);
+    padding: 4px 10px;
+    border: none;
+    border-radius: 4px;
+    background: white;
+    color: #b03a2e;
+    cursor: pointer;
+  }
+  .fix button:hover {
+    text-decoration: underline;
+  }
+  .fix button:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 1px;
   }
   /* Un champ de la classe : une pastille qui dit son nom ; à l'impression, blanc à la même place (print.css).
      Aussi dans l'éditeur, d'où le sélecteur global. */

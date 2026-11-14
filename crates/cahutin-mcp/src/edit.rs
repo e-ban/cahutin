@@ -146,6 +146,19 @@ pub fn set_text_style(doc: &mut Document, args: &Value) -> Result<Value, String>
             }
         }
     }
+    // Comme `lookOnWholeText` dans l'interface : une police, une taille ou une couleur donnée au texte entier
+    // l'est aussi aux mots qui avaient la leur.
+    for r in t.content.paragraphs.iter_mut().flat_map(|p| p.runs.iter_mut()) {
+        if font.is_some() {
+            r.font = None;
+        }
+        if size.is_some() {
+            r.size_pt = None;
+        }
+        if col.is_some() {
+            r.color = None;
+        }
+    }
     if let Some(f) = font {
         t.style.font = f;
     }
@@ -573,6 +586,21 @@ mod tests {
             ElementKind::Text(t) => t,
             _ => unreachable!(),
         }
+    }
+
+    #[test]
+    fn a_size_font_or_color_for_the_whole_text_also_goes_to_the_words_that_had_their_own() {
+        let mut d = doc();
+        if let ElementKind::Text(t) = &mut d.pages[0].elements[0].kind {
+            let r = &mut t.content.paragraphs[0].runs[0];
+            (r.size_pt, r.font, r.color) = (Some(40.0), Some("Arial".into()), Some("#ff0000".into()));
+        }
+        set_text_style(&mut d, &json!({ "element_id": "t1", "size_pt": 144 })).unwrap();
+        let r = &text_props(&d, "t1").content.paragraphs[0].runs[0];
+        assert_eq!((r.size_pt, r.font.as_deref(), r.color.as_deref()), (None, Some("Arial"), Some("#ff0000")));
+        set_text_style(&mut d, &json!({ "element_id": "t1", "font": "Andika", "color": "#1f2c4a" })).unwrap();
+        let t = text_props(&d, "t1");
+        assert_eq!((t.style.size_pt, t.content.paragraphs[0].runs[0].font.as_deref(), t.content.paragraphs[0].runs[0].color.as_deref()), (144.0, None, None));
     }
 
     #[test]

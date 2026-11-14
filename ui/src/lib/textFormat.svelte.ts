@@ -7,6 +7,7 @@ import type {} from "@tiptap/extension-text-style";
 import { editor } from "./docStore.svelte";
 import { alignToCss, parsePt } from "./richtext";
 import { textEditing } from "./textEditing.svelte";
+import { coversWholeText, lookOnWholeText, type WholeLook } from "./textLook";
 import type { Align, Element, Run, TextProps, TextStyle, VAlign } from "./types";
 
 export type Mark = "bold" | "italic" | "underline";
@@ -36,23 +37,31 @@ export function insertField(key: string) {
   activeTip()?.chain().focus().insertContent({ type: "classField", attrs: { key } }).run();
 }
 
-export function setFont(font: string) {
+/**
+ * Police, taille ou couleur : pendant l'écriture, sur le passage sélectionné. Sans écriture, ou quand tout le
+ * texte est sélectionné, elle devient celle du bloc, y compris des mots qui avaient la leur.
+ */
+function setLook(look: WholeLook, onTip: (tip: Editor) => void) {
   const tip = activeTip();
-  if (tip) tip.chain().focus().setFontFamily(font).run();
-  else setStyle({ font });
+  if (tip) {
+    onTip(tip);
+    const { from, to } = tip.state.selection;
+    // Pendant l'écriture, les mots sont dans l'éditeur (qui vient de les changer) : seul le bloc change ici.
+    if (coversWholeText(from, to, tip.state.doc.content.size)) setStyle(look);
+  } else updateText((t) => lookOnWholeText(t, look));
+}
+
+export function setFont(font: string) {
+  setLook({ font }, (tip) => tip.chain().focus().setFontFamily(font).run());
 }
 
 export function setSize(pt: number) {
-  const tip = activeTip();
-  if (tip) tip.chain().focus().setFontSize(`${pt}pt`).run();
-  else setStyle({ size_pt: pt });
+  setLook({ size_pt: pt }, (tip) => tip.chain().focus().setFontSize(`${pt}pt`).run());
 }
 
 export function setColor(color: string | null) {
   if (!color) return;
-  const tip = activeTip();
-  if (tip) tip.chain().focus().setColor(color).run();
-  else setStyle({ color });
+  setLook({ color }, (tip) => tip.chain().focus().setColor(color).run());
 }
 
 export function setAlign(align: Align) {

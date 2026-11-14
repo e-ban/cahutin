@@ -8,9 +8,11 @@ import type { AssetMeta, Element, Frame, Page, PageSize } from "./types";
 /** Mention en bas des pages qui contiennent une image OpenMoji (carnet_core::odg::content::credit_frame). */
 export const CREDIT_SIZE_PT = 6;
 export const CREDIT_MARGIN_MM = 8;
+/** Haut du cadre depuis le bas de la page : l'encre reste à plus de 5 mm du bord, que l'imprimante n'atteint pas. */
+export const CREDIT_BOTTOM_MM = 10;
 
 export function creditFrame(size: PageSize): Frame {
-  return { x_mm: CREDIT_MARGIN_MM, y_mm: size.height_mm - CREDIT_MARGIN_MM, w_mm: size.width_mm - 2 * CREDIT_MARGIN_MM, h_mm: 5, rotation_deg: 0 };
+  return { x_mm: CREDIT_MARGIN_MM, y_mm: size.height_mm - CREDIT_BOTTOM_MM, w_mm: size.width_mm - 2 * CREDIT_MARGIN_MM, h_mm: 5, rotation_deg: 0 };
 }
 
 const MARGIN_MM = 8;

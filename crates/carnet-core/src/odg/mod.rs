@@ -1,6 +1,7 @@
 //! Export ODG (LibreOffice Draw) : chaque élément devient un objet natif, les polices sont intégrées.
 
 mod content;
+pub(crate) use content::{TURNED_FILL, turned_box_mm, turned_image};
 mod package;
 mod styles;
 mod xml;
@@ -34,6 +35,10 @@ pub(crate) const NS: [(&str, &str); 11] = [
 pub const OPENMOJI_CREDIT: &str = "Pictogrammes : OpenMoji (openmoji.org), licence CC BY-SA 4.0";
 /// Mention écrite en bas de chaque page qui contient une image OpenMoji.
 pub const OPENMOJI_CREDIT_PAGE: &str = "Pictogrammes : OpenMoji, CC BY-SA 4.0";
+/// Marque écrite après la version dans le générateur de `meta.xml` : une forme retournée d'un seul sens y porte
+/// l'angle que LibreOffice attend (l'opposé de celui de l'écran, voir `content`). Un fichier de Cahutin sans elle
+/// (version 0.17.0 et avant) porte l'angle de l'écran ; l'import le relit tel quel.
+pub const MIRROR_AFTER_ROTATION: &str = "miroir-apres-rotation";
 
 #[derive(Debug)]
 pub enum OdgError {
@@ -319,6 +324,27 @@ mod tests {
         assert!(els.iter().any(|e| matches!(&e.kind, ElementKind::Image(_)) && e.flip_v && !e.flip_h));
     }
 
+    /// Une forme retournée d'un seul sens puis tournée : LibreOffice la retourne après l'avoir tournée, elle part
+    /// donc avec l'angle opposé (retournée dans les deux sens, avec le sien), et le générateur porte la marque qui le
+    /// dit. La relecture retrouve l'angle, le miroir et la place de l'écran.
+    #[test]
+    fn a_mirrored_and_turned_shape_gets_the_opposite_angle_and_comes_back() {
+        let f = Frame { rotation_deg: 30.0, ..frame(20.0, 20.0, 40.0, 20.0) };
+        let flips = [(true, false), (false, true), (true, true)];
+        let doc = doc_with(flips.iter().map(|&(h, v)| Element { flip_h: h, flip_v: v, ..shape_el(ShapeKind::Star, f) }).collect());
+        let mut e = export(&doc, &AssetStore::default());
+        let content = e.xml("content.xml");
+        let angles: Vec<&str> = content.split(r#"draw:transform="rotate("#).skip(1).map(|s| s.split(')').next().unwrap()).collect();
+        assert_eq!(angles, ["0.523599", "0.523599", "-0.523599"], "{content}");
+        assert!(e.xml("meta.xml").contains(MIRROR_AFTER_ROTATION));
+        let mut buf = Cursor::new(Vec::new());
+        export_odg(&doc, &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
+        buf.set_position(0);
+        let back = crate::import::odg::read_drawing(buf, &[]).unwrap();
+        let got: Vec<(bool, bool, f64, f64, f64)> = back.pages[0].elements.iter().map(|e| (e.flip_h, e.flip_v, (e.frame.rotation_deg * 1000.0).round() / 1000.0, (e.frame.x_mm * 1000.0).round() / 1000.0, (e.frame.y_mm * 1000.0).round() / 1000.0)).collect();
+        assert_eq!(got, flips.map(|(h, v)| (h, v, 30.0, 20.0, 20.0)));
+    }
+
     #[test]
     fn an_outlined_picture_goes_and_comes_back_as_an_outline() {
         let el = Element {
@@ -449,6 +475,70 @@ mod tests {
         assert!(content.contains("draw:corner-radius=\"3.000mm\""));
         assert!(content.contains("draw:fill=\"bitmap\""));
         assert!(e.xml("styles.xml").contains("<draw:fill-image "));
+    }
+
+    /// Image de 200 × 100 pixels, moitié gauche rouge, moitié droite bleue, en PNG.
+    fn halves_asset() -> Asset {
+        let img = RgbImage::from_fn(200, 100, |x, _| if x < 100 { Rgb([220, 30, 30]) } else { Rgb([30, 60, 220]) });
+        let mut out = Cursor::new(Vec::new());
+        img.write_to(&mut out, ImageFormat::Png).unwrap();
+        let bytes = Arc::new(out.into_inner());
+        Asset { meta: AssetMeta { id: new_id(), width_px: 200, height_px: 100, mime: Mime::Png, taken: None }, thumb: bytes.clone(), bytes }
+    }
+
+    fn is_red(p: &image::Rgba<u8>) -> bool {
+        p[0] > 180 && p[2] < 80
+    }
+
+    fn is_blue(p: &image::Rgba<u8>) -> bool {
+        p[2] > 180 && p[0] < 80
+    }
+
+    /// Photo arrondie tournée : LibreOffice étire l'image de remplissage, sans la tourner, sur la boîte droite qui
+    /// entoure la forme tournée. Elle part donc déjà tournée, aux proportions de cette boîte (coins arrondis
+    /// compris), sous un nom marqué « -tourne » ; la photo arrondie droite ne change pas. Relue, la photo retrouve son
+    /// image droite, son angle et ses coins.
+    #[test]
+    fn a_turned_rounded_photo_fills_with_a_turned_image_and_comes_back() {
+        let mut store = AssetStore::default();
+        let a = halves_asset();
+        let mut turned = photo(Some(&a.meta.id), frame(20.0, 20.0, 60.0, 30.0), 3.0);
+        turned.frame.rotation_deg = 90.0;
+        let mut slanted = photo(Some(&a.meta.id), frame(20.0, 120.0, 60.0, 30.0), 6.0);
+        slanted.frame.rotation_deg = 30.0;
+        let flat = photo(Some(&a.meta.id), frame(20.0, 200.0, 60.0, 30.0), 3.0);
+        let ids = [turned.id.clone(), slanted.id.clone(), flat.id.clone()];
+        store.insert(a).unwrap();
+        let doc = doc_with(vec![turned, slanted, flat]);
+        let mut e = export(&doc, &store);
+        let styles = e.xml("styles.xml");
+        assert!(styles.contains(&format!(r#"draw:name="img_{}-tourne""#, ids[0])) && styles.contains(&format!(r#"draw:name="img_{}""#, ids[2])), "{styles}");
+        // À 90° : l'image debout, rouge en haut, bleu en bas.
+        let up = image::load_from_memory(&e.read(&format!("Pictures/{}.png", ids[0]))).unwrap().to_rgba8();
+        assert!(up.height() as f64 > 1.9 * up.width() as f64, "{}x{}", up.width(), up.height());
+        assert!(is_red(up.get_pixel(up.width() / 2, up.height() / 4)) && is_blue(up.get_pixel(up.width() / 2, 3 * up.height() / 4)));
+        // À 30°, coins de 6 mm : boîte de (48 cos 30° + 18 sin 30° + 12) × (48 sin 30° + 18 cos 30° + 12) mm.
+        let s = image::load_from_memory(&e.read(&format!("Pictures/{}.png", ids[1]))).unwrap();
+        let (bw, bh) = (48.0 * 30f64.to_radians().cos() + 9.0 + 12.0, 24.0 + 18.0 * 30f64.to_radians().cos() + 12.0);
+        assert!((s.width() as f64 / s.height() as f64 - bw / bh).abs() < 0.02, "{}x{} au lieu de {bw:.1} × {bh:.1}", s.width(), s.height());
+        let f = image::load_from_memory(&e.read(&format!("Pictures/{}.png", ids[2]))).unwrap();
+        assert_eq!((f.width(), f.height()), (200, 100));
+
+        let mut buf = Cursor::new(Vec::new());
+        export_odg(&doc, &store, &FontSet::builtin(), &mut buf).unwrap();
+        buf.set_position(0);
+        let back = crate::import::odg::read_drawing(buf, &[]).unwrap();
+        for (i, rot) in [90.0, 30.0, 0.0].into_iter().enumerate() {
+            let el = &back.pages[0].elements[i];
+            let ElementKind::Photo(p) = &el.kind else { panic!("{el:?}") };
+            assert!((el.frame.rotation_deg - rot).abs() < 0.01 && (el.frame.w_mm - 60.0).abs() < 0.01 && (el.frame.x_mm - 20.0).abs() < 0.01, "{:?}", el.frame);
+            assert_eq!(p.corner_radius_mm, [3.0, 6.0, 3.0][i]);
+            let asset = back.assets.iter().find(|a| Some(&a.meta.id) == p.asset.as_ref()).unwrap();
+            let img = image::load_from_memory(&asset.bytes).unwrap().to_rgba8();
+            let (w, h) = (img.width(), img.height());
+            assert!((w as f64 / h as f64 - 2.0).abs() < 0.05, "photo {i} relue en {w}x{h}");
+            assert!(is_red(img.get_pixel(w / 4, h / 2)) && is_blue(img.get_pixel(3 * w / 4, h / 2)), "photo {i} relue : {:?} et {:?}", img.get_pixel(w / 4, h / 2), img.get_pixel(3 * w / 4, h / 2));
+        }
     }
 
     #[test]
@@ -940,6 +1030,17 @@ mod tests {
         assert_eq!(pages.len(), 2);
         assert!(pages[0].contains(OPENMOJI_CREDIT_PAGE) && pages[0].contains(r#"draw:protect="position size""#));
         assert!(!pages[1].contains(OPENMOJI_CREDIT_PAGE));
+    }
+
+    /// Mention de licence : cadre de 5 mm entre 10 et 5 mm du bas, marges de 8 mm sur les côtés. Le texte (6 pt,
+    /// marge de 1,5 mm) y laisse son encre à plus de 5 mm du bas, hors de la bande que l'imprimante n'atteint pas, et
+    /// sous les cadres de page à 8 mm (banc : `openmoji_credit_ink_stays_5mm_from_the_bottom`).
+    #[test]
+    fn credit_frame_stays_out_of_the_unprintable_band() {
+        let f = content::credit_frame(PageSize { width_mm: 210.0, height_mm: 297.0 });
+        assert_eq!((f.x_mm, f.y_mm, f.w_mm, f.h_mm), (8.0, 287.0, 194.0, 5.0));
+        let content = export(&doc_with(vec![picture_el("1F98A", None)]), &AssetStore::default()).xml("content.xml");
+        assert!(content.contains(r#"svg:x="8.000mm" svg:y="287.000mm" svg:width="194.000mm" svg:height="5.000mm""#), "{content}");
     }
 
     #[test]

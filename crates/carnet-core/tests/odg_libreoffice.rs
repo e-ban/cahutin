@@ -1431,38 +1431,81 @@ fn a5_and_a3_pages_keep_their_size() {
     }
 }
 
-/// MIS DE CÔTÉ (défaut de l'export, ne passe pas) : une photo à coins arrondis (ou à bordure, ou à ombre) tournée
-/// garde son image droite, étirée dans la boîte tournée. Une telle photo est un `draw:rect` rempli par l'image, et
-/// LibreOffice ne tourne pas le remplissage d'un rectangle avec lui (la photo simple, un `draw:frame` d'image,
-/// tourne bien). L'image de fond d'un cadre de texte, remplie de la même façon, est sans doute touchée aussi (pas
-/// vérifié). Lancé seulement avec
-/// `BANC_DEFAUTS_CONNUS=1`.
+/// Mention de licence OpenMoji, sur une page A4 et une page A5 paysage qui ont une image : toute son encre reste à
+/// 5 mm ou plus du bas de la page, hors de la bande que beaucoup d'imprimantes n'atteignent pas, et sur la page.
 #[test]
 #[ignore]
-fn defaut_connu_turned_rounded_photo_turns_its_image() {
-    if std::env::var_os("BANC_DEFAUTS_CONNUS").is_none() {
-        eprintln!("mis de côté : l'image d'une photo à coins arrondis tournée reste droite dans LibreOffice");
-        return;
+fn openmoji_credit_ink_stays_5mm_from_the_bottom() {
+    for (w, h) in [(210.0, 297.0), (210.0, 148.0)] {
+        let mut doc = Document::new("mention");
+        doc.pages = vec![Page::new(PageSize { width_mm: w, height_mm: h })];
+        doc.pages[0].elements.push(picture_element("1F98A", ORIGIN_MM, None));
+        let (_dir, pdf) = render(&doc, &AssetStore::default());
+        let r = Raster::gray(&pdf, 1, 254);
+        let ink = r.ink_box(0.0, h - 20.0, w, h, 230).unwrap_or_else(|| panic!("{w} × {h} : mention absente"));
+        assert!(h - ink.3 >= 5.0, "{w} × {h} : encre de la mention à {:.2} mm du bas ({ink:?})", h - ink.3);
     }
-    let mut store = AssetStore::default();
-    let mut doc = Document::new("photo arrondie tournée");
-    let asset = halves_asset(&mut doc, &mut store);
-    let f = frame_at(60.0, 60.0, 60.0, 30.0, 90.0);
-    let mut kind = photo_kind(&asset);
-    if let ElementKind::Photo(p) = &mut kind {
-        p.corner_radius_mm = 3.0;
-    }
-    doc.pages[0].elements.push(element(f, kind));
-    let (_dir, pdf) = render(&doc, &store);
-    check_turned_halves(&Raster::rgb(&pdf, 1, 127), "photo à coins arrondis", &f);
 }
 
-/// MIS DE CÔTÉ (défaut connu, ne passe pas) : un document aux formats mêlés (une page A5 portrait, puis A5 paysage,
-/// A3 portrait, A3 paysage) sort de LibreOffice avec toutes ses pages au format de la première. L'ODG déclare bien
-/// une mise en page par format (`style:page-layout` de chaque page maîtresse), mais LibreOffice Draw n'en garde
-/// qu'une au rendu : un ODG écrit par LibreOffice lui-même (import d'un PDF A5 portrait puis A5 paysage, deux pages
-/// maîtresses de tailles différentes) sort aussi en deux pages A5 portrait (LibreOffice 26.8). Pas de correctif dans
-/// l'export. Lancé seulement avec `BANC_DEFAUTS_CONNUS=1`.
+/// Photo à coins arrondis, à bordure et ombre, et image de fond d'un cadre de texte, tournées : l'image tourne avec
+/// la forme. LibreOffice étire l'image qui remplit une forme sur la boîte droite qui entoure la forme tournée, sans la
+/// tourner : l'export l'y pose déjà tournée. À 90° (photo arrondie, cadre de texte), le rouge en haut, le bleu en bas,
+/// rien à côté de la boîte tournée. À 30° (photo à bordure et ombre, cadre de texte, coins de 6 mm), l'image a une
+/// bande rouge sur son premier douzième (5 mm) : le long du milieu du cadre tourné, le rouge s'arrête à 5 mm du bout,
+/// à 0,5 mm près (une boîte droite mal calculée, sans les coins arrondis, l'étire de près de 2 mm), puis le bleu
+/// jusqu'à l'autre bout.
+#[test]
+#[ignore]
+fn turned_rounded_photo_and_frame_image_turn_their_image() {
+    let mut store = AssetStore::default();
+    let mut doc = Document::new("photo arrondie tournée");
+    let halves = halves_asset(&mut doc, &mut store);
+    let band = RgbImage::from_fn(240, 120, |x, _| if x < 20 { Rgb([RED.0, RED.1, RED.2]) } else { Rgb([BLUE.0, BLUE.1, BLUE.2]) });
+    let band = png_asset(&mut doc, &mut store, &band);
+    let photo = |f: Frame, asset: &Id, radius: f64, decorated: bool| {
+        let mut kind = photo_kind(asset);
+        if let ElementKind::Photo(p) = &mut kind {
+            p.corner_radius_mm = radius;
+            if decorated {
+                p.border = Some(Stroke { width_mm: 0.8, color: "#000000".into(), style: Some(StrokeStyle::Dotted) });
+                p.shadow = true;
+            }
+        }
+        element(f, kind)
+    };
+    let label = |f: Frame, asset: &Id, radius: f64| {
+        let frame = TextFrame { image: Some(asset.clone()), corner_radius_mm: radius, ..TextFrame::default() };
+        element(f, ElementKind::Text(TextProps { content: RichText::default(), style: TextStyle::default_zone(), prompt: None, frame: Some(frame) }))
+    };
+    let upright = [frame_at(30.0, 40.0, 60.0, 30.0, 90.0), frame_at(110.0, 40.0, 60.0, 30.0, 90.0)];
+    let slanted = [frame_at(20.0, 160.0, 60.0, 30.0, 30.0), frame_at(110.0, 160.0, 60.0, 30.0, 30.0)];
+    doc.pages[0].elements.push(photo(upright[0], &halves, 3.0, false));
+    doc.pages[0].elements.push(label(upright[1], &halves, 0.0));
+    doc.pages[0].elements.push(photo(slanted[0], &band, 6.0, true));
+    doc.pages[0].elements.push(label(slanted[1], &band, 6.0));
+    let (_dir, pdf) = render(&doc, &store);
+    let r = Raster::rgb(&pdf, 1, 254);
+    check_turned_halves(&r, "photo à coins arrondis", &upright[0]);
+    check_turned_halves(&r, "image de fond d'un cadre de texte", &upright[1]);
+    for (f, name) in slanted.iter().zip(["photo arrondie, à bordure et ombre", "cadre de texte arrondi"]) {
+        let at = |lx: f64| {
+            let (x, y) = turned_point(f, lx, 15.0);
+            r.color(x, y)
+        };
+        let end = (10..150).map(|k| k as f64 * 0.1).find(|&lx| !near(at(lx), RED));
+        assert!(end.is_some_and(|e| (e - 5.0).abs() < 0.5), "{name} tourné de 30° : le rouge s'arrête à {end:?} mm du bout au lieu de 5");
+        for lx in [7.0, 30.0, 58.0] {
+            assert!(near(at(lx), BLUE), "{name} tourné de 30° : {:?} à {lx} mm du bout au lieu du bleu", at(lx));
+        }
+    }
+}
+
+/// MIS DE CÔTÉ (limite de LibreOffice Draw, pas un défaut de l'export ; ne passe pas) : un document aux formats
+/// mêlés (une page A5 portrait, puis A5 paysage, A3 portrait, A3 paysage) sort de LibreOffice avec toutes ses pages
+/// au format de la première. L'ODG déclare bien une mise en page par format (`style:page-layout` de chaque page
+/// maîtresse), mais LibreOffice Draw n'en garde qu'une au rendu : un ODG écrit par LibreOffice lui-même (import d'un
+/// PDF A5 portrait puis A5 paysage, deux pages maîtresses de tailles différentes) sort aussi en deux pages A5
+/// portrait (LibreOffice 26.8). Pas de correctif dans l'export. Lancé seulement avec `BANC_DEFAUTS_CONNUS=1`.
 #[test]
 #[ignore]
 fn defaut_connu_mixed_page_sizes_keep_their_size() {
@@ -1480,20 +1523,14 @@ fn defaut_connu_mixed_page_sizes_keep_their_size() {
     }
 }
 
-/// MIS DE CÔTÉ (défaut de l'export, ne passe pas) : une forme dessinée retournée d'un seul sens (gauche-droite, ou
-/// haut-bas) puis tournée sort tournée dans l'autre sens. LibreOffice applique `draw:mirror-horizontal` (ou
-/// `-vertical`) après la rotation de `draw:transform`, autour du centre, alors que l'écran retourne la forme dans
-/// son cadre avant de la tourner : il faudrait écrire l'angle opposé quand un seul miroir est mis (essayé : le rendu
-/// devient juste), et lire l'angle opposé à l'import (`import/odg.rs`) pour que l'aller-retour reste juste. Les
-/// photos (pixels retournés) et les images OpenMoji (SVG retourné) n'ont pas ce défaut. Lancé seulement avec
-/// `BANC_DEFAUTS_CONNUS=1`.
+/// Forme dessinée retournée d'un seul sens (gauche-droite, ou haut-bas), ou des deux, puis tournée de 30° : elle
+/// garde le sens de l'écran, qui retourne la forme dans son cadre avant de la tourner (LibreOffice retourne après la
+/// rotation : l'export écrit l'angle opposé quand un seul miroir est mis). Puis le fichier enregistré par
+/// LibreOffice se relit dans Cahutin avec les mêmes miroirs, angles et places. Les photos (pixels retournés) et les
+/// images OpenMoji (SVG retourné) ne passent pas par là.
 #[test]
 #[ignore]
-fn defaut_connu_mirrored_and_turned_shape_keeps_its_orientation() {
-    if std::env::var_os("BANC_DEFAUTS_CONNUS").is_none() {
-        eprintln!("mis de côté : forme retournée puis tournée, tournée dans l'autre sens par LibreOffice");
-        return;
-    }
+fn mirrored_and_turned_shape_keeps_its_orientation() {
     let mut doc = Document::new("miroir tourné");
     // (miroir gauche-droite, miroir haut-bas) ; cadres non carrés et 30° : le sens de rotation se voit.
     let flips = [(true, false), (false, true), (true, true)];
@@ -1510,5 +1547,28 @@ fn defaut_connu_mirrored_and_turned_shape_keeps_its_orientation() {
         let (full, empty) = (corner(3.0, 3.0), corner(f.w_mm - 3.0, f.h_mm - 3.0));
         let (a, b) = (r.level(full.0, full.1), r.level(empty.0, empty.1));
         assert!(a < 128 && b > 200, "miroir ({h}, {v}) tourné de 30° : {a} au coin plein {full:?}, {b} au coin vide {empty:?}");
+    }
+
+    // Aller-retour par LibreOffice : le fichier qu'il réenregistre se relit avec les miroirs, angles et places de
+    // l'écran (à 0,01 mm et 0,01° près).
+    let dir = tempfile::tempdir().unwrap();
+    let odg = dir.path().join("miroir.odg");
+    export_odg_to_path(&doc, &AssetStore::default(), &FontSet::builtin(), &odg).unwrap();
+    let out = dir.path().join("relu");
+    std::fs::create_dir(&out).unwrap();
+    let profile = format!("-env:UserInstallation=file://{}", dir.path().join("profil").display());
+    run(Command::new("soffice").arg(profile).args(["--headless", "--convert-to", "odg", "--outdir"]).arg(&out).arg(&odg));
+    let back = carnet_core::import::odg::read_drawing(std::fs::File::open(out.join("miroir.odg")).unwrap(), &[]).unwrap();
+    let els = &back.pages[0].elements;
+    assert_eq!(els.len(), frames.len(), "relu : {els:?}");
+    for ((e, f), (h, v)) in els.iter().zip(&frames).zip(flips) {
+        let close = |a: f64, b: f64, tol: f64| (a - b).abs() < tol;
+        assert!(
+            (e.flip_h, e.flip_v) == (h, v) && close(e.frame.rotation_deg, f.rotation_deg, 0.01) && close(e.frame.x_mm, f.x_mm, 0.01) && close(e.frame.y_mm, f.y_mm, 0.01),
+            "miroir ({h}, {v}) relu après LibreOffice : {:?} ({}, {}) au lieu de {f:?}",
+            e.frame,
+            e.flip_h,
+            e.flip_v
+        );
     }
 }

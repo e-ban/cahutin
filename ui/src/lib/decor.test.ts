@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { blockFrieze, frieze, friezeIn, friezeMotifKeys, friezeSettings, isPageFrame, pageFrame, removeFrieze, replaceFriezeMotifs, resizeFrieze, toggleMotif } from "./decor";
+import { blockFrieze, creditFrame, frieze, friezeIn, friezeMotifKeys, friezeSettings, isPageFrame, pageFrame, removeFrieze, replaceFriezeMotifs, resizeFrieze, toggleMotif } from "./decor";
 import { ungroup } from "./groups";
 import type { Element, Page } from "./types";
 
@@ -21,6 +21,11 @@ test("pageFrame double makes a grouped pair inside the margin", () => {
   expect(thin[0].group ?? null).toBeNull();
   expect(thin[0].frame).toMatchObject({ x_mm: 8, y_mm: 8, w_mm: 194, h_mm: 281 });
   expect(pageFrame(a4(), "rounded")[0].kind.type === "Shape" && pageFrame(a4(), "rounded")[0].kind.corner_radius_mm).toBe(8);
+});
+
+test("the OpenMoji mention sits 10 to 5 mm from the bottom, as in the ODG (credit_frame)", () => {
+  expect(creditFrame({ width_mm: 210, height_mm: 297 })).toEqual({ x_mm: 8, y_mm: 287, w_mm: 194, h_mm: 5, rotation_deg: 0 });
+  expect(creditFrame({ width_mm: 210, height_mm: 148 })).toEqual({ x_mm: 8, y_mm: 138, w_mm: 194, h_mm: 5, rotation_deg: 0 });
 });
 
 test("a page frame is told apart from a smaller hollow rectangle", () => {

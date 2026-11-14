@@ -9,6 +9,7 @@ use crate::photo::{self, AssetStore, MAX_LONG_EDGE_PX};
 use crate::picto;
 use crate::shapes;
 use image::imageops::FilterType;
+use image::{DynamicImage, RgbaImage};
 
 pub(crate) struct Picture {
     pub path: String,
@@ -92,13 +93,55 @@ struct Writer<'a> {
     protect_next: bool,
 }
 
-/// Mention de licence : 6 pt, gris, centrée dans la marge du bas (même cadre qu'à l'écran).
+/// Mention de licence : 6 pt, gris, centrée en bas de la page (même cadre qu'à l'écran).
 pub const CREDIT_SIZE_PT: f64 = 6.0;
 pub const CREDIT_COLOR: &str = "#888888";
 pub const CREDIT_MARGIN_MM: f64 = 8.0;
+/// Haut du cadre de la mention, depuis le bas de la page : son encre tombe entre 7,5 et 5,5 mm du bas, au-dessus
+/// de la bande de 5 mm que beaucoup d'imprimantes n'atteignent pas, et sous les cadres de page posés à 8 mm.
+pub const CREDIT_BOTTOM_MM: f64 = 10.0;
 
 pub fn credit_frame(size: PageSize) -> Frame {
-    Frame { x_mm: CREDIT_MARGIN_MM, y_mm: size.height_mm - CREDIT_MARGIN_MM, w_mm: size.width_mm - 2.0 * CREDIT_MARGIN_MM, h_mm: 5.0, rotation_deg: 0.0 }
+    Frame { x_mm: CREDIT_MARGIN_MM, y_mm: size.height_mm - CREDIT_BOTTOM_MM, w_mm: size.width_mm - 2.0 * CREDIT_MARGIN_MM, h_mm: 5.0, rotation_deg: 0.0 }
+}
+
+/// Marque du nom d'une image de remplissage posée déjà tournée (voir `turned_box_mm`) : l'import la redresse.
+pub(crate) const TURNED_FILL: &str = "-tourne";
+
+/// Boîte droite (largeur, hauteur en mm) qui entoure le cadre tourné, aux coins arrondis de `radius_mm` : LibreOffice
+/// y étire l'image qui remplit une forme tournée, sans la tourner. L'export l'y pose donc déjà tournée.
+pub(crate) fn turned_box_mm(f: &Frame, radius_mm: f64) -> (f64, f64) {
+    let r = radius_mm.clamp(0.0, f.w_mm.min(f.h_mm) / 2.0);
+    let (sin, cos) = f.rotation_deg.to_radians().sin_cos();
+    let (sin, cos) = (sin.abs(), cos.abs());
+    let (w, h) = (f.w_mm - 2.0 * r, f.h_mm - 2.0 * r);
+    (w * cos + h * sin + 2.0 * r, w * sin + h * cos + 2.0 * r)
+}
+
+/// L'image `src`, qui couvre `src_mm` (largeur, hauteur), reprise en une image de `out_mm` à `px_per_mm` pixels par
+/// mm, tournée de `deg` (sens horaire) autour de leur centre commun. Bilinéaire ; les bords sont prolongés (pas de
+/// liseré clair sous une bordure).
+pub(crate) fn turned_image(src: &RgbaImage, src_mm: (f64, f64), out_mm: (f64, f64), px_per_mm: f64, deg: f64) -> RgbaImage {
+    let (ow, oh) = (((out_mm.0 * px_per_mm).round() as u32).max(1), ((out_mm.1 * px_per_mm).round() as u32).max(1));
+    let (sx, sy) = (src.width() as f64 / src_mm.0, src.height() as f64 / src_mm.1);
+    let (sin, cos) = deg.to_radians().sin_cos();
+    let (mx, my) = (src.width() as f64 - 1.0, src.height() as f64 - 1.0);
+    RgbaImage::from_fn(ow, oh, |x, y| {
+        // Point de la sortie, depuis le centre, ramené dans la source par la rotation inverse.
+        let (dx, dy) = ((x as f64 + 0.5) / px_per_mm - out_mm.0 / 2.0, (y as f64 + 0.5) / px_per_mm - out_mm.1 / 2.0);
+        let (lx, ly) = (dx * cos + dy * sin, -dx * sin + dy * cos);
+        let u = ((lx + src_mm.0 / 2.0) * sx - 0.5).clamp(0.0, mx);
+        let v = ((ly + src_mm.1 / 2.0) * sy - 0.5).clamp(0.0, my);
+        let (x0, y0) = (u.floor() as u32, v.floor() as u32);
+        let (x1, y1) = ((x0 + 1).min(src.width() - 1), (y0 + 1).min(src.height() - 1));
+        let (fx, fy) = (u - x0 as f64, v - y0 as f64);
+        let (a, b, c, d) = (src.get_pixel(x0, y0).0, src.get_pixel(x1, y0).0, src.get_pixel(x0, y1).0, src.get_pixel(x1, y1).0);
+        image::Rgba(std::array::from_fn(|i| {
+            let top = a[i] as f64 * (1.0 - fx) + b[i] as f64 * fx;
+            let bottom = c[i] as f64 * (1.0 - fx) + d[i] as f64 * fx;
+            (top * (1.0 - fy) + bottom * fy).round() as u8
+        }))
+    })
 }
 
 pub(crate) fn has_pictures(doc: &Document) -> bool {
@@ -167,8 +210,9 @@ impl Writer<'_> {
     }
 
     /// Image de la photothèque prérecadrée pour le cadre : LibreOffice reçoit exactement les pixels visibles.
-    /// Renvoie son chemin dans l'archive.
-    fn cropped_picture(&mut self, asset_id: &Id, f: &Frame, crop: &Crop, (flip_h, flip_v): (bool, bool), name: &str) -> Result<String, OdgError> {
+    /// `fill_radius` : l'image remplit une forme aux coins arrondis de ce rayon ; tournée, elle est posée tournée
+    /// dans la boîte droite qui entoure la forme (voir `turned_box_mm`). Renvoie son chemin dans l'archive.
+    fn cropped_picture(&mut self, asset_id: &Id, f: &Frame, crop: &Crop, (flip_h, flip_v): (bool, bool), fill_radius: Option<f64>, name: &str) -> Result<String, OdgError> {
         let asset = self.store.get(asset_id).ok_or_else(|| OdgError::MissingAsset(asset_id.clone()))?;
         let img = image::load_from_memory(&asset.bytes).map_err(|_| OdgError::Image)?;
         let r = source_rect(img.width(), img.height(), f.w_mm, f.h_mm, crop);
@@ -182,7 +226,11 @@ impl Writer<'_> {
         if flip_v {
             cropped = cropped.flipv();
         }
-        if w.max(h) > MAX_LONG_EDGE_PX {
+        if let Some(radius) = fill_radius.filter(|_| f.rotation_deg != 0.0) {
+            let px_per_mm = (w as f64 / f.w_mm).max(h as f64 / f.h_mm);
+            cropped = DynamicImage::ImageRgba8(turned_image(&cropped.to_rgba8(), (f.w_mm, f.h_mm), turned_box_mm(f, radius), px_per_mm, f.rotation_deg));
+        }
+        if cropped.width().max(cropped.height()) > MAX_LONG_EDGE_PX {
             cropped = cropped.resize(MAX_LONG_EDGE_PX, MAX_LONG_EDGE_PX, FilterType::Lanczos3);
         }
         let mime = asset.meta.mime;
@@ -198,9 +246,9 @@ impl Writer<'_> {
 
     fn photo(&mut self, e: &Element, p: &PhotoProps) -> Result<(), OdgError> {
         let Some(asset_id) = &p.asset else { return Ok(()) };
-        let path = self.cropped_picture(asset_id, &e.frame, &p.crop, (p.mirrored || e.flip_h, e.flip_v), &e.id)?;
-        let geo = geometry(&e.frame);
         let decorated = p.corner_radius_mm > 0.0 || p.border.is_some() || p.shadow;
+        let path = self.cropped_picture(asset_id, &e.frame, &p.crop, (p.mirrored || e.flip_h, e.flip_v), decorated.then_some(p.corner_radius_mm), &e.id)?;
+        let geo = geometry(&e.frame);
         if !decorated {
             let style = self.reg.style(
                 "graphic",
@@ -217,8 +265,8 @@ impl Writer<'_> {
             self.body.close();
             return Ok(());
         }
-        // Coins arrondis, bordure ou ombre : un rectangle rempli par l'image.
-        let fill_name = format!("img_{}", e.id);
+        // Coins arrondis, bordure ou ombre : un rectangle rempli par l'image (tournée, marquée pour l'import).
+        let fill_name = format!("img_{}{}", e.id, if e.frame.rotation_deg != 0.0 { TURNED_FILL } else { "" });
         self.reg.fill_image(fill_name.clone(), path);
         let mut props = vec![
             ("draw:fill", "bitmap".into()),
@@ -308,7 +356,8 @@ impl Writer<'_> {
         let frame = t.frame.as_ref();
         let mut props: Vec<(&'static str, String)> = match (frame.and_then(|f| f.image.as_ref()), frame.and_then(|f| f.fill.clone())) {
             (Some(image), _) => {
-                let path = self.cropped_picture(image, &e.frame, &Crop::COVER, (false, false), &format!("{}-fond", e.id))?;
+                let radius = frame.map_or(0.0, |f| f.corner_radius_mm);
+                let path = self.cropped_picture(image, &e.frame, &Crop::COVER, (false, false), Some(radius), &format!("{}-fond", e.id))?;
                 let fill_name = format!("img_{}_fond", e.id);
                 self.reg.fill_image(fill_name.clone(), path);
                 vec![("draw:fill", "bitmap".into()), ("draw:fill-image-name", fill_name), ("style:repeat", "stretch".into())]
@@ -438,7 +487,11 @@ impl Writer<'_> {
             return;
         }
         if let Some(path) = shapes::path_of(s) {
-            a.extend(geometry(&e.frame));
+            // L'écran retourne la forme dans son cadre puis la tourne ; LibreOffice la retourne après l'avoir tournée.
+            // Retournée d'un seul sens, elle reçoit donc l'angle opposé (dans les deux sens, c'est un demi-tour qui
+            // ne change rien à l'angle). L'import fait l'inverse (`import::odg`, `mirror_last_shape`).
+            let f = if e.flip_h != e.flip_v { Frame { rotation_deg: -e.frame.rotation_deg, ..e.frame } } else { e.frame };
+            a.extend(geometry(&f));
             self.body.open("draw:custom-shape", &attrs(&a));
             let viewbox = format!("0 0 {0} {0}", shapes::VIEWBOX);
             let enhanced = format!("{path} N");

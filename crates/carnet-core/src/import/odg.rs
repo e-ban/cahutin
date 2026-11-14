@@ -17,6 +17,7 @@ const TEXT: &str = "urn:oasis:names:tc:opendocument:xmlns:text:1.0";
 const STYLE: &str = "urn:oasis:names:tc:opendocument:xmlns:style:1.0";
 const FO: &str = "urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0";
 const XLINK: &str = "http://www.w3.org/1999/xlink";
+const META: &str = "urn:oasis:names:tc:opendocument:xmlns:meta:1.0";
 
 /// Police mise à la place d'une police absente du poste.
 const FALLBACK_FONT: &str = "Andika";
@@ -264,6 +265,9 @@ struct PageReader<'a, R: Read + Seek> {
     /// Un dessin LibreOffice lu tel quel (dont l'export de Cahutin) : chaque cadre de texte reste un texte, avec
     /// ses alignements, sa marge et son fond. Sinon (import d'un PDF), un cadre par ligne, recollées ensuite.
     whole_frames: bool,
+    /// Fichier écrit par Cahutin avant `odg::MIRROR_AFTER_ROTATION` : une forme retournée d'un seul sens y porte
+    /// l'angle de l'écran, et non celui de LibreOffice.
+    screen_mirror_angles: bool,
 }
 
 /// Cadre d'un objet : `svg:x`, `svg:y`, ou un `draw:transform` fait d'une rotation puis d'une translation
@@ -282,22 +286,54 @@ fn frame_of(n: Node) -> Option<Frame> {
     Some(Frame { x_mm: cx - w / 2.0, y_mm: cy - h / 2.0, w_mm: w, h_mm: h, rotation_deg: if deg.abs() < 1e-6 { 0.0 } else { deg } })
 }
 
+/// Commandes M, L, C et Z, chacune devant ses coordonnées : LibreOffice, en réenregistrant, ne répète pas la lettre
+/// d'une commande qui se suit (« L 500 0 0 1000 »). Des coordonnées de plus après un M sont des L.
+fn spelled_out(path: &str) -> Option<String> {
+    let mut out: Vec<&str> = Vec::new();
+    let mut last: Option<(&str, usize)> = None;
+    let mut tokens = path.split_whitespace();
+    while let Some(t) = tokens.next() {
+        let (cmd, n, first) = match t {
+            "M" | "L" => (t, 2, None),
+            "C" => (t, 6, None),
+            "Z" => (t, 0, None),
+            _ => match last {
+                Some(("M" | "L", n)) => ("L", n, Some(t)),
+                Some(("C", n)) => ("C", n, Some(t)),
+                _ => return None,
+            },
+        };
+        out.push(cmd);
+        out.extend(first);
+        for _ in first.iter().count()..n {
+            out.push(tokens.next()?);
+        }
+        last = Some((cmd, n));
+    }
+    Some(out.join(" "))
+}
+
+/// Tracé d'un `draw:custom-shape`, commandes épelées (voir `spelled_out`).
+fn enhanced_path(g: Node) -> Option<String> {
+    spelled_out(g.attribute((DRAW, "enhanced-path"))?.trim_end_matches(" N").trim())
+}
+
 /// Tracé libre d'un `draw:custom-shape` écrit par Cahutin : repère de 0 à 1000, commandes M, L, C et Z.
 fn free_path(n: Node) -> Option<String> {
     let g = n.children().find(|c| c.has_tag_name((DRAW, "enhanced-geometry")))?;
     if g.attribute((SVG, "viewBox")) != Some("0 0 1000 1000") {
         return None;
     }
-    let path = g.attribute((DRAW, "enhanced-path"))?.trim_end_matches(" N").trim();
-    crate::shapes::valid_path(path).then(|| path.to_string())
+    let path = enhanced_path(g)?;
+    crate::shapes::valid_path(&path).then_some(path)
 }
 
 /// Forme d'un `draw:custom-shape` : une forme de Cahutin reconnue à son tracé (ce qu'écrit l'export), ou une
 /// forme toute faite de LibreOffice d'après son type.
 fn custom_shape_kind(n: Node) -> Option<ShapeKind> {
     let g = n.children().find(|c| c.has_tag_name((DRAW, "enhanced-geometry")))?;
-    let path = g.attribute((DRAW, "enhanced-path")).map(|p| p.trim_end_matches(" N"));
-    let ours = [ShapeKind::Star, ShapeKind::Heart, ShapeKind::Bubble, ShapeKind::Cloud].into_iter().find(|k| crate::shapes::path(*k).is_some_and(|sp| Some(sp) == path));
+    let path = enhanced_path(g);
+    let ours = [ShapeKind::Star, ShapeKind::Heart, ShapeKind::Bubble, ShapeKind::Cloud].into_iter().find(|k| crate::shapes::path(*k).is_some_and(|sp| Some(sp) == path.as_deref()));
     if ours.is_some() {
         return ours;
     }
@@ -575,13 +611,18 @@ impl<R: Read + Seek> PageReader<'_, R> {
     /// Une photo dans `frame`, tirée de l'image `href` du fichier ; faux si ce n'est pas une image lisible. Elle
     /// est décodée à la fin de la page (`decode_page`) ; d'ici là, son image est un repère `PENDING`.
     fn photo(&mut self, frame: Frame, href: &str, corner_radius_mm: f64) -> bool {
+        self.photo_from(frame, href, corner_radius_mm, None)
+    }
+
+    /// Comme `photo`, avec l'image déjà lue (`bytes`), rangée sous `href`.
+    fn photo_from(&mut self, frame: Frame, href: &str, corner_radius_mm: f64, bytes: Option<Vec<u8>>) -> bool {
         let asset = match self.known.get(href) {
             Some(id) => id.clone(),
             None => {
                 let at = match self.pending.iter().position(|(h, _, _)| h == href) {
                     Some(i) => i,
                     None => {
-                        let Some(bytes) = read_entry(self.zip, href).filter(|b| looks_importable(b)) else { return false };
+                        let Some(bytes) = bytes.or_else(|| read_entry(self.zip, href)).filter(|b| looks_importable(b)) else { return false };
                         self.pending.push((href.to_string(), bytes, frame.w_mm / frame.h_mm));
                         self.pending.len() - 1
                     }
@@ -602,15 +643,31 @@ impl<R: Read + Seek> PageReader<'_, R> {
         if let Some(Item::Element(e)) = self.items.last_mut() {
             e.flip_h = on("mirror-horizontal");
             e.flip_v = on("mirror-vertical");
+            // LibreOffice retourne la forme après l'avoir tournée, l'écran avant : retournée d'un seul sens, elle est
+            // tournée dans l'autre sens à l'écran (l'export écrit l'angle opposé, `odg::content`).
+            if e.flip_h != e.flip_v && e.frame.rotation_deg != 0.0 && !self.screen_mirror_angles {
+                e.frame.rotation_deg = 360.0 - e.frame.rotation_deg;
+            }
         }
     }
 
     /// Une forme remplie d'une image (la façon de LibreOffice de poser une photo dans un cadre, arrondi ou non) :
     /// elle devient une photo, à sa place. Faux si la forme n'a pas d'image de remplissage lisible.
     fn filled_with_image(&mut self, n: Node) -> bool {
-        let href = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s)).and_then(|g| g.fill_image.as_ref()).and_then(|name| self.fill_images.get(name)).cloned();
+        let name = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s)).and_then(|g| g.fill_image.clone());
+        let href = name.as_ref().and_then(|name| self.fill_images.get(name)).cloned();
         let (Some(href), Some(frame)) = (href, frame_of(n)) else { return false };
         let radius = if n.has_tag_name((DRAW, "rect")) { n.attribute((DRAW, "corner-radius")).and_then(length_mm).unwrap_or(0.0) } else { 0.0 };
+        // Image posée tournée par l'export de Cahutin (`odg::turned_box_mm`) : redressée dans le cadre.
+        if frame.rotation_deg != 0.0 && name.is_some_and(|n| n.ends_with(crate::odg::TURNED_FILL)) {
+            let upright = read_entry(self.zip, &href).and_then(|b| image::load_from_memory(&b).ok()).and_then(|img| {
+                let (bw, bh) = crate::odg::turned_box_mm(&frame, radius);
+                let px_per_mm = (img.width() as f64 / bw).max(img.height() as f64 / bh);
+                let out = crate::odg::turned_image(&img.to_rgba8(), (bw, bh), (frame.w_mm, frame.h_mm), px_per_mm, -frame.rotation_deg);
+                crate::photo::encode(&image::DynamicImage::ImageRgba8(out), Mime::Png).ok()
+            });
+            return upright.is_some_and(|b| self.photo_from(frame, &format!("{href}{}", crate::odg::TURNED_FILL), radius, Some(b)));
+        }
         self.photo(frame, &href, radius)
     }
 
@@ -914,6 +971,11 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
     let fills = fill_images(&docs);
     let styles = read_styles(&doc, known_fonts, &dashes);
     let sizes = page_sizes(styles_xml.as_deref());
+    let generator = read_entry(&mut zip, "meta.xml").and_then(|b| String::from_utf8(b).ok()).and_then(|x| {
+        let meta = roxmltree::Document::parse(&x).ok()?;
+        meta.descendants().find(|n| n.has_tag_name((META, "generator"))).and_then(|n| n.text()).map(str::to_string)
+    });
+    let screen_mirror_angles = generator.is_some_and(|g| g.starts_with("cahutin/") && !g.contains(crate::odg::MIRROR_AFTER_ROTATION));
     let mut pages = Vec::new();
     let mut assets = Vec::new();
     let mut skipped = 0;
@@ -921,7 +983,7 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
     // Images déjà décodées, par chemin dans le fichier : une image reprise sur plusieurs pages ne l'est qu'une fois.
     let mut known: HashMap<String, String> = HashMap::new();
     for page_node in doc.descendants().filter(|n| n.has_tag_name((DRAW, "page"))) {
-        let mut reader = PageReader { styles: &styles, fill_images: &fills, known: &known, pending: Vec::new(), zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, drawings: Vec::new(), shrunk: 0, whole_frames };
+        let mut reader = PageReader { styles: &styles, fill_images: &fills, known: &known, pending: Vec::new(), zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, drawings: Vec::new(), shrunk: 0, whole_frames, screen_mirror_angles };
         for c in page_node.children() {
             reader.node(c);
         }
@@ -1177,6 +1239,51 @@ mod tests {
         assert!((rect.rotation_deg - (360.0 - 0.5f64.to_degrees())).abs() < 0.01 && (rect.w_mm - 20.0).abs() < 0.01, "{rect:?}");
         let line = &imported.pages[0].elements[4].frame;
         assert!((line.x_mm - 20.0).abs() < 0.01 && (line.w_mm - 40.0).abs() < 0.01 && (line.y_mm + line.h_mm / 2.0 - 120.0).abs() < 0.01, "{line:?}");
+    }
+
+    /// Un tracé réenregistré par LibreOffice, sans la lettre des commandes qui se suivent, se relit épelé.
+    #[test]
+    fn repeated_path_commands_are_spelled_out() {
+        assert_eq!(spelled_out("M 0 0 L 500 0 0 1000 Z").as_deref(), Some("M 0 0 L 500 0 L 0 1000 Z"));
+        assert_eq!(spelled_out("M 0 0 10 10 C 1 2 3 4 5 6 7 8 9 10 11 12").as_deref(), Some("M 0 0 L 10 10 C 1 2 3 4 5 6 C 7 8 9 10 11 12"));
+        assert_eq!(spelled_out("M 0 0 L 1"), None);
+        assert_eq!(spelled_out("Z 1 2"), None);
+    }
+
+    /// Le même ODG, avec un `meta.xml` qui nomme son générateur.
+    fn with_generator(odg: Vec<u8>, generator: &str) -> Vec<u8> {
+        let mut zin = ZipArchive::new(Cursor::new(odg)).unwrap();
+        let mut buf = Cursor::new(Vec::new());
+        {
+            let mut zip = zip::ZipWriter::new(&mut buf);
+            for i in 0..zin.len() {
+                zip.raw_copy_file(zin.by_index(i).unwrap()).unwrap();
+            }
+            zip.start_file("meta.xml", zip::write::SimpleFileOptions::default()).unwrap();
+            let meta = format!(r#"<?xml version="1.0" encoding="UTF-8"?><office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:meta="{META}"><office:meta><meta:generator>{generator}</meta:generator></office:meta></office:document-meta>"#);
+            zip.write_all(meta.as_bytes()).unwrap();
+            zip.finish().unwrap();
+        }
+        buf.into_inner()
+    }
+
+    /// Forme retournée de gauche à droite et tournée : LibreOffice la retourne après l'avoir tournée, l'angle lu est
+    /// donc l'opposé de celui de l'écran (fichier de LibreOffice, ou de Cahutin avec la marque). Un fichier écrit par
+    /// Cahutin avant la marque portait l'angle de l'écran : il le garde.
+    #[test]
+    fn a_mirrored_turned_shape_reads_the_opposite_angle_except_in_old_cahutin_files() {
+        let body = r#"<draw:custom-shape draw:style-name="gr1" svg:width="4cm" svg:height="2cm" draw:transform="rotate (-0.523598775598) translate (5cm 5cm)"><draw:enhanced-geometry svg:viewBox="0 0 1000 1000" draw:enhanced-path="M 0 0 L 500 0 L 0 1000 Z N" draw:mirror-horizontal="true"/></draw:custom-shape>"#;
+        let odg = odg_fixture(body, A4_LAYOUT, &[]);
+        let read_with = |generator: Option<&str>| {
+            let bytes = generator.map_or(odg.clone(), |g| with_generator(odg.clone(), g));
+            let e = read_drawing(Cursor::new(bytes), &known()).unwrap().pages[0].elements[0].clone();
+            assert!(e.flip_h && !e.flip_v, "{e:?}");
+            (e.frame.rotation_deg * 1000.0).round() / 1000.0
+        };
+        assert_eq!(read_with(None), 330.0);
+        assert_eq!(read_with(Some("LibreOffice/26.8.2.2$Linux_X86_64 LibreOffice_project/c377f90")), 330.0);
+        assert_eq!(read_with(Some(&format!("cahutin/0.18.0 {}", crate::odg::MIRROR_AFTER_ROTATION))), 330.0);
+        assert_eq!(read_with(Some("cahutin/0.17.0")), 30.0);
     }
 
     /// Beaucoup de tracés (une illustration) : redessinés ensemble dans une image fixe, au fond de la page.

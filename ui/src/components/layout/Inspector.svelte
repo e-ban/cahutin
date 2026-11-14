@@ -13,7 +13,8 @@
   import { hasTemplateRole, templateRole, withTemplateRole } from "../../lib/templateRole";
   import { isStrokeOnly } from "../../lib/shapePaths";
   import { fonts } from "../../lib/fonts.svelte";
-  import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
+  import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setLineSpacing, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
+  import { LINE_SPACINGS } from "../../lib/lineSpacing";
   import { endPreview, previewPhoto, previewShape, previewTextStyle, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
   import { cropPosition, photoTrims, roundedFrame, wholePhoto, withPosition, withTrims, type Trims } from "../../lib/crop";
   import { bringSelection, canBringSelection, deleteSelection, mirrorSelection, rotateSelection, selectionLocked, setSelectedFrame, setSelectionSize, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
@@ -313,6 +314,14 @@
         {/each}
       </div>
       <div class="field">
+        <span>{fr.lineSpacing}</span>
+        <div class="row spacing">
+          {#each LINE_SPACINGS as s (s.key)}
+            <button title={fr.lineSpacingHints[s.key]} class:on={(t.style.line_spacing ?? null) === s.value} onpointerdown={(e) => e.preventDefault()} onclick={() => setLineSpacing(s.value)}>{fr.lineSpacings[s.key]}</button>
+          {/each}
+        </div>
+      </div>
+      <div class="field">
         <span>{fr.padding} : {textPadding(t.style)} mm</span>
         <input type="range" min="0" max="10" step="0.5" value={textPadding(t.style)} oninput={(e) => previewTextStyle({ padding_mm: Number(e.currentTarget.value) })} onchange={endPreview} />
       </div>
@@ -504,6 +513,14 @@
   .row button {
     flex: 1;
     white-space: nowrap;
+  }
+  /* Interligne : quatre mots sur une ligne du panneau. */
+  .row.spacing {
+    margin-bottom: 0;
+    gap: 4px;
+  }
+  .row.spacing button {
+    padding-inline: 2px;
   }
   .deg {
     width: 4.5em;

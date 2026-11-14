@@ -23,6 +23,7 @@ export type { ExampleInfo } from "./gen/ExampleInfo";
 export type { ElementKind } from "./gen/ElementKind";
 export type { FontFamilyInfo } from "./gen/FontFamilyInfo";
 export type { FontFileInfo } from "./gen/FontFileInfo";
+export type { FontMetrics } from "./gen/FontMetrics";
 export type { Frame } from "./gen/Frame";
 export type { GraphismeRow } from "./gen/GraphismeRow";
 export type { GridCell } from "./gen/GridCell";

@@ -13,7 +13,10 @@
   import { fr } from "../../lib/i18n/fr";
   import { settings } from "../../lib/settings.svelte";
   import { actionsPlace, contentHeightPx, fitActions, grownHeight, neededHeightMm, shrunkText } from "../../lib/textFit";
-  import { mmToPx } from "../../lib/units";
+  import { isTableCell } from "../../lib/table";
+  import { fonts } from "../../lib/fonts.svelte";
+  import { lineBox } from "../../lib/lineSpacing";
+  import { mmToPx, PX_PER_MM } from "../../lib/units";
   import type { Element, RichText, Run, TextProps } from "../../lib/types";
 
   let {
@@ -29,6 +32,18 @@
   let overflow = $state(false);
 
   const blank = $derived(props.content.paragraphs.every((p) => p.runs.every((r) => r.text.trim() === "")));
+
+  // Interligne : hauteur de ligne et décalage du texte qui posent les lignes sur celles de l'ODG (lib/lineSpacing.ts).
+  // Le décalage ne prend pas de place (la hauteur occupée est celle de LibreOffice). Au-dessus de 1, il ne descend
+  // sous la dernière ligne que du blanc : il est ôté de la hauteur mesurée pour dire si le texte dépasse. Sous 1, il
+  // descend les jambages de la dernière ligne, qui dépassent déjà de la hauteur occupée : il compte, et « Agrandir
+  // le cadre » leur fait la place (l'écran et l'impression les couperaient). Police absente de la liste : l'écran
+  // prend Andika, ses hauteurs aussi.
+  const lineAt = (size_pt: number) => lineBox(props.style.line_spacing, fonts.families.find((f) => f.name === props.style.font)?.metrics, size_pt);
+  const line = $derived(lineAt(props.style.size_pt));
+  const blankBelowMm = (shiftMm: number) => ((props.style.line_spacing ?? 1) >= 1 ? Math.max(0, shiftMm) : 0);
+  const textHeightPx = (el: HTMLElement, shiftMm: number) => el.scrollHeight - blankBelowMm(shiftMm) * PX_PER_MM;
+  const overflows = (el: HTMLElement) => textHeightPx(el, line.shiftMm) > el.clientHeight + 1;
 
   function runStyle(r: Run): string {
     return [
@@ -47,9 +62,10 @@
     void props;
     void editing;
     void element.frame;
+    void line;
     if (!box) return;
     const el = box;
-    const measure = () => requestAnimationFrame(() => (overflow = el.scrollHeight > el.clientHeight + 1));
+    const measure = () => requestAnimationFrame(() => (overflow = overflows(el)));
     measure();
     return onFontsLoaded(document.fonts, measure);
   });
@@ -60,7 +76,7 @@
     const flow = box?.firstElementChild;
     if (!box || !flow || typeof ResizeObserver === "undefined") return;
     const el = box;
-    const ro = new ResizeObserver(() => (overflow = el.scrollHeight > el.clientHeight + 1));
+    const ro = new ResizeObserver(() => (overflow = overflows(el)));
     ro.observe(flow);
     return () => ro.disconnect();
   });
@@ -77,12 +93,16 @@
   const fixGap = $derived(handleHalf + 6 + handlePadding(mmToPx(element.frame.h_mm, zoom), settings.bigHandles));
   const FIX_HEIGHT_PX = 30;
   let fixWidth = $state(270);
-  const fixPlace = $derived(actionsPlace(element.frame, editor.page.size, zoom, fixGap + FIX_HEIGHT_PX, fixWidth));
+  // Dans une case de tableau, la barre du tableau occupe le dessous de la case : les boutons vont dans la case.
+  const fixPlace = $derived.by(() => {
+    const place = actionsPlace(element.frame, editor.page.size, zoom, fixGap + FIX_HEIGHT_PX, fixWidth);
+    return isTableCell(editor.page, element.id) ? { ...place, inside: true } : place;
+  });
 
   /** Un seul pas d'annulation, et aucun si rien ne change. */
   function growFrame() {
     if (!box) return;
-    const need = Math.max(neededHeightMm(contentHeightPx(box) + 1, textPadding(props.style)), neededHeightMm(box.scrollHeight + 1, 0));
+    const need = Math.max(neededHeightMm(contentHeightPx(box) + 1, textPadding(props.style)), neededHeightMm(textHeightPx(box, line.shiftMm) + 1, 0));
     const g = grownHeight(need, element.frame, editor.page.size.height_mm);
     if (g) editor.updateElement(element.id, (e) => ({ ...e, frame: { ...e.frame, h_mm: g.h_mm } }));
   }
@@ -93,6 +113,10 @@
     const clone = box.cloneNode(true) as HTMLDivElement;
     clone.style.visibility = "hidden";
     clone.style.fontSize = `${p.style.size_pt}pt`;
+    // L'interligne suit la taille essayée (ses hauteurs sont arrondies à la taille).
+    const tried = lineAt(p.style.size_pt);
+    if (tried.lineHeight != null) clone.style.lineHeight = String(tried.lineHeight);
+    if (clone.firstElementChild instanceof HTMLElement && tried.shiftMm) clone.firstElementChild.style.top = `${tried.shiftMm}mm`;
     clone.setAttribute("aria-hidden", "true");
     const paras = clone.querySelectorAll<HTMLElement>(":scope > .flow > p");
     p.content.paragraphs.forEach((q, i) =>
@@ -102,7 +126,7 @@
       }),
     );
     box.after(clone);
-    const fits = clone.scrollHeight <= clone.clientHeight + 1;
+    const fits = textHeightPx(clone, tried.shiftMm) <= clone.clientHeight + 1;
     clone.remove();
     return fits;
   }
@@ -110,6 +134,14 @@
   function shrinkText() {
     const next = shrunkText(props, fitsAt);
     if (next) editor.updateElement(element.id, (e) => (e.kind.type === "Text" ? { ...e, kind: { ...e.kind, style: next.style, content: next.content } } : e));
+  }
+
+  /** Un double-clic sur un bouton : le premier clic corrige et le bouton disparaît, le second tombe sur le bloc
+   *  (agrandi sous le bouton) ; ce double-clic n'ouvre pas l'écriture. */
+  function swallowDblclick() {
+    const stop = (ev: Event) => ev.stopPropagation();
+    window.addEventListener("dblclick", stop, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener("dblclick", stop, { capture: true }), 600);
   }
 
   /** Un appui sur les boutons ne prend ni ne déplace le bloc, et deux clics de suite ne l'ouvrent pas à l'écriture.
@@ -172,13 +204,21 @@
   style:transform="scale({zoom})"
   style:font-family={`"${props.style.font}", "Andika"`}
   style:font-size="{props.style.size_pt}pt"
+  style:line-height={line.lineHeight}
   style:color={props.style.color}
   style:text-align={alignToCss(props.style.align)}
   class:outline={props.style.outline}
   class:editing
 >
   <!-- Alignement vertical par marges automatiques : un texte trop long part du haut, sans déborder vers le haut. -->
-  <div class="flow" class:middle={props.style.valign === "Middle"} class:bottom={props.style.valign === "Bottom"}>
+  <!-- Le décalage de l'interligne déplace le texte sans rien changer à la mise en page, écriture comprise. -->
+  <div
+    class="flow"
+    class:middle={props.style.valign === "Middle"}
+    class:bottom={props.style.valign === "Bottom"}
+    style:position={line.shiftMm ? "relative" : null}
+    style:top={line.shiftMm ? `${line.shiftMm}mm` : null}
+  >
     {#if editing && ondone}
       <TextEditor {props} {ondone} />
     {:else if blank}
@@ -210,8 +250,8 @@
       use:shield
       bind:offsetWidth={fixWidth}
     >
-      {#if fix.grow}<button type="button" title={fr.textGrowFrameHint} onclick={(ev) => (ev.currentTarget.blur(), growFrame())}>{fr.textGrowFrame}</button>{/if}
-      {#if fix.shrink}<button type="button" title={fr.textShrinkHint} onclick={(ev) => (ev.currentTarget.blur(), shrinkText())}>{fr.textShrink}</button>{/if}
+      {#if fix.grow}<button type="button" title={fr.textGrowFrameHint} onclick={(ev) => (ev.currentTarget.blur(), swallowDblclick(), growFrame())}>{fr.textGrowFrame}</button>{/if}
+      {#if fix.shrink}<button type="button" title={fr.textShrinkHint} onclick={(ev) => (ev.currentTarget.blur(), swallowDblclick(), shrinkText())}>{fr.textShrink}</button>{/if}
     </div>
   {:else}
     <span class="badge" style:transform="scale({Math.max(zoom, 0.6)})">{fr.textTooLong}</span>

@@ -25,6 +25,8 @@ pub struct FontFace {
     pub user: bool,
     /// Installée sur le poste : le fichier est lu là où il est, seulement quand on en a besoin.
     pub system: bool,
+    /// Lue à l'ouverture du fichier ; `None` : police illisible.
+    pub metrics: Option<FontMetrics>,
 }
 
 #[derive(Debug, Clone)]
@@ -62,6 +64,25 @@ pub struct FontFamilyInfo {
     pub embeddable: bool,
     /// Un mot pour les polices fournies (« scripte », « cursive »…), rien pour celles de l'utilisateur.
     pub kind: Option<String>,
+    /// Hauteurs du régulier de la famille, pour l'interligne à l'écran ; `None` : inconnues.
+    #[ts(optional = nullable)]
+    pub metrics: Option<FontMetrics>,
+}
+
+/// Hauteurs d'une police, dans ses unités (`units_per_em` pour la taille de la police) : ascendante et
+/// descendante (positive) de la table que lisent LibreOffice et le moteur web (hhea, ou OS/2 typo si la police le
+/// demande), sans l'interligne externe.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, TS)]
+#[ts(export)]
+pub struct FontMetrics {
+    pub units_per_em: u16,
+    pub ascent: f64,
+    pub descent: f64,
+}
+
+fn metrics_of(face: &FontRef) -> Option<FontMetrics> {
+    let m = face.metrics(Size::unscaled(), LocationRef::default());
+    (m.units_per_em > 0).then(|| FontMetrics { units_per_em: m.units_per_em, ascent: m.ascent as f64, descent: -(m.descent as f64) })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,19 +106,21 @@ impl FontError {
 }
 
 macro_rules! face {
-    ($family:literal, $bold:literal, $italic:literal, $dir:literal, $file:literal, $format:literal) => {
+    ($family:literal, $bold:literal, $italic:literal, $dir:literal, $file:literal, $format:literal) => {{
+        let bytes: &'static [u8] = include_bytes!(concat!("../../../assets/fonts/", $dir, "/", $file));
         FontFace {
             family: $family.to_string(),
             bold: $bold,
             italic: $italic,
             file_name: $file.to_string(),
             format: $format,
-            data: FontData::Loaded(Arc::from(&include_bytes!(concat!("../../../assets/fonts/", $dir, "/", $file))[..])),
+            data: FontData::Loaded(Arc::from(bytes)),
             embeddable: true,
             user: false,
             system: false,
+            metrics: FontRef::new(bytes).ok().as_ref().and_then(metrics_of),
         }
-    };
+    }};
 }
 
 fn builtin_faces() -> &'static [FontFace] {
@@ -164,6 +187,7 @@ fn parse_face(bytes: &[u8], file_name: &str) -> Result<FontFace, FontError> {
         embeddable: embeddable(&face),
         user: true,
         system: false,
+        metrics: metrics_of(&face),
     })
 }
 
@@ -217,6 +241,7 @@ impl FontSet {
                 system: f.system,
                 embeddable: faces().all(|g| g.embeddable),
                 kind: builtin_kind(&f.family).filter(|_| !f.user && !f.system),
+                metrics: self.face(&f.family, false, false).and_then(|g| g.metrics),
             });
         }
         out
@@ -294,9 +319,9 @@ fn faces_from_db(db: &fontdb::Database) -> Vec<FontFace> {
         if info.index > 0 || info.stretch != fontdb::Stretch::Normal {
             continue;
         }
-        let Some((collection, opentype, embeddable)) = db.with_face_data(info.id, |data, index| {
+        let Some((collection, opentype, embeddable, metrics)) = db.with_face_data(info.id, |data, index| {
             let face = FontRef::from_index(data, index).ok()?;
-            Some((data.starts_with(b"ttcf"), data.starts_with(b"OTTO"), embeddable(&face)))
+            Some((data.starts_with(b"ttcf"), data.starts_with(b"OTTO"), embeddable(&face), metrics_of(&face)))
         }).flatten() else {
             continue;
         };
@@ -315,6 +340,7 @@ fn faces_from_db(db: &fontdb::Database) -> Vec<FontFace> {
             embeddable,
             user: false,
             system: true,
+            metrics,
         };
         match out.iter_mut().find(|(f, _)| f.family == face.family && f.bold == face.bold && f.italic == face.italic) {
             Some(slot) if distance < slot.1 => *slot = (face, distance),
@@ -406,6 +432,16 @@ mod tests {
         assert!(builtin_text_width_mm("Inconnue", false, false, 12.0, "x").is_none());
         let line = builtin_line_height_mm("Andika", 12.0).unwrap();
         assert!(line > 12.0 * 25.4 / 72.0 && line < 2.0 * 12.0 * 25.4 / 72.0, "{line}");
+    }
+
+    /// Les valeurs de la campagne de mesure de l'interligne (hhea = OS/2 typo, sans interligne externe).
+    #[test]
+    fn builtin_metrics_are_those_measured() {
+        let families = FontSet::builtin().families();
+        let m = |name: &str| families.iter().find(|f| f.name == name).and_then(|f| f.metrics).unwrap();
+        assert_eq!(m("Andika"), FontMetrics { units_per_em: 2048, ascent: 2500.0, descent: 800.0 });
+        assert_eq!(m("Playwrite FR Moderne"), FontMetrics { units_per_em: 1000, ascent: 1550.0, descent: 607.0 });
+        assert!(families.iter().all(|f| f.metrics.is_some()), "{families:?}");
     }
 
     #[test]

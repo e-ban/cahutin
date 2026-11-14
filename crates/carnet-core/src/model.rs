@@ -48,9 +48,10 @@ pub fn renew_ids(page: &mut Page) {
 /// alignement vertical, marge et bordures en tirets ou pointillés ; 4 : tableau, lettres creuses ; 5 : photo en
 /// miroir, lignes d'écriture, styles nommés ; 6 : image à colorier ou en couleur de peau, tracé libre, groupe dans
 /// un groupe ; 7 : miroir d'un élément autre qu'une photo, ou de haut en bas ; 8 : champs de la classe sans
-/// accents, `{prenom}` ; 9 : recette des lignes de graphisme, lue seulement : `native::written_version` n'écrit
-/// jamais plus de 8, une version plus ancienne voit des lignes ordinaires).
-pub const FORMAT_VERSION: u32 = 10;
+/// accents, `{prenom}` ; 9 : recette des lignes de graphisme, lue seulement : une version plus ancienne voit des
+/// lignes ordinaires ; 11 : interligne d'un texte, la seule version que `native::written_version` écrit au-delà
+/// de 8).
+pub const FORMAT_VERSION: u32 = 11;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -361,6 +362,12 @@ pub struct TextStyle {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub named: Option<String>,
+    /// Interligne du bloc entier, en multiple de la hauteur naturelle d'une ligne (1,5 : une ligne et demie) ;
+    /// absent : l'interligne de la police, tel qu'il a toujours été rendu. Pas dans les styles nommés, comme
+    /// l'alignement vertical et la marge : un réglage du bloc, gardé quand on applique un style.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub line_spacing: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
@@ -381,7 +388,7 @@ impl TextStyle {
     }
 
     pub fn default_zone() -> TextStyle {
-        TextStyle { font: "Andika".into(), size_pt: 14.0, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None, outline: None, named: None }
+        TextStyle { font: "Andika".into(), size_pt: 14.0, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None, outline: None, named: None, line_spacing: None }
     }
 }
 

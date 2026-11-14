@@ -172,7 +172,7 @@ pub fn add_caption(doc: &mut Document, args: &Value) -> Result<Value, String> {
     let path: Vec<Id> = if in_grid { Vec::new() } else if photo.group.is_some() { groups::path(&photo) } else { vec![new_id()] };
     let (x0, _, x1, y1) = bounds(&[&photo]);
     let max_y = page.size.height_mm - CAPTION_HEIGHT_MM - CAPTION_GAP_MM;
-    let style = TextStyle { font: "Andika".into(), size_pt: 12.0, color: "#333333".into(), align: Align::Center, valign: None, padding_mm: None, outline: None, named: None };
+    let style = TextStyle { font: "Andika".into(), size_pt: 12.0, color: "#333333".into(), align: Align::Center, valign: None, padding_mm: None, outline: None, named: None, line_spacing: None };
     let kind = ElementKind::Text(TextProps { content: RichText::plain(content), style, prompt: Some(CAPTION_PROMPT.into()), frame: None });
     let mut caption = element(new_id(), frame(round(x0), round((y1 + CAPTION_GAP_MM).min(max_y)), round(x1 - x0), CAPTION_HEIGHT_MM), None, kind);
     groups::set_path(&mut caption, path.clone());

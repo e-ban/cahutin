@@ -792,3 +792,46 @@ fn frame_image_and_dotted_photo_border_are_rendered() {
     let switches = row.windows(2).filter(|p| p[0] != p[1]).count();
     assert!(switches > 20, "pointillés : {switches} changements sur 80 mm");
 }
+
+/// Interligne à 150 % : le pas des lignes vaut une fois et demie celui du même texte sans réglage. Comparé à un
+/// bloc témoin rendu dans le même PDF, pour ne pas dépendre des hauteurs exactes du LibreOffice qui fait le rendu.
+#[test]
+#[ignore]
+fn line_spacing_sets_the_line_pitch() {
+    let mut doc = Document::new("interligne");
+    let block = |x_mm: f64, prefix: &str, spacing: Option<f64>| {
+        let mut style = TextStyle::default_zone();
+        style.size_pt = 20.0;
+        style.line_spacing = spacing;
+        let text = (1..=5).map(|i| format!("{prefix}{i}")).collect::<Vec<_>>().join("\n");
+        Element {
+            id: new_id(),
+            frame: Frame { x_mm, y_mm: ORIGIN_MM, w_mm: 70.0, h_mm: 150.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Text(TextProps { content: RichText::plain(&text), style, prompt: None, frame: None }),
+            subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
+        }
+    };
+    doc.pages[0].elements.push(block(ORIGIN_MM, "Témoin", None));
+    doc.pages[0].elements.push(block(ORIGIN_MM + 90.0, "Aéré", Some(1.5)));
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    let words = words(&pdf);
+    let tops = |prefix: &str| -> Vec<f64> {
+        (1..=5).map(|i| words.iter().find(|w| w.text == format!("{prefix}{i}")).unwrap_or_else(|| panic!("{prefix}{i} absent")).y_min).collect()
+    };
+    let (plain, airy) = (tops("Témoin"), tops("Aéré"));
+    let pitch = |t: &[f64]| (t[4] - t[0]) / 4.0;
+    let (p1, p15) = (pitch(&plain), pitch(&airy));
+    assert!(p1 > 5.0, "pas témoin {p1:.2} pt");
+    for w in airy.windows(2) {
+        assert!((w[1] - w[0] - p15).abs() < TOLERANCE_PT, "pas irréguliers : {airy:?}");
+    }
+    let ratio = p15 / p1;
+    assert!((ratio - 1.5).abs() < 0.03, "pas {p15:.2} pt contre {p1:.2} pt : rapport {ratio:.3}");
+    // L'écran suppose que l'espace ajouté va au-dessus de chaque ligne, la première comprise (LibreOffice 26.8) :
+    // dit ici sans être exigé, une autre version de LibreOffice pouvant le placer autrement.
+    eprintln!("première ligne descendue de {:.2} pt (au-dessus seulement : {:.2} pt)", airy[0] - plain[0], 0.5 * p1);
+}

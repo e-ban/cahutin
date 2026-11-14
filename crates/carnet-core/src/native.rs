@@ -76,7 +76,7 @@ pub fn used_assets(doc: &Document) -> BTreeSet<String> {
     doc.pages.iter().flat_map(|p| &p.elements).flat_map(Element::asset_ids).cloned().collect()
 }
 
-/// 5 avec une photo en miroir, des lignes d'écriture dans un cadre ou des styles nommés, 4 avec un tableau, 3 avec un réglage
+/// 11 avec l'interligne d'un texte, 5 avec une photo en miroir, des lignes d'écriture dans un cadre ou des styles nommés, 4 avec un tableau, 3 avec un réglage
 /// de la version 3, 2 avec une image (un Carnet plus ancien affiche
 /// alors « version plus récente »), sinon 1.
 pub fn written_version(doc: &Document) -> u32 {
@@ -92,6 +92,10 @@ pub fn written_version(doc: &Document) -> u32 {
     // Miroir d'un élément autre qu'une photo de gauche à droite, ou de haut en bas : inconnu avant la version 7.
     // Champ de la classe sans accents (`{prenom}`) : une version plus ancienne l'afficherait sans le remplir.
     let new_field = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if crate::fields::has_fields_text(t) || crate::fields::has_class_fields_text(t) || crate::fields::has_auto_fields_text(t));
+    // Interligne : une version plus ancienne l'ignorerait, puis l'effacerait en enregistrant.
+    if elements().any(|e| matches!(&e.kind, ElementKind::Text(t) if t.style.line_spacing.is_some())) {
+        return 11;
+    }
     if elements().any(new_field) {
         return 8;
     }
@@ -526,6 +530,30 @@ mod tests {
         assert_eq!(written_version(&doc), 4);
     }
 
+    /// L'interligne demande le format 11 ; un fichier sans ce réglage garde sa version, et l'ancien JSON se lit.
+    #[test]
+    fn line_spacing_is_version_11_and_absent_stays_unwritten() {
+        let mut doc = Document::new("v");
+        doc.pages[0].elements.push(picture(None));
+        doc.pages[0].elements.push(text_el(TextStyle::default_zone(), None));
+        assert_eq!(written_version(&doc), 2);
+        let json = serde_json::to_string(&doc).unwrap();
+        assert!(!json.contains("line_spacing"), "{json}");
+        let old = r##"{"font":"Andika","size_pt":14.0,"color":"#222222","align":"Left","valign":null,"padding_mm":null,"outline":null}"##;
+        assert_eq!(serde_json::from_str::<TextStyle>(old).unwrap().line_spacing, None);
+        if let ElementKind::Text(t) = &mut doc.pages[0].elements[1].kind {
+            t.style.line_spacing = Some(1.5);
+        }
+        assert_eq!(written_version(&doc), 11);
+        let mut buf = Cursor::new(Vec::new());
+        save(&doc, &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
+        buf.set_position(0);
+        let loaded = load(buf).unwrap().doc;
+        assert_eq!(loaded.format_version, 11);
+        let ElementKind::Text(t) = &loaded.pages[0].elements[1].kind else { panic!() };
+        assert_eq!(t.style.line_spacing, Some(1.5));
+    }
+
     /// La date de prise de vue est ignorée par une version plus ancienne : elle ne relève pas la version écrite.
     #[test]
     fn a_capture_day_does_not_raise_the_written_version() {
@@ -626,9 +654,9 @@ mod tests {
     }
 
     #[test]
-    fn newer_than_10_is_refused() {
+    fn newer_than_11_is_refused() {
         let mut doc = Document::new("futur");
-        doc.format_version = 11;
+        doc.format_version = 12;
         let json = serde_json::to_vec(&doc).unwrap();
         let mut buf = Cursor::new(Vec::new());
         {
@@ -639,7 +667,7 @@ mod tests {
         }
         buf.set_position(0);
         let err = load(buf).err().unwrap();
-        assert_eq!(err, NativeError::NewerVersion(11));
+        assert_eq!(err, NativeError::NewerVersion(12));
         assert!(err.message_fr().contains("plus récente"));
         assert!(err.message_fr().contains("mettez Cahutin à jour"), "dire quoi faire");
     }

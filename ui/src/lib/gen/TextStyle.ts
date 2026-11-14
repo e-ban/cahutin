@@ -18,4 +18,10 @@ outline?: boolean | null,
 /**
  * Style nommé que suit ce texte (« titre », « consigne »…) : le modifier change tous ses textes.
  */
-named?: string | null, };
+named?: string | null, 
+/**
+ * Interligne du bloc entier, en multiple de la hauteur naturelle d'une ligne (1,5 : une ligne et demie) ;
+ * absent : l'interligne de la police, tel qu'il a toujours été rendu. Pas dans les styles nommés, comme
+ * l'alignement vertical et la marge : un réglage du bloc, gardé quand on applique un style.
+ */
+line_spacing?: number | null, };

@@ -65,19 +65,19 @@ pub(crate) fn el(f: Frame, kind: ElementKind) -> Element {
 }
 
 pub(crate) fn text(f: Frame, content: &str, font: &str, size_pt: f64, color: &str, align: Align) -> Element {
-    let style = TextStyle { font: font.into(), size_pt, color: color.into(), align, valign: None, padding_mm: None, outline: None, named: None };
+    let style = TextStyle { font: font.into(), size_pt, color: color.into(), align, valign: None, padding_mm: None, outline: None, named: None, line_spacing: None };
     el(f, ElementKind::Text(TextProps { content: RichText::plain(content), style, prompt: None, frame: None }))
 }
 
 /// Zone de texte à remplir, avec son invite.
 pub(crate) fn text_zone(f: Frame, prompt: &str, font: &str, size_pt: f64) -> Element {
-    let style = TextStyle { font: font.into(), size_pt, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None, outline: None, named: None };
+    let style = TextStyle { font: font.into(), size_pt, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None, outline: None, named: None, line_spacing: None };
     Element { zone: true, ..el(f, ElementKind::Text(TextProps { content: RichText::default(), style, prompt: Some(prompt.into()), frame: None })) }
 }
 
 /// Un texte qui ne contient qu'un champ de la classe (`field` sans accolades : `prenom`, `PRENOM_2`…).
 pub(crate) fn field_text(f: Frame, field: &str, font: &str, size_pt: f64) -> Element {
-    let style = TextStyle { font: font.into(), size_pt, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None, outline: None, named: None };
+    let style = TextStyle { font: font.into(), size_pt, color: "#222222".into(), align: Align::Left, valign: None, padding_mm: None, outline: None, named: None, line_spacing: None };
     el(f, ElementKind::Text(TextProps { content: RichText::plain(&format!("{{{field}}}")), style, prompt: None, frame: None }))
 }
 

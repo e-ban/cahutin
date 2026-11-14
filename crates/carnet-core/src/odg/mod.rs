@@ -487,6 +487,25 @@ mod tests {
     }
 
     #[test]
+    fn line_spacing_is_a_percentage_and_absent_stays_100() {
+        let mut t = text(RichText::plain("aéré"), None);
+        if let ElementKind::Text(p) = &mut t.kind {
+            p.style.line_spacing = Some(1.5);
+        }
+        let mut tight = text(RichText::plain("serré"), None);
+        if let ElementKind::Text(p) = &mut tight.kind {
+            p.style.line_spacing = Some(0.8);
+        }
+        let mut e = export(&doc_with(vec![t, tight]), &AssetStore::default());
+        let content = e.xml("content.xml");
+        assert!(content.contains(r#"fo:line-height="150%""#), "{content}");
+        assert!(content.contains(r#"fo:line-height="80%""#), "{content}");
+        let mut e = export(&doc_with(vec![text(RichText::plain("normal"), None)]), &AssetStore::default());
+        let content = e.xml("content.xml");
+        assert!(content.contains(r#"fo:line-height="100%""#) && !content.contains(r#"fo:line-height="150%""#), "{content}");
+    }
+
+    #[test]
     fn vertical_alignment_and_padding_are_exported() {
         let mut t = text(RichText::plain("milieu"), None);
         if let ElementKind::Text(p) = &mut t.kind {

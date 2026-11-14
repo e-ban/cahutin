@@ -141,6 +141,9 @@ fn changes(doc: &Document, b: &Element, a: &Element) -> Vec<String> {
                     .into(),
                 );
             }
+            if sb.line_spacing != sa.line_spacing {
+                out.push("interligne changé".into());
+            }
             let (frb, fra) = (tb.frame.clone().unwrap_or_default(), ta.frame.clone().unwrap_or_default());
             if frb.pattern != fra.pattern {
                 out.push(lines_fr(fra.pattern));
@@ -595,6 +598,16 @@ mod tests {
             describe(&b, &a),
             ["Texte : lettres creuses", "Texte : centré en hauteur", "Texte : lignes d'écriture (quadrillage Seyès)", "Texte : fond changé", "Texte : bord changé"]
         );
+    }
+
+    #[test]
+    fn line_spacing_changed_in_the_panel() {
+        let (b, a) = after(|d| {
+            if let ElementKind::Text(t) = &mut d.pages[0].elements[0].kind {
+                t.style.line_spacing = Some(1.5);
+            }
+        });
+        assert_eq!(describe(&b, &a), ["Texte : interligne changé"]);
     }
 
     #[test]

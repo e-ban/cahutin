@@ -350,7 +350,9 @@ impl Writer<'_> {
                 "style:paragraph-properties",
                 vec![
                     ("fo:text-align", align(p.align.unwrap_or(t.style.align)).into()),
-                    ("fo:line-height", "100%".into()),
+                    // Interligne : un pourcentage de la hauteur naturelle, tout l'espace ajouté au-dessus de chaque
+                    // ligne (l'écran le reproduit, voir ui/src/lib/lineSpacing.ts). Absent : 100 %, comme toujours.
+                    ("fo:line-height", t.style.line_spacing.map_or("100%".into(), |n| format!("{}%", (n * 100.0).round()))),
                     ("fo:margin-top", "0mm".into()),
                     ("fo:margin-bottom", "0mm".into()),
                 ],

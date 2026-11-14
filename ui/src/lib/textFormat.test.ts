@@ -2,7 +2,7 @@ import type { Editor } from "@tiptap/core";
 import { afterEach, expect, test } from "vitest";
 import { editor } from "./docStore.svelte";
 import { newDocument, textElement } from "./factory";
-import { setColor, setFont, setSize } from "./textFormat.svelte";
+import { setColor, setFont, setLineSpacing, setSize } from "./textFormat.svelte";
 import { textEditing } from "./textEditing.svelte";
 import type { Element, TextProps } from "./types";
 
@@ -64,4 +64,18 @@ test("pendant l'écriture, tout le texte sélectionné donne la taille au bloc",
   setFont("OpenDyslexic");
   expect(calls).toEqual(expect.arrayContaining(["setFontSize 96pt", "setFontFamily OpenDyslexic"]));
   expect(props().style).toMatchObject({ size_pt: 96, font: "OpenDyslexic" });
+});
+
+test("l'interligne va au bloc entier, même pendant l'écriture, en un pas d'annulation", () => {
+  const id = open();
+  const calls = writing(id, 9, 12);
+  setLineSpacing(1.5);
+  expect(props().style.line_spacing).toBe(1.5);
+  expect(calls).toEqual([]);
+  setLineSpacing(null);
+  expect(props().style.line_spacing).toBeNull();
+  editor.undo();
+  expect(props().style.line_spacing).toBe(1.5);
+  editor.undo();
+  expect(props().style.line_spacing ?? null).toBeNull();
 });

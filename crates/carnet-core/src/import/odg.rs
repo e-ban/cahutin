@@ -516,6 +516,8 @@ impl<R: Read + Seek> PageReader<'_, R> {
             padding_mm: g.padding_mm,
             outline: outline.then_some(true),
             named: None,
+            // `fo:line-height` n'est pas lu : un texte importé garde l'interligne de sa police.
+            line_spacing: None,
         };
         // Ce qui ne fait que répéter le style du texte est retiré des morceaux, comme dans un texte de Cahutin.
         let paragraphs = paragraphs

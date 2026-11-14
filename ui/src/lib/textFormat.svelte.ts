@@ -75,6 +75,11 @@ export function setVAlign(valign: VAlign) {
   setStyle({ valign: valign === "Top" ? null : valign });
 }
 
+/** Interligne : réglage du bloc entier, même pendant l'écriture ; null : celui de la police. */
+export function setLineSpacing(spacing: number | null) {
+  setStyle({ line_spacing: spacing });
+}
+
 export function toggleMark(mark: Mark) {
   const tip = activeTip();
   if (tip) {

@@ -78,6 +78,7 @@ fn element_view(doc: &Document, page: &Page, e: &Element, selected: bool) -> Val
             "align": format!("{:?}", t.style.align).to_lowercase(),
             "valign": t.style.valign.map(|a| format!("{a:?}").to_lowercase()),
             "outline": t.style.outline.unwrap_or(false),
+            "line_spacing": t.style.line_spacing,
             "padding_mm": t.style.padding(),
             "style": t.style.named,
             // Les champs de la classe du texte ({prenom}…), noms de Cahutin ; jamais les mots autour.

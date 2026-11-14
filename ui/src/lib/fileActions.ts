@@ -17,6 +17,10 @@ import { addRecent, withoutRecent, writeRecents } from "./recents";
 import { missingFamilies } from "./fontNames";
 import type { Document, ImportedPages, ImportOutcome, OpenedDocument } from "./types";
 import { modal } from "./modal.svelte";
+import { IS_LINUX } from "./cursors";
+import { expandSelection } from "./groups";
+import { atRisk, mixedSheets, pagesAtRisk, printWarning } from "./printSafety";
+import { formatOf, printSheet } from "./pageFormat";
 
 const baseName = () => (editor.doc.title.trim() || "Sans titre").replace(/[\\/:*?"<>|]/g, "-");
 
@@ -333,17 +337,39 @@ export async function printDuplex() {
   }
 }
 
+/** Prévient, sans retenir l'impression, de ce que l'imprimante risque de couper (lib/printSafety.ts), après
+ *  `before` s'il y a déjà un avis. L'avis reste affiché pendant la fenêtre d'impression et après. */
+function warnPrint(pdf: boolean, before?: string) {
+  const w = printWarning(editor.doc, { linux: IS_LINUX, pdf, tiles: editor.printTiles });
+  if (!w) {
+    if (before) editor.notice = before;
+    return;
+  }
+  editor.notify(before ? `${before}\n\n${w.message}` : w.message, w.ids.length ? { label: fr.edgeRiskShow, run: showAtRisk } : undefined);
+}
+
+/** Bouton de l'avis : la première page en cause, ses éléments à risque choisis (avec leur groupe). */
+function showAtRisk() {
+  const i = pagesAtRisk(editor.doc)[0];
+  if (i === undefined) return;
+  editor.goToPage(i + 1);
+  editor.selection = expandSelection(editor.page, atRisk(editor.page).map((e) => e.id));
+}
+
 export async function print() {
   if (!(await assistant.settle())) return;
+  warnPrint(false);
+  const sheet = printSheet(editor.doc.pages[0].size, editor.printTiles);
   // Selon le moteur, window.print() bloque ou rend la main tout de suite : on garde les pages
   // jusqu'à la fin de l'impression.
-  await withPrintPages(
-    () =>
-      new Promise<void>((done) => {
-        window.addEventListener("afterprint", () => done(), { once: true });
-        window.print();
-      }),
-  );
+  await withPrintPages(async () => {
+    // Sous Linux, la fenêtre d'impression s'ouvre sur le papier et l'orientation de la première feuille.
+    await api.preparePrint(sheet.width_mm, sheet.height_mm).catch(() => undefined);
+    await new Promise<void>((done) => {
+      window.addEventListener("afterprint", () => done(), { once: true });
+      window.print();
+    });
+  });
 }
 
 /** `target` : chemin déjà choisi, sans fenêtre (essais en développement). */
@@ -353,8 +379,12 @@ export async function exportPdf(target?: string) {
   if (!picked) return;
   const path = withExt(picked, "pdf");
   const first = editor.doc.pages[0].size;
-  const done = await withPrintPages(() => guard(() => api.exportPdf(path, first.width_mm, first.height_mm)));
-  if (done !== undefined) editor.notice = `PDF enregistré : ${fileName(path)}`;
+  // Chaque page à son format, sauf avec une page de format libre : seule la voie de secours la met à sa taille.
+  const pageSizes = editor.doc.pages.every((p) => formatOf(p.size) !== null);
+  const route = await withPrintPages(() => guard(() => api.exportPdf(path, first.width_mm, first.height_mm, pageSizes)));
+  if (route === undefined) return;
+  const saved = `PDF enregistré : ${fileName(path)}`;
+  warnPrint(true, route === "first_page_size" && mixedSheets(editor.doc, false) ? `${saved}\n\n${fr.pdfFirstPageSize}` : saved);
 }
 
 export async function problemReport() {

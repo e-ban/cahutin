@@ -8,8 +8,10 @@ mod index_writer;
 mod phototheque_commands;
 pub mod commands;
 mod legacy;
+pub mod pdf_cdp;
 #[cfg(windows)]
-mod pdf_windows;
+pub mod pdf_windows;
+mod print_setup;
 mod protocol;
 mod state;
 mod update;
@@ -85,6 +87,11 @@ pub fn run() {
                 handle.state::<AppState>().set_system_fonts(faces);
                 let _ = handle.emit(FONTS_CHANGED, ());
             });
+            // Impression sous Linux : la fenêtre d'impression s'ouvre sur le papier de la première feuille.
+            #[cfg(target_os = "linux")]
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.with_webview(|pw| print_setup::install(&pw.inner()));
+            }
             log::info!("app_started version={}", env!("CARGO_PKG_VERSION"));
             Ok(())
         })
@@ -181,6 +188,7 @@ pub fn run() {
             commands::can_export_pdf,
             commands::is_store_build,
             commands::export_pdf,
+            print_setup::prepare_print,
             commands::check_update,
             commands::open_download_page,
         ])

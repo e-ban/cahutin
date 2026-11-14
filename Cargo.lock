@@ -382,8 +382,10 @@ dependencies = [
 name = "carnet-app"
 version = "0.17.0"
 dependencies = [
+ "base64 0.23.1",
  "cahutin-mcp",
  "carnet-core",
+ "gtk",
  "image",
  "log",
  "open",
@@ -398,6 +400,7 @@ dependencies = [
  "trash",
  "ts-rs",
  "ureq",
+ "webkit2gtk",
  "webview2-com",
  "windows",
 ]

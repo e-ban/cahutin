@@ -66,6 +66,28 @@ jobs:
       - name: Tests du moteur et de l'application
         run: cargo test --workspace --release
 
+      # Export PDF avec le vrai WebView2 : chaque feuille au format de sa page (src-tauri/tests/pdf_windows_probe.rs).
+      # Sans runtime WebView2 sur le runner, le banc est sauté avec un avertissement.
+      - name: Banc de l'export PDF (WebView2)
+        shell: pwsh
+        timeout-minutes: 15
+        run: |
+          $id = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          $keys = @(
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\$id",
+            "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\$id",
+            "HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\$id"
+          )
+          $pv = $keys | ForEach-Object { (Get-ItemProperty -Path $_ -Name pv -ErrorAction SilentlyContinue).pv } |
+            Where-Object { $_ -and $_ -ne '0.0.0.0' } | Select-Object -First 1
+          if (-not $pv) {
+            Write-Output "::warning::Runtime WebView2 absent du runner : banc de l'export PDF non lancé."
+            exit 0
+          }
+          Write-Output "Runtime WebView2 $pv"
+          cargo test -p carnet-app --release --test pdf_windows_probe -- --ignored --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Installeur
         env:
           # Paquet distribué : optimisation à l'édition de liens et un seul bloc de génération.

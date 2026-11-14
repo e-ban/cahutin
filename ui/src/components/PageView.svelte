@@ -22,6 +22,7 @@
   import { textEditing } from "../lib/textEditing.svelte";
   import { IS_LINUX, resizeCursor } from "../lib/cursors";
   import { pixelRatio } from "../lib/pixelRatio.svelte";
+  import { SAFE_MARGIN_MM, atRisk } from "../lib/printSafety";
   import type { Crop, Document, Element, Frame, Page, RichText } from "../lib/types";
 
   let {
@@ -251,6 +252,12 @@
     return e.id === cropping && liveCrop ? liveCrop : undefined;
   }
 
+  // Ce que l'imprimante risque de couper (lib/printSafety.ts) : seulement sur la page qu'on modifie, jamais dans les
+  // miniatures, les aperçus ni à l'impression (elles n'ont pas `onselect`).
+  const risky = $derived(onselect ? new Set(atRisk(page).map((e) => e.id)) : new Set<string>());
+  /** Le repère de la zone sûre : pendant un déplacement ou un redimensionnement, ou s'il y a un élément à risque. */
+  const showSafeZone = $derived(!!onselect && (risky.size > 0 || (editor.gesture && selection.length > 0)));
+
   /** L'élément tel qu'on le voit, avec le cadre du rognage en cours. */
   const shown = (e: Element): Element => (e.id === cropping && liveFrame ? { ...e, frame: liveFrame } : e);
 </script>
@@ -349,6 +356,7 @@
       class:zone-photo={e.zone && e.kind.type === "Photo"}
       class:zone-text={e.zone && e.kind.type === "Text"}
       class:hollow={isHollow(e)}
+      class:edge-risk={risky.has(e.id)}
       class:merge-ok={templateMode && editor.mergePreview?.ok && editor.mergePreview.ids.includes(e.id)}
       class:merge-bad={templateMode && editor.mergePreview && !editor.mergePreview.ok && editor.mergePreview.ids.includes(e.id)}
       data-id={e.id}
@@ -421,6 +429,10 @@
     </div>
   {/each}
   {#if selection.length}<GraphismeGhosts {page} {selection} {zoom} />{/if}
+  {#if showSafeZone}
+    <!-- À 5 mm du bord : au-delà, beaucoup d'imprimantes n'impriment pas. Seulement à l'écran. -->
+    <div class="safe-zone" aria-hidden="true" style:inset="{mmToPx(SAFE_MARGIN_MM, zoom)}px"></div>
+  {/if}
   {#if pageHasPictos(page)}
     {@const f = creditFrame(page.size)}
     <!-- Mention de licence OpenMoji : même cadre et même police que dans l'ODG, aussi à l'impression. -->
@@ -509,6 +521,18 @@
   .element.selected {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
+  }
+  /* Tout près du bord : un liseré léger, que la sélection remplace. */
+  .element.edge-risk:not(.selected) {
+    outline: 1.5px dashed var(--accent-strong);
+    outline-offset: 1px;
+  }
+  .safe-zone {
+    position: absolute;
+    border: 1px dashed var(--accent-strong);
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: 4;
   }
   .element:has(.editor) {
     z-index: 10;

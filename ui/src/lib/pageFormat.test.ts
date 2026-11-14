@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { a3Tiles, changeFormat, formatOf, printPageName, TILE_OVERLAP_MM } from "./pageFormat";
+import { a3Tiles, changeFormat, formatOf, printPageName, printSheet, TILE_OVERLAP_MM } from "./pageFormat";
 import type { Page } from "./types";
 
 test("formats are recognised in both orientations", () => {
@@ -32,4 +32,12 @@ test("an A3 poster prints on two A4 sheets that overlap", () => {
   expect(bottom.dy_mm).toBeCloseTo(-(420 * top.scale - 210));
   // Centrée en largeur.
   expect(top.dx_mm).toBeCloseTo((297 - 297 * top.scale) / 2);
+});
+
+test("the sheet that comes out for a page", () => {
+  expect(printSheet({ width_mm: 297, height_mm: 210 }, false)).toEqual({ width_mm: 297, height_mm: 210 });
+  expect(printSheet({ width_mm: 297, height_mm: 420 }, false)).toEqual({ width_mm: 297, height_mm: 420 });
+  // Une affiche A3 en tuiles : des A4 paysage.
+  expect(printSheet({ width_mm: 297, height_mm: 420 }, true)).toEqual({ width_mm: 297, height_mm: 210 });
+  expect(printSheet({ width_mm: 210, height_mm: 297 }, true)).toEqual({ width_mm: 210, height_mm: 297 });
 });

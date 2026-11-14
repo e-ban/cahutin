@@ -1,6 +1,7 @@
 // Tous les textes de l'interface.
 import type { Preset } from "../graphisme";
 import type { Guides } from "../types";
+import type { RiskKind } from "../printSafety";
 
 export const fr = {
   appName: "Cahutin",
@@ -32,6 +33,31 @@ export const fr = {
   pageFormatOther: "Autre",
   printTiles: "Imprimer les affiches A3 sur deux feuilles A4",
   printTilesHint: "Chaque page A3 sort en deux moitiés qui se recouvrent de 1 cm, à coller",
+  // Avant d'imprimer (lib/printSafety.ts) : ce que l'imprimante risque de couper, et les formats mêlés sous Linux.
+  edgeRisk: (pageList: number[] | number, kindList: RiskKind[] | RiskKind) => {
+    const [pages, kinds] = [[pageList].flat(), [kindList].flat()];
+    const shown = pages.length > 5 ? [...pages.slice(0, 4).map(String), `${pages.length - 4} autres`] : pages.map(String);
+    const where = `${pages.length > 1 ? "Pages" : "Page"} ${shown.length > 1 ? `${shown.slice(0, -1).join(", ")} et ${shown[shown.length - 1]}` : shown[0]}`;
+    const one = kinds.length === 1;
+    const [single, plural, feminine] = (kinds.every((k) => k === kinds[0]) && fr.riskNouns[kinds[0]]) || fr.riskNouns.mixed;
+    const what = one ? `${single} est tout près du bord` : `${plural} sont tout près du bord`;
+    const cut = `${feminine ? "elle" : "il"}${one ? " risque" : "s risquent"} d'être coupé${feminine ? "e" : ""}${one ? "" : "s"}`;
+    return `${where} : ${what}. Beaucoup d'imprimantes n'impriment pas jusqu'au bord : ${cut}.`;
+  },
+  edgeRiskPdf: "À l'impression du PDF, choisissez « Taille réelle » : le PDF garde la vraie taille de vos pages.",
+  edgeRiskShow: "Montrer",
+  /** Ce qui risque d'être coupé : au singulier, au pluriel, et s'il est féminin. */
+  riskNouns: {
+    text: ["un texte", "des textes", false],
+    photo: ["une photo", "des photos", true],
+    table: ["un tableau", "des tableaux", false],
+    image: ["une image", "des images", true],
+    cut: ["un trait de coupe", "des traits de coupe", false],
+    graphisme: ["un tracé de graphisme", "des tracés de graphisme", false],
+    mixed: ["un élément", "des éléments", false],
+  },
+  mixedSheets:
+    "Ce document mêle des pages de tailles ou d'orientations différentes. Sur cet ordinateur, toutes les pages sortent sur le même papier, et elles risquent d'être imprimées en plus petit. Pour garder la vraie taille : imprimez à part les pages de chaque format, une impression par format (les pages se choisissent dans la fenêtre d'impression).",
   addPage: "Ajouter une page",
   noSelection: "Sélectionnez un élément pour le régler.",
   dropPhotoHere: "Glissez une photo ici",
@@ -228,6 +254,8 @@ export const fr = {
   output: "Imprimer / Exporter",
   print: "Imprimer",
   exportPdf: "Exporter en PDF",
+  /** Export PDF sous Windows par la voie de secours, document aux formats mêlés. */
+  pdfFirstPageSize: "Ce PDF met toutes les pages au format de la première. Pour garder chaque format, faites un PDF par format.",
   exportOdg: "Exporter pour LibreOffice",
   exportOdgHint: "Fichier modifiable dans LibreOffice Draw",
   exportingOdg: "Export pour LibreOffice en cours…",

@@ -41,6 +41,11 @@ export function printPageName(size: PageSize): string {
   return `${(formatOf(size) ?? "A4").toLowerCase()}${isLandscape(size) ? "l" : "p"}`;
 }
 
+/** La feuille qui sort pour une page : en tuiles, une affiche A3 sort sur des A4 de l'autre orientation. */
+export function printSheet(size: PageSize, tiles: boolean): PageSize {
+  return tiles && formatOf(size) === "A3" ? a3Tiles(size)[0].sheet : size;
+}
+
 /** Recouvrement entre les deux moitiés d'une affiche A3 imprimée sur A4, pour les coller (mm sur l'A4). */
 export const TILE_OVERLAP_MM = 10;
 

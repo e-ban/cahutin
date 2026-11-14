@@ -3,6 +3,7 @@
 
 ## Non publié
 
+- Pages : une page change de place en glissant sa miniature dans la bande des pages (à la souris, ou au doigt après un appui d'un instant) ; un trait montre où elle tombera, la bande défile près des bords, Échap annule. Les flèches à côté de « Supprimer » (ou Ctrl+Maj+Pg.Préc. et Pg.Suiv.) la déplacent d'une place. Ctrl+Z la remet à sa place, et la montre.
 - Texte : le bouton « Puces » (barre flottante, et Réglages > Mise en forme) fait une liste, un point devant chaque ligne ; les lignes trop longues continuent sous le texte, pas sous le point. En écrivant, Entrée ajoute une ligne à la liste, Entrée sur une ligne vide la termine, Retour arrière au début d'une ligne retire son point. Le point garde sa place à l'écran, à l'impression et dans LibreOffice Draw.
 - Impression : Cahutin prévient, sans rien bloquer ni réduire, quand un texte, une photo, une image, un tableau ou un trait de coupe est à moins de 5 mm du bord, là où beaucoup d'imprimantes n'impriment pas ; « Montrer » va à la page en cause. Un pointillé à 5 mm du bord apparaît pendant qu'on déplace un élément. Sous Linux, un document qui mêle formats ou orientations est signalé avant l'impression : toutes ses pages sortent sur le même papier.
 - Texte : la taille se tape librement, de 4 à 400 pt (« 13,5 » ou « 250 »), pour une lettre géante sur une affiche ; la liste propose les tailles courantes jusqu'à 200 pt.

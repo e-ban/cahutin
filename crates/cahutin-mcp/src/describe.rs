@@ -1,6 +1,6 @@
 //! Ce qu'une étape a changé, en mots simples pour l'utilisatrice. Jamais le contenu d'un texte.
 
-use carnet_core::{Align, Background, Document, Element, ElementKind, Id, Pattern, Stroke, VAlign};
+use carnet_core::{Align, Background, Document, Element, ElementKind, Id, Page, Pattern, Stroke, VAlign};
 
 /// Nom de l'élément et s'il est féminin (pour accorder « déplacé·e »).
 fn label(e: &Element) -> (String, bool) {
@@ -320,7 +320,7 @@ fn quiet_cells(before: &Document, after: &Document) -> Vec<Id> {
         out.extend(cells(b));
     }
     // De même pour une grille de page posée, changée ou retirée.
-    for (pb, pa) in before.pages.iter().zip(&after.pages) {
+    for (_, pb, pa) in same_pages(before, after) {
         if pb.grid != pa.grid {
             for g in [&pb.grid, &pa.grid].into_iter().flatten() {
                 out.extend(g.cells.iter().map(|c| c.element_id.clone()));
@@ -366,12 +366,46 @@ fn elements(d: &Document) -> impl Iterator<Item = &Element> {
     d.pages.iter().flat_map(|p| &p.elements)
 }
 
+/// Chaque page de `after` (son rang) avec la même page dans `before` : celle de même id, où qu'elle soit (pages
+/// remises dans un autre ordre) ; à défaut, celle de même rang si elle n'est plus dans `after` (page remplacée).
+fn page_pairs<'a>(before: &'a Document, after: &'a Document) -> Vec<(usize, Option<&'a Page>, &'a Page)> {
+    let kept = |p: &Page| after.pages.iter().any(|a| a.id == p.id);
+    after
+        .pages
+        .iter()
+        .enumerate()
+        .map(|(i, pa)| (i, before.pages.iter().find(|pb| pb.id == pa.id).or_else(|| before.pages.get(i).filter(|pb| !kept(pb))), pa))
+        .collect()
+}
+
+/// Les pages présentes avant et après, appariées comme `page_pairs`.
+fn same_pages<'a>(before: &'a Document, after: &'a Document) -> impl Iterator<Item = (usize, &'a Page, &'a Page)> {
+    page_pairs(before, after).into_iter().filter_map(|(i, pb, pa)| pb.map(|pb| (i, pb, pa)))
+}
+
+/// « Page 1 déplacée en page 3 » quand une seule page a changé de place ; « Ordre des pages changé » sinon.
+fn page_order(before: &Document, after: &Document) -> Option<String> {
+    let old: Vec<&Id> = before.pages.iter().map(|p| &p.id).filter(|id| after.pages.iter().any(|p| &p.id == *id)).collect();
+    let new: Vec<&Id> = after.pages.iter().map(|p| &p.id).filter(|id| old.contains(id)).collect();
+    if old == new {
+        return None;
+    }
+    fn without<'a>(list: &[&'a Id], id: &Id) -> Vec<&'a Id> {
+        list.iter().filter(|x| **x != id).copied().collect()
+    }
+    let rank = |d: &Document, id: &Id| d.pages.iter().position(|p| &p.id == id).map_or(0, |i| i + 1);
+    Some(match old.iter().find(|id| without(&old, id) == without(&new, id)) {
+        Some(id) => format!("Page {} déplacée en page {}", rank(before, id), rank(after, id)),
+        None => "Ordre des pages changé".into(),
+    })
+}
+
 /// Une ligne par changement, dans l'ordre des pages et des éléments.
 pub fn describe(before: &Document, after: &Document) -> Vec<String> {
-    let mut out = Vec::new();
+    let mut out: Vec<String> = page_order(before, after).into_iter().collect();
     // Une page au nouveau format : tout son contenu change de taille, une seule ligne le dit.
     let quiet = quiet_cells(before, after);
-    let resized: Vec<usize> = before.pages.iter().zip(&after.pages).enumerate().filter(|(_, (b, a))| b.size != a.size).map(|(i, _)| i).collect();
+    let resized: Vec<usize> = same_pages(before, after).filter(|(_, b, a)| b.size != a.size).map(|(i, _, _)| i).collect();
     for (i, pa) in after.pages.iter().enumerate() {
         if resized.contains(&i) {
             out.push(format!("Page {} : {}", i + 1, format_fr(pa.size)));
@@ -402,7 +436,7 @@ pub fn describe(before: &Document, after: &Document) -> Vec<String> {
     if ungrouped > 1 {
         out.push(format!("{ungrouped} éléments dissociés"));
     }
-    for (pb, pa) in before.pages.iter().zip(&after.pages) {
+    for (_, pb, pa) in same_pages(before, after) {
         if let Some((moved, front)) = reordered(&ids(pb), &ids(pa)) {
             let word = if front { "mis devant" } else { "mis derrière" };
             out.push(match &moved[..] {
@@ -422,16 +456,16 @@ pub fn describe(before: &Document, after: &Document) -> Vec<String> {
         let (name, fem) = label(b);
         out.push(format!("{name} {}", agree("supprimé", fem)));
     }
-    for i in before.pages.len()..after.pages.len() {
+    for (i, _, _) in page_pairs(before, after).into_iter().filter(|(_, pb, _)| pb.is_none()) {
         out.push(format!("Page {} ajoutée", i + 1));
     }
-    for (i, (pb, pa)) in before.pages.iter().zip(&after.pages).enumerate() {
+    for (i, pb, pa) in same_pages(before, after) {
         if let Some(l) = grid_line(&pb.grid, &pa.grid) {
             out.push(format!("Page {} : {l}", i + 1));
         }
     }
     let white = Background { color: "#ffffff".into(), pattern: None };
-    for (i, (pb, pa)) in before.pages.iter().zip(&after.pages).enumerate() {
+    for (i, pb, pa) in same_pages(before, after) {
         let (bb, ba) = (pb.background.as_ref().unwrap_or(&white), pa.background.as_ref().unwrap_or(&white));
         if bb.pattern != ba.pattern {
             out.push(format!("Fond de la page {} : {}", i + 1, pattern_fr(ba.pattern)));
@@ -446,7 +480,7 @@ pub fn describe(before: &Document, after: &Document) -> Vec<String> {
 /// Éléments créés ou modifiés (pas les supprimés), à surligner.
 pub fn touched(before: &Document, after: &Document) -> Vec<Id> {
     let mut out: Vec<Id> = elements(after).filter(|a| elements(before).find(|b| b.id == a.id) != Some(a)).map(|a| a.id.clone()).collect();
-    for (pb, pa) in before.pages.iter().zip(&after.pages) {
+    for (_, pb, pa) in same_pages(before, after) {
         if let Some((moved, _)) = reordered(&ids(pb), &ids(pa)) {
             out.extend(moved.into_iter().filter(|id| !out.contains(id)).collect::<Vec<_>>());
         }
@@ -565,6 +599,33 @@ mod tests {
             edit::set_background(d, &json!({ "page": 0, "color": "#ffffe0" })).unwrap();
         });
         assert_eq!(describe(&b, &a), ["Fond de la page 1 : couleur changée"]);
+    }
+
+    #[test]
+    fn pages_put_in_another_order() {
+        let mut b = doc();
+        edit::add_page(&mut b, &json!({})).unwrap();
+        edit::add_page(&mut b, &json!({})).unwrap();
+        b.pages[1].size = carnet_core::PageSize { width_mm: 297.0, height_mm: 420.0 };
+        edit::set_background(&mut b, &json!({ "page": 2, "pattern": "seyes", "color": "#fff8e7" })).unwrap();
+        let moved = |from: usize, to: usize| {
+            let mut a = b.clone();
+            let p = a.pages.remove(from);
+            a.pages.insert(to, p);
+            a
+        };
+        let a = moved(0, 2);
+        assert_eq!(describe(&b, &a), ["Page 1 déplacée en page 3"]);
+        assert!(touched(&b, &a).is_empty());
+        assert_eq!(describe(&b, &moved(2, 0)), ["Page 3 déplacée en page 1"]);
+        // Une page déplacée puis modifiée : le changement est dit, à sa nouvelle place.
+        let mut a = moved(2, 0);
+        edit::set_background(&mut a, &json!({ "page": 0, "pattern": "lines" })).unwrap();
+        assert_eq!(describe(&b, &a), ["Page 3 déplacée en page 1", "Fond de la page 1 : lignes"]);
+        // Plusieurs pages remises dans un autre ordre.
+        let mut a = b.clone();
+        a.pages.reverse();
+        assert_eq!(describe(&b, &a), ["Ordre des pages changé"]);
     }
 
     #[test]

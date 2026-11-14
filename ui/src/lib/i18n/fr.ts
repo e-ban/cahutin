@@ -351,6 +351,9 @@ export const fr = {
   pageGo: "Aller à une page : son numéro, ou le prénom d'un enfant",
   pageChildNotFound: (q: string) => `Aucune page n'est faite pour « ${q} ».`,
   pageThumbFor: (n: number, who: string) => `Page ${n} · ${who}`,
+  pageThumbDrag: "Glissez la miniature pour changer la page de place",
+  movePageBefore: "Déplacer avant : la page prend la place de la précédente (Ctrl+Maj+Pg.Préc.)",
+  movePageAfter: "Déplacer après : la page prend la place de la suivante (Ctrl+Maj+Pg.Suiv.)",
   // Barre flottante
   crop: "Recadrer",
   cropSection: "Recadrage",

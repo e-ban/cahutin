@@ -14,7 +14,7 @@ function typing(ev: KeyboardEvent): boolean {
   return !!t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
 }
 
-export type ShortcutAction = "new" | "open" | "save" | "print" | "duplicate" | "undo" | "redo" | "copy" | "cut" | "paste" | "group" | "ungroup" | "selectAll" | "zoomIn" | "zoomOut" | "zoomFit";
+export type ShortcutAction = "new" | "open" | "save" | "print" | "duplicate" | "undo" | "redo" | "copy" | "cut" | "paste" | "group" | "ungroup" | "selectAll" | "zoomIn" | "zoomOut" | "zoomFit" | "movePageBefore" | "movePageAfter";
 
 type KeyInfo = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "repeat">;
 
@@ -22,6 +22,8 @@ type KeyInfo = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | 
 export function shortcutAction(ev: KeyInfo): ShortcutAction | null {
   if (!(ev.ctrlKey || ev.metaKey)) return null;
   const k = ev.key.toLowerCase();
+  // Ctrl+Maj+Pg.Préc. ou Pg.Suiv. : la page change de place (Pg.Préc. et Pg.Suiv. seuls changent de page).
+  if (ev.shiftKey && (k === "pageup" || k === "pagedown")) return k === "pageup" ? "movePageBefore" : "movePageAfter";
   if (k === "z") return ev.shiftKey ? "redo" : "undo";
   if (k === "y") return "redo";
   if (k === "g") return ev.repeat ? null : ev.shiftKey ? "ungroup" : "group";
@@ -135,6 +137,8 @@ export function handleShortcut(ev: KeyboardEvent) {
     zoomIn: () => (editor.zoom = nextZoom(editor.effectiveZoom, 1)),
     zoomOut: () => (editor.zoom = nextZoom(editor.effectiveZoom, -1)),
     zoomFit: () => (editor.zoom = "fit"),
+    movePageBefore: () => editor.movePage(editor.pageIndex, editor.pageIndex - 1),
+    movePageAfter: () => editor.movePage(editor.pageIndex, editor.pageIndex + 1),
   };
   // Coller : sans empêcher la touche, la vue web envoie l'événement « paste » avec le presse-papiers du système.
   if (action === "paste") {

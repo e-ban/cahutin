@@ -58,3 +58,13 @@ test("a page made for one child is known by that child's name, and found by it",
   expect(findChildPage(pages, kids, "Anna M.", 0)).toBe(3);
   expect(findChildPage(pages, kids, "Zoé", 0)).toBeUndefined();
 });
+
+test("une page de la classe changée de place se retrouve à sa nouvelle place", async () => {
+  const { movePage } = await import("./pageOrder");
+  const kids = [s("1", "Léa"), s("2", "Noé")];
+  const named = (id: string, who: string): Page => ({ id, size: { width_mm: 210, height_mm: 297 }, elements: [text(null, who)], grid: null });
+  const doc = { title: "", pages: [named("a", "Léa"), named("b", "Noé"), named("c", "Consigne")], assets: {} } as unknown as import("./types").Document;
+  const moved = movePage(doc, 1, 2).pages;
+  expect(moved.map((p) => childOfPage(p, kids))).toEqual(["Léa", undefined, "Noé"]);
+  expect(findChildPage(moved, kids, "noe", 0)).toBe(2);
+});

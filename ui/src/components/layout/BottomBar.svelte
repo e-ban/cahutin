@@ -12,6 +12,8 @@
   import { settings } from "../../lib/settings.svelte";
   import { classes } from "../../lib/classStore.svelte";
   import { childOfPage, findChildPage } from "../../lib/classFill";
+  import { dropSlot, slotTarget } from "../../lib/pageOrder";
+  import { DRAG_DEAD_ZONE_PX } from "../../lib/geometry";
   import type { Page } from "../../lib/types";
 
   // Miniatures basses : la bande tient sur une ligne, sous les boutons de la page.
@@ -93,10 +95,124 @@
     }
   }
 
+  // Glisser une miniature change la page de place. À la souris, le geste commence après quelques pixels (un clic
+  // ouvre toujours la page) ; au doigt, après un appui d'un instant sans bouger, pour que la bande défile encore au
+  // doigt. Un trait montre où la page tombera ; près des bords, la bande défile ; Échap annule.
+  const HOLD_MS = 400;
+  const EDGE_PX = 48;
+  /** Au-delà, au-dessus ou au-dessous de la bande, la page ne tombe nulle part. */
+  const REACH_PX = 60;
+  let press: { from: number; x: number; y: number; pointer: number; touch: boolean; timer: number } | null = null;
+  let drag = $state<{ from: number; slot: number | null } | null>(null);
+  let pointer = { x: 0, y: 0 };
+  let swallowClick = false;
+  let frame = 0;
+
+  function thumbDown(ev: PointerEvent, i: number) {
+    swallowClick = false;
+    if (ev.button !== 0 || count < 2 || press) return;
+    const touch = ev.pointerType !== "mouse";
+    pointer = { x: ev.clientX, y: ev.clientY };
+    press = { from: i, x: ev.clientX, y: ev.clientY, pointer: ev.pointerId, touch, timer: touch ? window.setTimeout(startDrag, HOLD_MS) : 0 };
+  }
+
+  function startDrag() {
+    if (!press || drag) return;
+    drag = { from: press.from, slot: null };
+    frame = requestAnimationFrame(follow);
+  }
+
+  function moved(ev: PointerEvent) {
+    if (!press || ev.pointerId !== press.pointer) return;
+    pointer = { x: ev.clientX, y: ev.clientY };
+    if (!drag) {
+      if (Math.hypot(ev.clientX - press.x, ev.clientY - press.y) < DRAG_DEAD_ZONE_PX) return;
+      // Au doigt, bouger tout de suite fait défiler la bande, comme avant.
+      if (press.touch) return stop();
+      startDrag();
+    }
+    aim();
+  }
+
+  /** La fente visée : entre les deux miniatures autour du pointeur, s'il est sur la bande et que la page y bouge. */
+  function aim() {
+    if (!drag || !strip) return;
+    const r = strip.getBoundingClientRect();
+    const near = pointer.y > r.top - REACH_PX && pointer.y < r.bottom + REACH_PX && pointer.x > r.left - REACH_PX && pointer.x < r.right + REACH_PX;
+    const mids = [...strip.querySelectorAll<HTMLElement>(".thumb")].map((t) => {
+      const b = t.getBoundingClientRect();
+      return b.left + b.width / 2;
+    });
+    const slot = dropSlot(mids, pointer.x);
+    drag = { ...drag, slot: near && slotTarget(drag.from, slot) !== null ? slot : null };
+  }
+
+  /** Pendant le geste, près d'un bord de la bande (ou au-delà), elle défile, d'autant plus vite qu'on en est près. */
+  function follow() {
+    if (!drag || !strip) return;
+    const r = strip.getBoundingClientRect();
+    if (pointer.y > r.top - REACH_PX && pointer.y < r.bottom + REACH_PX) {
+      // Une bande étroite (grande interface, petite fenêtre) garde de la place entre ses deux bords.
+      const edge = Math.min(EDGE_PX, r.width / 6);
+      const speed = (d: number) => Math.min(16, Math.ceil((edge - d) / 3));
+      if (pointer.x < r.left + edge) strip.scrollLeft -= speed(Math.max(0, pointer.x - r.left));
+      else if (pointer.x > r.right - edge) strip.scrollLeft += speed(Math.max(0, r.right - pointer.x));
+    }
+    aim();
+    frame = requestAnimationFrame(follow);
+  }
+
+  function stop() {
+    if (press) clearTimeout(press.timer);
+    cancelAnimationFrame(frame);
+    press = null;
+    drag = null;
+  }
+
+  function released(ev: PointerEvent) {
+    // Après Échap : le clic de ce relâchement est encore ignoré, pas le suivant.
+    if (swallowClick && !press) setTimeout(() => (swallowClick = false));
+    if (!press || ev.pointerId !== press.pointer) return;
+    const d = drag;
+    stop();
+    if (!d) return;
+    // Le clic qui suit le relâchement n'ouvre pas la page sous le pointeur.
+    swallowClick = true;
+    setTimeout(() => (swallowClick = false));
+    const to = d.slot === null ? null : slotTarget(d.from, d.slot);
+    if (to !== null) editor.movePage(d.from, to);
+  }
+
+  /** Échap pendant le geste : la page reste où elle était ; la touche ne va pas plus loin (la sélection reste). */
+  function escape(ev: KeyboardEvent) {
+    if (ev.key !== "Escape" || !drag) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    swallowClick = true;
+    stop();
+  }
+
+  // Au doigt, une fois le geste commencé, la bande ne défile plus sous lui (un écouteur non passif le peut seul).
+  $effect(() => {
+    const el = strip;
+    if (!el) return;
+    const hold = (ev: TouchEvent) => drag && ev.preventDefault();
+    el.addEventListener("touchmove", hold, { passive: false });
+    return () => el.removeEventListener("touchmove", hold);
+  });
+
+  function open(i: number) {
+    if (swallowClick) return void (swallowClick = false);
+    editor.pageIndex = i;
+    editor.selection = [];
+  }
+
   const landscape = $derived(editor.page.size.width_mm > editor.page.size.height_mm);
   const formats: Format[] = ["A5", "A4", "A3"];
 
 </script>
+
+<svelte:window onpointermove={moved} onpointerup={released} onpointercancel={() => press && stop()} onkeydowncapture={escape} onblur={() => press && stop()} />
 
 <footer class="pagebar">
   {#if count > 1}
@@ -108,9 +224,20 @@
   <datalist id="page-children">
     {#each [...new Set(children.filter(Boolean))] as c (c)}<option value={c}></option>{/each}
   </datalist>
-  <div class="pages" bind:this={strip} onwheel={scrollStrip}>
+  <div class="pages" class:moving={drag} bind:this={strip} onwheel={scrollStrip} onscroll={aim}>
     {#each editor.doc.pages as p, i (p.id)}
-      <button class="thumb" class:current={i === editor.pageIndex} title={thumbTitle(i)} onclick={() => ((editor.pageIndex = i), (editor.selection = []))}>
+      <button
+        class="thumb"
+        class:current={i === editor.pageIndex}
+        class:dragged={drag?.from === i}
+        class:drop-before={drag?.slot === i}
+        class:drop-after={drag?.slot === count && i === count - 1}
+        title={count > 1 ? `${thumbTitle(i)}\n${fr.pageThumbDrag}` : thumbTitle(i)}
+        aria-label={thumbTitle(i)}
+        aria-current={i === editor.pageIndex ? "page" : undefined}
+        onpointerdown={(e) => thumbDown(e, i)}
+        onclick={() => open(i)}
+      >
         <PageView page={p} doc={editor.doc} zoom={MINI} />
         <span class="num" aria-hidden="true">{i + 1}</span>
       </button>
@@ -120,6 +247,10 @@
   <button class="add" onclick={() => insert(newPage())} title={fr.addPage}><Icon name="add" /> {fr.addPage}</button>
   <button class="ghost" onclick={duplicate}><Icon name="duplicate" /> {fr.duplicatePage}</button>
   <button class="ghost" title={fr.deletePage} disabled={count === 1} onclick={() => deletePage(editor.pageIndex)}><Icon name="trash" /> {fr.delete}</button>
+  <span class="move">
+    <button class="ghost" title={fr.movePageBefore} aria-label={fr.movePageBefore} disabled={editor.pageIndex === 0} onclick={() => editor.movePage(editor.pageIndex, editor.pageIndex - 1)}><Icon name="arrowLeft" /></button>
+    <button class="ghost" title={fr.movePageAfter} aria-label={fr.movePageAfter} disabled={editor.pageIndex >= count - 1} onclick={() => editor.movePage(editor.pageIndex, editor.pageIndex + 1)}><Icon name="arrowRight" /></button>
+  </span>
   <span class="sep"></span>
   <button class="ghost" class:on={editor.showBackground} aria-pressed={editor.showBackground} onclick={() => (editor.showBackground = !editor.showBackground)}><Icon name="background" /> {fr.backgroundButton}</button>
   <select class="format" title={fr.pageFormat} aria-label={fr.pageFormat} value={formatOf(editor.page.size) ?? ""} onchange={(e) => setFormat(e.currentTarget.value as Format)}>
@@ -155,7 +286,12 @@
     max-width: 50vw;
     min-width: 150px;
     flex: 0 1 auto;
-    padding: 2px;
+    /* De quoi montrer le trait de dépôt avant la première miniature et après la dernière. */
+    padding: 2px 6px;
+  }
+  .pages.moving,
+  .pages.moving .thumb {
+    cursor: grabbing;
   }
   .count {
     display: flex;
@@ -192,6 +328,40 @@
     padding: 2px;
     background: white;
     flex: none;
+    /* Au doigt, l'appui long sert à glisser la page : ni bulle du système, ni sélection. */
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+  /* La miniature qu'on glisse s'efface à moitié ; un trait épais marque l'endroit où elle tombera. */
+  .thumb.dragged {
+    opacity: 0.4;
+  }
+  .thumb.drop-before::before,
+  .thumb.drop-after::after {
+    content: "";
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 4px;
+    border-radius: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 0 1px var(--panel);
+  }
+  .thumb.drop-before::before {
+    left: -6px;
+  }
+  .thumb.drop-after::after {
+    right: -6px;
+  }
+  .move {
+    display: flex;
+    flex-shrink: 0;
+  }
+  /* Deux flèches serrées : la bande des miniatures garde sa place. */
+  .move > button {
+    display: flex;
+    padding-left: 5px;
+    padding-right: 5px;
   }
   /* Le numéro de la page, dans le coin de sa miniature. */
   .num {

@@ -290,3 +290,79 @@ test("annuler la suppression d'une page placée avant celle affichée montre la 
   editor.redo();
   expect(editor.page.id).toBe(c.id);
 });
+
+test("déplacer une page : un pas d'annulation, la page déplacée reste affichée avec sa sélection", () => {
+  const doc = newDocument();
+  doc.pages.push(newPage(), newPage(), newPage());
+  editor.reset(doc, null);
+  const [a, b, c, d] = editor.doc.pages;
+  const el = textElement({ x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 });
+  editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+  editor.selection = [el.id];
+  editor.movePage(0, 2);
+  expect(editor.doc.pages.map((p) => p.id)).toEqual([b.id, c.id, a.id, d.id]);
+  expect(editor.pageIndex).toBe(2);
+  expect(editor.page.id).toBe(a.id);
+  expect(editor.selection).toEqual([el.id]);
+  // Annuler : la page revient à sa place, et c'est elle qu'on voit.
+  editor.undo();
+  expect(editor.doc.pages.map((p) => p.id)).toEqual([a.id, b.id, c.id, d.id]);
+  expect(editor.page.id).toBe(a.id);
+  expect(editor.pageIndex).toBe(0);
+  expect(editor.selection).toEqual([el.id]);
+  editor.redo();
+  expect(editor.page.id).toBe(a.id);
+  expect(editor.pageIndex).toBe(2);
+  // Annuler depuis une autre page : on va voir la page déplacée, la sélection de la page quittée est oubliée.
+  editor.pageIndex = 3;
+  editor.undo();
+  expect(editor.page.id).toBe(a.id);
+  expect(editor.selection).toEqual([]);
+  // Une page plus loin vers le début, depuis la fin.
+  editor.pageIndex = 3;
+  editor.movePage(3, 0);
+  expect(editor.page.id).toBe(d.id);
+  editor.pageIndex = 2;
+  editor.undo();
+  expect(editor.pageIndex).toBe(3);
+  expect(editor.page.id).toBe(d.id);
+});
+
+test("déplacer une autre page que celle affichée la montre ; rien à faire, rien dans l'historique", () => {
+  const doc = newDocument();
+  doc.pages.push(newPage(), newPage());
+  editor.reset(doc, null);
+  const [, , c] = editor.doc.pages;
+  const el = textElement({ x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 });
+  editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+  editor.selection = [el.id];
+  editor.movePage(2, 0);
+  expect(editor.page.id).toBe(c.id);
+  expect(editor.selection).toEqual([]);
+  const before = editor.doc;
+  editor.movePage(0, 0);
+  editor.movePage(0, -1);
+  editor.movePage(2, 3);
+  expect(editor.doc).toBe(before);
+  const one = newDocument();
+  editor.reset(one, null);
+  editor.movePage(0, 1);
+  expect(editor.doc).toBe(one);
+  expect(editor.canUndo).toBe(false);
+});
+
+test("pendant une proposition de l'assistant, déplacer une page attend la réponse, comme toute modification", () => {
+  const doc = newDocument();
+  doc.pages.push(newPage(), newPage());
+  editor.reset(doc, null);
+  const edits: unknown[] = [];
+  editor.proposalGate = { edit: (next) => edits.push(next), undo: () => {} };
+  editor.showProposal({ ...editor.doc });
+  const shown = editor.doc;
+  editor.movePage(0, 2);
+  expect(edits).toHaveLength(1);
+  expect(editor.doc).toBe(shown);
+  expect(editor.pageIndex).toBe(0);
+  editor.showProposal(null);
+  editor.proposalGate = null;
+});

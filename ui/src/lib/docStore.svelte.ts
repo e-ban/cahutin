@@ -2,6 +2,7 @@
 import { createHistory, type History } from "./history";
 import { newDocument } from "./factory";
 import { pathOf } from "./groups";
+import { movedPage, movePage } from "./pageOrder";
 import { pagesUsing, usedAssetIds, withoutAsset, type LibraryPhoto } from "./photoLibrary";
 import { readRecents, type Recent } from "./recents";
 import { readPref, writePref } from "./prefs";
@@ -232,10 +233,10 @@ class Editor {
   undo() {
     // Annuler pendant une proposition : la refuser.
     if (this.#proposal) return this.proposalGate?.undo();
-    const before = this.doc;
+    const [before, selection] = [this.doc, this.selection];
     this.#history.undo();
     this.#sync();
-    this.#showChange(before);
+    this.#showChange(before, selection);
     // Une photo retirée revient sur la page : elle revient aussi dans le tiroir.
     const used = usedAssetIds(this.doc);
     this.addPhotos(this.#removedPhotos.filter((p) => used.has(p.meta.id)));
@@ -243,16 +244,24 @@ class Editor {
 
   redo() {
     if (this.#proposal) return;
-    const before = this.doc;
+    const [before, selection] = [this.doc, this.selection];
     this.#history.redo();
     this.#sync();
-    this.#showChange(before);
+    this.#showChange(before, selection);
   }
 
   /** Après Annuler ou Rétablir : affiche la première page qui a changé, sauf si la page affichée a changé (et
    *  qu'aucune page n'a été ajoutée ni retirée, ce qui décale les suivantes). */
-  #showChange(before: Document) {
+  #showChange(before: Document, selection: string[]) {
     const pages = this.doc.pages;
+    // Une page remise à une autre place : on la voit à sa nouvelle place (sa sélection reste si c'était elle).
+    const shown = before.pages[this.pageIndex]?.id;
+    const moved = movedPage(before.pages, pages, shown);
+    if (moved) {
+      this.pageIndex = pages.findIndex((p) => p.id === moved);
+      this.selection = moved === shown ? selection : [];
+      return;
+    }
     if (pages.length === before.pages.length && pages[this.pageIndex] !== before.pages[this.pageIndex]) return;
     const i = pages.findIndex((p, k) => p !== before.pages[k]);
     if (i < 0) return;
@@ -290,6 +299,20 @@ class Editor {
     this.pageIndex = 0;
     this.selection = [];
     this.#sync();
+  }
+
+  /** Met la page `from` à la place `to` en un pas d'annulation ; la page déplacée reste affichée, avec sa sélection
+   *  si c'était déjà elle. */
+  movePage(from: number, to: number) {
+    const next = movePage(this.doc, from, to);
+    if (next === this.doc) return;
+    const shown = this.page.id;
+    const selection = this.selection;
+    this.commit(next);
+    // Pendant une proposition de l'assistant, la modification attend sa réponse : rien n'a encore bougé.
+    if (this.doc !== next) return;
+    this.pageIndex = to;
+    this.selection = next.pages[to].id === shown ? selection : [];
   }
 
   /** Modifie la page désignée, même si la page courante a changé entre-temps (après une attente). */

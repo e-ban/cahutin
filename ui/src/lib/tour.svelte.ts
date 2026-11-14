@@ -20,7 +20,7 @@ export const TOUR_STEPS: TourStep[] = [
     text: "Cliquez sur un élément : une barre apparaît au-dessus pour changer sa police, sa couleur ou son cadre. Le clic droit propose copier, dupliquer, mettre devant.",
   },
   { target: ".right, button.tab", title: "Les réglages", text: "Ce panneau, à ouvrir ou fermer, règle l'élément choisi au millimètre près : position, taille, rotation, miroir, devant ou derrière, et ses couleurs." },
-  { target: ".pagebar", title: "Les pages", text: "Ajoutez, dupliquez ou supprimez une page, changez son fond ou passez-la en paysage." },
+  { target: ".pagebar", title: "Les pages", text: "Ajoutez, dupliquez, déplacez ou supprimez une page, changez son fond ou passez-la en paysage." },
   {
     target: '.rail [data-tour="class"]',
     title: "Votre classe",

@@ -279,3 +279,31 @@ test("Échap qui vient de fermer l'écriture d'un texte (zone à remplir) garde 
   esc(false);
   expect(editor.selection).toEqual([a.id, b.id]);
 });
+
+test("Ctrl+Maj+Pg.Préc. et Pg.Suiv. déplacent la page ; Pg.Préc. et Ctrl+Pg.Préc. seuls n'y touchent pas", async () => {
+  expect(shortcutAction(key("PageUp", { shift: true }))).toBe("movePageBefore");
+  expect(shortcutAction(key("PageDown", { shift: true }))).toBe("movePageAfter");
+  expect(shortcutAction(key("PageDown", { shift: true, repeat: true }))).toBe("movePageAfter");
+  expect(shortcutAction(key("PageUp"))).toBeNull();
+  expect(shortcutAction(key("PageUp", { ctrl: false, shift: true }))).toBeNull();
+  const { editor } = await import("./docStore.svelte");
+  const { handleShortcut } = await import("./shortcuts");
+  const { newDocument, newPage } = await import("./factory");
+  const doc = newDocument();
+  doc.pages.push(newPage(), newPage());
+  editor.reset(doc, null);
+  const [a, b, c] = editor.doc.pages;
+  const press = (k: string, shift: boolean) => handleShortcut({ key: k, ctrlKey: true, metaKey: false, shiftKey: shift, repeat: false, target: null, preventDefault() {} } as unknown as KeyboardEvent);
+  press("PageDown", true);
+  expect(editor.doc.pages.map((p) => p.id)).toEqual([b.id, a.id, c.id]);
+  expect(editor.pageIndex).toBe(1);
+  press("PageDown", true);
+  press("PageDown", true);
+  expect(editor.doc.pages.map((p) => p.id)).toEqual([b.id, c.id, a.id]);
+  press("PageUp", true);
+  expect(editor.doc.pages.map((p) => p.id)).toEqual([b.id, a.id, c.id]);
+  // Ctrl+Pg.Suiv. sans Maj : ni déplacement ni changement de page.
+  press("PageDown", false);
+  expect(editor.doc.pages.map((p) => p.id)).toEqual([b.id, a.id, c.id]);
+  expect(editor.pageIndex).toBe(1);
+});

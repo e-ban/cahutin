@@ -1,5 +1,6 @@
 // Police, taille ou couleur données au bloc de texte entier : les mots qui avaient la leur la perdent,
 // comme pour un style nommé (`applyStyle`) et pour l'assistant (`set_text_style`).
+import { blankWithoutBullets } from "./lists";
 import type { RichText, TextProps, TextStyle } from "./types";
 
 export type WholeLook = Partial<Pick<TextStyle, "font" | "size_pt" | "color">>;
@@ -30,7 +31,9 @@ export function liftUniformLook(t: TextProps): TextProps {
   return Object.keys(look).length ? lookOnWholeText(t, look) : t;
 }
 
-/** Le texte à la fin de l'écriture, avec `content` tapé ; null si le contenu n'a pas changé (rien à enregistrer). */
-export function finishedText(t: TextProps, content: RichText): TextProps | null {
+/** Le texte à la fin de l'écriture, avec `content` tapé ; null si le contenu n'a pas changé (rien à enregistrer).
+ *  Un texte laissé vide perd ses puces (`blankWithoutBullets`). */
+export function finishedText(t: TextProps, typed: RichText): TextProps | null {
+  const content = blankWithoutBullets(typed);
   return JSON.stringify(t.content) === JSON.stringify(content) ? null : liftUniformLook({ ...t, content });
 }

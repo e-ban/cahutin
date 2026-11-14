@@ -384,6 +384,8 @@ export const fr = {
   underline: "Souligné",
   color: "Couleur",
   alignment: "Alignement",
+  bullets: "Puces",
+  bulletsHint: "Liste à puces : un point devant chaque ligne. En écrivant, Entrée ajoute une ligne à la liste ; Entrée sur une ligne vide la termine.",
   padding: "Marge intérieure",
   textFrame: "Cadre",
   frameImage: "Image de fond",

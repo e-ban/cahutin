@@ -61,6 +61,7 @@ import LayoutGrid from "@lucide/svelte/icons/layout-grid";
 import LayoutPanelTop from "@lucide/svelte/icons/layout-panel-top";
 import LayoutTemplate from "@lucide/svelte/icons/layout-template";
 import Lightbulb from "@lucide/svelte/icons/lightbulb";
+import List from "@lucide/svelte/icons/list";
 import Lock from "@lucide/svelte/icons/lock";
 import LockOpen from "@lucide/svelte/icons/lock-open";
 import Merge from "@lucide/svelte/icons/merge";
@@ -162,6 +163,7 @@ export const ICONS = {
   landscape: RectangleHorizontal,
   layers: Layers2,
   lightbulb: Lightbulb,
+  list: List,
   lock: Lock,
   maze: Bird,
   merge: Merge,

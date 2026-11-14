@@ -15,7 +15,8 @@
   import { actionsPlace, contentHeightPx, fitActions, grownHeight, neededHeightMm, shrunkText } from "../../lib/textFit";
   import { isTableCell } from "../../lib/table";
   import { fonts } from "../../lib/fonts.svelte";
-  import { lineBox, writesOnLines, writingLineBox } from "../../lib/lineSpacing";
+  import { FALLBACK_METRICS, lineBox, writesOnLines, writingLineBox } from "../../lib/lineSpacing";
+  import { bulletLiftFactor, firstWordPt, LIST_BULLET, LIST_INDENT_EM } from "../../lib/lists";
   import { textEditing } from "../../lib/textEditing.svelte";
   import { finishedText } from "../../lib/textLook";
   import { mmToPx, PX_PER_MM } from "../../lib/units";
@@ -59,6 +60,10 @@
     return onLines ? writingLineBox(metrics, size_pt) : lineBox(props.style.line_spacing, metrics, size_pt);
   };
   const line = $derived(lineAt(look.size_pt));
+  // Puce d'un élément de liste (CSS plus bas) : remontée comme dans LibreOffice quand le premier mot est plus grand
+  // que le bloc, selon la police du bloc (l'écran prend Andika pour une police absente).
+  const liftK = $derived(bulletLiftFactor(fonts.families.find((f) => f.name === look.font)?.metrics ?? FALLBACK_METRICS));
+  const firstCss = (pt: number | null) => (pt == null ? null : `${pt}pt`);
   const paddingCss = (padTopMm: number | undefined) => (padTopMm == null ? `${textPadding(props.style)}mm` : `${padTopMm}mm ${textPadding(props.style)}mm ${textPadding(props.style)}mm`);
   const blankBelowMm = (shiftMm: number) => ((props.style.line_spacing ?? 1) >= 1 ? Math.max(0, shiftMm) : 0);
   const textHeightPx = (el: HTMLElement, shiftMm: number) => {
@@ -147,12 +152,15 @@
     }
     clone.setAttribute("aria-hidden", "true");
     const paras = clone.querySelectorAll<HTMLElement>(":scope > .flow > p");
-    p.content.paragraphs.forEach((q, i) =>
+    p.content.paragraphs.forEach((q, i) => {
       q.runs.forEach((r, j) => {
         const span = paras[i]?.children[j] as HTMLElement | undefined;
         if (span && r.size_pt) span.style.fontSize = `${r.size_pt}pt`;
-      }),
-    );
+      });
+      // La puce suit la taille essayée du premier mot (elle ne change pas la hauteur des lignes).
+      const first = firstCss(firstWordPt(q.runs));
+      if (paras[i] && first) paras[i].style.setProperty("--li-first", first);
+    });
     box.after(clone);
     const fits = textHeightPx(clone, tried.shiftMm) <= clone.clientHeight + 1;
     clone.remove();
@@ -235,6 +243,9 @@
   style:line-height={line.lineHeight}
   style:color={look.color}
   style:text-align={alignToCss(props.style.align)}
+  style:--li-indent="{LIST_INDENT_EM}em"
+  style:--li-bullet={JSON.stringify(LIST_BULLET)}
+  style:--li-k={liftK}
   class:outline={props.style.outline}
   class:editing
 >
@@ -256,7 +267,7 @@
       {/if}
     {:else}
       {#each props.content.paragraphs as p}
-        <p style:text-align={p.align ? alignToCss(p.align) : null}>
+        <p class:li={p.list === "Bullet"} style:text-align={p.align ? alignToCss(p.align) : null} style:--li-first={p.list ? firstCss(firstWordPt(p.runs)) : null}>
           {#each p.runs as r}<span style={runStyle(r)}
               >{#each splitFields(r.text) as part}{#if "field" in part}<span class="class-field" title={fieldLabel(part.field)}>{fieldShown(part.field)}</span>{:else}{part.text}{/if}{/each}</span
             >{/each}{#if p.runs.every((r) => r.text === "")}<br />{/if}
@@ -324,6 +335,30 @@
   }
   .text :global(p) {
     margin: 0;
+  }
+  /* Élément de liste, à l'écran comme dans l'éditeur (mesuré contre LibreOffice) : le texte et ses lignes suivantes
+     après le retrait, la puce dans le retrait, au début de la première ligne, dans la police, la couleur et à la
+     taille du bloc (les em du paragraphe), à gauche même dans un paragraphe centré. Elle ne change pas la hauteur
+     des lignes ; un premier mot plus grand que le bloc la remonte (`--li-first`, `--li-k` : lib/lists.ts). */
+  .text :global(p.li) {
+    padding-left: var(--li-indent);
+  }
+  .text :global(p.li::before) {
+    content: var(--li-bullet);
+    display: inline-block;
+    width: var(--li-indent);
+    margin-left: calc(-1 * var(--li-indent));
+    text-align: left;
+    font-weight: normal;
+    font-style: normal;
+    text-decoration: none;
+    position: relative;
+    top: calc(-1 * var(--li-k, 0) * max(0pt, var(--li-first, 1em) - 1em));
+  }
+  /* Lettres creuses : la puce reste pleine, comme dans LibreOffice. */
+  .text.outline :global(p.li::before) {
+    -webkit-text-fill-color: currentColor;
+    -webkit-text-stroke-width: 0;
   }
   /* Lettres creuses : contour dans la couleur du texte (celle de chaque passage), sans remplissage. */
   .text.outline {

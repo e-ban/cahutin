@@ -5,6 +5,7 @@ import type { Editor } from "@tiptap/core";
 import type {} from "@tiptap/extension-text-align";
 import type {} from "@tiptap/extension-text-style";
 import { editor } from "./docStore.svelte";
+import { bulletsOn, listActive, toggledBullets, toggleList as toggleListTr } from "./lists";
 import { alignToCss, parsePt } from "./richtext";
 import { textEditing } from "./textEditing.svelte";
 import { lookOnWholeText, type WholeLook } from "./textLook";
@@ -88,6 +89,30 @@ export function toggleMark(mark: Mark) {
     const on = !all.every((r: Run) => r[mark]);
     return { ...t, content: { paragraphs: t.content.paragraphs.map((p) => ({ ...p, runs: p.runs.map((r) => ({ ...r, [mark]: on })) })) } };
   });
+}
+
+/**
+ * Puces : pendant l'écriture, sur le paragraphe du curseur ou ceux de la sélection, dans l'éditeur seul (son Ctrl+Z
+ * l'annule) ; sinon sur tous les paragraphes non vides du bloc, ou aucun s'ils en ont tous, en un pas d'annulation.
+ */
+export function toggleList() {
+  const tip = activeTip();
+  if (tip) {
+    tip.view.dispatch(toggleListTr(tip.state));
+    tip.commands.focus();
+    return;
+  }
+  const e = editor.selected;
+  if (e?.kind.type !== "Text") return;
+  const next = toggledBullets(e.kind);
+  if (next) updateText(() => next);
+}
+
+/** Le bouton « Puces » est enfoncé : les paragraphes visés pendant l'écriture, sinon ceux du bloc, ont tous une puce. */
+export function isListActive(t: TextProps): boolean {
+  void textEditing.tick;
+  const tip = activeTip();
+  return tip ? listActive(tip.state) : bulletsOn(t.content);
 }
 
 /** Police du passage sélectionné pendant l'écriture, sinon celle de la zone. */

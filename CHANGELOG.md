@@ -3,6 +3,7 @@
 
 ## Non publié
 
+- Texte : le bouton « Puces » (barre flottante, et Réglages > Mise en forme) fait une liste, un point devant chaque ligne ; les lignes trop longues continuent sous le texte, pas sous le point. En écrivant, Entrée ajoute une ligne à la liste, Entrée sur une ligne vide la termine, Retour arrière au début d'une ligne retire son point. Le point garde sa place à l'écran, à l'impression et dans LibreOffice Draw.
 - Impression : Cahutin prévient, sans rien bloquer ni réduire, quand un texte, une photo, une image, un tableau ou un trait de coupe est à moins de 5 mm du bord, là où beaucoup d'imprimantes n'impriment pas ; « Montrer » va à la page en cause. Un pointillé à 5 mm du bord apparaît pendant qu'on déplace un élément. Sous Linux, un document qui mêle formats ou orientations est signalé avant l'impression : toutes ses pages sortent sur le même papier.
 - Texte : la taille se tape librement, de 4 à 400 pt (« 13,5 » ou « 250 »), pour une lettre géante sur une affiche ; la liste propose les tailles courantes jusqu'à 200 pt.
 - Texte : sans écrire, la taille, la police et la couleur choisies vont à tout le texte, y compris aux mots qui avaient la leur. Pendant l'écriture, elles vont aux mots sélectionnés, et Ctrl+Z les annule ; après l'écriture, un seul Ctrl+Z revient au texte d'avant.

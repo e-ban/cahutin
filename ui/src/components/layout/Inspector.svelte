@@ -13,7 +13,7 @@
   import { hasTemplateRole, templateRole, withTemplateRole } from "../../lib/templateRole";
   import { isStrokeOnly } from "../../lib/shapePaths";
   import { fonts } from "../../lib/fonts.svelte";
-  import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setLineSpacing, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
+  import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isListActive, isMarkActive, toggleList, setAlign, setColor, setFont, setLineSpacing, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
   import { LINE_SPACINGS, writesOnLines } from "../../lib/lineSpacing";
   import { endPreview, previewPhoto, previewShape, previewTextStyle, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
   import { cropPosition, photoTrims, roundedFrame, wholePhoto, withPosition, withTrims, type Trims } from "../../lib/crop";
@@ -312,6 +312,9 @@
         {#each VALIGNS as v (v)}
           <button title={fr.textVAlign[v]} aria-label={fr.textVAlign[v]} class:on={(t.style.valign ?? "Top") === v} disabled={writesOnLines(t.frame)} onpointerdown={(e) => e.preventDefault()} onclick={() => setVAlign(v)}><VAlignIcon valign={v} /></button>
         {/each}
+      </div>
+      <div class="row">
+        <button title={fr.bulletsHint} class:on={isListActive(t)} aria-pressed={isListActive(t)} disabled={!tip && !t.content.paragraphs.some((p) => p.runs.some((r) => r.text.trim()))} onpointerdown={(e) => e.preventDefault()} onclick={toggleList}><Icon name="list" /> {fr.bullets}</button>
       </div>
       <div class="field">
         <span>{fr.lineSpacing}</span>

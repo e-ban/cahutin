@@ -184,7 +184,8 @@
   .editor :global(p) {
     margin: 0;
   }
-  .editor :global(p.is-editor-empty:first-child::before) {
+  /* Un premier élément de liste vide montre sa puce : le texte indicatif s'efface devant elle. */
+  .editor :global(p.is-editor-empty:first-child:not(.li)::before) {
     content: attr(data-placeholder);
     color: #9a9a9a;
     font-style: italic;

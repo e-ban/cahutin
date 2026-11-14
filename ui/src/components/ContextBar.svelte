@@ -42,7 +42,7 @@
   import { cutMarks, type CutStyle } from "../lib/cutMarks";
   import { friezeMotifs, resolveMotifs } from "../lib/friezeMotifs.svelte";
   import { setPictosOutline } from "../lib/pictos.svelte";
-  import { ALIGNS, VALIGNS, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
+  import { ALIGNS, VALIGNS, currentFont, currentSize, isListActive, isMarkActive, setAlign, toggleList, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
   import type { NamedTextStyle, Frame, Guides } from "../lib/types";
 
   let { pageEl, stageEl }: { pageEl: HTMLElement | undefined; stageEl: HTMLElement | undefined } = $props();
@@ -578,6 +578,7 @@
           </div>
         {/if}
       </div>
+      <button title={fr.bulletsHint} class:on={isListActive(t)} aria-pressed={isListActive(t)} disabled={editor.editingText !== selected?.id && !t.content.paragraphs.some((p) => p.runs.some((r) => r.text.trim()))} onclick={toggleList}><Icon name="list" /><span class="lbl"> {fr.bullets}</span></button>
       <span class="sep"></span>
       <div class="wrap">
         <button class:on={!!t.frame} onclick={() => toggle("frame")}><Icon name="frame" /><span class="lbl"> {fr.textFrame}</span></button>

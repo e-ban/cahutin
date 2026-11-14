@@ -1,5 +1,7 @@
 // Conversion entre le contenu TipTap et le texte riche du document. Seule la mise en forme que l'export
-// ODG sait représenter survit : tout le reste (titres, listes, liens, surlignage...) devient du texte simple.
+// ODG sait représenter survit : tout le reste (titres, listes numérotées, liens, surlignage...) devient du texte
+// simple. La puce d'un paragraphe est son attribut `list` ; une liste à puces venue d'ailleurs donne des
+// paragraphes à puce, à un seul niveau.
 import type { JSONContent } from "@tiptap/core";
 import { splitFields } from "./classFields";
 import { isKnownFamily } from "./fontNames";
@@ -62,7 +64,7 @@ function pushRun(runs: Run[], run: Run) {
   else runs.push(run);
 }
 
-function paragraphFrom(node: JSONContent, style: TextStyle): Paragraph {
+function paragraphFrom(node: JSONContent, style: TextStyle, bullet: boolean): Paragraph {
   const runs: Run[] = [];
   for (const child of node.content ?? []) {
     if (child.type === "text") pushRun(runs, runFrom(child, style));
@@ -73,15 +75,19 @@ function paragraphFrom(node: JSONContent, style: TextStyle): Paragraph {
   }
   const css = node.attrs?.textAlign;
   const align = typeof css === "string" ? (CSS_TO_ALIGN[css] ?? null) : null;
-  return { align: align === style.align ? null : align, runs };
+  const p: Paragraph = { align: align === style.align ? null : align, runs };
+  // Sans puce, pas de clé : le texte se compare et s'enregistre comme avant.
+  if (bullet || node.attrs?.list === "Bullet") p.list = "Bullet";
+  return p;
 }
 
-/** Un bloc qui contient du texte devient un paragraphe ; les autres blocs (listes...) sont parcourus. */
-function collect(node: JSONContent, style: TextStyle, out: Paragraph[]) {
+/** Un bloc qui contient du texte devient un paragraphe ; les autres blocs (listes...) sont parcourus. Dans une
+ *  liste à puces (même au fond d'une liste numérotée), chaque paragraphe porte une puce. */
+function collect(node: JSONContent, style: TextStyle, out: Paragraph[], bullet = false) {
   const children = node.content ?? [];
   const isTextBlock = children.some((c) => c.type === "text" || c.type === "hardBreak") || node.type === "paragraph" || node.type === "heading";
-  if (isTextBlock && node.type !== "doc") out.push(paragraphFrom(node, style));
-  else for (const c of children) collect(c, style, out);
+  if (isTextBlock && node.type !== "doc") out.push(paragraphFrom(node, style, bullet));
+  else for (const c of children) collect(c, style, out, bullet || node.type === "bulletList");
 }
 
 export function tiptapToRich(doc: JSONContent, style: TextStyle): RichText {
@@ -94,7 +100,7 @@ export function richToTiptap(rt: RichText): JSONContent {
   return {
     type: "doc",
     content: rt.paragraphs.map((p) => {
-      const node: JSONContent = { type: "paragraph", attrs: { textAlign: p.align ? ALIGN_TO_CSS[p.align] : null } };
+      const node: JSONContent = { type: "paragraph", attrs: { textAlign: p.align ? ALIGN_TO_CSS[p.align] : null, ...(p.list ? { list: p.list } : {}) } };
       const content: JSONContent[] = [];
       for (const r of p.runs) {
         const marks: JSONContent["marks"] = [];

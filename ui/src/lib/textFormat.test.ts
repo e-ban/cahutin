@@ -2,7 +2,7 @@ import type { Editor } from "@tiptap/core";
 import { afterEach, expect, test } from "vitest";
 import { editor } from "./docStore.svelte";
 import { newDocument, textElement } from "./factory";
-import { setColor, setFont, setLineSpacing, setSize } from "./textFormat.svelte";
+import { isListActive, setColor, setFont, setLineSpacing, setSize, toggleList } from "./textFormat.svelte";
 import { textEditing } from "./textEditing.svelte";
 import type { Element, TextProps } from "./types";
 
@@ -80,4 +80,19 @@ test("l'interligne va au bloc entier, même pendant l'écriture, en un pas d'ann
   expect(props().style.line_spacing).toBe(1.5);
   editor.undo();
   expect(props().style.line_spacing ?? null).toBeNull();
+});
+
+test("sans écriture, « Puces » met une puce à chaque paragraphe non vide, ou les retire, en un pas d'annulation", () => {
+  open();
+  expect(isListActive(props())).toBe(false);
+  toggleList();
+  expect(props().content.paragraphs[0].list).toBe("Bullet");
+  expect(isListActive(props())).toBe(true);
+  toggleList();
+  expect("list" in props().content.paragraphs[0]).toBe(false);
+  editor.undo();
+  expect(props().content.paragraphs[0].list).toBe("Bullet");
+  editor.undo();
+  expect(props().content.paragraphs[0].list).toBeUndefined();
+  expect(editor.canUndo).toBe(false);
 });

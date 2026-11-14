@@ -57,9 +57,11 @@
 
   /** Un cadre de lignes d'écriture sur la largeur de la page, à écrire à la main ou à remplir. */
   function addLines(pattern: Pattern) {
-    const el = textElement(centeredFrame(editor.page, editor.page.size.width_mm - 30, 56));
+    // Sur les lignes, deux lignes de Playwrite 28 pt (24 mm d'écart) demandent 56 mm ; les petits carreaux gardent 48 mm.
+    const onLines = pattern === "Seyes" || pattern === "Lines";
+    const el = textElement(centeredFrame(editor.page, editor.page.size.width_mm - 30, onLines ? 56 : 48));
     if (el.kind.type === "Text") {
-      el.kind = { ...el.kind, content: { paragraphs: [] }, style: { ...el.kind.style, font: "Playwrite FR Moderne", size_pt: 28 }, frame: { fill: null, stroke: null, corner_radius_mm: 0, image: null, pattern, write_on_lines: pattern === "Seyes" || pattern === "Lines" ? true : null } };
+      el.kind = { ...el.kind, content: { paragraphs: [] }, style: { ...el.kind.style, font: "Playwrite FR Moderne", size_pt: 28 }, frame: { fill: null, stroke: null, corner_radius_mm: 0, image: null, pattern, write_on_lines: onLines ? true : null } };
     }
     placeText(el);
     editor.selection = [el.id];

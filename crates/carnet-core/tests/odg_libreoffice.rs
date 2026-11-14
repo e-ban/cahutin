@@ -1,6 +1,7 @@
 //! Banc de fidélité : l'ODG exporté est rendu par LibreOffice, puis le PDF obtenu est inspecté avec poppler.
 //! Lancer avec `cargo test -p carnet-core --test odg_libreoffice -- --ignored` (soffice, pdftotext, pdffonts,
-//! pdfinfo et pdfimages doivent être dans le PATH).
+//! pdfinfo et pdfimages doivent être dans le PATH). Les tests de défauts connus, mis de côté, ne vérifient rien
+//! sans `BANC_DEFAUTS_CONNUS=1`.
 
 use carnet_core::fonts::{FontSet, add_user_font};
 use carnet_core::odg::export_odg_to_path;
@@ -889,4 +890,625 @@ fn text_written_on_lines_sits_on_the_frame_lines() {
         }
     }
     eprintln!("pire écart ligne de base / ligne du cadre : {worst:.3} mm");
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Rotation, miroir, tableaux et grilles, lettres creuses, formats de page : la géométrie attendue est écrite ici à
+// partir de la convention de l'écran (cadre tourné dans le sens horaire autour de son centre, miroir dans le cadre
+// avant la rotation), jamais recalculée avec le code de l'export.
+
+fn element(frame: Frame, kind: ElementKind) -> Element {
+    Element { id: new_id(), frame, locked: false, zone: false, group: None, kind, subgroups: Vec::new(), flip_h: false, flip_v: false }
+}
+
+fn frame_at(x_mm: f64, y_mm: f64, w_mm: f64, h_mm: f64, rotation_deg: f64) -> Frame {
+    Frame { x_mm, y_mm, w_mm, h_mm, rotation_deg }
+}
+
+fn filled_shape(shape: ShapeKind, path: Option<&str>) -> ElementKind {
+    ElementKind::Shape(ShapeProps { shape, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0, path: path.map(String::from), graphisme: None })
+}
+
+fn photo_kind(asset: &Id) -> ElementKind {
+    ElementKind::Photo(PhotoProps { asset: Some(asset.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false })
+}
+
+fn text_kind(text: &str, size_pt: f64) -> ElementKind {
+    let mut style = TextStyle::default_zone();
+    style.size_pt = size_pt;
+    ElementKind::Text(TextProps { content: RichText::plain(text), style, prompt: None, frame: None })
+}
+
+/// Image générée ajoutée à la photothèque du document, en PNG (le JPEG bave aux limites des couleurs).
+fn png_asset(doc: &mut Document, store: &mut AssetStore, img: &RgbImage) -> Id {
+    let mut bytes = Cursor::new(Vec::new());
+    img.write_to(&mut bytes, ImageFormat::Png).unwrap();
+    let a = import_bytes(&bytes.into_inner()).unwrap();
+    let id = a.meta.id.clone();
+    doc.assets.insert(id.clone(), a.meta.clone());
+    store.insert(a).unwrap();
+    id
+}
+
+const RED: (u8, u8, u8) = (220, 30, 30);
+const BLUE: (u8, u8, u8) = (30, 60, 220);
+const GREEN: (u8, u8, u8) = (30, 170, 60);
+const YELLOW: (u8, u8, u8) = (240, 210, 30);
+const WHITE: (u8, u8, u8) = (255, 255, 255);
+
+/// Image 2:1 en quatre quarts : rouge en haut à gauche, bleu en haut à droite, vert en bas à gauche, jaune en bas
+/// à droite. Asymétrique dans les deux sens : un miroir, un retournement ou une rotation se voient.
+fn quarters() -> RgbImage {
+    RgbImage::from_fn(200, 100, |x, y| {
+        let (r, g, b) = match (x < 100, y < 50) {
+            (true, true) => RED,
+            (false, true) => BLUE,
+            (true, false) => GREEN,
+            (false, false) => YELLOW,
+        };
+        Rgb([r, g, b])
+    })
+}
+
+/// Page rendue, lue en millimètres.
+struct Raster {
+    w: usize,
+    h: usize,
+    px_per_mm: f64,
+    channels: usize,
+    px: Vec<u8>,
+}
+
+impl Raster {
+    fn gray(pdf: &Path, page: usize, dpi: u32) -> Raster {
+        let (w, h, px) = gray_page(pdf, page, dpi);
+        Raster { w, h, px_per_mm: dpi as f64 / 25.4, channels: 1, px }
+    }
+    fn rgb(pdf: &Path, page: usize, dpi: u32) -> Raster {
+        let (w, h, px) = rgb_page(pdf, page, dpi);
+        Raster { w, h, px_per_mm: dpi as f64 / 25.4, channels: 3, px }
+    }
+    fn index(&self, x_mm: f64, y_mm: f64) -> usize {
+        let x = ((x_mm * self.px_per_mm) as usize).min(self.w - 1);
+        let y = ((y_mm * self.px_per_mm) as usize).min(self.h - 1);
+        (y * self.w + x) * self.channels
+    }
+    /// Niveau de gris (pour une page en couleur, la moyenne des trois composantes).
+    fn level(&self, x_mm: f64, y_mm: f64) -> u8 {
+        let i = self.index(x_mm, y_mm);
+        (self.px[i..i + self.channels].iter().map(|&v| v as u32).sum::<u32>() / self.channels as u32) as u8
+    }
+    fn color(&self, x_mm: f64, y_mm: f64) -> (u8, u8, u8) {
+        let i = self.index(x_mm, y_mm);
+        (self.px[i], self.px[i + 1], self.px[i + 2])
+    }
+    /// Pixels (x, y, centre en mm) d'une fenêtre en millimètres.
+    fn window(&self, x0: f64, y0: f64, x1: f64, y1: f64) -> impl Iterator<Item = (usize, usize, f64, f64)> + '_ {
+        let k = self.px_per_mm;
+        let (px0, px1) = ((x0 * k).max(0.0) as usize, ((x1 * k) as usize).min(self.w));
+        let (py0, py1) = ((y0 * k).max(0.0) as usize, ((y1 * k) as usize).min(self.h));
+        (py0..py1).flat_map(move |y| (px0..px1).map(move |x| (x, y, (x as f64 + 0.5) / k, (y as f64 + 0.5) / k)))
+    }
+    /// Boîte de l'encre (pixels sous `dark`) dans une fenêtre, en mm : (x0, y0, x1, y1).
+    fn ink_box(&self, x0: f64, y0: f64, x1: f64, y1: f64, dark: u8) -> Option<(f64, f64, f64, f64)> {
+        let mut b: Option<(f64, f64, f64, f64)> = None;
+        for (_, _, x, y) in self.window(x0, y0, x1, y1) {
+            if self.level(x, y) < dark {
+                b = Some(b.map_or((x, y, x, y), |(a, c, d, e)| (a.min(x), c.min(y), d.max(x), e.max(y))));
+            }
+        }
+        b
+    }
+}
+
+fn near(c: (u8, u8, u8), want: (u8, u8, u8)) -> bool {
+    c.0.abs_diff(want.0) < 40 && c.1.abs_diff(want.1) < 40 && c.2.abs_diff(want.2) < 40
+}
+
+/// Le point (x, y) est dans le cadre tourné, agrandi de `grow` mm de chaque côté (rétréci si négatif). L'écran
+/// tourne le cadre dans le sens horaire autour de son centre : on ramène le point dans le repère du cadre.
+fn in_turned_frame(f: &Frame, x: f64, y: f64, grow: f64) -> bool {
+    let (dx, dy) = (x - (f.x_mm + f.w_mm / 2.0), y - (f.y_mm + f.h_mm / 2.0));
+    let (sin, cos) = f.rotation_deg.to_radians().sin_cos();
+    let (lx, ly) = (dx * cos + dy * sin, -dx * sin + dy * cos);
+    lx.abs() <= f.w_mm / 2.0 + grow && ly.abs() <= f.h_mm / 2.0 + grow
+}
+
+/// Point du cadre donné dans son repère (depuis son coin haut gauche, avant rotation), placé sur la page.
+fn turned_point(f: &Frame, lx: f64, ly: f64) -> (f64, f64) {
+    let (dx, dy) = (lx - f.w_mm / 2.0, ly - f.h_mm / 2.0);
+    let (sin, cos) = f.rotation_deg.to_radians().sin_cos();
+    (f.x_mm + f.w_mm / 2.0 + dx * cos - dy * sin, f.y_mm + f.h_mm / 2.0 + dx * sin + dy * cos)
+}
+
+/// Photo 60 × 30 mm tournée de 90°, faite d'une moitié gauche rouge et d'une moitié droite bleue : le rouge en haut,
+/// le bleu en bas, et rien à côté de la boîte tournée (30 mm de large).
+fn check_turned_halves(r: &Raster, name: &str, f: &Frame) {
+    for (lx, want) in [(10.0, RED), (50.0, BLUE)] {
+        let (x, y) = turned_point(f, lx, 15.0);
+        assert!(near(r.color(x, y), want), "{name} : {:?} à ({x:.0}, {y:.0}) au lieu de {want:?}", r.color(x, y));
+    }
+    let (cx, cy) = turned_point(f, 30.0, 15.0);
+    for x in [cx - 17.0, cx + 17.0] {
+        assert!(near(r.color(x, cy), WHITE), "{name} : encre à ({x:.0}, {cy:.0}), hors de la boîte tournée : {:?}", r.color(x, cy));
+    }
+}
+
+fn halves_asset(doc: &mut Document, store: &mut AssetStore) -> Id {
+    let halves = RgbImage::from_fn(200, 100, |x, _| if x < 100 { Rgb([RED.0, RED.1, RED.2]) } else { Rgb([BLUE.0, BLUE.1, BLUE.2]) });
+    png_asset(doc, store, &halves)
+}
+
+/// Rotation : rectangles pleins tournés de 30° et de 90°, comparés pixel à pixel à la boîte tournée attendue ; photo
+/// tournée de 90°, dont le côté gauche doit monter ;
+/// trait tourné de 30° (ses extrémités sont calculées à part) ; texte tourné de 90°, qui doit se lire de haut en
+/// bas ; lignes d'un cadre d'écriture tourné, verticales et du bon côté. Un 90° de plein ne distingue pas le sens :
+/// le 30°, la photo, le trait et le texte, si.
+#[test]
+#[ignore]
+fn rotated_elements_fill_their_turned_box() {
+    let mut store = AssetStore::default();
+    let mut doc = Document::new("rotation");
+    doc.pages.push(Page::new(A4_PORTRAIT));
+    let asset = halves_asset(&mut doc, &mut store);
+    let rects = [frame_at(20.0, 40.0, 80.0, 30.0, 30.0), frame_at(110.0, 40.0, 80.0, 30.0, 90.0)];
+    for f in rects {
+        doc.pages[0].elements.push(element(f, filled_shape(ShapeKind::Rect, None)));
+    }
+    let photo = frame_at(110.0, 120.0, 60.0, 30.0, 90.0);
+    doc.pages[0].elements.push(element(photo, photo_kind(&asset)));
+    let line = frame_at(20.0, 200.0, 60.0, 4.0, 30.0);
+    doc.pages[0].elements.push(element(
+        line,
+        ElementKind::Shape(ShapeProps { shape: ShapeKind::Line, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#000000".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None }),
+    ));
+    let text = frame_at(10.0, 90.0, 100.0, 20.0, 90.0);
+    doc.pages[1].elements.push(element(text, text_kind("Tourné", 14.0)));
+    let lined = frame_at(110.0, 90.0, 100.0, 30.0, 90.0);
+    doc.pages[1].elements.push(element(
+        lined,
+        ElementKind::Text(TextProps { content: RichText::default(), style: TextStyle::default_zone(), prompt: None, frame: Some(TextFrame { pattern: Some(Pattern::Lines), ..TextFrame::default() }) }),
+    ));
+    let (_dir, pdf) = render(&doc, &store);
+
+    // Rectangles : à 5 pixels par millimètre, 0,4 mm de chaque côté du bord n'est pas jugé (lissage, et écarts
+    // d'arrondi entre versions de LibreOffice) ; ailleurs, au plus 0,5 % de pixels faux. Un sens de rotation
+    // inversé à 30° en fausse près de 40 %, un rectangle resté droit plus de 50 %.
+    let r = Raster::rgb(&pdf, 1, 127);
+    for f in rects {
+        let (mut wrong, mut judged) = (0, 0);
+        // Fenêtre : la boîte tournée attendue, plus 5 mm (sans toucher l'autre rectangle).
+        let corners = [(0.0, 0.0), (f.w_mm, 0.0), (0.0, f.h_mm), (f.w_mm, f.h_mm)].map(|(lx, ly)| turned_point(&f, lx, ly));
+        let (x0, x1) = corners.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
+        let (y0, y1) = corners.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
+        for (_, _, x, y) in r.window(x0 - 5.0, y0 - 5.0, x1 + 5.0, y1 + 5.0) {
+            let (inside, outside) = (in_turned_frame(&f, x, y, -0.4), !in_turned_frame(&f, x, y, 0.4));
+            if !inside && !outside {
+                continue;
+            }
+            judged += 1;
+            if inside != (r.level(x, y) < 128) {
+                wrong += 1;
+            }
+        }
+        let ratio = wrong as f64 / (f.w_mm * f.h_mm * r.px_per_mm * r.px_per_mm);
+        assert!(judged > 0 && ratio < 0.005, "rectangle tourné de {}° : {:.1} % de pixels hors de la boîte attendue", f.rotation_deg, ratio * 100.0);
+    }
+    // Photo à 90° : le côté gauche (rouge) en haut, le droit (bleu) en bas, et rien à côté de la boîte tournée.
+    check_turned_halves(&r, "photo", &photo);
+    // Trait à 30° : son bout droit descend. Encre sur le trait, rien sur son symétrique (sens inversé).
+    for lx in [10.0, 50.0] {
+        let (x, y) = turned_point(&line, lx, 2.0);
+        let dark = (-2..=2).any(|d| r.level(x, y + d as f64 * 0.2) < 128);
+        assert!(dark, "trait tourné : pas d'encre à ({x:.1}, {y:.1})");
+        let (mx, my) = turned_point(&frame_at(line.x_mm, line.y_mm, line.w_mm, line.h_mm, -30.0), lx, 2.0);
+        assert!(r.level(mx, my) > 200, "trait tourné dans le mauvais sens : encre à ({mx:.1}, {my:.1})");
+    }
+
+    // Texte tourné de 90° dans le sens horaire : le début du texte (bord gauche du cadre) en haut, sa première
+    // ligne (bord haut du cadre) à droite. Tolérance de 1 mm : la boîte d'un mot dépend un peu de la version.
+    let words = words(&pdf);
+    let w = words.iter().find(|w| w.page == 1 && w.text == "Tourné").expect("texte tourné rendu");
+    let mm = |v: f64| v / PT_PER_MM;
+    let (cx, cy) = (text.x_mm + text.w_mm / 2.0, text.y_mm + text.h_mm / 2.0);
+    let pad = TEXT_PADDING_MM;
+    assert!(w.y_max - w.y_min > 2.0 * (w.x_max - w.x_min), "texte tourné couché : {:.1} × {:.1} pt", w.x_max - w.x_min, w.y_max - w.y_min);
+    assert!((mm(w.y_min) - (cy - text.w_mm / 2.0 + pad)).abs() < 1.0, "début du texte tourné à {:.1} mm", mm(w.y_min));
+    assert!((mm(w.x_max) - (cx + text.h_mm / 2.0 - pad)).abs() < 1.0, "haut du texte tourné à {:.1} mm", mm(w.x_max));
+    assert!(mm(w.x_min) > cx, "texte tourné du mauvais côté : {:.1} mm", mm(w.x_min));
+
+    // Lignes d'écriture du cadre tourné : chaque ligne (horizontale à `y` dans le cadre) devient verticale, à
+    // `centre + h/2 - y`. On regarde sur 40 mm au milieu, à 0,6 mm près de chaque côté (traits fins et gris clair).
+    let r2 = Raster::gray(&pdf, 2, 254);
+    let (lcx, lcy) = (lined.x_mm + lined.w_mm / 2.0, lined.y_mm + lined.h_mm / 2.0);
+    let marks: Vec<f64> = background::frame_marks(PageSize { width_mm: lined.w_mm, height_mm: lined.h_mm }, Pattern::Lines)
+        .into_iter()
+        .filter_map(|m| match m {
+            background::Mark::Line { y1, y2, .. } if y1 == y2 => Some(y1),
+            _ => None,
+        })
+        .collect();
+    assert!(marks.len() >= 3, "{marks:?}");
+    for y in &marks {
+        let x = lcx + lined.h_mm / 2.0 - y;
+        for k in 0..40 {
+            let yy = lcy - 20.0 + k as f64;
+            let inked = (-6..=6).any(|d| r2.level(x + d as f64 * 0.1, yy) < 235);
+            assert!(inked, "ligne du cadre tourné absente à x = {x:.1} mm (y = {yy:.0} mm)");
+        }
+    }
+    // Entre deux lignes, rien : des lignes restées horizontales encreraient tout le milieu.
+    let between = lcx + lined.h_mm / 2.0 - (marks[0] + marks[1]) / 2.0;
+    assert!((0..40).all(|k| r2.level(between, lcy - 20.0 + k as f64) > 235), "encre entre les lignes du cadre tourné, à x = {between:.1} mm");
+}
+
+/// Triangle dans la moitié gauche de son cadre : retourné de gauche à droite, il passe à droite.
+const TRIANGLE: &str = "M 0 0 L 500 0 L 0 1000 Z";
+
+/// Miroir : une photo en miroir (`PhotoProps::mirrored`), une retournée de haut en bas, un tracé asymétrique
+/// retourné, une image OpenMoji retournée, comparés à leur témoin à l'endroit. Avec
+/// le recadrage d'une photo (agrandie deux fois sur son quart haut gauche), ses coins arrondis et son ombre.
+#[test]
+#[ignore]
+fn mirrored_and_cropped_elements_are_rendered() {
+    let mut store = AssetStore::default();
+    let mut doc = Document::new("miroir");
+    let asset = png_asset(&mut doc, &mut store, &quarters());
+    let photo = |doc: &mut Document, x: f64, y: f64, edit: &dyn Fn(&mut Element, &mut PhotoProps)| {
+        let mut e = element(frame_at(x, y, 60.0, 30.0, 0.0), photo_kind(&asset));
+        let ElementKind::Photo(mut p) = e.kind.clone() else { unreachable!() };
+        edit(&mut e, &mut p);
+        e.kind = ElementKind::Photo(p);
+        doc.pages[0].elements.push(e);
+    };
+    photo(&mut doc, 20.0, 20.0, &|_, _| {});
+    photo(&mut doc, 100.0, 20.0, &|_, p| p.mirrored = true);
+    photo(&mut doc, 20.0, 60.0, &|e, _| e.flip_v = true);
+    photo(&mut doc, 100.0, 60.0, &|_, p| p.crop = Crop { scale: 2.0, center_x: 0.25, center_y: 0.25 });
+    photo(&mut doc, 20.0, 100.0, &|_, p| {
+        p.corner_radius_mm = 8.0;
+        p.shadow = true;
+    });
+    let tri = [frame_at(100.0, 100.0, 40.0, 40.0, 0.0), frame_at(150.0, 100.0, 40.0, 40.0, 0.0)];
+    for (i, f) in tri.iter().enumerate() {
+        doc.pages[0].elements.push(Element { flip_h: i > 0, ..element(*f, filled_shape(ShapeKind::Path, Some(TRIANGLE))) });
+    }
+    // Flèche vers la droite (27A1) : une image nettement asymétrique.
+    doc.pages[0].elements.push(picture_element("27A1", 20.0, None));
+    doc.pages[0].elements.last_mut().unwrap().frame.y_mm = 200.0;
+    doc.pages[0].elements.push(Element { flip_h: true, ..picture_element("27A1", 100.0, None) });
+    doc.pages[0].elements.last_mut().unwrap().frame.y_mm = 200.0;
+    let (_dir, pdf) = render(&doc, &store);
+    let r = Raster::rgb(&pdf, 1, 127);
+
+    // Couleurs relevées au milieu de chaque quart, loin des bords (lissage, recadrage arrondi au pixel).
+    let quarter = |x: f64, y: f64| [r.color(x + 15.0, y + 7.5), r.color(x + 45.0, y + 7.5), r.color(x + 15.0, y + 22.5), r.color(x + 45.0, y + 22.5)];
+    let check = |name: &str, got: [(u8, u8, u8); 4], want: [(u8, u8, u8); 4]| {
+        assert!(got.iter().zip(&want).all(|(g, w)| near(*g, *w)), "{name} : {got:?} au lieu de {want:?}");
+    };
+    check("photo à l'endroit", quarter(20.0, 20.0), [RED, BLUE, GREEN, YELLOW]);
+    check("photo en miroir", quarter(100.0, 20.0), [BLUE, RED, YELLOW, GREEN]);
+    check("photo retournée", quarter(20.0, 60.0), [GREEN, YELLOW, RED, BLUE]);
+    check("photo recadrée sur son quart haut gauche", quarter(100.0, 60.0), [RED; 4]);
+    // Coins arrondis de 8 mm : le coin reste blanc, le bord plus loin est la photo ; ombre décalée de 1 mm, gris.
+    assert!(near(r.color(20.8, 100.8), WHITE), "coin arrondi de la photo : {:?}", r.color(20.8, 100.8));
+    assert!(near(r.color(30.0, 100.5), RED), "bord haut de la photo arrondie : {:?}", r.color(30.0, 100.5));
+    let s = r.color(80.6, 115.0);
+    assert!(s.0 == s.1 && s.1 == s.2 && (130..235).contains(&s.0), "ombre de la photo : {s:?}");
+    assert!(near(r.color(81.5, 115.0), WHITE), "ombre trop large : {:?}", r.color(81.5, 115.0));
+
+    // Triangles : encre près du coin du côté plein, rien près du coin opposé.
+    let dark = |p: (f64, f64)| r.level(p.0, p.1) < 128;
+    for (i, f) in tri.iter().enumerate() {
+        let (full, empty) = if i == 0 { ((5.0, 5.0), (35.0, 5.0)) } else { ((35.0, 5.0), (5.0, 5.0)) };
+        let (a, b) = (turned_point(f, full.0, full.1), turned_point(f, empty.0, empty.1));
+        assert!(dark(a) && !dark(b), "triangle {i} (miroir : {}) : encre {} à {a:?}, {} à {b:?}", i > 0, dark(a), dark(b));
+    }
+
+    // Image retournée : c'est le reflet de son témoin, qui lui-même ne se ressemble pas en miroir.
+    let g = Raster::gray(&pdf, 1, 127);
+    let k = g.px_per_mm;
+    let n = (50.0 * k) as usize;
+    let (x0, x1, y0) = ((20.0 * k) as usize, (100.0 * k) as usize, (200.0 * k) as usize);
+    let at = |x: usize, y: usize| g.px[y * g.w + x] as f64;
+    let mean = |f: &dyn Fn(usize, usize) -> f64| (0..n).flat_map(|y| (0..n).map(move |x| (x, y))).map(|(x, y)| f(x, y)).sum::<f64>() / (n * n) as f64;
+    let asymmetry = mean(&|x, y| (at(x0 + x, y0 + y) - at(x0 + n - 1 - x, y0 + y)).abs());
+    assert!(asymmetry > 10.0, "l'image de test est trop symétrique pour juger : {asymmetry:.1}");
+    let reflected = mean(&|x, y| (at(x0 + x, y0 + y) - at(x1 + n - 1 - x, y0 + y)).abs());
+    assert!(reflected < asymmetry / 4.0, "image retournée : écart {reflected:.1} au reflet du témoin, quand le témoin s'écarte de {asymmetry:.1} de son reflet");
+}
+
+/// Tableau aux colonnes (2, 1, 1) et lignes (1, 2, 1) inégales, deux cases fusionnées (deux colonnes en haut à
+/// gauche, deux lignes à droite) : chaque trait au millimètre attendu, aucun trait à travers une case fusionnée, le
+/// texte de chaque case en son milieu. Puis une grille de mise en page « une en haut, deux en bas » remplie de
+/// photos : chaque couleur dans sa case, les marges et les espaces blancs.
+#[test]
+#[ignore]
+fn tables_and_grids_are_rendered_in_place() {
+    let mut doc = Document::new("tableau");
+    let page = &mut doc.pages[0];
+    let table_id = carnet_core::table::add_table(page, frame_at(30.0, 40.0, 150.0, 120.0, 0.0), 3, 3);
+    let cell = |page: &Page, col: u8, row: u8| -> Id {
+        let t = page.elements.iter().find(|e| e.id == table_id).unwrap();
+        let ElementKind::Table(t) = &t.kind else { unreachable!() };
+        t.cells.iter().find(|c| c.col == col && c.row == row).unwrap().element_id.clone()
+    };
+    if let ElementKind::Table(t) = &mut page.elements.iter_mut().find(|e| e.id == table_id).unwrap().kind {
+        t.cols = vec![2.0, 1.0, 1.0];
+        t.rows = vec![1.0, 2.0, 1.0];
+        t.border = Some(Stroke { width_mm: 1.0, color: "#000000".into(), style: None });
+    }
+    let (a, b) = (cell(page, 0, 0), cell(page, 1, 0));
+    carnet_core::table::merge(page, &a, &b).unwrap();
+    let (a, b) = (cell(page, 2, 1), cell(page, 2, 2));
+    carnet_core::table::merge(page, &a, &b).unwrap();
+    carnet_core::table::layout(page, &table_id);
+    // Bords attendus : colonnes 30 | 105 | 142,5 | 180, lignes 40 | 70 | 130 | 160.
+    let cells = [
+        ("Alpha", (30.0, 40.0, 142.5, 70.0), (0, 0)),
+        ("Bravo", (142.5, 40.0, 180.0, 70.0), (2, 0)),
+        ("Delta", (30.0, 70.0, 105.0, 130.0), (0, 1)),
+        ("Echo", (105.0, 70.0, 142.5, 130.0), (1, 1)),
+        ("Golf", (142.5, 70.0, 180.0, 160.0), (2, 1)),
+        ("Hotel", (30.0, 130.0, 105.0, 160.0), (0, 2)),
+        ("Kilo", (105.0, 130.0, 142.5, 160.0), (1, 2)),
+    ];
+    for (word, _, (col, row)) in cells {
+        let id = cell(page, col, row);
+        let ElementKind::Text(t) = &mut page.elements.iter_mut().find(|e| e.id == id).unwrap().kind else { panic!("case {col},{row} sans texte") };
+        t.content = RichText::plain(word);
+    }
+
+    // Grille sur une seconde page, remplie de photos unies.
+    let mut store = AssetStore::default();
+    let mut grid_page = Page::new(A4_PORTRAIT);
+    carnet_core::grid::apply_preset(&mut grid_page, carnet_core::grid::GridPreset::OnePlusTwo);
+    let zones: Vec<(u8, u8, String)> = grid_page.grid.as_ref().unwrap().cells.iter().map(|c| (c.col, c.row, c.element_id.clone())).collect();
+    assert_eq!(zones.len(), 3);
+    for (col, row, id) in zones {
+        let c = match (col, row) {
+            (0, 0) => RED,
+            (0, 1) => GREEN,
+            _ => BLUE,
+        };
+        let asset = png_asset(&mut doc, &mut store, &RgbImage::from_pixel(40, 40, Rgb([c.0, c.1, c.2])));
+        let e = grid_page.elements.iter_mut().find(|e| e.id == id).unwrap();
+        let ElementKind::Photo(p) = &mut e.kind else { panic!("zone sans photo") };
+        p.asset = Some(asset);
+    }
+    doc.pages.push(grid_page);
+    let (_dir, pdf) = render(&doc, &store);
+
+    // Traits de 1 mm : à 10 pixels par millimètre, le centre de l'encre sur une bande de ±1,5 mm en travers du trait
+    // doit tomber à 0,3 mm du bord attendu ; « pas de trait » : rien de sombre sur cette bande.
+    let r = Raster::gray(&pdf, 1, 254);
+    let across = |vertical: bool, at: f64, along: f64| -> Option<f64> {
+        let pts: Vec<f64> = (-15..=15)
+            .map(|d| at + d as f64 * 0.1)
+            .filter(|&v| if vertical { r.level(v, along) < 128 } else { r.level(along, v) < 128 })
+            .collect();
+        (!pts.is_empty()).then(|| pts.iter().sum::<f64>() / pts.len() as f64)
+    };
+    let lines = [
+        (true, 30.0, vec![55.0, 100.0, 145.0]),
+        (true, 105.0, vec![100.0, 145.0]),
+        (true, 142.5, vec![55.0, 100.0, 145.0]),
+        (true, 180.0, vec![55.0, 100.0, 145.0]),
+        (false, 40.0, vec![60.0, 160.0]),
+        (false, 70.0, vec![60.0, 123.75, 161.25]),
+        (false, 130.0, vec![67.5, 123.75]),
+        (false, 160.0, vec![67.5, 123.75, 161.25]),
+    ];
+    for (vertical, at, alongs) in &lines {
+        for &along in alongs {
+            let got = across(*vertical, *at, along);
+            assert!(got.is_some_and(|g| (g - at).abs() < 0.3), "trait {} à {at} mm, relevé à {along} mm : {got:?}", if *vertical { "vertical" } else { "horizontal" });
+        }
+    }
+    // Séparations absentes dans les cases fusionnées : x = 105 dans la case du haut, y = 130 dans celle de droite.
+    assert_eq!(across(true, 105.0, 48.0), None, "trait à travers la case fusionnée du haut");
+    assert_eq!(across(false, 130.0, 170.0), None, "trait à travers la case fusionnée de droite");
+    // Texte au milieu de sa case (centré, au milieu en hauteur), à 1,5 mm près.
+    let words = words(&pdf);
+    for (word, (x0, y0, x1, y1), _) in cells {
+        let w = words.iter().find(|w| w.page == 0 && w.text == word).unwrap_or_else(|| panic!("{word} absent"));
+        let (cx, cy) = ((w.x_min + w.x_max) / 2.0 / PT_PER_MM, (w.y_min + w.y_max) / 2.0 / PT_PER_MM);
+        assert!((cx - (x0 + x1) / 2.0).abs() < 1.5 && (cy - (y0 + y1) / 2.0).abs() < 1.5, "{word} au milieu ({cx:.1}, {cy:.1}) au lieu de ({:.1}, {:.1})", (x0 + x1) / 2.0, (y0 + y1) / 2.0);
+    }
+
+    // Grille : marges de 10 mm, espace de 4 mm ; cases du haut 10..200 × 10..146,5, du bas 10..103 et 107..200 ×
+    // 150,5..287. Points relevés à 1 mm des bords.
+    let g = Raster::rgb(&pdf, 2, 127);
+    let points = [
+        ((11.0, 11.0), RED),
+        ((199.0, 145.5), RED),
+        ((11.0, 151.5), GREEN),
+        ((102.0, 286.0), GREEN),
+        ((108.0, 151.5), BLUE),
+        ((199.0, 286.0), BLUE),
+        ((105.0, 220.0), WHITE),
+        ((56.0, 148.5), WHITE),
+        ((153.0, 148.5), WHITE),
+        ((5.0, 100.0), WHITE),
+        ((205.0, 100.0), WHITE),
+        ((105.0, 292.0), WHITE),
+    ];
+    for ((x, y), want) in points {
+        assert!(near(g.color(x, y), want), "grille : {:?} à ({x}, {y}) au lieu de {want:?}", g.color(x, y));
+    }
+}
+
+/// Lettres creuses : « IIII » en 72 pt, plein (témoin) et en contour, sur la même page. Le contour a la même boîte
+/// d'encre que le témoin (décalée du cadre), un intérieur clair là où le témoin est plein, et deux bords encrés par
+/// jambage. Avec un champ de la classe non rempli, qui sort blanc.
+#[test]
+#[ignore]
+fn outlined_letters_and_unfilled_fields_are_rendered() {
+    let mut doc = Document::new("creuses");
+    let (filled, hollow) = (frame_at(20.0, 20.0, 170.0, 50.0, 0.0), frame_at(20.0, 100.0, 170.0, 50.0, 0.0));
+    doc.pages[0].elements.push(element(filled, text_kind("IIII", 72.0)));
+    let mut kind = text_kind("IIII", 72.0);
+    if let ElementKind::Text(t) = &mut kind {
+        t.style.outline = Some(true);
+    }
+    doc.pages[0].elements.push(element(hollow, kind));
+    let field = frame_at(20.0, 180.0, 120.0, 30.0, 0.0);
+    doc.pages[0].elements.push(element(field, text_kind("Bonjour\n{prenom}", 20.0)));
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    let r = Raster::gray(&pdf, 1, 254);
+    let dy = hollow.y_mm - filled.y_mm;
+
+    // Seuils larges : le contour est un trait fin, que le LibreOffice de la CI peut dessiner plus fin encore.
+    let solid = r.ink_box(filled.x_mm, filled.y_mm, filled.x_mm + filled.w_mm, filled.y_mm + filled.h_mm, 160).expect("témoin rendu");
+    let outline = r.ink_box(hollow.x_mm, hollow.y_mm, hollow.x_mm + hollow.w_mm, hollow.y_mm + hollow.h_mm, 200).expect("lettres creuses absentes");
+    let gaps = [outline.0 - solid.0, outline.1 - dy - solid.1, outline.2 - solid.2, outline.3 - dy - solid.3];
+    assert!(gaps.iter().all(|g| g.abs() < 0.6), "boîte des lettres creuses {outline:?}, du témoin {solid:?} (écarts {gaps:?})");
+    // Rangée du milieu : suites de pixels sombres (jambages) du témoin, puis la même rangée des lettres creuses.
+    let y = (solid.1 + solid.3) / 2.0;
+    let runs = |y: f64, dark: u8| -> Vec<(f64, f64)> {
+        let mut out: Vec<(f64, f64)> = vec![];
+        let mut start = None;
+        for (_, _, x, _) in r.window(solid.0 - 2.0, y, solid.2 + 2.0, y + 0.05) {
+            match (r.level(x, y) < dark, start) {
+                (true, None) => start = Some(x),
+                (false, Some(s)) => {
+                    out.push((s, x));
+                    start = None;
+                }
+                _ => {}
+            }
+        }
+        out
+    };
+    let stems = runs(y, 160);
+    assert!(stems.len() == 4 && stems.iter().all(|(a, b)| b - a > 1.5), "jambages du témoin : {stems:?}");
+    let edges = runs(y + dy, 200);
+    assert_eq!(edges.len(), 8, "bords des lettres creuses : {edges:?} (jambages du témoin {stems:?})");
+    for (a, b) in &stems {
+        let mid = (a + b) / 2.0;
+        assert!(r.level(mid, y + dy) > 200, "intérieur encré à {mid:.1} mm : {}", r.level(mid, y + dy));
+        assert!(edges.iter().filter(|(s, e)| *e > a - 0.5 && *s < b + 0.5).count() == 2, "deux bords attendus autour du jambage {a:.1}..{b:.1} : {edges:?}");
+    }
+
+    // Champ non rempli : « Bonjour » écrit, la ligne du champ sans encre.
+    let words = words(&pdf);
+    let hello = words.iter().find(|w| w.text == "Bonjour").expect("Bonjour absent");
+    let (top, line) = (hello.y_max / PT_PER_MM, (hello.y_max - hello.y_min) / PT_PER_MM);
+    assert!(r.ink_box(field.x_mm, top + 0.3, field.x_mm + field.w_mm, top + line, 200).is_none(), "le champ non rempli a laissé de l'encre");
+}
+
+fn corner_square_page(w: f64, h: f64) -> Page {
+    let mut page = Page::new(PageSize { width_mm: w, height_mm: h });
+    page.elements.push(element(frame_at(w - 25.0, h - 25.0, 10.0, 10.0, 0.0), filled_shape(ShapeKind::Rect, None)));
+    page
+}
+
+/// Taille de la page `n` du PDF, en mm.
+fn pdf_page_mm(pdf: &Path, n: usize) -> (f64, f64) {
+    let info = run(Command::new("pdfinfo").args(["-f", &n.to_string(), "-l", &n.to_string()]).arg(pdf));
+    let line = info.lines().find(|l| l.starts_with(&format!("Page {n:>4} size:"))).unwrap_or_else(|| panic!("page {n} absente :\n{info}"));
+    let nums: Vec<f64> = line.split_whitespace().filter_map(|t| t.parse().ok()).collect();
+    (nums[1] / PT_PER_MM, nums[2] / PT_PER_MM)
+}
+
+/// Formats A5 et A3, portrait et paysage : la page du PDF a la bonne taille (à 0,5 mm près), et un carré noir posé
+/// à 15 mm du coin bas droit y tombe, à 0,5 mm près (5 pixels par millimètre). Un fichier par format : LibreOffice
+/// Draw ne connaît qu'une taille de page par document (voir `defaut_connu_mixed_page_sizes_keep_their_size`).
+#[test]
+#[ignore]
+fn a5_and_a3_pages_keep_their_size() {
+    for (w, h) in [(148.0, 210.0), (210.0, 148.0), (297.0, 420.0), (420.0, 297.0)] {
+        let mut doc = Document::new("format");
+        doc.pages = vec![corner_square_page(w, h)];
+        let (_dir, pdf) = render(&doc, &AssetStore::default());
+        let (pw, ph) = pdf_page_mm(&pdf, 1);
+        assert!((pw - w).abs() < 0.5 && (ph - h).abs() < 0.5, "{w} × {h} : page de {pw:.1} × {ph:.1} mm");
+        let r = Raster::gray(&pdf, 1, 127);
+        let ink = r.ink_box(0.0, 0.0, w, h, 128).unwrap_or_else(|| panic!("{w} × {h} : page sans encre"));
+        let want = (w - 25.0, h - 25.0, w - 15.0, h - 15.0);
+        let gaps = [ink.0 - want.0, ink.1 - want.1, ink.2 - want.2, ink.3 - want.3];
+        assert!(gaps.iter().all(|g| g.abs() < 0.5), "{w} × {h} : carré à {ink:?} au lieu de {want:?}");
+    }
+}
+
+/// MIS DE CÔTÉ (défaut de l'export, ne passe pas) : une photo à coins arrondis (ou à bordure, ou à ombre) tournée
+/// garde son image droite, étirée dans la boîte tournée. Une telle photo est un `draw:rect` rempli par l'image, et
+/// LibreOffice ne tourne pas le remplissage d'un rectangle avec lui (la photo simple, un `draw:frame` d'image,
+/// tourne bien). L'image de fond d'un cadre de texte, remplie de la même façon, est sans doute touchée aussi (pas
+/// vérifié). Lancé seulement avec
+/// `BANC_DEFAUTS_CONNUS=1`.
+#[test]
+#[ignore]
+fn defaut_connu_turned_rounded_photo_turns_its_image() {
+    if std::env::var_os("BANC_DEFAUTS_CONNUS").is_none() {
+        eprintln!("mis de côté : l'image d'une photo à coins arrondis tournée reste droite dans LibreOffice");
+        return;
+    }
+    let mut store = AssetStore::default();
+    let mut doc = Document::new("photo arrondie tournée");
+    let asset = halves_asset(&mut doc, &mut store);
+    let f = frame_at(60.0, 60.0, 60.0, 30.0, 90.0);
+    let mut kind = photo_kind(&asset);
+    if let ElementKind::Photo(p) = &mut kind {
+        p.corner_radius_mm = 3.0;
+    }
+    doc.pages[0].elements.push(element(f, kind));
+    let (_dir, pdf) = render(&doc, &store);
+    check_turned_halves(&Raster::rgb(&pdf, 1, 127), "photo à coins arrondis", &f);
+}
+
+/// MIS DE CÔTÉ (défaut connu, ne passe pas) : un document aux formats mêlés (une page A5 portrait, puis A5 paysage,
+/// A3 portrait, A3 paysage) sort de LibreOffice avec toutes ses pages au format de la première. L'ODG déclare bien
+/// une mise en page par format (`style:page-layout` de chaque page maîtresse), mais LibreOffice Draw n'en garde
+/// qu'une au rendu : un ODG écrit par LibreOffice lui-même (import d'un PDF A5 portrait puis A5 paysage, deux pages
+/// maîtresses de tailles différentes) sort aussi en deux pages A5 portrait (LibreOffice 26.8). Pas de correctif dans
+/// l'export. Lancé seulement avec `BANC_DEFAUTS_CONNUS=1`.
+#[test]
+#[ignore]
+fn defaut_connu_mixed_page_sizes_keep_their_size() {
+    if std::env::var_os("BANC_DEFAUTS_CONNUS").is_none() {
+        eprintln!("mis de côté : LibreOffice Draw donne à toutes les pages le format de la première");
+        return;
+    }
+    let sizes = [(148.0, 210.0), (210.0, 148.0), (297.0, 420.0), (420.0, 297.0)];
+    let mut doc = Document::new("formats");
+    doc.pages = sizes.iter().map(|&(w, h)| corner_square_page(w, h)).collect();
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    for (i, (w, h)) in sizes.iter().enumerate() {
+        let (pw, ph) = pdf_page_mm(&pdf, i + 1);
+        assert!((pw - w).abs() < 0.5 && (ph - h).abs() < 0.5, "page {} : {pw:.1} × {ph:.1} mm au lieu de {w} × {h}", i + 1);
+    }
+}
+
+/// MIS DE CÔTÉ (défaut de l'export, ne passe pas) : une forme dessinée retournée d'un seul sens (gauche-droite, ou
+/// haut-bas) puis tournée sort tournée dans l'autre sens. LibreOffice applique `draw:mirror-horizontal` (ou
+/// `-vertical`) après la rotation de `draw:transform`, autour du centre, alors que l'écran retourne la forme dans
+/// son cadre avant de la tourner : il faudrait écrire l'angle opposé quand un seul miroir est mis (essayé : le rendu
+/// devient juste), et lire l'angle opposé à l'import (`import/odg.rs`) pour que l'aller-retour reste juste. Les
+/// photos (pixels retournés) et les images OpenMoji (SVG retourné) n'ont pas ce défaut. Lancé seulement avec
+/// `BANC_DEFAUTS_CONNUS=1`.
+#[test]
+#[ignore]
+fn defaut_connu_mirrored_and_turned_shape_keeps_its_orientation() {
+    if std::env::var_os("BANC_DEFAUTS_CONNUS").is_none() {
+        eprintln!("mis de côté : forme retournée puis tournée, tournée dans l'autre sens par LibreOffice");
+        return;
+    }
+    let mut doc = Document::new("miroir tourné");
+    // (miroir gauche-droite, miroir haut-bas) ; cadres non carrés et 30° : le sens de rotation se voit.
+    let flips = [(true, false), (false, true), (true, true)];
+    let frames: Vec<Frame> = (0..flips.len()).map(|i| frame_at(30.0 + 55.0 * i as f64, 60.0, 40.0, 20.0, 30.0)).collect();
+    for (f, (h, v)) in frames.iter().zip(flips) {
+        doc.pages[0].elements.push(Element { flip_h: h, flip_v: v, ..element(*f, filled_shape(ShapeKind::Path, Some(TRIANGLE))) });
+    }
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    let r = Raster::gray(&pdf, 1, 127);
+    for (f, (h, v)) in frames.iter().zip(flips) {
+        // Coin plein du triangle (haut gauche dans son cadre), retourné dans le cadre, puis tourné ; le coin opposé
+        // (en diagonale) reste vide.
+        let corner = |lx: f64, ly: f64| turned_point(f, if h { f.w_mm - lx } else { lx }, if v { f.h_mm - ly } else { ly });
+        let (full, empty) = (corner(3.0, 3.0), corner(f.w_mm - 3.0, f.h_mm - 3.0));
+        let (a, b) = (r.level(full.0, full.1), r.level(empty.0, empty.1));
+        assert!(a < 128 && b > 200, "miroir ({h}, {v}) tourné de 30° : {a} au coin plein {full:?}, {b} au coin vide {empty:?}");
+    }
 }

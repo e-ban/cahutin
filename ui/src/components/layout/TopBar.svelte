@@ -4,6 +4,9 @@
   import OutputMenu from "./OutputMenu.svelte";
   import { goHome, save } from "../../lib/fileActions";
   import { assistant } from "../../lib/assistant.svelte";
+  import { saveStatus } from "../../lib/autosave";
+  import { autosave } from "../../lib/autosave.svelte";
+  import { settings } from "../../lib/settings.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import Icon from "../Icon.svelte";
@@ -19,6 +22,26 @@
     editor.onFlush(() => {
       if (titleEl && document.activeElement === titleEl) setTitle(titleEl.value);
     }),
+  );
+
+  // « Enregistré », « Enregistrement… » ou « Non enregistré », toujours visible à côté du titre.
+  const editing = $derived(!!editor.editingText || !!editor.cropping);
+  const status = $derived(saveStatus({ enabled: settings.autosave, path: editor.path, ownFile: editor.ownFile, dirty: editor.dirty, editing, problem: autosave.problem }));
+  const statusLabel = $derived(status === "saved" ? fr.statusSaved : status === "saving" ? fr.statusSaving : fr.statusUnsaved);
+  const statusHint = $derived(
+    status === "saving"
+      ? editing
+        ? fr.statusEditingHint
+        : fr.statusSavingHint
+      : status === "saved"
+        ? settings.autosave && editor.ownFile
+          ? fr.statusSavedHint
+          : fr.statusSavedManualHint
+        : autosave.problem?.kind === "failed"
+          ? autosave.problem.message
+          : settings.autosave
+            ? fr.statusUnsavedHint
+            : fr.statusUnsavedManualHint,
   );
 
   function toggleTemplateMode() {
@@ -41,9 +64,12 @@
     bind:this={titleEl}
     onchange={(e) => setTitle(e.currentTarget.value)}
   />
+  <!-- Non enregistré : un clic enregistre (ou demande où, la première fois). -->
+  <button class="status {status}" title={statusHint} aria-live="polite" aria-disabled={status !== "unsaved"} onclick={() => status === "unsaved" && save()}>
+    <Icon name={status === "saved" ? "check" : status === "saving" ? "history" : "alert"} />{statusLabel}
+  </button>
   <button class="save" title="{fr.saveHint} (Ctrl+S)" onclick={() => save()}>
     <Icon name="save" />{fr.save}
-    {#if editor.dirty}<span class="dirty" role="img" title={fr.unsaved} aria-label={fr.unsaved}></span>{/if}
   </button>
   <div class="pair">
     <button onclick={() => editor.undo()} disabled={!editor.canUndo} title="{fr.undo} (Ctrl+Z)" aria-label={fr.undo}><Icon name="undo" /></button>
@@ -108,12 +134,21 @@
     background: var(--panel);
     border-color: var(--line);
   }
-  /* Le point des changements pas encore enregistrés, dans le bouton après le libellé. */
-  .dirty {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent);
+  /* L'état de l'enregistrement : un texte calme, sans animation ; « Non enregistré » se remarque et se clique. */
+  .status {
+    border-color: transparent;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.92em;
+    padding: 4px 6px;
+  }
+  .status[aria-disabled="true"] {
+    cursor: default;
+  }
+  .status.unsaved {
+    color: var(--text);
+    background: var(--warn-bg);
+    border-color: var(--warn-line);
   }
   /* Annuler et Rétablir : une seule bordure autour des deux, un trait entre eux. */
   .pair {

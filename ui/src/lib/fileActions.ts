@@ -4,7 +4,9 @@ import { tick } from "svelte";
 import * as api from "./api";
 import { assistant } from "./assistant.svelte";
 import { ask } from "./ask";
-import { clearBackup } from "./backupCopy";
+import { localTime } from "./autosave";
+import { autosave, autosaver } from "./autosave.svelte";
+import { clearBackup, copyState } from "./backupCopy";
 import { imagesDecoded } from "./printImages";
 import { confirmDiscardIfDirty, editor, type DiscardChoice } from "./docStore.svelte";
 import { newDocument } from "./factory";
@@ -15,7 +17,8 @@ import { summarizeImport } from "./importSummary";
 import { pendingPaths, type LibraryPhoto } from "./photoLibrary";
 import { addRecent, withoutRecent, writeRecents } from "./recents";
 import { missingFamilies } from "./fontNames";
-import type { Document, ImportedPages, ImportOutcome, OpenedDocument } from "./types";
+import { settings } from "./settings.svelte";
+import type { Document, ImportedPages, ImportOutcome, OpenedDocument, SaveMode, SaveOutcome } from "./types";
 import { modal } from "./modal.svelte";
 import { IS_LINUX } from "./cursors";
 import { expandSelection } from "./groups";
@@ -39,28 +42,65 @@ async function guard<T>(action: () => Promise<T>): Promise<T | undefined> {
   }
 }
 
-let saving = false;
-/** Un enregistrement est en cours : la copie de secours attend. */
-export const isSaving = () => saving;
+let saving: Promise<unknown> | null = null;
+/** Un enregistrement est en cours : la copie de secours et l'enregistrement automatique attendent. */
+export const isSaving = () => saving !== null;
 
-/** Écrit l'état du document au moment de l'appel ; ce qui change pendant l'écriture reste « modifié ». */
-async function write(path: string): Promise<boolean> {
-  if (saving) return false;
-  saving = true;
+/** Une écriture à la fois : chacune attend la fin de la précédente (Ctrl+S pendant un enregistrement automatique). */
+async function oneAtATime<T>(write: () => Promise<T>): Promise<T> {
+  while (saving) await saving.catch(() => {});
+  const p = write();
+  saving = p;
   try {
-    const snapshot = editor.doc;
-    // Les photos importées mais non placées sont retrouvées à la réouverture (chemins seulement).
-    const written = { ...snapshot, pending_photos: pendingPaths(editor.photos, snapshot, editor.carriedPending) };
-    const ok = await guard(() => api.saveDocument(path, written));
-    if (ok === undefined) return false;
-    editor.markSaved(path, snapshot);
-    remember(path, snapshot.title);
-    // Enregistré : la copie de secours n'a plus lieu d'être.
-    void clearBackup();
-    return true;
+    return await p;
   } finally {
-    saving = false;
+    if (saving === p) saving = null;
   }
+}
+
+/**
+ * Écrit `doc` (le document validé au moment de l'appel) dans `path` ; ce qui change pendant l'écriture reste
+ * « modifié ». « ChangedElsewhere » : rien n'est écrit, le fichier a changé par ailleurs. Lève en cas d'échec.
+ * `generation` : le document ouvert au départ ; s'il a été remplacé entre-temps, rien n'est marqué.
+ */
+export function writeDoc(path: string, doc: Document, mode: SaveMode, generation = editor.generation): Promise<SaveOutcome> {
+  return oneAtATime(async () => {
+    // Les photos importées mais non placées sont retrouvées à la réouverture (chemins seulement).
+    const written = { ...doc, pending_photos: pendingPaths(editor.photos, doc, editor.carriedPending) };
+    const outcome = await api.saveDocument(path, written, mode, settings.autosave);
+    if (outcome === "ChangedElsewhere" || generation !== editor.generation) return outcome ?? "Saved";
+    editor.markSaved(path, doc);
+    // L'enregistrement automatique ne range pas le document en tête des récents à chaque fois : seulement si
+    // son titre a changé.
+    if (mode !== "Auto" || editor.recents.find((r) => r.path === path)?.title !== (doc.title.trim() || fileName(path))) remember(path, doc.title);
+    // Enregistré : la copie de secours n'a plus lieu d'être (l'enregistrement automatique ne l'efface que s'il y
+    // en a une, pour ne pas remplir le journal).
+    if (mode !== "Auto" || copyState.lastBacked) void clearBackup();
+    void autosave.refreshStart();
+    return "Saved";
+  });
+}
+
+/** Écrit et dit ce qui ne va pas ; un fichier changé par ailleurs : l'enseignant choisit. */
+async function write(path: string, mode: SaveMode): Promise<boolean> {
+  let outcome: SaveOutcome;
+  try {
+    outcome = await writeDoc(path, editor.doc, mode);
+  } catch (e) {
+    editor.notice = String(e);
+    return false;
+  }
+  if (outcome === "ChangedElsewhere") {
+    const choice = await modal.choose(fr.changedElsewhereAsk, [
+      { value: "cancel", label: fr.backToDocument },
+      { value: "replace", label: fr.changedElsewhereReplace },
+      { value: "copy", label: fr.saveCopy, primary: true },
+    ]);
+    if (choice === "copy") return saveAs();
+    return choice === "replace" ? write(path, "Replace") : false;
+  }
+  autosaver.cleared();
+  return true;
 }
 
 export async function saveAs(): Promise<boolean> {
@@ -68,14 +108,16 @@ export async function saveAs(): Promise<boolean> {
   editor.flushPending();
   const picked = await saveDialog({ defaultPath: `${baseName()}.carnet`, filters: [{ name: "Carnet (Cahutin)", extensions: ["carnet"] }] });
   if (!picked) return false;
-  return write(withExt(picked, "carnet"));
+  // La fenêtre d'enregistrement a déjà demandé s'il fallait remplacer un fichier existant.
+  return write(withExt(picked, "carnet"), "Replace");
 }
 
 export async function save(): Promise<boolean> {
   if (!(await assistant.settle())) return false;
   editor.flushPending();
   if (!editor.path) return saveAs();
-  return write(editor.path);
+  // Enregistrement automatique décoché : comme avant, le fichier est écrit sans autre question.
+  return write(editor.path, settings.autosave ? "Manual" : "Replace");
 }
 
 function askToSave(): Promise<DiscardChoice> {
@@ -89,9 +131,38 @@ function askToSave(): Promise<DiscardChoice> {
 /** Quitter le document en connaissance de cause : une proposition de l'assistant est réglée d'abord, et la copie
  *  de secours est effacée. */
 export async function confirmLeave(): Promise<boolean> {
-  const leave = (await assistant.settle()) && (await confirmDiscardIfDirty(askToSave, save));
+  const leave = (await assistant.settle()) && (await savedOrAsked());
   if (leave) await clearBackup();
   return leave;
+}
+
+/** Le texte en cours d'écriture est validé ; un document qui s'enregistre tout seul l'est tout de suite, sans
+ *  question ; sinon (ou si l'écriture échoue) : « Enregistrer les modifications ? », comme avant. */
+async function savedOrAsked(): Promise<boolean> {
+  editor.flushPending();
+  if (editor.dirty && (await autosaver.flush())) return true;
+  return confirmDiscardIfDirty(askToSave, save);
+}
+
+/** Fichier > « Revenir à la version du début de séance » : la version gardée avant la première écriture de la
+ *  séance prend la place du document, en un pas d'annulation (Ctrl+Z revient aux changements), puis s'enregistre
+ *  comme tout changement. */
+export async function revertToStart() {
+  const path = editor.ownFile ? editor.path : null;
+  const at = autosave.startVersion;
+  if (!path || !at || !(await assistant.settle())) return;
+  editor.flushPending();
+  const choice = await modal.choose(fr.revertToStartAsk(localTime(at)), [
+    { value: "cancel", label: fr.backToDocument },
+    { value: "revert", label: fr.revertToStartDo, primary: true },
+  ]);
+  if (choice !== "revert") return;
+  const opened = await guard(() => api.startVersionOpen(path));
+  if (!opened || editor.path !== path) return;
+  editor.addPhotos(docPhotos(opened.doc));
+  editor.commit(opened.doc);
+  editor.selection = [];
+  editor.notify(fr.revertedToStart(localTime(at)), { label: fr.undo, run: () => editor.undo() });
 }
 
 /** Les photos d'un document, pour le panneau Photos : un document qui s'ouvre ou se crée y montre les siennes,
@@ -191,7 +262,7 @@ export async function openPath(path: string, confirm = true) {
   }
   const opened = await guard(() => api.openDocument(path));
   if (!opened) return;
-  editor.reset(opened.doc, path);
+  editor.reset(opened.doc, path, { own: true });
   assistant.clear();
   remember(path, opened.doc.title);
   await showOpened(opened);

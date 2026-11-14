@@ -1,6 +1,6 @@
 // Une fonction typée par commande Tauri (src-tauri/src/commands.rs).
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AssistantEvent, AssistantRequest, AssistantSettings, AssetMeta, ClassPhoto, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind, Match, OriginalsApplied, OriginalsReport, Phototheque, OriginalsProgress, ScanEvent, ScanReport, TagChange, MyImage, MyImagesAdded, MyImageKept, ReportMail, BackupOffer, RestoredDocument, PdfRoute } from "./types";
+import type { AssistantEvent, AssistantRequest, AssistantSettings, AssetMeta, ClassPhoto, CellContent, FaceBox, Class, GeneratePlan, ClassFileInfo, Document, FillMode, OpenedClass, Student, ExampleInfo, Frame, FontFamilyInfo, GridPreset, FontFileInfo, ImportOutcome, ImportedPages, InstantiatedPage, OpenedDocument, Page, TemplateInfo, ZoneKind, Match, OriginalsApplied, OriginalsReport, Phototheque, OriginalsProgress, ScanEvent, ScanReport, TagChange, MyImage, MyImagesAdded, MyImageKept, ReportMail, BackupOffer, RestoredDocument, PdfRoute, SaveMode, SaveOutcome } from "./types";
 
 /** Importe en arrière-plan ; `onOutcome` est appelé pour chaque photo dès qu'elle est prête. */
 export function importPhotos(paths: string[], onOutcome: (o: ImportOutcome) => void): Promise<void> {
@@ -56,7 +56,12 @@ export const documentTrash = (path: string) => invoke<void>("document_trash", { 
 /** Le document reçu au lancement (fichier .carnet ouvert depuis l'explorateur), s'il y en a un. */
 export const launchDocument = () => invoke<string | null>("launch_document");
 export const listImportableIn = (dir: string) => invoke<string[]>("list_importable_in", { dir });
-export const saveDocument = (path: string, doc: Document) => invoke<void>("save_document", { path, doc });
+/** `keepStart` : enregistrement automatique activé, la version du début de séance est gardée avant la première
+ *  écriture de la séance. */
+export const saveDocument = (path: string, doc: Document, mode: SaveMode, keepStart: boolean) => invoke<SaveOutcome>("save_document", { path, doc, mode, keepStart });
+/** Date de la version du début de séance du document (UTC, RFC 3339), s'il y en a une. */
+export const startVersionInfo = (path: string) => invoke<string | null>("start_version_info", { path });
+export const startVersionOpen = (path: string) => invoke<OpenedDocument>("start_version_open", { path });
 export const openDocument = (path: string) => invoke<OpenedDocument>("open_document", { path });
 /** Copie de secours du document ouvert (dossier de l'application), reprise au lancement après une panne. */
 export const backupSave = (doc: Document, source: string | null) => invoke<void>("backup_save", { doc, source });

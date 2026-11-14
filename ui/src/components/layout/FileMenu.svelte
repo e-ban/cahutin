@@ -5,6 +5,9 @@
   import { listExamples } from "../../lib/api";
   import type { ExampleInfo } from "../../lib/types";
   import { fr } from "../../lib/i18n/fr";
+  import { localTime } from "../../lib/autosave";
+  import { autosave } from "../../lib/autosave.svelte";
+  import { settings } from "../../lib/settings.svelte";
 
   let examples = $state<ExampleInfo[]>([]);
   listExamples().then((l) => (examples = l)).catch(() => (examples = []));
@@ -16,6 +19,8 @@
     { label: fr.importFiles, icon: "fileImport", action: () => files.importFiles() },
     { label: fr.save, icon: "save", shortcut: "Ctrl+S", action: files.save, separator: true },
     { label: fr.saveAs, icon: "save", action: files.saveAs },
+    // La version gardée avant la première écriture de la séance (enregistrement automatique coché).
+    ...(settings.autosave && editor.ownFile && autosave.startVersion ? [{ label: fr.revertToStart(localTime(autosave.startVersion)), icon: "undo", action: files.revertToStart } satisfies MenuItem] : []),
     ...(editor.recents.length
       ? [
           { label: fr.recentDocs, heading: true, separator: true },

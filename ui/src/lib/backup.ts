@@ -1,6 +1,7 @@
 // Copie de secours : toutes les deux minutes, le document modifié et pas encore enregistré est écrit dans le
 // dossier de l'application ; après une panne, Cahutin propose de le reprendre au lancement suivant.
 import * as api from "./api";
+import { localTime } from "./autosave";
 import { clearBackup, copyState } from "./backupCopy";
 import { editor } from "./docStore.svelte";
 import { isSaving, showOpened } from "./fileActions";
@@ -41,12 +42,6 @@ export function startBackups(): () => void {
   return () => clearInterval(timer);
 }
 
-/** Heure locale d'une copie (« 9 novembre 2026 à 17:05 »). */
-function when(savedAt: string): string {
-  const d = new Date(savedAt);
-  return Number.isNaN(d.getTime()) ? savedAt : d.toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" });
-}
-
 /**
  * Au lancement : propose de reprendre la copie laissée par une fenêtre arrêtée sans enregistrer (panne). Vrai
  * si le document a été repris. La copie d'une autre fenêtre encore ouverte n'est jamais proposée.
@@ -57,7 +52,7 @@ export async function offerBackup(): Promise<boolean> {
   const info = offer.info;
   // Échap ne choisit rien : la copie reste, proposée au prochain lancement. Seul « Non, l'oublier » l'efface.
   const choice = await modal.choose(
-    fr.backupFound(info.title.trim() || fr.untitled, when(info.saved_at)),
+    fr.backupFound(info.title.trim() || fr.untitled, localTime(info.saved_at)),
     [
       { value: "discard", label: fr.backupDiscard },
       { value: "open", label: fr.backupOpen, primary: true },

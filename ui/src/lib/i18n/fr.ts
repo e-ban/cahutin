@@ -259,7 +259,31 @@ export const fr = {
   exportOdg: "Exporter pour LibreOffice",
   exportOdgHint: "Fichier modifiable dans LibreOffice Draw",
   exportingOdg: "Export pour LibreOffice en cours…",
-  unsaved: "Modifications non enregistrées",
+  // Enregistrement automatique (lib/autosave.ts) : l'indicateur près du titre, les avis, la version du début de séance.
+  statusSaved: "Enregistré",
+  statusSaving: "Enregistrement…",
+  statusUnsaved: "Non enregistré",
+  statusSavedHint: "Chaque changement s'enregistre tout seul dans le fichier du document (réglage : Préférences > Enregistrement).",
+  statusSavedManualHint: "Le document est enregistré. L'enregistrement automatique est décoché (Préférences > Enregistrement) : Ctrl+S enregistre.",
+  statusSavingHint: "Vos changements s'enregistrent dans quelques secondes, tout seuls.",
+  statusEditingHint: "Ce que vous écrivez s'enregistrera quand vous quitterez le bloc (Échap ou un clic ailleurs).",
+  statusUnsavedHint: "Pas encore enregistré : cliquez ici (ou Ctrl+S) pour enregistrer. Ensuite, chaque changement s'enregistre tout seul (Préférences > Enregistrement).",
+  statusUnsavedManualHint: "Pas encore enregistré : cliquez ici (ou Ctrl+S). L'enregistrement automatique est décoché (Préférences > Enregistrement).",
+  autosaveFailed: (reason: string) => `L'enregistrement automatique n'a pas marché. ${reason} Vos changements restent ici ; Cahutin réessaiera au prochain changement.`,
+  autosaveChangedElsewhere:
+    "Ce document a été changé ailleurs (une autre fenêtre de Cahutin, une clé USB, un dossier partagé) : Cahutin ne l'écrase pas. Vos changements restent ici : enregistrez-les dans une copie.",
+  changedElsewhereAsk:
+    "Ce document a été changé ailleurs depuis que vous l'avez ouvert (une autre fenêtre de Cahutin, une clé USB, un dossier partagé). Pour ne rien perdre, enregistrez vos changements dans une copie.",
+  changedElsewhereReplace: "Remplacer par ma version",
+  saveCopy: "Enregistrer une copie",
+  revertToStart: (when: string) => `Revenir à la version du début de séance (${when})`,
+  revertToStartAsk: (when: string) => `Revenir au document tel qu'il était le ${when}, avant les changements de cette séance ? Ctrl+Z vous rendra vos changements.`,
+  revertToStartDo: "Revenir à cette version",
+  revertedToStart: (when: string) => `Le document est revenu à la version du ${when}. Ctrl+Z (ou « Annuler ») rend vos changements.`,
+  prefsSaving: "Enregistrement",
+  prefsAutosave: "Enregistrer automatiquement",
+  prefsAutosaveHint:
+    "Un document qui a déjà un fichier s'y enregistre tout seul, quelques secondes après chaque changement, sans question à la fermeture. La version du début de séance reste gardée : Fichier > « Revenir à la version du début de séance ». Décoché : enregistrez avec Ctrl+S, comme avant.",
   // Colonne d'icônes et tiroirs
   fonts: "Polices",
   closeDrawer: "Fermer",

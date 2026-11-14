@@ -34,6 +34,8 @@ export type { ImportOutcome } from "./gen/ImportOutcome";
 export type { InstantiatedPage } from "./gen/InstantiatedPage";
 export type { Mime } from "./gen/Mime";
 export type { OpenedDocument } from "./gen/OpenedDocument";
+export type { SaveMode } from "./gen/SaveMode";
+export type { SaveOutcome } from "./gen/SaveOutcome";
 export type { BackupInfo } from "./gen/BackupInfo";
 export type { ReportMail } from "./gen/ReportMail";
 export type { PdfRoute } from "./gen/PdfRoute";

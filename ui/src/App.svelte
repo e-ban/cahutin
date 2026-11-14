@@ -85,6 +85,7 @@
   import * as api from "./lib/api";
   import { clearBackup } from "./lib/backupCopy";
   import { offerBackup, startBackups } from "./lib/backup";
+  import { autosave, autosaver } from "./lib/autosave.svelte";
   import { themeVars } from "./lib/themes";
 
   editor.reset(newDocument(), null);
@@ -99,6 +100,8 @@
     .then((path) => (path ? openPath(path, false) : undefined))
     .catch(() => {});
   onMount(() => startBackups());
+  // Un document qui a un fichier s'y enregistre tout seul (Préférences > Enregistrement).
+  onMount(() => autosave.start());
   // Après une mise à jour : les nouveautés, une fois, pour qui utilisait déjà Cahutin.
   if (shouldShowWhatsNew(readPref<string | null>("whatsNewSeen", null), readPref("tourDone", false))) editor.showWhatsNew = true;
   function closeWhatsNew() {
@@ -110,7 +113,7 @@
   // Nouvelles versions : seulement si l'utilisateur l'a accepté, au plus une fois par jour.
   void updates.checkIfDue();
   // Accès pour les tests de bout en bout (tauri-driver), en développement seulement.
-  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, importFiles, fonts, save, openPath, openExampleDoc, settings, guides, whatsNew: WHATS_NEW, api, assistant, myImages, templates, classes, classLibrary, exportPdf, exportOdg } });
+  if (import.meta.env.DEV) Object.assign(window, { __editor: editor, __carnet: { importPaths, importFiles, fonts, save, openPath, openExampleDoc, settings, guides, whatsNew: WHATS_NEW, api, assistant, myImages, templates, classes, classLibrary, exportPdf, exportOdg, autosave, autosaver } });
 
   // Préférences d'affichage : police et couleurs de l'interface, taille des poignées, taille de tout (la
   // fenêtre zoome comme Ctrl+ dans un navigateur ; la page, en « Ajuster », reste à la largeur de l'écran).
@@ -144,7 +147,8 @@
     if (tourMayStart(tour.pending, modal.message !== null, !!editor.notice)) tour.start();
   });
 
-  // Fermeture de la fenêtre : demander d'enregistrer s'il y a des modifications.
+  // Fermeture de la fenêtre : demander d'enregistrer s'il y a des modifications (un document qui s'enregistre tout
+  // seul l'est sans question, lib/fileActions.ts confirmLeave).
   // Polices du poste lues en arrière-plan par le moteur : la liste se met à jour quand elles arrivent.
   onMount(() => void assistant.load());
   onMount(() => {

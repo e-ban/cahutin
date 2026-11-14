@@ -9,7 +9,7 @@ use carnet_core::import::{self, ImportError, ImportReport};
 use carnet_core::faces::{self, FaceBox};
 use carnet_core::photo::AssetStore;
 use carnet_core::{AssetMeta, Document, Frame, Page, PageSize, ZoneKind, examples, grid, native, odg, report, table};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -133,7 +133,14 @@ pub fn launch_document() -> Option<String> {
 
 /// Met un document à la corbeille de l'ordinateur (d'où on peut le récupérer), jamais un autre fichier.
 #[tauri::command(async)]
-pub fn document_trash(path: String) -> Result<(), String> {
+pub fn document_trash(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    document_trash_in(&path)?;
+    // Sa version du début de séance n'a plus de sens.
+    crate::start_version::forget(&state.start_dir, &path);
+    Ok(())
+}
+
+fn document_trash_in(path: &str) -> Result<(), String> {
     let p = std::path::Path::new(&path);
     if !is_carnet_document(p) {
         return Err("Seul un document Cahutin (.carnet) peut être supprimé ici.".into());
@@ -172,21 +179,98 @@ pub fn list_importable_in(dir: String) -> Vec<String> {
     photo::list_importable(Path::new(&dir)).into_iter().map(|p| p.to_string_lossy().into_owned()).collect()
 }
 
-fn save_document_in(state: &AppState, path: &Path, doc: &Document) -> Result<(), String> {
+/// Comment l'interface enregistre : `Auto` (enregistrement automatique : jamais un fichier introuvable, ni
+/// changé par ailleurs), `Manual` (Ctrl+S : un fichier changé par ailleurs est signalé), `Replace` (« Enregistrer
+/// sous », ou « Remplacer » choisi par l'enseignant : le fichier est écrit tel quel, comme avant).
+#[derive(Deserialize, Clone, Copy, PartialEq, Debug, TS)]
+#[ts(export)]
+pub enum SaveMode {
+    Auto,
+    Manual,
+    Replace,
+}
+
+#[derive(Serialize, PartialEq, Debug, TS)]
+#[ts(export)]
+pub enum SaveOutcome {
+    Saved,
+    /// Le fichier a changé depuis que Cahutin l'a lu ou écrit (autre fenêtre, clé USB, dossier synchronisé) :
+    /// rien n'est écrit.
+    ChangedElsewhere,
+}
+
+pub const READ_ONLY: &str = "Ce fichier est en lecture seule : Cahutin ne peut pas y enregistrer vos changements. « Enregistrer sous… » en fait une copie ailleurs.";
+pub const MISSING: &str = "Le fichier du document est introuvable (clé USB retirée, fichier déplacé ou supprimé) : vos changements restent ici, pas encore enregistrés.";
+
+/// Enregistre `doc` dans `path` selon `mode`. `keep_start` (enregistrement automatique activé) : avant la
+/// première écriture de la séance dans ce fichier, sa version du début de séance est gardée. Jamais de chemin
+/// dans le journal.
+pub(crate) fn write_document_in(state: &AppState, path: &Path, doc: &Document, mode: SaveMode, keep_start: bool) -> Result<SaveOutcome, String> {
+    // Sous Linux, remplacer le fichier ne dépend que du dossier : la lecture seule se vérifie ici.
+    if std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.permissions().readonly()) {
+        log::warn!("save_document_failed kind=ReadOnly");
+        return Err(READ_ONLY.into());
+    }
+    let known = state.known_file.lock().unwrap().clone().filter(|(p, _)| p == path);
+    let now = carnet_core::fsutil::stamp(path);
+    if mode == SaveMode::Auto && (known.is_none() || now.is_none()) {
+        log::warn!("autosave_failed kind={}", if now.is_none() { "Missing" } else { "NotOpened" });
+        return Err(MISSING.into());
+    }
+    if mode != SaveMode::Replace && now.is_some() && known.is_some_and(|(_, k)| Some(k) != now) {
+        log::warn!("save_document_changed_elsewhere auto={}", mode == SaveMode::Auto);
+        return Ok(SaveOutcome::ChangedElsewhere);
+    }
+    let first = !state.start_kept.lock().unwrap().contains(path);
+    if keep_start && first && now.is_some() {
+        match crate::start_version::keep(&state.start_dir, path) {
+            Ok(()) => log::info!("start_version_kept"),
+            Err(e) => {
+                log::error!("start_version_failed kind={:?}", e.kind());
+                // Sans la version du début de séance, l'enregistrement automatique n'écrase pas l'original.
+                if mode == SaveMode::Auto {
+                    return Err("Cahutin n'a pas pu garder la version du début de séance : le document n'est pas enregistré automatiquement. Ctrl+S l'enregistre.".into());
+                }
+            }
+        }
+    }
     // Le magasin n'est tenu que le temps de la copie : les photos restent servies pendant l'écriture.
     let snapshot = state.store.lock().unwrap().subset(&native::used_assets(doc));
     native::save_to_path(doc, &snapshot, &state.fonts.read().unwrap(), path).map_err(|e| {
-        log::error!("save_document_failed kind={e:?}");
+        log::error!("save_document_failed kind={e:?} auto={}", mode == SaveMode::Auto);
         e.message_fr()
     })?;
-    log::info!("save_document pages={}", doc.pages.len());
-    Ok(())
+    if keep_start {
+        state.start_kept.lock().unwrap().insert(path.to_path_buf());
+    }
+    *state.known_file.lock().unwrap() = carnet_core::fsutil::stamp(path).map(|s| (path.to_path_buf(), s));
+    // L'enregistrement automatique revient toutes les quelques secondes : il ne remplit pas le journal.
+    if mode != SaveMode::Auto {
+        log::info!("save_document pages={}", doc.pages.len());
+    }
+    Ok(SaveOutcome::Saved)
 }
 
 /// Exécutée hors du fil principal : la fenêtre reste réactive.
 #[tauri::command(async)]
-pub fn save_document(state: State<'_, AppState>, path: String, doc: Document) -> Result<(), String> {
-    save_document_in(&state, Path::new(&path), &doc)
+pub fn save_document(state: State<'_, AppState>, path: String, doc: Document, mode: SaveMode, keep_start: bool) -> Result<SaveOutcome, String> {
+    write_document_in(&state, Path::new(&path), &doc, mode, keep_start)
+}
+
+/// Date de la version du début de séance du document `path`, s'il y en a une (UTC, RFC 3339).
+#[tauri::command]
+pub fn start_version_info(state: State<'_, AppState>, path: String) -> Option<String> {
+    crate::start_version::info(&state.start_dir, &path).map(|(i, _)| i.version_at)
+}
+
+/// Ouvre la version du début de séance du document `path` (ses photos rejoignent le magasin) ; le fichier du
+/// document n'est pas touché : l'interface la pose comme un changement, que Ctrl+Z annule.
+#[tauri::command(async)]
+pub fn start_version_open(state: State<'_, AppState>, path: String) -> Result<OpenedDocument, String> {
+    let (_, copy) = crate::start_version::info(&state.start_dir, &path).ok_or("La version du début de séance est introuvable.")?;
+    let opened = open_document_in(&state, &copy)?;
+    log::info!("start_version_opened");
+    Ok(opened)
 }
 
 #[derive(Serialize, TS)]
@@ -306,7 +390,12 @@ pub fn cancel_import(state: State<'_, AppState>) {
 /// Exécutée hors du fil principal : la fenêtre reste réactive.
 #[tauri::command(async)]
 pub fn open_document(state: State<'_, AppState>, path: String) -> Result<OpenedDocument, String> {
-    open_document_in(&state, Path::new(&path))
+    let path = Path::new(&path);
+    // La marque est prise avant la lecture : un changement pendant la lecture compte comme un changement.
+    let stamp = carnet_core::fsutil::stamp(path);
+    let opened = open_document_in(&state, path)?;
+    *state.known_file.lock().unwrap() = stamp.map(|s| (path.to_path_buf(), s));
+    Ok(opened)
 }
 
 /// Aperçu d'un document récent : sa première page seulement, avec les images qu'elle montre (les autres ne
@@ -718,7 +807,7 @@ mod tests {
         assert!(!is_carnet_document(&other));
         assert!(!is_carnet_document(dir.path()));
         assert!(!is_carnet_document(&dir.path().join("absent.carnet")));
-        assert!(document_trash(other.to_string_lossy().into_owned()).is_err());
+        assert!(document_trash_in(&other.to_string_lossy()).is_err());
         assert!(other.exists());
     }
 
@@ -832,6 +921,88 @@ mod tests {
         assert_eq!(existing_paths(vec![s(&kept), s(&removed), s(&folder)]), vec![s(&kept)]);
     }
 
+    /// Ouvre `path` comme la commande `open_document` : le fichier lu devient le fichier connu.
+    fn opened(state: &AppState, path: &Path) {
+        open_document_in(state, path).unwrap();
+        *state.known_file.lock().unwrap() = carnet_core::fsutil::stamp(path).map(|s| (path.to_path_buf(), s));
+    }
+
+    #[test]
+    fn autosave_writes_only_a_known_file_unchanged_elsewhere() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir.path().join("app"));
+        let path = dir.path().join("fiche.carnet");
+        let doc = Document::new("Lundi");
+        // Jamais ouvert ni enregistré par Cahutin : pas d'enregistrement automatique.
+        assert_eq!(write_document_in(&state, &path, &doc, SaveMode::Auto, true), Err(MISSING.into()));
+        assert!(!path.exists());
+        write_document_in(&state, &path, &doc, SaveMode::Replace, true).unwrap();
+        opened(&state, &path);
+        assert_eq!(write_document_in(&state, &path, &Document::new("Mardi"), SaveMode::Auto, true), Ok(SaveOutcome::Saved));
+        assert_eq!(native::load_from_path(&path).unwrap().doc.title, "Mardi");
+        // Touché par ailleurs (même contenu, autre date) : rien n'est écrit, ni automatiquement ni par Ctrl+S.
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(120);
+        std::fs::File::options().write(true).open(&path).unwrap().set_modified(later).unwrap();
+        for mode in [SaveMode::Auto, SaveMode::Manual] {
+            assert_eq!(write_document_in(&state, &path, &Document::new("Mercredi"), mode, true), Ok(SaveOutcome::ChangedElsewhere));
+        }
+        assert_eq!(native::load_from_path(&path).unwrap().doc.title, "Mardi");
+        // « Remplacer », choisi par l'enseignant : écrit, et le fichier redevient connu.
+        assert_eq!(write_document_in(&state, &path, &Document::new("Mercredi"), SaveMode::Replace, true), Ok(SaveOutcome::Saved));
+        assert_eq!(write_document_in(&state, &path, &Document::new("Jeudi"), SaveMode::Auto, true), Ok(SaveOutcome::Saved));
+        // Remplacé par un autre fichier (autre fenêtre) : pas d'écrasement.
+        let other = test_state(&dir.path().join("autre"));
+        opened(&other, &path);
+        write_document_in(&other, &path, &Document::new("Autre fenêtre, plus long"), SaveMode::Auto, true).unwrap();
+        assert_eq!(write_document_in(&state, &path, &Document::new("Vendredi"), SaveMode::Auto, true), Ok(SaveOutcome::ChangedElsewhere));
+        // Disparu (clé retirée) : un échec, pas un fichier recréé en silence.
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(write_document_in(&state, &path, &doc, SaveMode::Auto, true), Err(MISSING.into()));
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn a_read_only_file_is_never_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir.path().join("app"));
+        let path = dir.path().join("fiche.carnet");
+        write_document_in(&state, &path, &Document::new("Lundi"), SaveMode::Replace, false).unwrap();
+        opened(&state, &path);
+        let mut perms = std::fs::metadata(&path).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&path, perms.clone()).unwrap();
+        for mode in [SaveMode::Auto, SaveMode::Manual, SaveMode::Replace] {
+            assert_eq!(write_document_in(&state, &path, &Document::new("Mardi"), mode, true), Err(READ_ONLY.into()));
+        }
+        #[allow(clippy::permissions_set_readonly_false)]
+        perms.set_readonly(false);
+        std::fs::set_permissions(&path, perms).unwrap();
+        assert_eq!(native::load_from_path(&path).unwrap().doc.title, "Lundi");
+        // Redevenu écrivable : l'enregistrement automatique reprend.
+        assert_eq!(write_document_in(&state, &path, &Document::new("Mardi"), SaveMode::Auto, true), Ok(SaveOutcome::Saved));
+    }
+
+    #[test]
+    fn the_start_version_is_kept_before_the_first_write_of_the_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir.path().join("app"));
+        let path = dir.path().join("fiche.carnet");
+        let key = path.to_string_lossy().into_owned();
+        write_document_in(&state, &path, &Document::new("Sortie à la ferme"), SaveMode::Replace, false).unwrap();
+        assert_eq!(crate::start_version::info(&state.start_dir, &key), None, "réglage décoché : pas de version gardée");
+        opened(&state, &path);
+        write_document_in(&state, &path, &Document::new("Sortie au zoo"), SaveMode::Auto, true).unwrap();
+        write_document_in(&state, &path, &Document::new("Sortie au zoo, suite"), SaveMode::Auto, true).unwrap();
+        let (_, copy) = crate::start_version::info(&state.start_dir, &key).unwrap();
+        assert_eq!(native::load_from_path(&copy).unwrap().doc.title, "Sortie à la ferme");
+        // Séance suivante (nouveau lancement) : la copie est remplacée à la première écriture.
+        let next = test_state(&dir.path().join("app"));
+        opened(&next, &path);
+        write_document_in(&next, &path, &Document::new("Sortie au musée"), SaveMode::Manual, true).unwrap();
+        let (_, copy) = crate::start_version::info(&next.start_dir, &key).unwrap();
+        assert_eq!(native::load_from_path(&copy).unwrap().doc.title, "Sortie au zoo, suite");
+    }
+
     fn test_state(dir: &Path) -> AppState {
         AppState::new(AssetStore::default(), Library::open(dir.join("modeles")).unwrap(), dir.join("polices"), dir.join("Classes"), dir.join("secours"))
     }
@@ -884,7 +1055,7 @@ mod tests {
         });
         doc.assets.insert(meta.id.clone(), meta.clone());
         let path = dir.path().join("sortie.carnet");
-        save_document_in(&author, &path, &doc).unwrap();
+        write_document_in(&author, &path, &doc, SaveMode::Replace, false).unwrap();
 
         let colleague = test_state(&dir.path().join("collègue"));
         let imported = import_file_in(&colleague, &path, None).unwrap();
@@ -914,7 +1085,7 @@ mod tests {
             flip_h: false, flip_v: false,
         });
         let path = dir.join(format!("{name}.carnet"));
-        save_document_in(&author, &path, &doc).unwrap();
+        write_document_in(&author, &path, &doc, SaveMode::Replace, false).unwrap();
         path
     }
 
@@ -977,7 +1148,7 @@ mod tests {
         });
         doc.assets.insert(meta.id.clone(), meta.clone());
         let path = dir.path().join("sortie.carnet");
-        save_document_in(&author, &path, &doc).unwrap();
+        write_document_in(&author, &path, &doc, SaveMode::Replace, false).unwrap();
 
         // La photo n'est que sur la page 2 : l'aperçu ne la charge pas.
         let reader = test_state(&dir.path().join("lecteur"));
@@ -988,7 +1159,7 @@ mod tests {
 
         // Sur la page 1, elle est chargée pour la vignette.
         doc.pages.swap(0, 1);
-        save_document_in(&author, &path, &doc).unwrap();
+        write_document_in(&author, &path, &doc, SaveMode::Replace, false).unwrap();
         let preview = preview_document_in(&reader, &path).unwrap();
         assert_eq!(preview.assets.keys().collect::<Vec<_>>(), [&meta.id]);
         assert!(reader.store.lock().unwrap().get(&meta.id).is_some());
@@ -1018,7 +1189,7 @@ mod tests {
             flip_h: false, flip_v: false,
         });
         let path = dir.path().join("partagé.carnet");
-        save_document_in(&author, &path, &doc).unwrap();
+        write_document_in(&author, &path, &doc, SaveMode::Replace, false).unwrap();
 
         let colleague = test_state(&dir.path().join("collègue"));
         let opened = open_document_in(&colleague, &path).unwrap();

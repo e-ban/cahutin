@@ -18,6 +18,9 @@ export type ExportKind = "pdf" | "odg";
 export const LABEL_DELAYS = [0, 0.5, 1] as const;
 export type LabelDelay = (typeof LABEL_DELAYS)[number];
 
+/** « Enregistrer automatiquement » (Préférences > Enregistrement), coché tant que l'enseignant ne le décoche pas. */
+export const AUTOSAVE_DEFAULT = true;
+
 /** Animations réduites par défaut si le système le demande. */
 function systemReducesMotion(): boolean {
   try {
@@ -65,6 +68,9 @@ class Settings {
   graphismeLevel = $state<Level>(readPref("graphismeLevel", "MS"));
   /** L'export proposé en premier dans « Imprimer / Exporter ». */
   preferredExport = $state<ExportKind>(readPref("preferredExport", "pdf"));
+  /** Un document qui a un fichier s'y enregistre tout seul après chaque changement. Décoché : à la main,
+   *  comme avant (question à la fermeture, copie de secours). */
+  autosave = $state(readPref("autosave", AUTOSAVE_DEFAULT));
 
   setMoreMenu(on: boolean) {
     this.moreMenu = on;
@@ -99,6 +105,7 @@ type Stored =
   | "pageLandscape"
   | "textFont"
   | "graphismeLevel"
-  | "preferredExport";
+  | "preferredExport"
+  | "autosave";
 
 export const settings = new Settings();

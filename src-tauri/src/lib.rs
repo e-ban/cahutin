@@ -13,6 +13,7 @@ pub mod pdf_cdp;
 pub mod pdf_windows;
 mod print_setup;
 mod protocol;
+mod start_version;
 mod state;
 mod update;
 
@@ -78,7 +79,14 @@ pub fn run() {
                     data.join("secours").join(carnet_core::new_id())
                 }
             };
-            app.manage(AppState::new(store, Library::open(data.join("modeles"))?, data.join("polices"), classes, backup_dir));
+            let mut state = AppState::new(store, Library::open(data.join("modeles"))?, data.join("polices"), classes, backup_dir);
+            // Versions du début de séance : à côté des copies de secours ; les plus anciennes sont effacées.
+            state.start_dir = data.join("debut-de-seance");
+            let tidied = start_version::tidy(&state.start_dir, std::time::SystemTime::now(), start_version::MAX_AGE);
+            if tidied > 0 {
+                log::info!("start_versions_tidied count={tidied}");
+            }
+            app.manage(state);
             // Polices du poste : lues en arrière-plan pour ne pas retarder l'ouverture de la fenêtre.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
@@ -108,6 +116,8 @@ pub fn run() {
             commands::launch_document,
             commands::list_importable_in,
             commands::save_document,
+            commands::start_version_info,
+            commands::start_version_open,
             commands::open_document,
             commands::preview_document,
             commands::import_file,

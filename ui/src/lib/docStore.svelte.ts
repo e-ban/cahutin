@@ -15,6 +15,11 @@ export type DrawerId = "templates" | "images" | "text" | "fields" | "shapes" | "
 class Editor {
   doc = $state.raw<Document>(newDocument());
   path = $state<string | null>(null);
+  /** `path` est un fichier que l'enseignant a ouvert ou enregistré dans Cahutin : il s'y enregistre tout seul
+   *  (pas une copie de secours reprise, ni un exemple, ni un import). */
+  ownFile = $state(false);
+  /** Change à chaque document qui prend la place du précédent : une écriture finie trop tard ne le marque pas. */
+  generation = 0;
   pageIndex = $state(0);
   selection = $state<string[]>([]);
   zoom = $state<Zoom>("fit");
@@ -269,10 +274,12 @@ class Editor {
     this.selection = [];
   }
 
+  /** Écrit dans `path` : seul l'état « modifié » change, un aperçu ou une proposition affichés restent. */
   markSaved(path: string, snapshot?: Document) {
     this.path = path;
+    this.ownFile = true;
     this.#history.markSaved(snapshot);
-    this.#sync();
+    this.dirty = this.#history.isDirty;
   }
 
   // Éditions en cours hors du document (texte en cours de saisie, recadrage) : validées avant
@@ -289,8 +296,11 @@ class Editor {
   }
 
   /** Nouveau document ou document ouvert : l'historique repart de zéro. */
-  /** `unsaved` : document repris d'une copie de secours, à enregistrer (donc « modifié »). */
-  reset(doc: Document, path: string | null, opts: { unsaved?: boolean } = {}) {
+  /** `unsaved` : document repris d'une copie de secours, à enregistrer (donc « modifié »). `own` : `path` est le
+   *  fichier que l'enseignant vient d'ouvrir. */
+  reset(doc: Document, path: string | null, opts: { unsaved?: boolean; own?: boolean } = {}) {
+    this.generation++;
+    this.ownFile = !!path && !!opts.own;
     this.#proposal = null;
     this.proposing = false;
     this.#history = createHistory(doc);
@@ -324,6 +334,11 @@ class Editor {
   // Aperçu en direct (curseur que l'on fait glisser) : affiché tout de suite, mais un seul pas
   // d'annulation, enregistré quand on relâche.
   #previewBase: Document | null = null;
+
+  /** Un aperçu en direct est affiché, pas encore validé. */
+  get previewing(): boolean {
+    return this.#previewBase !== null;
+  }
 
   preview(next: Document) {
     if (!this.#previewBase) this.#previewBase = this.#history.current;

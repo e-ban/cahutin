@@ -9,6 +9,7 @@ import ExportPrefs from "../components/prefs/ExportPrefs.svelte";
 import GraphismePrefs from "../components/prefs/GraphismePrefs.svelte";
 import HelpPrefs from "../components/prefs/HelpPrefs.svelte";
 import NewPagePrefs from "../components/prefs/NewPagePrefs.svelte";
+import SavingPrefs from "../components/prefs/SavingPrefs.svelte";
 import ToolbarPrefs from "../components/prefs/ToolbarPrefs.svelte";
 import { fr } from "./i18n/fr";
 import type { IconName } from "./icons";
@@ -31,6 +32,7 @@ export const PREFS_CATEGORIES: PrefsCategory[] = [
   { id: "toolbar", label: fr.prefsToolbar, icon: "more", pane: ToolbarPrefs, words: [fr.prefsToolbarFull, fr.prefsToolbarCompact, fr.prefsMoreMenu, fr.prefsLabelDelay, "barre", "outils", "icônes"] },
   { id: "newPage", label: fr.prefsNewPage, icon: "fileNew", pane: NewPagePrefs, words: [fr.prefsPageFormat, "A4", "A5", "A3", fr.landscape, fr.portrait, fr.prefsTextFont, "police"] },
   { id: "graphisme", label: fr.prefsGraphisme, icon: "pen", pane: GraphismePrefs, words: [fr.graphismeLevel, "PS", "MS", "GS", "niveau"] },
+  { id: "saving", label: fr.prefsSaving, icon: "save", pane: SavingPrefs, words: [fr.prefsAutosave, "automatique", "sauvegarde", "Ctrl+S"] },
   { id: "export", label: fr.prefsExport, icon: "print", pane: ExportPrefs, words: [fr.prefsExportPdf, fr.prefsExportOdg, "LibreOffice", "imprimer"], needsPdf: true },
   { id: "help", label: fr.prefsHelp, icon: "help", pane: HelpPrefs, words: [fr.hintsWhileWorking, fr.updatesMenu, "astuces", "mises à jour"] },
   { id: "assistant", label: fr.assistant.prefsTitle, icon: "assistant", pane: AssistantPrefs, words: ["IA", "intelligence artificielle", fr.assistant.prefsService, fr.assistant.prefsKey, "Claude", "OpenAI", "Gemini", "Ollama"] },

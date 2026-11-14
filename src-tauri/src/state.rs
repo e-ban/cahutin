@@ -42,6 +42,13 @@ pub struct AppState {
     pub my_images: Mutex<std::collections::HashMap<(String, u64, u64), carnet_core::AssetMeta>>,
     /// Dossier de la copie de secours du document ouvert (`<données de l'application>/secours`).
     pub backup_dir: PathBuf,
+    /// Le fichier du document ouvert tel que Cahutin l'a lu ou écrit la dernière fois (taille et date) : un
+    /// enregistrement ne remplace pas un fichier changé depuis par ailleurs.
+    pub known_file: Mutex<Option<(PathBuf, carnet_core::fsutil::FileStamp)>>,
+    /// Dossier des versions du début de séance (`<données de l'application>/debut-de-seance`).
+    pub start_dir: PathBuf,
+    /// Fichiers déjà écrits pendant cette séance : leur version du début de séance est gardée.
+    pub start_kept: Mutex<std::collections::HashSet<PathBuf>>,
 }
 
 impl AppState {
@@ -63,7 +70,10 @@ impl AppState {
             phototheque_writer: crate::index_writer::IndexWriter::new(),
             thumb_fill: AtomicU64::new(0),
             my_images: Mutex::new(Default::default()),
+            start_dir: backup_dir.with_extension("debut-de-seance"),
             backup_dir,
+            known_file: Mutex::new(None),
+            start_kept: Mutex::new(Default::default()),
         }
     }
 

@@ -1000,6 +1000,10 @@
     white-space: nowrap;
     z-index: 3500; /* au-dessus des poignées Moveable (3000), sous les menus */
   }
+  /* Un menu ouvert passe devant la barre du tableau, posée sous la case. */
+  .ctx:has(:global(.pop)) {
+    z-index: 3501;
+  }
   .ctx > button,
   .wrap > button {
     border-color: transparent;

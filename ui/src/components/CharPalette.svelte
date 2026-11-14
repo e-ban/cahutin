@@ -13,9 +13,10 @@
   let root = $state<HTMLElement>();
   let list = $state<HTMLElement>();
 
-  // L'écriture finie (Échap, Tab dans un tableau...) : la palette se referme, elle ne revient pas ouverte.
+  // L'écriture finie (Échap) ou passée à une autre case (Tab dans un tableau) : la palette se referme.
   $effect(() => {
-    if (!textEditing.current) open = false;
+    void textEditing.current;
+    open = false;
   });
 
   const items = () => [...(list?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
@@ -37,17 +38,21 @@
     tip.view.focus();
   }
 
+  /** Échap, palette ouverte : seule la palette se ferme, on revient au texte sans quitter l'écriture. Pris avant
+   *  l'éditeur de texte, qui fermerait l'écriture : le curseur y reste quand la palette est ouverte à la souris. */
+  function onWindowKey(e: KeyboardEvent) {
+    if (!open || e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    open = false;
+    textEditing.current?.view.focus();
+  }
+
   function onKey(e: KeyboardEvent) {
     const all = items();
     const i = all.indexOf(document.activeElement as HTMLButtonElement);
     const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
-    if (e.key === "Escape") {
-      // Échap ferme la palette et revient au texte, sans fermer l'écriture.
-      e.preventDefault();
-      e.stopPropagation();
-      open = false;
-      textEditing.current?.view.focus();
-    } else if (step && i >= 0) {
+    if (step && i >= 0) {
       e.preventDefault();
       all[(i + step + all.length) % all.length].focus();
     } else if (e.key === "Home" || e.key === "End") {
@@ -58,6 +63,7 @@
 </script>
 
 <svelte:window
+  onkeydowncapture={onWindowKey}
   onpointerdown={(e) => {
     if (open && root && !root.contains(e.target as Node)) open = false;
   }}

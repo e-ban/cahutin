@@ -35,6 +35,13 @@
 </script>
 
 <svelte:window
+  onkeydowncapture={(e) => {
+    // Échap, liste ouverte : seule la liste se ferme (l'écriture en cours continue, le bloc reste choisi).
+    if (!open || e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    open = false;
+  }}
   onpointerdown={(e) => {
     if (open && root && !root.contains(e.target as Node)) open = false;
   }}

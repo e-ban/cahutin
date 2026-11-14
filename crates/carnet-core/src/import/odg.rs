@@ -542,7 +542,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
             })
             .collect();
         let radius = text_box.attribute((DRAW, "corner-radius")).and_then(length_mm).unwrap_or(0.0);
-        let text_frame = (g.fill.is_some() || g.stroke.is_some() || radius > 0.0).then(|| TextFrame { fill: g.fill.clone(), stroke: g.stroke.clone(), corner_radius_mm: radius, image: None, pattern: None });
+        let text_frame = (g.fill.is_some() || g.stroke.is_some() || radius > 0.0).then(|| TextFrame { fill: g.fill.clone(), stroke: g.stroke.clone(), corner_radius_mm: radius, image: None, pattern: None, write_on_lines: None });
         let props = TextProps { content: RichText { paragraphs }, style, prompt: None, frame: text_frame };
         self.items.push(Item::Element(Box::new(element(frame, ElementKind::Text(props)))));
     }

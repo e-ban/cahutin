@@ -49,9 +49,9 @@ pub fn renew_ids(page: &mut Page) {
 /// miroir, lignes d'écriture, styles nommés ; 6 : image à colorier ou en couleur de peau, tracé libre, groupe dans
 /// un groupe ; 7 : miroir d'un élément autre qu'une photo, ou de haut en bas ; 8 : champs de la classe sans
 /// accents, `{prenom}` ; 9 : recette des lignes de graphisme, lue seulement : une version plus ancienne voit des
-/// lignes ordinaires ; 11 : interligne d'un texte, la seule version que `native::written_version` écrit au-delà
-/// de 8).
-pub const FORMAT_VERSION: u32 = 11;
+/// lignes ordinaires ; 11 : interligne d'un texte ; 12 : texte écrit sur les lignes de son cadre ; 11 et 12, les
+/// seules versions que `native::written_version` écrit au-delà de 8).
+pub const FORMAT_VERSION: u32 = 12;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -331,6 +331,11 @@ pub struct TextFrame {
     #[serde(default)]
     #[ts(optional = nullable)]
     pub pattern: Option<Pattern>,
+    /// Le texte s'écrit sur les lignes du motif (Seyès ou lignes : voir `background::writes_on_lines`) ; absent :
+    /// le texte posé comme avant, sans égard aux lignes (un ancien document ne bouge pas à l'ouverture).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub write_on_lines: Option<bool>,
 }
 
 impl TextFrame {

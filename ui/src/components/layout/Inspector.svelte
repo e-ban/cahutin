@@ -14,7 +14,7 @@
   import { isStrokeOnly } from "../../lib/shapePaths";
   import { fonts } from "../../lib/fonts.svelte";
   import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isMarkActive, setAlign, setColor, setFont, setLineSpacing, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
-  import { LINE_SPACINGS } from "../../lib/lineSpacing";
+  import { LINE_SPACINGS, writesOnLines } from "../../lib/lineSpacing";
   import { endPreview, previewPhoto, previewShape, previewTextStyle, updatePhoto, updateSelected, updateShape } from "../../lib/elementEdit";
   import { cropPosition, photoTrims, roundedFrame, wholePhoto, withPosition, withTrims, type Trims } from "../../lib/crop";
   import { bringSelection, canBringSelection, deleteSelection, mirrorSelection, rotateSelection, selectionLocked, setSelectedFrame, setSelectionSize, toggleLockSelection, ungroupSelection } from "../../lib/editActions";
@@ -310,16 +310,17 @@
       </div>
       <div class="row">
         {#each VALIGNS as v (v)}
-          <button title={fr.textVAlign[v]} aria-label={fr.textVAlign[v]} class:on={(t.style.valign ?? "Top") === v} onpointerdown={(e) => e.preventDefault()} onclick={() => setVAlign(v)}><VAlignIcon valign={v} /></button>
+          <button title={fr.textVAlign[v]} aria-label={fr.textVAlign[v]} class:on={(t.style.valign ?? "Top") === v} disabled={writesOnLines(t.frame)} onpointerdown={(e) => e.preventDefault()} onclick={() => setVAlign(v)}><VAlignIcon valign={v} /></button>
         {/each}
       </div>
       <div class="field">
         <span>{fr.lineSpacing}</span>
         <div class="row spacing">
           {#each LINE_SPACINGS as s (s.key)}
-            <button title={fr.lineSpacingHints[s.key]} class:on={(t.style.line_spacing ?? null) === s.value} onpointerdown={(e) => e.preventDefault()} onclick={() => setLineSpacing(s.value)}>{fr.lineSpacings[s.key]}</button>
+            <button title={fr.lineSpacingHints[s.key]} class:on={(t.style.line_spacing ?? null) === s.value} disabled={writesOnLines(t.frame)} onpointerdown={(e) => e.preventDefault()} onclick={() => setLineSpacing(s.value)}>{fr.lineSpacings[s.key]}</button>
           {/each}
         </div>
+        {#if writesOnLines(t.frame)}<p class="hint">{fr.onLinesSpacing}</p>{/if}
       </div>
       <div class="field">
         <span>{fr.padding} : {textPadding(t.style)} mm</span>

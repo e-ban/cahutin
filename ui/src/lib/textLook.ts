@@ -1,6 +1,6 @@
 // Police, taille ou couleur données au bloc de texte entier : les mots qui avaient la leur la perdent,
 // comme pour un style nommé (`applyStyle`) et pour l'assistant (`set_text_style`).
-import type { TextProps, TextStyle } from "./types";
+import type { RichText, TextProps, TextStyle } from "./types";
 
 export type WholeLook = Partial<Pick<TextStyle, "font" | "size_pt" | "color">>;
 
@@ -13,7 +13,24 @@ export function lookOnWholeText(t: TextProps, look: WholeLook): TextProps {
   };
 }
 
-/** La sélection de l'éditeur couvre-t-elle tout le texte (de `from` à `to`, dans un document de `docSize`) ? */
-export function coversWholeText(from: number, to: number, docSize: number): boolean {
-  return from < to && from <= 1 && to >= docSize - 1;
+const LOOK_KEYS = ["font", "size_pt", "color"] as const;
+
+/**
+ * À la fin de l'écriture : une police, une taille ou une couleur que portent tous les passages du texte devient
+ * celle du bloc, et les passages la perdent. Le texte s'affiche pareil ; le panneau montre la vraie valeur du
+ * bloc, et un changement de tout le texte pendant l'écriture s'annule en un seul pas avec le contenu.
+ */
+export function liftUniformLook(t: TextProps): TextProps {
+  const runs = t.content.paragraphs.flatMap((p) => p.runs);
+  const look: WholeLook = {};
+  for (const k of LOOK_KEYS) {
+    const v = runs[0]?.[k];
+    if (v != null && runs.every((r) => r[k] === v)) Object.assign(look, { [k]: v });
+  }
+  return Object.keys(look).length ? lookOnWholeText(t, look) : t;
+}
+
+/** Le texte à la fin de l'écriture, avec `content` tapé ; null si le contenu n'a pas changé (rien à enregistrer). */
+export function finishedText(t: TextProps, content: RichText): TextProps | null {
+  return JSON.stringify(t.content) === JSON.stringify(content) ? null : liftUniformLook({ ...t, content });
 }

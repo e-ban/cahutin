@@ -19,6 +19,7 @@
   import { fitCount, repeatBlock } from "../lib/repeat";
   import { endPreview, previewPhoto, previewShape, previewTable, updateTable, previewTextFrame, previewTextStyle, updatePhoto, updateShape, updateTextFrame, updateTextStyle } from "../lib/elementEdit";
   import { textPadding } from "../lib/richtext";
+  import { writesOnLines } from "../lib/lineSpacing";
   import { fonts } from "../lib/fonts.svelte";
   import { fr } from "../lib/i18n/fr";
   import { settings } from "../lib/settings.svelte";
@@ -571,7 +572,7 @@
             </div>
             <div class="row">
               {#each VALIGNS as v (v)}
-                <button class:on={(t.style.valign ?? "Top") === v} title={fr.textVAlign[v]} aria-label={fr.textVAlign[v]} onclick={() => setVAlign(v)}><VAlignIcon valign={v} /></button>
+                <button class:on={(t.style.valign ?? "Top") === v} disabled={writesOnLines(t.frame)} title={writesOnLines(t.frame) ? fr.onLinesSpacing : fr.textVAlign[v]} aria-label={fr.textVAlign[v]} onclick={() => setVAlign(v)}><VAlignIcon valign={v} /></button>
               {/each}
             </div>
           </div>
@@ -588,9 +589,19 @@
             <span>{fr.writingLines}</span>
             <div class="patterns">
               {#each [null, "Seyes", "Lines", "SmallSquares", "Dots"] as const as pat (pat)}
-                <button class:on={(f?.pattern ?? null) === pat} onclick={() => updateTextFrame({ pattern: pat })}>{fr.patternLabel[pat ?? "None"]}</button>
+                <!-- Choisir le Seyès ou les lignes pose le texte sur les lignes ; la case permet de l'enlever. -->
+                <button
+                  class:on={(f?.pattern ?? null) === pat}
+                  onclick={() => updateTextFrame(pat === (f?.pattern ?? null) ? { pattern: pat } : { pattern: pat, write_on_lines: pat === "Seyes" || pat === "Lines" ? true : null })}
+                  >{fr.patternLabel[pat ?? "None"]}</button
+                >
               {/each}
             </div>
+            {#if f?.pattern === "Seyes" || f?.pattern === "Lines"}
+              <label class="check" title={fr.writeOnLinesHint}
+                ><input type="checkbox" checked={!!f.write_on_lines} onchange={(e) => updateTextFrame({ write_on_lines: e.currentTarget.checked || null })} /> {fr.writeOnLines}</label
+              >
+            {/if}
             <span>{fr.border} : {f?.stroke ? `${f.stroke.width_mm} mm` : fr.none}</span>
             <input
               type="range"

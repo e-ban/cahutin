@@ -10,4 +10,9 @@ image?: string | null,
 /**
  * Lignes d'écriture dans le cadre (Seyès, lignes, petits carreaux, pointillés), sous le texte.
  */
-pattern?: Pattern | null, };
+pattern?: Pattern | null, 
+/**
+ * Le texte s'écrit sur les lignes du motif (Seyès ou lignes : voir `background::writes_on_lines`) ; absent :
+ * le texte posé comme avant, sans égard aux lignes (un ancien document ne bouge pas à l'ouverture).
+ */
+write_on_lines?: boolean | null, };

@@ -202,7 +202,7 @@ mod tests {
                 content: RichText::plain("Léa est venue avec Mathis"),
                 style: TextStyle::default_zone(),
                 prompt: Some("Prénom secret".into()),
-                frame: Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: Some("piege-asset-id".into()), pattern: None }),
+                frame: Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: Some("piege-asset-id".into()), pattern: None, write_on_lines: None }),
             }),
         });
         page.elements.push(Element {

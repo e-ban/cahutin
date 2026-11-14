@@ -76,7 +76,7 @@ pub fn used_assets(doc: &Document) -> BTreeSet<String> {
     doc.pages.iter().flat_map(|p| &p.elements).flat_map(Element::asset_ids).cloned().collect()
 }
 
-/// 11 avec l'interligne d'un texte, 5 avec une photo en miroir, des lignes d'écriture dans un cadre ou des styles nommés, 4 avec un tableau, 3 avec un réglage
+/// 12 avec un texte écrit sur les lignes de son cadre, 11 avec l'interligne d'un texte, 5 avec une photo en miroir, des lignes d'écriture dans un cadre ou des styles nommés, 4 avec un tableau, 3 avec un réglage
 /// de la version 3, 2 avec une image (un Carnet plus ancien affiche
 /// alors « version plus récente »), sinon 1.
 pub fn written_version(doc: &Document) -> u32 {
@@ -92,6 +92,10 @@ pub fn written_version(doc: &Document) -> u32 {
     // Miroir d'un élément autre qu'une photo de gauche à droite, ou de haut en bas : inconnu avant la version 7.
     // Champ de la classe sans accents (`{prenom}`) : une version plus ancienne l'afficherait sans le remplir.
     let new_field = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if crate::fields::has_fields_text(t) || crate::fields::has_class_fields_text(t) || crate::fields::has_auto_fields_text(t));
+    // Écrire sur les lignes : une version plus ancienne poserait le texte ailleurs, puis effacerait le réglage.
+    if elements().any(|e| matches!(&e.kind, ElementKind::Text(t) if t.frame.as_ref().is_some_and(|f| f.write_on_lines.is_some()))) {
+        return 12;
+    }
     // Interligne : une version plus ancienne l'ignorerait, puis l'effacerait en enregistrant.
     if elements().any(|e| matches!(&e.kind, ElementKind::Text(t) if t.style.line_spacing.is_some())) {
         return 11;
@@ -498,7 +502,7 @@ mod tests {
     #[test]
     fn writing_lines_and_mirrored_photos_are_version_5() {
         let mut doc = Document::new("v");
-        let lines = TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: None, pattern: Some(Pattern::Seyes) };
+        let lines = TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: None, pattern: Some(Pattern::Seyes), write_on_lines: None };
         doc.pages[0].elements.push(text_el(TextStyle::default_zone(), Some(TextFrame { pattern: None, ..lines.clone() })));
         assert!(written_version(&doc) < 5);
         doc.pages[0].elements.push(text_el(TextStyle::default_zone(), Some(lines)));
@@ -552,6 +556,30 @@ mod tests {
         assert_eq!(loaded.format_version, 11);
         let ElementKind::Text(t) = &loaded.pages[0].elements[1].kind else { panic!() };
         assert_eq!(t.style.line_spacing, Some(1.5));
+    }
+
+    /// Écrire sur les lignes demande le format 12 ; un cadre à lignes sans ce réglage garde sa version (5), et
+    /// l'ancien JSON se lit sans lui : le texte d'un ancien document ne bouge pas.
+    #[test]
+    fn writing_on_lines_is_version_12_and_absent_stays_unwritten() {
+        let mut doc = Document::new("v");
+        let lines = TextFrame { pattern: Some(Pattern::Seyes), ..TextFrame::default() };
+        doc.pages[0].elements.push(text_el(TextStyle::default_zone(), Some(lines.clone())));
+        assert_eq!(written_version(&doc), 5);
+        assert!(!serde_json::to_string(&doc).unwrap().contains("write_on_lines"));
+        let old = r#"{"fill":null,"stroke":null,"corner_radius_mm":0.0,"image":null,"pattern":"Seyes"}"#;
+        assert_eq!(serde_json::from_str::<TextFrame>(old).unwrap(), lines);
+        if let ElementKind::Text(t) = &mut doc.pages[0].elements[0].kind {
+            t.frame.as_mut().unwrap().write_on_lines = Some(true);
+        }
+        assert_eq!(written_version(&doc), 12);
+        let mut buf = Cursor::new(Vec::new());
+        save(&doc, &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
+        buf.set_position(0);
+        let loaded = load(buf).unwrap().doc;
+        assert_eq!(loaded.format_version, 12);
+        let ElementKind::Text(t) = &loaded.pages[0].elements[0].kind else { panic!() };
+        assert_eq!(t.frame.as_ref().unwrap().write_on_lines, Some(true));
     }
 
     /// La date de prise de vue est ignorée par une version plus ancienne : elle ne relève pas la version écrite.
@@ -654,9 +682,9 @@ mod tests {
     }
 
     #[test]
-    fn newer_than_11_is_refused() {
+    fn newer_than_12_is_refused() {
         let mut doc = Document::new("futur");
-        doc.format_version = 12;
+        doc.format_version = 13;
         let json = serde_json::to_vec(&doc).unwrap();
         let mut buf = Cursor::new(Vec::new());
         {
@@ -667,7 +695,7 @@ mod tests {
         }
         buf.set_position(0);
         let err = load(buf).err().unwrap();
-        assert_eq!(err, NativeError::NewerVersion(12));
+        assert_eq!(err, NativeError::NewerVersion(13));
         assert!(err.message_fr().contains("plus récente"));
         assert!(err.message_fr().contains("mettez Cahutin à jour"), "dire quoi faire");
     }

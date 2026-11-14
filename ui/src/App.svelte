@@ -77,6 +77,7 @@
   import { myImages } from "./lib/myImages.svelte";
   import { settings } from "./lib/settings.svelte";
   import { guides } from "./lib/guides.svelte";
+  import { finishedText } from "./lib/textLook";
   import GuideBook from "./components/layout/GuideBook.svelte";
   import GuideWalk from "./components/GuideWalk.svelte";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -280,10 +281,14 @@
     editor.editingText = null;
     const e = editor.page.elements.find((x) => x.id === id);
     if (!e || e.kind.type !== "Text") return;
-    if (JSON.stringify(e.kind.content) === JSON.stringify(content)) return;
+    // Une police, une taille ou une couleur donnée à tout le texte pendant l'écriture devient celle du bloc,
+    // dans le même pas d'annulation que le texte.
+    const done = finishedText(e.kind, content);
+    if (!done) return;
     const before = e.kind.content;
-    editor.updateElement(id, (el) => (el.kind.type === "Text" ? { ...el, kind: { ...el.kind, content } } : el));
-    void completeTypedText(id, before, content);
+    const { style, content: after } = done;
+    editor.updateElement(id, (el) => (el.kind.type === "Text" ? { ...el, kind: { ...el.kind, style, content: after } } : el));
+    void completeTypedText(id, before, after);
   }
 
   // Une classe choisie ou complétée (son école…) écrit les champs de la classe qui l'attendaient.

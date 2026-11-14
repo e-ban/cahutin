@@ -15,7 +15,7 @@ pub(crate) struct AutoStyle {
 }
 
 pub(crate) struct Registry {
-    fonts: FontSet,
+    pub(crate) fonts: FontSet,
     pub styles: Vec<AutoStyle>,
     /// Fichiers de police réellement utilisés, dans l'ordre d'apparition.
     pub faces: Vec<FontFace>,

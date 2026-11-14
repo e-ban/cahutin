@@ -112,7 +112,7 @@ pub(crate) fn text_lines(f: Frame, pattern: Pattern) -> Element {
     let mut z = text(f, "", TITLE_FONT, 28.0, "#222222", Align::Left);
     if let ElementKind::Text(t) = &mut z.kind {
         t.content = RichText::default();
-        t.frame = Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: None, pattern: Some(pattern) });
+        t.frame = Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: None, pattern: Some(pattern), write_on_lines: None });
     }
     z
 }
@@ -255,7 +255,7 @@ fn seasons() -> Page {
                 // Des lignes pour écrire ce qu'on aime, ou la dictée à l'adulte.
                 let mut z = text_zone(frame(x, y + 64.0, 76.0, 26.0), "Ce que j'aime…", "Andika", 12.0);
                 if let ElementKind::Text(t) = &mut z.kind {
-                    t.frame = Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: None, pattern: Some(Pattern::Lines) });
+                    t.frame = Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: None, pattern: Some(Pattern::Lines), write_on_lines: None });
                 }
                 z
             },
@@ -380,7 +380,7 @@ fn write(page: &mut Page, id: &str, content: &str, font: &str, size_pt: f64, fil
         t.style.font = font.into();
         t.style.size_pt = size_pt;
         t.style.color = INK.into();
-        t.frame = fill.map(|c| TextFrame { fill: Some(c.into()), stroke: None, corner_radius_mm: 0.0, image: None, pattern: None });
+        t.frame = fill.map(|c| TextFrame { fill: Some(c.into()), stroke: None, corner_radius_mm: 0.0, image: None, pattern: None, write_on_lines: None });
     }
 }
 

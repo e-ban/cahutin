@@ -57,13 +57,15 @@ test("pendant l'écriture, une sélection partielle ne change que le passage", (
   expect(props().style.size_pt).toBe(14);
 });
 
-test("pendant l'écriture, tout le texte sélectionné donne la taille au bloc", () => {
+test("pendant l'écriture, tout le texte sélectionné ne change que l'éditeur : son Ctrl+Z l'annule", () => {
   const id = open();
   const calls = writing(id, 1, 12);
   setSize(96);
   setFont("OpenDyslexic");
   expect(calls).toEqual(expect.arrayContaining(["setFontSize 96pt", "setFontFamily OpenDyslexic"]));
-  expect(props().style).toMatchObject({ size_pt: 96, font: "OpenDyslexic" });
+  // Le bloc ne change qu'à la fin de l'écriture (`liftUniformLook`), dans le même pas que le contenu.
+  expect(props().style).toMatchObject({ size_pt: 14, font: "Andika" });
+  expect(editor.canUndo).toBe(false);
 });
 
 test("l'interligne va au bloc entier, même pendant l'écriture, en un pas d'annulation", () => {

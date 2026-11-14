@@ -458,7 +458,7 @@ mod tests {
         let mut t = text(RichText::plain("Léa"), None);
         t.frame = frame(10.0, 10.0, 60.0, 20.0);
         if let ElementKind::Text(p) = &mut t.kind {
-            p.frame = Some(TextFrame { fill: Some("#ff0000".into()), stroke: None, corner_radius_mm: 3.0, image: Some(a.meta.id.clone()), pattern: None });
+            p.frame = Some(TextFrame { fill: Some("#ff0000".into()), stroke: None, corner_radius_mm: 3.0, image: Some(a.meta.id.clone()), pattern: None, write_on_lines: None });
         }
         store.insert(a).unwrap();
         let mut e = export(&doc_with(vec![t]), &store);
@@ -563,6 +563,7 @@ mod tests {
                 corner_radius_mm: 4.0,
                 image: None,
                 pattern: None,
+                write_on_lines: None,
             });
         }
         let mut e = export(&doc_with(vec![t]), &AssetStore::default());
@@ -865,7 +866,7 @@ mod tests {
     fn writing_lines_are_drawn_under_the_text() {
         let mut t = text(RichText::plain("Léa"), None);
         if let ElementKind::Text(tp) = &mut t.kind {
-            tp.frame = Some(TextFrame { fill: Some("#ffffff".into()), stroke: None, corner_radius_mm: 2.0, image: None, pattern: Some(Pattern::Lines) });
+            tp.frame = Some(TextFrame { fill: Some("#ffffff".into()), stroke: None, corner_radius_mm: 2.0, image: None, pattern: Some(Pattern::Lines), write_on_lines: None });
         }
         let content = export(&doc_with(vec![t]), &AssetStore::default()).xml("content.xml");
         let (rect, rest) = (content.find("<draw:rect").expect("fond du cadre"), content.find("<draw:frame").expect("texte"));
@@ -874,6 +875,34 @@ mod tests {
         assert_eq!(lines.len(), 4);
         assert!(lines.iter().all(|&i| rect < i && i < rest));
         assert!(content.contains(r#"svg:x1="10.000mm" svg:y1="208.000mm" svg:x2="200.000mm" svg:y2="208.000mm""#), "{content}");
+    }
+
+    /// Sur les lignes : hauteur de ligne d'au moins un pas, marge du haut égale à la descendante (la première ligne de
+    /// base tombe à un pas du haut du cadre), en haut quel que soit l'alignement, l'interligne sans effet. Sans le
+    /// réglage, ou sur des petits carreaux, rien ne change.
+    #[test]
+    fn text_written_on_lines_sits_one_pitch_apart() {
+        let on = |pattern, write_on_lines, size_pt| {
+            let mut t = text(RichText::plain("Léa\nTom"), None);
+            if let ElementKind::Text(tp) = &mut t.kind {
+                tp.style.size_pt = size_pt;
+                tp.style.valign = Some(VAlign::Bottom);
+                tp.style.line_spacing = Some(1.5);
+                tp.frame = Some(TextFrame { pattern: Some(pattern), write_on_lines, ..TextFrame::default() });
+            }
+            export(&doc_with(vec![t]), &AssetStore::default()).xml("content.xml")
+        };
+        let content = on(Pattern::Seyes, Some(true), 14.0);
+        assert!(content.contains(r#"style:line-height-at-least="8.000mm""#), "{content}");
+        assert!(!content.contains("fo:line-height"), "{content}");
+        // Andika 14 pt : 46 points à 600 ppp sous la ligne de base.
+        assert!(content.contains(&format!(r#"fo:padding-top="{}""#, mm(46.0 * 25.4 / 600.0))), "{content}");
+        assert!(content.contains(r#"draw:textarea-vertical-align="top""#), "{content}");
+        assert!(on(Pattern::Lines, Some(true), 20.0).contains(r#"style:line-height-at-least="16.000mm""#));
+        for content in [on(Pattern::Seyes, None, 14.0), on(Pattern::SmallSquares, Some(true), 14.0)] {
+            assert!(content.contains(r#"fo:line-height="150%""#) && !content.contains("line-height-at-least"), "{content}");
+            assert!(content.contains(r#"draw:textarea-vertical-align="bottom""#), "{content}");
+        }
     }
 
     #[test]

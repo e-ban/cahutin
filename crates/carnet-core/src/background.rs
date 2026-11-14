@@ -2,7 +2,8 @@
 //! La géométrie, en mm depuis le coin haut gauche, est la même à l'écran et dans l'ODG
 //! (l'interface la recalcule et la vérifie contre `fixtures/background_marks.json`).
 
-use crate::model::{PageSize, Pattern};
+use crate::fonts::FontMetrics;
+use crate::model::{PageSize, Pattern, TextFrame};
 use serde::Serialize;
 
 /// Couleur du papier kraft proposé.
@@ -66,6 +67,39 @@ pub fn frame_marks(size: PageSize, pattern: Pattern) -> Vec<Mark> {
     marks(size, pattern).into_iter().filter(|m| !matches!(m, Mark::Line { color, .. } if *color == SEYES_MARGIN)).collect()
 }
 
+/// Écart des lignes où l'on écrit dans un cadre : les lignes fortes du Seyès, les lignes simples ; la première à
+/// un écart du haut du cadre.
+pub const WRITING_LINE_MM: f64 = 8.0;
+
+/// Le texte du cadre s'écrit sur ses lignes : le réglage est mis et le motif a des lignes où écrire.
+pub fn writes_on_lines(frame: Option<&TextFrame>) -> bool {
+    frame.is_some_and(|f| f.write_on_lines == Some(true) && matches!(f.pattern, Some(Pattern::Seyes | Pattern::Lines)))
+}
+
+/// Hauteurs d'Andika, la police de secours de l'écran, pour une police inconnue (comme ui/src/lib/lineSpacing.ts).
+pub const FALLBACK_METRICS: FontMetrics = FontMetrics { units_per_em: 2048, ascent: 2500.0, descent: 800.0 };
+
+/// Un texte écrit sur les lignes : `pitch_mm` d'une ligne de base à la suivante, la première à `pitch_mm` du haut
+/// du cadre ; `descent_mm`, la descendante de la police telle que LibreOffice la compte (marge du haut de l'ODG).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WritingLines {
+    pub pitch_mm: f64,
+    pub descent_mm: f64,
+}
+
+/// Comme LibreOffice : ascendante et descendante arrondies au point à 600 ppp. Le pas est le plus petit multiple
+/// de l'écart des lignes où tient la hauteur d'une ligne de la police (à un point près) : des lettres trop hautes
+/// pour une ligne écrivent une ligne sur deux (ou sur trois) plutôt que de chevaucher la ligne d'au-dessus. Même
+/// calcul à l'écran (`writingLineBox`, ui/src/lib/lineSpacing.ts).
+pub fn writing_lines(metrics: Option<FontMetrics>, size_pt: f64) -> WritingLines {
+    let m = metrics.filter(|m| m.units_per_em > 0 && m.ascent + m.descent > 0.0).unwrap_or(FALLBACK_METRICS);
+    let dots = (size_pt * 600.0 / 72.0).round();
+    let at = |units: f64| (dots * units / m.units_per_em as f64).round();
+    let (ascent, descent) = (at(m.ascent), at(m.descent));
+    let lines = ((ascent + descent - 1.0) * 25.4 / 600.0 / WRITING_LINE_MM).ceil().max(1.0);
+    WritingLines { pitch_mm: lines * WRITING_LINE_MM, descent_mm: descent * 25.4 / 600.0 }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -97,6 +131,32 @@ mod tests {
         let dots = marks(size, Pattern::Dots);
         let max_x = dots.iter().map(|k| if let Mark::Dot { x, .. } = k { *x } else { 0.0 }).fold(0.0, f64::max);
         assert!(297.0 - max_x <= 10.0);
+    }
+
+    #[test]
+    fn writing_pitch_is_the_smallest_multiple_of_8_mm_the_font_fits_in() {
+        let andika = FontMetrics { units_per_em: 2048, ascent: 2500.0, descent: 800.0 };
+        let playwrite = FontMetrics { units_per_em: 1000, ascent: 1550.0, descent: 607.0 };
+        // (police, taille, pas, descendante en points à 600 ppp) ; Andika 14 pt mesure 8,001 mm : sur une ligne.
+        for (m, pt, pitch, dots) in [(andika, 12.0, 8.0, 39.0), (andika, 14.0, 8.0, 46.0), (andika, 20.0, 16.0, 65.0), (andika, 28.0, 16.0, 91.0), (playwrite, 10.0, 8.0, 50.0), (playwrite, 14.0, 16.0, 71.0), (playwrite, 28.0, 24.0, 141.0)] {
+            let w = writing_lines(Some(m), pt);
+            assert_eq!(w.pitch_mm, pitch, "{m:?} {pt} pt");
+            assert!((w.descent_mm - dots * 25.4 / 600.0).abs() < 1e-9, "{m:?} {pt} pt : {w:?}");
+        }
+        assert_eq!(writing_lines(None, 14.0), writing_lines(Some(andika), 14.0));
+        assert_eq!(writing_lines(Some(FontMetrics { units_per_em: 0, ascent: 0.0, descent: 0.0 }), 14.0), writing_lines(Some(andika), 14.0));
+    }
+
+    #[test]
+    fn only_lined_patterns_with_the_setting_write_on_lines() {
+        let f = |pattern, on| TextFrame { pattern, write_on_lines: on, ..TextFrame::default() };
+        assert!(writes_on_lines(Some(&f(Some(Pattern::Seyes), Some(true)))));
+        assert!(writes_on_lines(Some(&f(Some(Pattern::Lines), Some(true)))));
+        assert!(!writes_on_lines(Some(&f(Some(Pattern::SmallSquares), Some(true)))));
+        assert!(!writes_on_lines(Some(&f(Some(Pattern::Dots), Some(true)))));
+        assert!(!writes_on_lines(Some(&f(Some(Pattern::Seyes), None))));
+        assert!(!writes_on_lines(Some(&f(None, Some(true)))));
+        assert!(!writes_on_lines(None));
     }
 
     #[test]

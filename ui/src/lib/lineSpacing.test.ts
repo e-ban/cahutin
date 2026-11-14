@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { FALLBACK_METRICS, LINE_SPACINGS, lineBox } from "./lineSpacing";
+import { FALLBACK_METRICS, LINE_SPACINGS, lineBox, writesOnLines, writingLineBox } from "./lineSpacing";
 import type { FontMetrics } from "./types";
 
 const METRICS: Record<string, FontMetrics> = {
@@ -57,4 +57,46 @@ test("police aux hauteurs inconnues : celles d'Andika, la police de secours, jam
 
 test("quatre choix, dont « normal » qui n'écrit rien", () => {
   expect(LINE_SPACINGS.map((s) => s.value)).toEqual([0.85, null, 1.5, 2]);
+});
+
+// Campagne « lignes d'écriture » (LibreOffice 26.8, WebKitGTK), lignes à 8, 16, 24 mm du haut du cadre, hauteur
+// de ligne de 8 mm des deux côtés : marge du haut de l'ODG (la descendante à 600 ppp) qui pose les lignes de base
+// de LibreOffice sur les lignes (à 0,01 mm), et décalage du texte (marge nulle) qui y pose celles de WebKit.
+const ON_LINES: { font: string; pt: number; pitch: number; loPad: number; webShift8: number }[] = [
+  { font: "Andika", pt: 12, pitch: 8, loPad: 1.651, webShift8: 2.1479 },
+  { font: "Andika", pt: 14, pitch: 8, loPad: 1.9473, webShift8: 1.8833 },
+  { font: "Andika", pt: 20, pitch: 16, loPad: 2.7517, webShift8: 0.9573 },
+  { font: "Andika", pt: 28, pitch: 16, loPad: 3.8523, webShift8: -0.101 },
+  { font: "Playwrite", pt: 12, pitch: 16, loPad: 2.5823, webShift8: 2.0156 },
+  { font: "Playwrite", pt: 14, pitch: 16, loPad: 3.0057, webShift8: 1.6188 },
+  { font: "Playwrite", pt: 20, pitch: 16, loPad: 4.2757, webShift8: 0.6927 },
+  { font: "Playwrite", pt: 28, pitch: 24, loPad: 5.969, webShift8: -0.6302 },
+];
+
+test.each(ON_LINES)("$font $pt pt sur les lignes : pas de $pitch mm, lignes de base sur celles de LibreOffice", ({ font, pt, pitch, loPad, webShift8 }) => {
+  const b = writingLineBox(METRICS[font], pt);
+  expect(b.pitchMm).toBe(pitch);
+  expect(b.lineHeight).toBe(`${pitch}mm`);
+  expect(Math.abs(b.padTopMm - loPad)).toBeLessThan(0.001);
+  // WebKit pose la ligne de base à la moitié du pas plus la moitié de (ascendante - descendante) au pixel : mesurée
+  // à 8 mm, cette moitié vaut 4 - décalage mesuré. La marge et le décalage la mettent à un pas du haut du cadre.
+  const half = 4 - webShift8;
+  expect(Math.abs(b.padTopMm + b.shiftMm + pitch / 2 + half - pitch)).toBeLessThan(0.002);
+});
+
+test("une police trop haute pour une ligne écrit une ligne sur deux : Andika 14 pt (8,001 mm) tient sur une", () => {
+  expect(writingLineBox(METRICS.Andika, 14).pitchMm).toBe(8);
+  expect(writingLineBox(METRICS.Andika, 14.5).pitchMm).toBe(16);
+  expect(writingLineBox(METRICS.Playwrite, 10).pitchMm).toBe(8);
+  expect(writingLineBox(null, 14)).toEqual(writingLineBox(FALLBACK_METRICS, 14));
+});
+
+test("seuls le Seyès et les lignes, avec le réglage, posent le texte sur les lignes", () => {
+  const f = (pattern: "Seyes" | "Lines" | "SmallSquares" | "Dots" | null, write_on_lines: boolean | null) => ({ fill: null, stroke: null, corner_radius_mm: 0, pattern, write_on_lines });
+  expect(writesOnLines(f("Seyes", true))).toBe(true);
+  expect(writesOnLines(f("Lines", true))).toBe(true);
+  expect(writesOnLines(f("SmallSquares", true))).toBe(false);
+  expect(writesOnLines(f("Dots", true))).toBe(false);
+  expect(writesOnLines(f("Seyes", null))).toBe(false);
+  expect(writesOnLines(null)).toBe(false);
 });

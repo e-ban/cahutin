@@ -5,7 +5,7 @@
   import { frameMarks } from "../../lib/background";
   import { assetUrl } from "../../lib/api";
   import { fieldLabel, fieldShown, splitFields } from "../../lib/classFields";
-  import { alignToCss, textPadding } from "../../lib/richtext";
+  import { alignToCss, textPadding, tiptapToRich } from "../../lib/richtext";
   import { dashArray } from "../../lib/strokes";
   import { onFontsLoaded } from "../../lib/fontsLoaded";
   import { editor } from "../../lib/docStore.svelte";
@@ -15,7 +15,9 @@
   import { actionsPlace, contentHeightPx, fitActions, grownHeight, neededHeightMm, shrunkText } from "../../lib/textFit";
   import { isTableCell } from "../../lib/table";
   import { fonts } from "../../lib/fonts.svelte";
-  import { lineBox } from "../../lib/lineSpacing";
+  import { lineBox, writesOnLines, writingLineBox } from "../../lib/lineSpacing";
+  import { textEditing } from "../../lib/textEditing.svelte";
+  import { finishedText } from "../../lib/textLook";
   import { mmToPx, PX_PER_MM } from "../../lib/units";
   import type { Element, RichText, Run, TextProps } from "../../lib/types";
 
@@ -39,10 +41,31 @@
   // descend les jambages de la dernière ligne, qui dépassent déjà de la hauteur occupée : il compte, et « Agrandir
   // le cadre » leur fait la place (l'écran et l'impression les couperaient). Police absente de la liste : l'écran
   // prend Andika, ses hauteurs aussi.
-  const lineAt = (size_pt: number) => lineBox(props.style.line_spacing, fonts.families.find((f) => f.name === props.style.font)?.metrics, size_pt);
-  const line = $derived(lineAt(props.style.size_pt));
+  // Pendant l'écriture, une police, une taille ou une couleur donnée à tout le texte ne devient celle du bloc qu'à
+  // la fin (`finishedText`, App) : le cadre la prend déjà, pour qu'aucune ligne ne bouge à la sortie.
+  const look = $derived.by(() => {
+    if (!editing) return props.style;
+    void textEditing.tick;
+    const tip = textEditing.current;
+    return (tip && finishedText(props, tiptapToRich(tip.getJSON(), props.style))?.style) || props.style;
+  });
+  // Sur les lignes du cadre (lib/lineSpacing.ts, `writingLineBox`) : une hauteur de ligne du pas, une marge du haut
+  // et un décalage qui posent les lignes de base sur celles du cadre, en haut quel que soit l'alignement vertical ;
+  // l'interligne est sans effet. Le texte tient si ses lignes (sans le décalage), entre les deux marges, tiennent
+  // dans le cadre : comme dans LibreOffice, la dernière ligne de base sur une ligne du cadre, avec ses jambages.
+  const onLines = $derived(writesOnLines(props.frame));
+  const lineAt = (size_pt: number): { lineHeight: number | string | null; shiftMm: number; padTopMm?: number } => {
+    const metrics = fonts.families.find((f) => f.name === look.font)?.metrics;
+    return onLines ? writingLineBox(metrics, size_pt) : lineBox(props.style.line_spacing, metrics, size_pt);
+  };
+  const line = $derived(lineAt(look.size_pt));
+  const paddingCss = (padTopMm: number | undefined) => (padTopMm == null ? `${textPadding(props.style)}mm` : `${padTopMm}mm ${textPadding(props.style)}mm ${textPadding(props.style)}mm`);
   const blankBelowMm = (shiftMm: number) => ((props.style.line_spacing ?? 1) >= 1 ? Math.max(0, shiftMm) : 0);
-  const textHeightPx = (el: HTMLElement, shiftMm: number) => el.scrollHeight - blankBelowMm(shiftMm) * PX_PER_MM;
+  const textHeightPx = (el: HTMLElement, shiftMm: number) => {
+    if (!onLines || !(el.firstElementChild instanceof HTMLElement)) return el.scrollHeight - blankBelowMm(shiftMm) * PX_PER_MM;
+    const cs = getComputedStyle(el);
+    return el.firstElementChild.offsetHeight + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  };
   const overflows = (el: HTMLElement) => textHeightPx(el, line.shiftMm) > el.clientHeight + 1;
 
   function runStyle(r: Run): string {
@@ -102,7 +125,7 @@
   /** Un seul pas d'annulation, et aucun si rien ne change. */
   function growFrame() {
     if (!box) return;
-    const need = Math.max(neededHeightMm(contentHeightPx(box) + 1, textPadding(props.style)), neededHeightMm(textHeightPx(box, line.shiftMm) + 1, 0));
+    const need = Math.max(neededHeightMm(contentHeightPx(box) + 1, line.padTopMm == null ? textPadding(props.style) : (line.padTopMm + textPadding(props.style)) / 2), neededHeightMm(textHeightPx(box, line.shiftMm) + 1, 0));
     const g = grownHeight(need, element.frame, editor.page.size.height_mm);
     if (g) editor.updateElement(element.id, (e) => ({ ...e, frame: { ...e.frame, h_mm: g.h_mm } }));
   }
@@ -116,7 +139,12 @@
     // L'interligne suit la taille essayée (ses hauteurs sont arrondies à la taille).
     const tried = lineAt(p.style.size_pt);
     if (tried.lineHeight != null) clone.style.lineHeight = String(tried.lineHeight);
-    if (clone.firstElementChild instanceof HTMLElement && tried.shiftMm) clone.firstElementChild.style.top = `${tried.shiftMm}mm`;
+    if (tried.padTopMm != null) clone.style.padding = paddingCss(tried.padTopMm);
+    if (clone.firstElementChild instanceof HTMLElement && tried.shiftMm) {
+      // Sur les lignes, le pas (et donc le décalage) change avec la taille essayée.
+      clone.firstElementChild.style.position = "relative";
+      clone.firstElementChild.style.top = `${tried.shiftMm}mm`;
+    }
     clone.setAttribute("aria-hidden", "true");
     const paras = clone.querySelectorAll<HTMLElement>(":scope > .flow > p");
     p.content.paragraphs.forEach((q, i) =>
@@ -200,12 +228,12 @@
   bind:this={box}
   style:width="{element.frame.w_mm}mm"
   style:height="{element.frame.h_mm}mm"
-  style:padding="{textPadding(props.style)}mm"
+  style:padding={paddingCss(line.padTopMm)}
   style:transform="scale({zoom})"
-  style:font-family={`"${props.style.font}", "Andika"`}
-  style:font-size="{props.style.size_pt}pt"
+  style:font-family={`"${look.font}", "Andika"`}
+  style:font-size="{look.size_pt}pt"
   style:line-height={line.lineHeight}
-  style:color={props.style.color}
+  style:color={look.color}
   style:text-align={alignToCss(props.style.align)}
   class:outline={props.style.outline}
   class:editing
@@ -214,8 +242,8 @@
   <!-- Le décalage de l'interligne déplace le texte sans rien changer à la mise en page, écriture comprise. -->
   <div
     class="flow"
-    class:middle={props.style.valign === "Middle"}
-    class:bottom={props.style.valign === "Bottom"}
+    class:middle={!onLines && props.style.valign === "Middle"}
+    class:bottom={!onLines && props.style.valign === "Bottom"}
     style:position={line.shiftMm ? "relative" : null}
     style:top={line.shiftMm ? `${line.shiftMm}mm` : null}
   >

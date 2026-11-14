@@ -98,6 +98,7 @@ fn labels() -> Page {
                     corner_radius_mm: 6.0,
                     image: None,
                     pattern: None,
+                    write_on_lines: None,
                 });
             }
             page.elements.push(z);
@@ -268,7 +269,7 @@ fn moving_letters() -> Page {
             let mut z = centered_zone(ex::frame(x0 + i as f64 * (w + gap), y, w, 34.0), &format!("{field}_{}", i + 1), font, size);
             if let ElementKind::Text(t) = &mut z.kind {
                 t.style.padding_mm = Some(0.5);
-                t.frame = Some(TextFrame { fill: None, stroke: Some(Stroke { width_mm: 0.4, color: "#9aa5b1".into(), style: Some(StrokeStyle::Dashed) }), corner_radius_mm: 0.0, image: None, pattern: None });
+                t.frame = Some(TextFrame { fill: None, stroke: Some(Stroke { width_mm: 0.4, color: "#9aa5b1".into(), style: Some(StrokeStyle::Dashed) }), corner_radius_mm: 0.0, image: None, pattern: None, write_on_lines: None });
             }
             page.elements.push(z);
         }

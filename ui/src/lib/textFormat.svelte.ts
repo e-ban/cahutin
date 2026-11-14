@@ -7,7 +7,7 @@ import type {} from "@tiptap/extension-text-style";
 import { editor } from "./docStore.svelte";
 import { alignToCss, parsePt } from "./richtext";
 import { textEditing } from "./textEditing.svelte";
-import { coversWholeText, lookOnWholeText, type WholeLook } from "./textLook";
+import { lookOnWholeText, type WholeLook } from "./textLook";
 import type { Align, Element, Run, TextProps, TextStyle, VAlign } from "./types";
 
 export type Mark = "bold" | "italic" | "underline";
@@ -38,17 +38,14 @@ export function insertField(key: string) {
 }
 
 /**
- * Police, taille ou couleur : pendant l'écriture, sur le passage sélectionné. Sans écriture, ou quand tout le
- * texte est sélectionné, elle devient celle du bloc, y compris des mots qui avaient la leur.
+ * Police, taille ou couleur : pendant l'écriture, sur le passage sélectionné, dans l'éditeur seul (son Ctrl+Z
+ * l'annule) ; si tout le texte la porte, elle devient celle du bloc à la fin de l'écriture (`liftUniformLook`).
+ * Sans écriture, elle devient celle du bloc, y compris des mots qui avaient la leur.
  */
 function setLook(look: WholeLook, onTip: (tip: Editor) => void) {
   const tip = activeTip();
-  if (tip) {
-    onTip(tip);
-    const { from, to } = tip.state.selection;
-    // Pendant l'écriture, les mots sont dans l'éditeur (qui vient de les changer) : seul le bloc change ici.
-    if (coversWholeText(from, to, tip.state.doc.content.size)) setStyle(look);
-  } else updateText((t) => lookOnWholeText(t, look));
+  if (tip) onTip(tip);
+  else updateText((t) => lookOnWholeText(t, look));
 }
 
 export function setFont(font: string) {

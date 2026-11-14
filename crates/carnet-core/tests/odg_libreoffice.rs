@@ -702,6 +702,7 @@ fn text_frame_is_rendered() {
                 corner_radius_mm: radius,
                 image: None,
                 pattern: None,
+                write_on_lines: None,
             }),
         }),
         subgroups: Vec::new(),
@@ -754,7 +755,7 @@ fn frame_image_and_dotted_photo_border_are_rendered() {
             content: RichText::plain("Prénom"),
             style,
             prompt: None,
-            frame: Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 8.0, image: Some(id.clone()), pattern: None }),
+            frame: Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 8.0, image: Some(id.clone()), pattern: None, write_on_lines: None }),
         }),
         subgroups: Vec::new(),
         flip_h: false, flip_v: false,
@@ -834,4 +835,58 @@ fn line_spacing_sets_the_line_pitch() {
     // L'écran suppose que l'espace ajouté va au-dessus de chaque ligne, la première comprise (LibreOffice 26.8) :
     // dit ici sans être exigé, une autre version de LibreOffice pouvant le placer autrement.
     eprintln!("première ligne descendue de {:.2} pt (au-dessus seulement : {:.2} pt)", airy[0] - plain[0], 0.5 * p1);
+}
+
+/// Écrire sur les lignes : dans le rendu de LibreOffice, chaque ligne de base d'un texte Andika tombe sur une ligne
+/// dessinée du cadre (Seyès, lignes), à 0,3 mm près, y compris loin du haut (aucun écart qui s'additionne) ; un
+/// texte trop haut pour une ligne écrit une ligne sur deux. L'alignement en bas et l'interligne sont sans effet.
+#[test]
+#[ignore]
+fn text_written_on_lines_sits_on_the_frame_lines() {
+    let mut doc = Document::new("lignes");
+    // (motif, taille, nombre de lignes de texte, pas attendu)
+    let blocks = [(Pattern::Seyes, 14.0, 12, 8.0), (Pattern::Lines, 14.0, 6, 8.0), (Pattern::Seyes, 20.0, 6, 16.0), (Pattern::Lines, 28.0, 4, 16.0)];
+    for (i, &(pattern, size_pt, n, _)) in blocks.iter().enumerate() {
+        let mut style = TextStyle::default_zone();
+        style.size_pt = size_pt;
+        style.valign = Some(VAlign::Bottom);
+        style.line_spacing = Some(1.5);
+        let text = (1..=n).map(|k| format!("B{i}L{k}Hé")).collect::<Vec<_>>().join("\n");
+        doc.pages[0].elements.push(Element {
+            id: new_id(),
+            frame: Frame { x_mm: ORIGIN_MM + (i % 2) as f64 * 90.0, y_mm: ORIGIN_MM + (i / 2) as f64 * 125.0, w_mm: 80.0, h_mm: 115.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Text(TextProps { content: RichText::plain(&text), style, prompt: None, frame: Some(TextFrame { pattern: Some(pattern), write_on_lines: Some(true), ..TextFrame::default() }) }),
+            subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
+        });
+    }
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    let words = words(&pdf);
+    // Ligne de base : le bas de la boîte du mot que donne poppler, moins la descendante d'Andika.
+    let andika = FontSet::builtin().face("Andika", false, false).and_then(|f| f.metrics).unwrap();
+    let below = andika.descent / andika.units_per_em as f64;
+    let mut worst: f64 = 0.0;
+    for (i, &(pattern, size_pt, n, pitch)) in blocks.iter().enumerate() {
+        let f = doc.pages[0].elements[i].frame;
+        let drawn: Vec<f64> = background::frame_marks(PageSize { width_mm: f.w_mm, height_mm: f.h_mm }, pattern)
+            .into_iter()
+            .filter_map(|m| match m {
+                background::Mark::Line { y1, y2, .. } if y1 == y2 => Some(y1),
+                _ => None,
+            })
+            .collect();
+        for k in 1..=n {
+            let w = words.iter().find(|w| w.text == format!("B{i}L{k}Hé")).unwrap_or_else(|| panic!("B{i}L{k}Hé absent"));
+            let baseline = (w.y_max - below * size_pt) / PT_PER_MM - f.y_mm;
+            let target = k as f64 * pitch;
+            assert!(drawn.iter().any(|y| (y - target).abs() < 1e-6), "{pattern:?} : pas de ligne dessinée à {target} mm");
+            let gap = baseline - target;
+            worst = worst.max(gap.abs());
+            assert!(gap.abs() < 0.3, "{pattern:?} {size_pt} pt, ligne {k} : ligne de base à {baseline:.3} mm, ligne du cadre à {target} mm");
+        }
+    }
+    eprintln!("pire écart ligne de base / ligne du cadre : {worst:.3} mm");
 }

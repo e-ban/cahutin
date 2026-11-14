@@ -3,6 +3,12 @@
 
 ## Non publié
 
+- Texte : la taille se tape librement, de 4 à 400 pt (« 13,5 » ou « 250 »), pour une lettre géante sur une affiche ; la liste propose les tailles courantes jusqu'à 200 pt.
+- Texte : sans écrire, la taille, la police et la couleur choisies vont à tout le texte, y compris aux mots qui avaient la leur. Pendant l'écriture, elles vont aux mots sélectionnés, et Ctrl+Z les annule ; après l'écriture, un seul Ctrl+Z revient au texte d'avant.
+- Texte trop long : il est signalé dès l'écriture ; ensuite, « Agrandir le cadre » ou « Réduire le texte » le corrige d'un clic.
+- Texte : pendant l'écriture, le bouton É de la barre (« Lettres et signes ») écrit les lettres difficiles à taper (É, À, Ç...) et des guillemets « ». L'espace tapée devant : ; ! ? ou contre un guillemet devient insécable : le signe ne part plus seul à la ligne (Ctrl+Z, juste après, garde l'espace ordinaire).
+- Interligne : Réglages > Mise en forme propose Serré, Normal, Aéré ou Double, pour écarter les lignes d'un texte. Les lignes tombent au même endroit à l'écran, à l'impression et dans LibreOffice Draw.
+- Lignes à écrire : dans un cadre à lignes (Seyès ou Lignes), le texte se pose sur les lignes, à l'écran, à l'impression et dans LibreOffice Draw. La case « Écrire sur les lignes » le règle ; les textes déjà placés ne bougent pas.
 - Texte : un texte collé sur plusieurs lignes ne s'efface plus quand on le reprend ; Maj+Entrée va à la ligne.
 - Tableaux : fusionner des cases garde leur texte, réuni ligne par ligne.
 - Annuler : déplacer un élément en gardant une flèche enfoncée s'annule d'un seul coup, sans effacer les modifications précédentes ; Annuler et Rétablir affichent la page modifiée, même depuis une autre page.

@@ -292,7 +292,13 @@ impl Writer<'_> {
             return Ok(());
         }
         let pad = mm(t.style.padding());
+        // Écrit sur les lignes du cadre : la première ligne de base à un pas du haut du cadre (LibreOffice la pose à
+        // marge du haut + pas - descendante), les suivantes de pas en pas, toujours depuis le haut. L'interligne et
+        // l'alignement vertical du texte sont gardés mais sans effet (ui/src/lib/lineSpacing.ts, `writingLineBox`).
+        let on_lines = crate::background::writes_on_lines(t.frame.as_ref()).then(|| crate::background::writing_lines(self.reg.fonts.face(&t.style.font, false, false).and_then(|f| f.metrics), t.style.size_pt));
+        let pad_top = on_lines.map_or(pad.clone(), |w| mm(w.descent_mm));
         let valign = match t.style.valign.unwrap_or_default() {
+            _ if on_lines.is_some() => "top",
             VAlign::Top => "top",
             VAlign::Middle => "middle",
             VAlign::Bottom => "bottom",
@@ -323,7 +329,7 @@ impl Writer<'_> {
             vec![(
                 "style:graphic-properties",
                 [props, vec![
-                    ("fo:padding-top", pad.clone()),
+                    ("fo:padding-top", pad_top),
                     ("fo:padding-bottom", pad.clone()),
                     ("fo:padding-left", pad.clone()),
                     ("fo:padding-right", pad),
@@ -352,7 +358,12 @@ impl Writer<'_> {
                     ("fo:text-align", align(p.align.unwrap_or(t.style.align)).into()),
                     // Interligne : un pourcentage de la hauteur naturelle, tout l'espace ajouté au-dessus de chaque
                     // ligne (l'écran le reproduit, voir ui/src/lib/lineSpacing.ts). Absent : 100 %, comme toujours.
-                    ("fo:line-height", t.style.line_spacing.map_or("100%".into(), |n| format!("{}%", (n * 100.0).round()))),
+                    // Sur les lignes : une hauteur de ligne d'au moins un pas (un passage plus grand la ferait grandir au
+                    // lieu de disparaître, comme avec une hauteur fixe) ; le pas tient la police, elle vaut donc le pas.
+                    match on_lines {
+                        Some(w) => ("style:line-height-at-least", mm(w.pitch_mm)),
+                        None => ("fo:line-height", t.style.line_spacing.map_or("100%".into(), |n| format!("{}%", (n * 100.0).round()))),
+                    },
                     ("fo:margin-top", "0mm".into()),
                     ("fo:margin-bottom", "0mm".into()),
                 ],

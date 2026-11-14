@@ -53,7 +53,8 @@
       const photos = Object.keys(classes.current?.class.photos ?? {});
       const result = await classGenerate(editor.page, chosen, plan.mode, photos, classes.current?.class ?? null);
       const placed = replacePage(editor.doc, editor.pageIndex, result);
-      editor.commit(placed.doc);
+      // Les prénoms et les photos de la classe : l'écriture automatique attend que l'enseignant enregistre lui-même.
+      editor.commitFromClass(placed.doc);
       editor.pageIndex = placed.pageIndex;
       editor.selection = [];
       editor.notice = fr.generateDone(result.pages.length);

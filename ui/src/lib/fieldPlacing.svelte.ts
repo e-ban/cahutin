@@ -51,7 +51,8 @@ export async function fillWaitingClassFields(cls: Class) {
   const pages = await fillClassFields(doc.pages, cls, fillAutoFields);
   // Le document a changé pendant le calcul : on ne l'écrase pas.
   if (!pages || editor.doc !== doc) return;
-  editor.commit({ ...doc, pages });
+  // Sans geste de l'enseignant : l'écriture automatique attend qu'il enregistre lui-même.
+  editor.commitFromClass({ ...doc, pages });
   // Le message qui disait que ces champs attendaient n'est plus vrai.
   if (editor.notice === fr.autoFieldsNeedClass || editor.notice === fr.autoFieldEmpty) editor.notice = null;
 }

@@ -28,10 +28,14 @@
   const editing = $derived(!!editor.editingText || !!editor.cropping);
   // En mode modèle, rien ne s'enregistre tout seul (lib/autosave.svelte.ts) : « Non enregistré » s'il y a des changements.
   const ownFile = $derived(editor.ownFile && !editor.templateMode);
-  const status = $derived(saveStatus({ enabled: settings.autosave, path: editor.path, ownFile, dirty: editor.dirty, editing, problem: autosave.problem }));
+  // Après un remplissage par la classe, rien ne s'enregistre tout seul avant un enregistrement à la main.
+  const held = $derived(!!editor.classHold?.on);
+  const status = $derived(saveStatus({ enabled: settings.autosave, path: editor.path, ownFile, dirty: editor.dirty, editing, problem: autosave.problem, held }));
   const statusLabel = $derived(status === "saved" ? fr.statusSaved : status === "saving" ? fr.statusSaving : fr.statusUnsaved);
   const statusHint = $derived(
-    settings.autosave && editor.ownFile && editor.templateMode && status !== "saving" && !autosave.problem
+    settings.autosave && editor.ownFile && held && status === "unsaved"
+      ? fr.statusClassHoldHint
+      : settings.autosave && editor.ownFile && editor.templateMode && status !== "saving" && !autosave.problem
       ? fr.statusTemplateHint
       : status === "saving"
       ? editing

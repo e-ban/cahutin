@@ -264,12 +264,16 @@ export const fr = {
   statusSaving: "Enregistrement…",
   statusUnsaved: "Non enregistré",
   statusSavedHint: "Chaque changement s'enregistre tout seul dans le fichier du document (réglage : Préférences > Enregistrement).",
-  statusSavedManualHint: "Le document est enregistré. L'enregistrement automatique est décoché (Préférences > Enregistrement) : Ctrl+S enregistre.",
+  statusSavedManualHint:
+    "Le document est enregistré. Après un changement, Ctrl+S l'enregistre. Il peut aussi s'enregistrer tout seul : cochez « Enregistrer automatiquement » dans Préférences > Enregistrement.",
   statusSavingHint: "Vos changements s'enregistrent dans quelques secondes, tout seuls.",
   statusEditingHint: "Ce que vous écrivez s'enregistrera quand vous quitterez le bloc (Échap ou un clic ailleurs).",
   statusUnsavedHint: "Pas encore enregistré : cliquez ici (ou Ctrl+S) pour enregistrer. Ensuite, chaque changement s'enregistre tout seul (Préférences > Enregistrement).",
   statusTemplateHint: "En mode modèle, rien ne s'enregistre tout seul dans le fichier du document : Ctrl+S l'enregistre. Après « Terminer le modèle », les changements s'enregistrent comme d'habitude.",
-  statusUnsavedManualHint: "Pas encore enregistré : cliquez ici (ou Ctrl+S). L'enregistrement automatique est décoché (Préférences > Enregistrement).",
+  statusUnsavedManualHint:
+    "Pas encore enregistré : cliquez ici (ou Ctrl+S) pour enregistrer. Pour que le document s'enregistre tout seul après chaque changement, cochez « Enregistrer automatiquement » dans Préférences > Enregistrement.",
+  statusClassHoldHint:
+    "Les prénoms, les photos ou les renseignements de la classe viennent d'être ajoutés : rien ne s'enregistre tout seul pour l'instant. Enregistrez vous-même (cliquez ici ou Ctrl+S) pour les garder dans ce fichier, ou faites Fichier > « Enregistrer sous… » pour garder votre modèle tel qu'il était.",
   autosaveFailed: (reason: string) => `L'enregistrement automatique n'a pas marché. ${reason} Vos changements restent ici ; Cahutin réessaiera au prochain changement.`,
   autosaveChangedElsewhere:
     "Ce document a été changé ailleurs (une autre fenêtre de Cahutin, une clé USB, un dossier partagé) : Cahutin ne l'écrase pas. Vos changements restent ici : enregistrez-les dans une copie.",
@@ -284,7 +288,7 @@ export const fr = {
   prefsSaving: "Enregistrement",
   prefsAutosave: "Enregistrer automatiquement",
   prefsAutosaveHint:
-    "Un document qui a déjà un fichier s'y enregistre tout seul, quelques secondes après chaque changement, sans question à la fermeture. La version du début de séance reste gardée : Fichier > « Revenir à la version du début de séance ». Décoché : enregistrez avec Ctrl+S, comme avant.",
+    "Décoché (au départ) : enregistrez avec Ctrl+S ; Cahutin demande en partant s'il faut enregistrer. Coché : un document qui a déjà un fichier s'y enregistre tout seul, quelques secondes après chaque changement, sans question en partant, et Fichier > « Revenir à la version du début de séance » le rend tel qu'il était à l'ouverture. Après « Remplir avec ma classe » ou le choix d'une classe, rien ne s'enregistre tout seul avant que vous enregistriez vous-même.",
   // Colonne d'icônes et tiroirs
   fonts: "Polices",
   closeDrawer: "Fermer",

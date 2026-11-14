@@ -18,8 +18,9 @@ export type ExportKind = "pdf" | "odg";
 export const LABEL_DELAYS = [0, 0.5, 1] as const;
 export type LabelDelay = (typeof LABEL_DELAYS)[number];
 
-/** « Enregistrer automatiquement » (Préférences > Enregistrement), coché tant que l'enseignant ne le décoche pas. */
-export const AUTOSAVE_DEFAULT = true;
+/** « Enregistrer automatiquement » (Préférences > Enregistrement), décoché tant que l'enseignant ne le coche pas.
+ *  Le réglage n'est écrit sur le poste que quand on le change : un choix déjà fait reste. */
+export const AUTOSAVE_DEFAULT = false;
 
 /** Animations réduites par défaut si le système le demande. */
 function systemReducesMotion(): boolean {
@@ -68,8 +69,8 @@ class Settings {
   graphismeLevel = $state<Level>(readPref("graphismeLevel", "MS"));
   /** L'export proposé en premier dans « Imprimer / Exporter ». */
   preferredExport = $state<ExportKind>(readPref("preferredExport", "pdf"));
-  /** Un document qui a un fichier s'y enregistre tout seul après chaque changement. Décoché : à la main,
-   *  comme avant (question à la fermeture, copie de secours). */
+  /** Coché : un document qui a un fichier s'y enregistre tout seul après chaque changement. Décoché (au
+   *  départ) : à la main, comme avant (question à la fermeture, copie de secours). */
   autosave = $state(readPref("autosave", AUTOSAVE_DEFAULT));
 
   setMoreMenu(on: boolean) {

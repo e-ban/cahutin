@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AUTOSAVE_DELAY_MS, AUTOSAVE_MAX_WAIT_MS, AUTOSAVE_TICK_MS, Autosaver, saveStatus, type AutosaveProblem, type AutosaveView } from "./autosave";
+import { AUTOSAVE_DELAY_MS, AUTOSAVE_MAX_WAIT_MS, AUTOSAVE_TICK_MS, Autosaver, classHoldAfterFill, classHoldAfterHistory, classHoldAfterSave, saveStatus, type AutosaveProblem, type AutosaveView, type ClassHold } from "./autosave";
 
 type Doc = { n: number };
 
 /** Un faux éditeur : `change()` valide un nouveau document, `write` réussit, échoue ou trouve le fichier changé. */
 function setup(view: Partial<AutosaveView<Doc>> = {}) {
-  const state: AutosaveView<Doc> = { enabled: true, path: "/docs/fiche.carnet", dirty: false, doc: { n: 0 }, generation: 1, blocked: false, ...view };
+  const state: AutosaveView<Doc> = { enabled: true, path: "/docs/fiche.carnet", dirty: false, doc: { n: 0 }, generation: 1, blocked: false, held: false, ...view };
   let saved = state.doc;
   const writes: Doc[] = [];
   const problems: AutosaveProblem[] = [];
@@ -196,6 +196,25 @@ describe("Autosaver", () => {
     expect(t.writes).toEqual([{ n: 1 }, { n: 2 }]);
   });
 
+  it("held after a fill by the class: nothing is written, even long after, and leaving asks the old question", async () => {
+    t = setup();
+    t.change();
+    t.state.held = true;
+    await wait(4 * AUTOSAVE_MAX_WAIT_MS);
+    t.change();
+    await wait(4 * AUTOSAVE_MAX_WAIT_MS);
+    expect(t.writes).toEqual([]);
+    expect(await t.saver.flush()).toBe(false);
+    expect(t.writes).toEqual([]);
+    // Enregistré à la main : la retenue est levée, le changement suivant part après le délai normal.
+    t.state.held = false;
+    t.change();
+    await wait(AUTOSAVE_DELAY_MS - AUTOSAVE_TICK_MS);
+    expect(t.writes).toEqual([]);
+    await wait(2 * AUTOSAVE_TICK_MS);
+    expect(t.writes).toEqual([t.state.doc]);
+  });
+
   it("leaving with a failing write says so (the old question comes back)", async () => {
     t = setup();
     t.fail();
@@ -206,7 +225,7 @@ describe("Autosaver", () => {
 });
 
 describe("saveStatus", () => {
-  const base = { enabled: true, path: "/docs/fiche.carnet", ownFile: true, dirty: false, editing: false, problem: null };
+  const base = { enabled: true, path: "/docs/fiche.carnet", ownFile: true, dirty: false, editing: false, problem: null, held: false };
   it("says saved, saving or not saved", () => {
     expect(saveStatus(base)).toBe("saved");
     expect(saveStatus({ ...base, dirty: true })).toBe("saving");
@@ -221,5 +240,62 @@ describe("saveStatus", () => {
     expect(saveStatus({ ...base, editing: true, enabled: false })).toBe("saved");
     // Copie de secours reprise : son fichier d'origine n'est pas écrit tout seul.
     expect(saveStatus({ ...base, ownFile: false, dirty: true })).toBe("unsaved");
+    // Retenu après un remplissage par la classe : modifié veut dire non enregistré, comme réglage décoché.
+    expect(saveStatus({ ...base, dirty: true, held: true })).toBe("unsaved");
+    expect(saveStatus({ ...base, editing: true, held: true })).toBe("saved");
+    expect(saveStatus({ ...base, held: true })).toBe("saved");
+  });
+});
+
+// La retenue après un remplissage par la classe, suivie le long de l'historique : `before` est le document juste
+// avant le remplissage, `filled` juste après (Ctrl+Z, Ctrl+Y y reviennent : les mêmes objets).
+describe("class hold", () => {
+  const [before, filled, later, other] = [{ n: 0 }, { n: 1 }, { n: 2 }, { n: 3 }];
+  const held = (h: ClassHold<Doc> | null) => !!h?.on;
+
+  it("starts with a fill and stays through ordinary changes", () => {
+    let h: ClassHold<Doc> | null = classHoldAfterFill<Doc>(null, before, filled);
+    expect(held(h)).toBe(true);
+    h = classHoldAfterHistory(h, later);
+    expect(held(h)).toBe(true);
+  });
+
+  it("Ctrl+Z back to before the fill lifts it; Ctrl+Y brings the class data back, held again", () => {
+    let h: ClassHold<Doc> | null = classHoldAfterFill<Doc>(null, before, filled);
+    h = classHoldAfterHistory(h, later);
+    h = classHoldAfterHistory(h, filled);
+    expect(held(h)).toBe(true);
+    h = classHoldAfterHistory(h, before);
+    expect(held(h)).toBe(false);
+    h = classHoldAfterHistory(h, filled);
+    expect(held(h)).toBe(true);
+    // Revenu avant, puis un nouveau changement : il ne contient pas les données de la classe, rien n'est retenu.
+    h = classHoldAfterHistory(classHoldAfterHistory(h, before), other);
+    expect(held(h)).toBe(false);
+  });
+
+  it("a second fill keeps the starting point: Ctrl+Z must undo both fills to lift it", () => {
+    let h: ClassHold<Doc> | null = classHoldAfterFill<Doc>(null, before, filled);
+    h = classHoldAfterFill(h, filled, later);
+    expect(held(classHoldAfterHistory(h, filled))).toBe(true);
+    expect(held(classHoldAfterHistory(h, before))).toBe(false);
+  });
+
+  it("a fill whose starting point is unknown (during an assistant proposal) is held until saved by hand", () => {
+    const h = classHoldAfterFill<Doc>(null, null, null);
+    expect(held(classHoldAfterHistory(h, before))).toBe(true);
+  });
+
+  it("saving by hand lifts it, unless a fill came during the write or the document is back before the fill", () => {
+    const h = classHoldAfterFill<Doc>(null, before, filled);
+    expect(classHoldAfterSave(h, h)).toBeNull();
+    expect(classHoldAfterSave(null, null)).toBeNull();
+    // Un remplissage pendant l'écriture : ce qui est écrit ne le contient pas.
+    const again = classHoldAfterFill(h, filled, later);
+    expect(held(classHoldAfterSave(again, h))).toBe(true);
+    expect(held(classHoldAfterSave(classHoldAfterFill<Doc>(null, before, filled), null))).toBe(true);
+    // Enregistré au document d'avant le remplissage : Ctrl+Y le ramènerait, retenu de nouveau.
+    const back = classHoldAfterHistory(h, before);
+    expect(held(classHoldAfterHistory(classHoldAfterSave(back, back), filled))).toBe(true);
   });
 });

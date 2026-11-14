@@ -1,12 +1,21 @@
 // L'enregistrement automatique branché sur l'éditeur : ce qui l'arrête, le départ sans question, Ctrl+S face à
-// un fichier changé ailleurs, la copie de secours reprise.
+// un fichier changé ailleurs, la copie de secours reprise, la retenue après un remplissage par la classe.
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { Document, SaveMode } from "./types";
+import type { Class, Document, Page, SaveMode } from "./types";
 
 const writes: { path: string; title: string; mode: SaveMode; keepStart: boolean }[] = [];
 let outcome: "Saved" | "ChangedElsewhere" | Error = "Saved";
 let startVersion: string | null = null;
+const backups: string[] = [];
+/** Le remplissage par la classe, comme le moteur pour {classe} ; `fillGate` le fait attendre. */
+let fillGate: Promise<void> | null = null;
 vi.mock("./api", () => ({
+  fillAutoFields: async (page: Page, _date: string | null, cls: Class | null) => {
+    if (fillGate) await fillGate;
+    const named = (t: string) => t.replace("{classe}", cls?.name ?? "{classe}");
+    return { ...page, elements: page.elements.map((e) => (e.kind.type === "Text" ? { ...e, kind: { ...e.kind, content: { paragraphs: e.kind.content.paragraphs.map((q) => ({ ...q, runs: q.runs.map((r) => ({ ...r, text: named(r.text) })) })) } } } : e)) };
+  },
+  backupSave: async (doc: Document) => void backups.push(doc.title),
   saveDocument: async (path: string, doc: Document, mode: SaveMode, keepStart: boolean) => {
     if (outcome instanceof Error) throw outcome.message;
     if (outcome === "Saved") writes.push({ path, title: doc.title, mode, keepStart });
@@ -19,6 +28,9 @@ vi.mock("./api", () => ({
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn(), ask: vi.fn() }));
 
 const { editor } = await import("./docStore.svelte");
+const { settings: initialSettings, AUTOSAVE_DEFAULT } = await import("./settings.svelte");
+/** Installation neuve : rien n'est encore écrit sur le poste. */
+const autosaveAtStart = initialSettings.autosave;
 const { autosaver, autosave } = await import("./autosave.svelte");
 const { confirmLeave, revertToStart, save } = await import("./fileActions");
 const { settings } = await import("./settings.svelte");
@@ -26,6 +38,9 @@ const { modal } = await import("./modal.svelte");
 const { newDocument } = await import("./factory");
 const { AUTOSAVE_DELAY_MS } = await import("./autosave");
 const { fr } = await import("./i18n/fr");
+const { fillWaitingClassFields } = await import("./fieldPlacing.svelte");
+const { textWith } = await import("./fieldEdit");
+const { backupNow } = await import("./backup");
 
 const PATH = "/docs/fiche.carnet";
 const retitle = (title: string) => editor.commit({ ...editor.doc, title });
@@ -52,8 +67,20 @@ afterEach(() => {
   editor.showProposal(null);
   editor.templateMode = false;
   startVersion = null;
+  fillGate = null;
+  backups.length = 0;
   vi.useRealTimers();
 });
+
+const CLASS = { name: "Les Lutins" } as Class;
+/** Un document enregistré dont une page attend le nom de la classe (un modèle). */
+function openTemplateWithClassField() {
+  const doc = newDocument();
+  const page = doc.pages[0];
+  editor.reset({ ...doc, title: "Modèle", pages: [{ ...page, elements: [textWith(page, "Classe : {classe}")] }] }, PATH, { own: true });
+  autosaver.tick();
+}
+const pageText = () => JSON.stringify(editor.doc.pages[0].elements);
 
 test("a teacher's file is written a few seconds after a change, keeping the start version", async () => {
   retitle("Lundi");
@@ -178,4 +205,109 @@ test("the « Annuler » of the start version notice does nothing in another docu
   retitle("Autre, modifié");
   undo.run();
   expect(editor.doc.title).toBe("Autre, modifié");
+});
+
+test("a fresh install: the setting is unchecked", () => {
+  expect(AUTOSAVE_DEFAULT).toBe(false);
+  expect(autosaveAtStart).toBe(false);
+});
+
+test("setting off: Ctrl+S keeps no start version of the session", async () => {
+  settings.autosave = false;
+  retitle("Lundi");
+  expect(await save()).toBe(true);
+  expect(writes.map((w) => w.keepStart)).toEqual([false]);
+});
+
+test("a class chosen fills the waiting fields: held until saved by hand, then written again on its own", async () => {
+  openTemplateWithClassField();
+  await fillWaitingClassFields(CLASS);
+  expect(pageText()).toContain("Classe : Les Lutins");
+  expect(editor.classHold?.on).toBe(true);
+  for (let i = 0; i < 10; i++) await later();
+  // Un changement ordinaire ensuite : retenu aussi (le document contient les données de la classe).
+  retitle("Modèle rempli");
+  autosaver.tick();
+  for (let i = 0; i < 10; i++) await later();
+  expect(writes).toEqual([]);
+  // La copie de secours continue.
+  await backupNow();
+  expect(backups).toEqual(["Modèle rempli"]);
+  // En partant : la question d'avant.
+  const leaving = confirmLeave();
+  await vi.waitFor(() => expect(modal.message).not.toBeNull());
+  modal.answer("cancel");
+  expect(await leaving).toBe(false);
+  expect(writes).toEqual([]);
+  // Ctrl+S : écrit, la retenue est levée, le changement suivant part tout seul.
+  expect(await save()).toBe(true);
+  expect(writes).toEqual([{ path: PATH, title: "Modèle rempli", mode: "Manual", keepStart: true }]);
+  expect(editor.classHold).toBeNull();
+  retitle("Mardi");
+  autosaver.tick();
+  await later();
+  expect(writes.map((w) => [w.title, w.mode])).toEqual([["Modèle rempli", "Manual"], ["Mardi", "Auto"]]);
+});
+
+test("« Remplir avec ma classe » (pages generated for the class) is held the same way", async () => {
+  editor.commitFromClass({ ...editor.doc, title: "Étiquettes de la classe" });
+  for (let i = 0; i < 10; i++) await later();
+  expect(writes).toEqual([]);
+  expect(await autosaver.flush()).toBe(false);
+});
+
+test("the hold is kept when the setting is checked later", async () => {
+  settings.autosave = false;
+  editor.commitFromClass({ ...editor.doc, title: "Étiquettes de la classe" });
+  settings.autosave = true;
+  for (let i = 0; i < 10; i++) await later();
+  expect(writes).toEqual([]);
+});
+
+test("Ctrl+Z back to before the fill lifts the hold; Ctrl+Y brings it back", async () => {
+  retitle("Lundi");
+  editor.commitFromClass({ ...editor.doc, title: "Étiquettes de la classe" });
+  editor.undo();
+  expect(editor.classHold?.on).toBe(false);
+  autosaver.tick();
+  await later();
+  expect(writes.map((w) => w.title)).toEqual(["Lundi"]);
+  editor.redo();
+  expect(editor.classHold?.on).toBe(true);
+  autosaver.tick();
+  for (let i = 0; i < 10; i++) await later();
+  expect(writes.map((w) => w.title)).toEqual(["Lundi"]);
+});
+
+test("another document starts without the hold", async () => {
+  editor.commitFromClass({ ...editor.doc, title: "Étiquettes de la classe" });
+  editor.reset({ ...newDocument(), title: "Autre" }, "/docs/autre.carnet", { own: true });
+  expect(editor.classHold).toBeNull();
+  retitle("Autre, modifié");
+  autosaver.tick();
+  await later();
+  expect(writes.map((w) => w.title)).toEqual(["Autre, modifié"]);
+});
+
+// Au lancement, la dernière classe se rouvre (classes.restore()) pendant qu'un fichier passé à Cahutin s'ouvre :
+// les champs du document ouvert s'écrivent avec la classe, sans geste de l'enseignant.
+test("launch: the class restored after the file opened fills it, held, nothing written", async () => {
+  openTemplateWithClassField();
+  await fillWaitingClassFields(CLASS);
+  expect(pageText()).toContain("Les Lutins");
+  for (let i = 0; i < 10; i++) await later();
+  expect(writes).toEqual([]);
+});
+
+test("launch: a fill still running when another document opens changes nothing there", async () => {
+  openTemplateWithClassField();
+  let release!: () => void;
+  fillGate = new Promise((r) => (release = r));
+  const filling = fillWaitingClassFields(CLASS);
+  openTemplateWithClassField();
+  const opened = editor.doc;
+  release();
+  await filling;
+  expect(editor.doc).toBe(opened);
+  expect(editor.classHold).toBeNull();
 });

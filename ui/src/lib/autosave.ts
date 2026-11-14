@@ -25,6 +25,8 @@ export interface AutosaveView<D> {
   generation: number;
   /** Une écriture de texte, un geste, un aperçu, un recadrage, une proposition ou un enregistrement en cours. */
   blocked: boolean;
+  /** Retenu après un remplissage par la classe (`ClassHold`) : rien n'est écrit avant un enregistrement à la main. */
+  held: boolean;
 }
 
 /** Ce qui empêche d'enregistrer, dit une fois : un échec (lecture seule, disque plein, clé retirée) ou un fichier
@@ -87,7 +89,7 @@ export class Autosaver<D> {
       this.#enabled = true;
       this.#first = null;
     }
-    if (!v.path || !v.dirty) {
+    if (!v.path || !v.dirty || v.held) {
       this.#first = null;
       this.#seen = v.doc;
       return;
@@ -141,11 +143,11 @@ export class Autosaver<D> {
 
   /** Avant de quitter le document : l'écriture en cours est attendue, celle qui attend part tout de suite. Vrai
    *  si le document est enregistré ; faux s'il faut poser la question d'avant (réglage décoché, document sans
-   *  fichier, fichier changé par ailleurs, échec). */
+   *  fichier, retenu après un remplissage par la classe, fichier changé par ailleurs, échec). */
   async flush(): Promise<boolean> {
     while (this.#inFlight) await this.#inFlight;
     const v = this.#deps.view();
-    if (!v.enabled || !v.path || this.#problem?.kind === "changed") return false;
+    if (!v.enabled || !v.path || v.held || this.#problem?.kind === "changed") return false;
     if (!v.dirty) return true;
     return (await this.#write(v)) && !this.#deps.view().dirty;
   }
@@ -164,16 +166,58 @@ export class Autosaver<D> {
   }
 }
 
+/**
+ * Retenue après un remplissage par la classe : choisir une classe (les champs école, enseignant... qui attendaient
+ * s'écrivent), « Remplir avec ma classe », la classe changée ou complétée, la classe rouverte au lancement mettent
+ * des prénoms et des photos d'élèves dans le document sans geste de l'enseignant. Écrits tout seuls, ils
+ * remplaceraient son modèle dans le fichier : l'écriture automatique de ce document attend qu'il enregistre
+ * lui-même (Ctrl+S, Enregistrer, « Enregistrer sous », ou « Enregistrer » en partant). Propre au document ouvert :
+ * un autre document repart sans retenue.
+ *
+ * `before` : le document juste avant le premier remplissage retenu, `filled` juste après (l'historique rend les
+ * mêmes objets à Ctrl+Z et Ctrl+Y) ; `null` : inconnu (remplissage pendant une proposition de l'assistant),
+ * retenu jusqu'à l'enregistrement. `on` : en vigueur ; levée tant que Ctrl+Z est revenu à `before`.
+ */
+export interface ClassHold<D> {
+  before: D | null;
+  filled: D | null;
+  on: boolean;
+}
+
+/** Un remplissage par la classe a changé `before` en `filled`. Déjà retenu : le point de départ reste celui du
+ *  premier remplissage (Ctrl+Z doit tous les défaire). Toujours un nouvel objet : un enregistrement à la main en
+ *  cours sait qu'un remplissage est venu pendant l'écriture. */
+export function classHoldAfterFill<D>(h: ClassHold<D> | null, before: D | null, filled: D | null): ClassHold<D> {
+  return h?.on ? { ...h } : { before, filled, on: true };
+}
+
+/** L'historique a changé (modification, Ctrl+Z, Ctrl+Y) : `doc` est le document validé. Revenu avant le
+ *  remplissage, rien de la classe n'y est : la retenue est levée ; Ctrl+Y qui ramène le remplissage la remet. */
+export function classHoldAfterHistory<D>(h: ClassHold<D> | null, doc: D): ClassHold<D> | null {
+  if (!h || h.before === null) return h;
+  if (doc === h.before) return h.on ? { ...h, on: false } : h;
+  if (doc === h.filled && !h.on) return { ...h, on: true };
+  return h;
+}
+
+/** Enregistré à la main (`atStart` : la retenue au début de l'écriture) : levée, sauf si un remplissage est venu
+ *  pendant l'écriture, ou si le document écrit est celui d'avant le remplissage (Ctrl+Y le ramènerait). */
+export function classHoldAfterSave<D>(h: ClassHold<D> | null, atStart: ClassHold<D> | null): ClassHold<D> | null {
+  return h && (h !== atStart || !h.on) ? h : null;
+}
+
 export type SaveStatus = "saved" | "saving" | "unsaved";
 
 /** Ce que dit l'indicateur près du titre : « Enregistré », « Enregistrement… » (des changements partent dans
  *  quelques secondes, ou un texte en cours d'écriture, un recadrage, qui partiront à la sortie du bloc) ou « Non
- *  enregistré » (document sans fichier, réglage décoché et document modifié, échec, fichier changé par ailleurs). */
-export function saveStatus(s: { enabled: boolean; path: string | null; ownFile: boolean; dirty: boolean; editing: boolean; problem: AutosaveProblem }): SaveStatus {
+ *  enregistré » (document sans fichier, réglage décoché et document modifié, retenu après un remplissage par la
+ *  classe, échec, fichier changé par ailleurs). */
+export function saveStatus(s: { enabled: boolean; path: string | null; ownFile: boolean; dirty: boolean; editing: boolean; problem: AutosaveProblem; held: boolean }): SaveStatus {
   if (!s.path) return "unsaved";
+  const auto = s.enabled && s.ownFile && !s.held;
   // Un texte en cours d'écriture n'est encore ni dans le fichier ni dans la copie de secours : pas « Enregistré ».
-  if (!s.dirty && !(s.editing && s.enabled && s.ownFile)) return "saved";
-  return s.enabled && s.ownFile && !s.problem ? "saving" : "unsaved";
+  if (!s.dirty && !(s.editing && auto)) return "saved";
+  return auto && !s.problem ? "saving" : "unsaved";
 }
 
 /** Heure locale d'une date enregistrée en UTC (« 9 novembre 2026 à 17:05 »). */

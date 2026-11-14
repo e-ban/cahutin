@@ -4,7 +4,7 @@ import { tick } from "svelte";
 import * as api from "./api";
 import { assistant } from "./assistant.svelte";
 import { ask } from "./ask";
-import { localTime } from "./autosave";
+import { classHoldAfterSave, localTime } from "./autosave";
 import { autosave, autosaver } from "./autosave.svelte";
 import { clearBackup, copyState } from "./backupCopy";
 import { imagesDecoded } from "./printImages";
@@ -83,6 +83,8 @@ export function writeDoc(path: string, doc: Document, mode: SaveMode, generation
 
 /** Écrit et dit ce qui ne va pas ; un fichier changé par ailleurs : l'enseignant choisit. */
 async function write(path: string, mode: SaveMode): Promise<boolean> {
+  const hold = editor.classHold;
+  const generation = editor.generation;
   let outcome: SaveOutcome;
   try {
     outcome = await writeDoc(path, editor.doc, mode);
@@ -100,6 +102,8 @@ async function write(path: string, mode: SaveMode): Promise<boolean> {
     return choice === "replace" ? write(path, "Replace") : false;
   }
   autosaver.cleared();
+  // Enregistré par l'enseignant : ce que la classe a mis dans le document est voulu, l'écriture automatique reprend.
+  if (generation === editor.generation) editor.classHold = classHoldAfterSave(editor.classHold, hold);
   return true;
 }
 

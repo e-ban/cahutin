@@ -29,7 +29,7 @@ export const TOUR_STEPS: TourStep[] = [
   {
     target: ".top",
     title: "Enregistrer et imprimer",
-    text: "Le menu Fichier enregistre, ouvre et importe vos documents ; une fois enregistré, un document s'enregistre tout seul à chaque changement. « Imprimer / Exporter » imprime, crée un PDF ou un fichier pour LibreOffice. « Préférences » adapte Cahutin à votre vue : taille, police, contraste, couleurs pour les daltoniens.",
+    text: "Le menu Fichier enregistre, ouvre et importe vos documents. « Imprimer / Exporter » imprime, crée un PDF ou un fichier pour LibreOffice. « Préférences » adapte Cahutin à votre vue (taille, police, contraste, couleurs pour les daltoniens) ; on peut aussi y choisir que le document s'enregistre tout seul à chaque changement.",
   },
 ];
 

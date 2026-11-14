@@ -1,4 +1,5 @@
 // État de l'éditeur : le document (immuable, avec historique), la page courante, la sélection, le zoom.
+import { classHoldAfterFill, classHoldAfterHistory, type ClassHold } from "./autosave";
 import { createHistory, type History } from "./history";
 import { newDocument } from "./factory";
 import { pathOf } from "./groups";
@@ -20,6 +21,9 @@ class Editor {
   ownFile = $state(false);
   /** Change à chaque document qui prend la place du précédent : une écriture finie trop tard ne le marque pas. */
   generation = 0;
+  /** Retenue de l'écriture automatique après un remplissage par la classe (lib/autosave.ts) ; propre au document
+   *  ouvert, levée par un enregistrement à la main (lib/fileActions.ts). */
+  classHold = $state.raw<ClassHold<Document> | null>(null);
   pageIndex = $state(0);
   selection = $state<string[]>([]);
   zoom = $state<Zoom>("fit");
@@ -190,6 +194,7 @@ class Editor {
   }
 
   #sync() {
+    this.classHold = classHoldAfterHistory(this.classHold, this.#history.current);
     this.doc = this.#history.current;
     this.canUndo = this.#history.canUndo;
     this.canRedo = this.#history.canRedo;
@@ -233,6 +238,16 @@ class Editor {
     }
     this.#history.commit(next);
     this.#sync();
+  }
+
+  /** Une modification faite par la classe, sans geste de l'enseignant (choix ou changement de la classe,
+   *  « Remplir avec ma classe ») : validée comme les autres, et l'écriture automatique est retenue. Pendant une
+   *  proposition de l'assistant, elle attend sa question : retenue sans point de départ connu. */
+  commitFromClass(next: Document) {
+    const before = this.#history.current;
+    this.commit(next);
+    const after = this.#history.current;
+    this.classHold = after !== before ? classHoldAfterFill(this.classHold, before, after) : classHoldAfterFill(this.classHold, null, null);
   }
 
   undo() {
@@ -300,6 +315,7 @@ class Editor {
    *  fichier que l'enseignant vient d'ouvrir. */
   reset(doc: Document, path: string | null, opts: { unsaved?: boolean; own?: boolean } = {}) {
     this.generation++;
+    this.classHold = null;
     this.ownFile = !!path && !!opts.own;
     this.#proposal = null;
     this.proposing = false;

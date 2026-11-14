@@ -61,6 +61,7 @@ export const autosaver = new Autosaver<Document>({
     doc: editor.committed,
     generation: editor.generation,
     blocked: !!editor.editingText || editor.gesture || editor.previewing || !!editor.cropping || editor.proposing || isSaving(),
+    held: !!editor.classHold?.on,
   }),
   write: async (path, doc, generation) => ((await writeDoc(path, doc, "Auto", generation)) === "ChangedElsewhere" ? "changed" : "saved"),
   problem: (p) => {

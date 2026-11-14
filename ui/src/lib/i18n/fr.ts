@@ -268,6 +268,7 @@ export const fr = {
   statusSavingHint: "Vos changements s'enregistrent dans quelques secondes, tout seuls.",
   statusEditingHint: "Ce que vous écrivez s'enregistrera quand vous quitterez le bloc (Échap ou un clic ailleurs).",
   statusUnsavedHint: "Pas encore enregistré : cliquez ici (ou Ctrl+S) pour enregistrer. Ensuite, chaque changement s'enregistre tout seul (Préférences > Enregistrement).",
+  statusTemplateHint: "En mode modèle, rien ne s'enregistre tout seul dans le fichier du document : Ctrl+S l'enregistre. Après « Terminer le modèle », les changements s'enregistrent comme d'habitude.",
   statusUnsavedManualHint: "Pas encore enregistré : cliquez ici (ou Ctrl+S). L'enregistrement automatique est décoché (Préférences > Enregistrement).",
   autosaveFailed: (reason: string) => `L'enregistrement automatique n'a pas marché. ${reason} Vos changements restent ici ; Cahutin réessaiera au prochain changement.`,
   autosaveChangedElsewhere:

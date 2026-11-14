@@ -162,7 +162,9 @@ export async function revertToStart() {
   editor.addPhotos(docPhotos(opened.doc));
   editor.commit(opened.doc);
   editor.selection = [];
-  editor.notify(fr.revertedToStart(localTime(at)), { label: fr.undo, run: () => editor.undo() });
+  // « Annuler » ne vaut que pour ce document : resté affiché après en avoir ouvert un autre, il n'y défait rien.
+  const generation = editor.generation;
+  editor.notify(fr.revertedToStart(localTime(at)), { label: fr.undo, run: () => editor.generation === generation && editor.undo() });
 }
 
 /** Les photos d'un document, pour le panneau Photos : un document qui s'ouvre ou se crée y montre les siennes,

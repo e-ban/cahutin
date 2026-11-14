@@ -26,15 +26,19 @@
 
   // « Enregistré », « Enregistrement… » ou « Non enregistré », toujours visible à côté du titre.
   const editing = $derived(!!editor.editingText || !!editor.cropping);
-  const status = $derived(saveStatus({ enabled: settings.autosave, path: editor.path, ownFile: editor.ownFile, dirty: editor.dirty, editing, problem: autosave.problem }));
+  // En mode modèle, rien ne s'enregistre tout seul (lib/autosave.svelte.ts) : « Non enregistré » s'il y a des changements.
+  const ownFile = $derived(editor.ownFile && !editor.templateMode);
+  const status = $derived(saveStatus({ enabled: settings.autosave, path: editor.path, ownFile, dirty: editor.dirty, editing, problem: autosave.problem }));
   const statusLabel = $derived(status === "saved" ? fr.statusSaved : status === "saving" ? fr.statusSaving : fr.statusUnsaved);
   const statusHint = $derived(
-    status === "saving"
+    settings.autosave && editor.ownFile && editor.templateMode && status !== "saving" && !autosave.problem
+      ? fr.statusTemplateHint
+      : status === "saving"
       ? editing
         ? fr.statusEditingHint
         : fr.statusSavingHint
       : status === "saved"
-        ? settings.autosave && editor.ownFile
+        ? settings.autosave && ownFile
           ? fr.statusSavedHint
           : fr.statusSavedManualHint
         : autosave.problem?.kind === "failed"

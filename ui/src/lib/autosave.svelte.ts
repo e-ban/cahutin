@@ -53,7 +53,9 @@ let shown: string | null = null;
 export const autosaver = new Autosaver<Document>({
   view: () => ({
     enabled: settings.autosave,
-    path: ownPath(),
+    // En mode modèle, l'enseignant construit un modèle : rien ne part dans son fichier sans un geste (Ctrl+S, ou
+    // la question d'avant en partant).
+    path: editor.templateMode ? null : ownPath(),
     dirty: editor.dirty,
     // Pendant une proposition de l'assistant ou un aperçu : le document de départ (de toute façon, on attend).
     doc: editor.committed,

@@ -5,20 +5,22 @@ import type { Document, SaveMode } from "./types";
 
 const writes: { path: string; title: string; mode: SaveMode; keepStart: boolean }[] = [];
 let outcome: "Saved" | "ChangedElsewhere" | Error = "Saved";
+let startVersion: string | null = null;
 vi.mock("./api", () => ({
   saveDocument: async (path: string, doc: Document, mode: SaveMode, keepStart: boolean) => {
     if (outcome instanceof Error) throw outcome.message;
     if (outcome === "Saved") writes.push({ path, title: doc.title, mode, keepStart });
     return outcome;
   },
-  startVersionInfo: async () => null,
+  startVersionInfo: async () => startVersion,
+  startVersionOpen: async () => ({ doc: { ...editor.doc, title: "Début de séance" }, offered_fonts: [] }),
   backupClear: async () => {},
 }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn(), ask: vi.fn() }));
 
 const { editor } = await import("./docStore.svelte");
 const { autosaver, autosave } = await import("./autosave.svelte");
-const { confirmLeave, save } = await import("./fileActions");
+const { confirmLeave, revertToStart, save } = await import("./fileActions");
 const { settings } = await import("./settings.svelte");
 const { modal } = await import("./modal.svelte");
 const { newDocument } = await import("./factory");
@@ -48,6 +50,8 @@ afterEach(() => {
   editor.cropping = null;
   editor.endPreview();
   editor.showProposal(null);
+  editor.templateMode = false;
+  startVersion = null;
   vi.useRealTimers();
 });
 
@@ -144,4 +148,34 @@ test("the notice of a file changed elsewhere goes away once saved by hand", asyn
   expect(await saving).toBe(true);
   expect(autosave.problem).toBeNull();
   expect(editor.notice).toBeNull();
+});
+
+// Le mode modèle se joue sur la page du document, mais ce que l'enseignant y construit est un modèle : rien n'est
+// écrit dans son fichier sans un geste de sa part.
+test("template mode: nothing is written; leaving asks the old question", async () => {
+  editor.templateMode = true;
+  retitle("Grille du modèle");
+  autosaver.tick();
+  for (let i = 0; i < 10; i++) await later();
+  expect(writes).toEqual([]);
+  const leaving = confirmLeave();
+  await vi.waitFor(() => expect(modal.message).not.toBeNull());
+  modal.answer("cancel");
+  expect(await leaving).toBe(false);
+  expect(writes).toEqual([]);
+});
+
+test("the « Annuler » of the start version notice does nothing in another document", async () => {
+  startVersion = "2026-11-14T08:00:00Z";
+  await autosave.refreshStart();
+  const reverting = revertToStart();
+  await vi.waitFor(() => expect(modal.message).not.toBeNull());
+  modal.answer("revert");
+  await reverting;
+  expect(editor.doc.title).toBe("Début de séance");
+  const undo = editor.noticeAction!;
+  editor.reset({ ...newDocument(), title: "Autre" }, "/docs/autre.carnet", { own: true });
+  retitle("Autre, modifié");
+  undo.run();
+  expect(editor.doc.title).toBe("Autre, modifié");
 });

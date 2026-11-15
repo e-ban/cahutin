@@ -113,7 +113,7 @@ pub fn export_odg(doc: &Document, store: &AssetStore, fonts: &FontSet, out: impl
         Part { path: "content.xml".into(), media_type: "text/xml", bytes: content.into_bytes(), compress: true },
         Part { path: "styles.xml".into(), media_type: "text/xml", bytes: reg.styles_xml().into_bytes(), compress: true },
         Part { path: "meta.xml".into(), media_type: "text/xml", bytes: package::meta_xml(content::has_pictures(doc)).into_bytes(), compress: true },
-        Part { path: "settings.xml".into(), media_type: "text/xml", bytes: package::settings_xml().into_bytes(), compress: true },
+        Part { path: "settings.xml".into(), media_type: "text/xml", bytes: package::settings_xml(reg.faces.iter().any(|f| f.embeddable)).into_bytes(), compress: true },
     ];
     for p in pictures {
         parts.push(Part { path: p.path, media_type: p.media_type, bytes: p.bytes, compress: false });
@@ -986,6 +986,21 @@ mod tests {
         assert!(e.xml("content.xml").contains("xlink:href=\"Fonts/Andika-Regular.ttf\""));
         let settings = e.xml("settings.xml");
         assert!(settings.contains("config:name=\"EmbedFonts\" config:type=\"boolean\">true<"));
+    }
+
+    /// LibreOffice ne lit le bloc `ooo:configuration-settings` que si le préfixe `ooo` est déclaré ; il réenregistre
+    /// alors seulement les polices latines utilisées, pas les polices de repli du poste (18 Mo au lieu de 0,5).
+    #[test]
+    fn settings_ask_libreoffice_to_keep_only_used_latin_fonts() {
+        let item = |k: &str, v: &str| format!("config:name=\"{k}\" config:type=\"boolean\">{v}<");
+        let settings = export(&doc_with(vec![text(RichText::plain("Bonjour"), None)]), &AssetStore::default()).xml("settings.xml");
+        assert!(settings.contains("xmlns:ooo=\"http://openoffice.org/2004/office\""), "{settings}");
+        for (k, v) in [("EmbedFonts", "true"), ("EmbedOnlyUsedFonts", "true"), ("EmbedLatinScriptFonts", "true"), ("EmbedAsianScriptFonts", "false"), ("EmbedComplexScriptFonts", "false")] {
+            assert!(settings.contains(&item(k, v)), "{k} : {settings}");
+        }
+        // Sans police embarquée, LibreOffice ne doit pas se mettre à embarquer celles du poste.
+        let settings = export(&doc_with(vec![]), &AssetStore::default()).xml("settings.xml");
+        assert!(settings.contains(&item("EmbedFonts", "false")), "{settings}");
     }
 
 /// Le même prénom dans trois polices (étiquettes) : une police par passage, toutes embarquées.

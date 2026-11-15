@@ -54,16 +54,20 @@ pub(crate) fn meta_xml(openmoji: bool) -> String {
     x.finish()
 }
 
-pub(crate) fn settings_xml() -> String {
+/// Réglages relus par LibreOffice et gardés quand il réenregistre : seulement les polices latines utilisées, sinon il
+/// embarque aussi les polices de repli du poste (chinoises comprises : 18 Mo). Sans le préfixe `ooo` déclaré, il ignore
+/// tout le bloc. `embed_fonts` faux quand Cahutin n'embarque aucune police : LibreOffice n'en ajoute pas non plus.
+pub(crate) fn settings_xml(embed_fonts: bool) -> String {
     let mut x = Xml::new();
     let mut root: Vec<(&str, &str)> = NS.to_vec();
+    root.push(("xmlns:ooo", "http://openoffice.org/2004/office"));
     root.push(("office:version", "1.3"));
     x.open("office:document-settings", &root);
     x.open("office:settings", &[]);
     x.open("config:config-item-set", &[("config:name", "ooo:configuration-settings")]);
-    for name in ["EmbedFonts", "EmbedOnlyUsedFonts"] {
+    for (name, on) in [("EmbedFonts", embed_fonts), ("EmbedOnlyUsedFonts", true), ("EmbedLatinScriptFonts", true), ("EmbedAsianScriptFonts", false), ("EmbedComplexScriptFonts", false)] {
         x.open("config:config-item", &[("config:name", name), ("config:type", "boolean")]);
-        x.text("true");
+        x.text(if on { "true" } else { "false" });
         x.close();
     }
     x.close();

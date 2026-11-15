@@ -426,6 +426,12 @@ fn picture_is_rendered() {
 struct RoundTrip {
     pages: Vec<Page>,
     content: String,
+    /// Tailles de l'export et du fichier réenregistré, et ce que celui-ci contient.
+    exported_len: u64,
+    saved_len: u64,
+    saved_settings: String,
+    saved_styles: String,
+    saved_fonts: Vec<String>,
 }
 
 fn libreoffice_round_trip() -> &'static RoundTrip {
@@ -497,11 +503,18 @@ fn libreoffice_round_trip() -> &'static RoundTrip {
         let out = dir.path().join("relu");
         soffice_convert(dir.path(), "odg", &odg, &out);
         let saved = out.join("aller-retour.odg");
-        let mut content = String::new();
-        std::io::Read::read_to_string(&mut zip::ZipArchive::new(std::fs::File::open(&saved).unwrap()).unwrap().by_name("content.xml").unwrap(), &mut content).unwrap();
+        let mut zip = zip::ZipArchive::new(std::fs::File::open(&saved).unwrap()).unwrap();
+        let mut part = |name: &str| {
+            let mut s = String::new();
+            std::io::Read::read_to_string(&mut zip.by_name(name).unwrap(), &mut s).unwrap();
+            s
+        };
+        let (content, saved_settings, saved_styles) = (part("content.xml"), part("settings.xml"), part("styles.xml"));
+        let saved_fonts = zip.file_names().map(|n| n.unwrap().into_owned()).filter(|n| n.starts_with("Fonts/")).collect();
         let known: Vec<String> = FontSet::builtin().families().into_iter().map(|f| f.name).collect();
         let back = carnet_core::import::odg::read_drawing(std::fs::File::open(&saved).unwrap(), &known).unwrap();
-        RoundTrip { pages: back.pages, content }
+        let len = |p: &Path| std::fs::metadata(p).unwrap().len();
+        RoundTrip { pages: back.pages, content, exported_len: len(&odg), saved_len: len(&saved), saved_settings, saved_styles, saved_fonts }
     })
 }
 
@@ -509,6 +522,25 @@ fn libreoffice_round_trip() -> &'static RoundTrip {
 fn relu_at(x: f64, y: f64) -> &'static Element {
     let page = &libreoffice_round_trip().pages[0];
     page.elements.iter().find(|e| (e.frame.x_mm - x).abs() < 0.1 && (e.frame.y_mm - y).abs() < 0.1).unwrap_or_else(|| panic!("rien à {x} {y} : {:?}", page.elements))
+}
+
+/// Réenregistré par LibreOffice, un export reste léger : LibreOffice garde le réglage « seulement les polices
+/// latines utilisées » (sans lui, il embarquait toutes les polices de repli du poste, polices chinoises comprises :
+/// 18 Mo pour un export de 0,5 Mo) et embarque toujours la police de Cahutin. La borne de 4 Mo ajoutés laisse passer
+/// les polices latines des styles par défaut de LibreOffice (mesuré : Liberation Sans et Serif, 1,6 Mo, sur la 24.2
+/// d'un poste courant ; DejaVu Sans et Serif, 2,2 Mo, sur une 24.2 qui n'a qu'elles), pas une police chinoise (8,5 Mo).
+#[test]
+#[ignore]
+fn a_libreoffice_resave_keeps_only_the_used_latin_fonts() {
+    let trip = libreoffice_round_trip();
+    let item = |k: &str, v: &str| format!("config:name=\"{k}\" config:type=\"boolean\">{v}<");
+    for (k, v) in [("EmbedOnlyUsedFonts", "true"), ("EmbedAsianScriptFonts", "false"), ("EmbedComplexScriptFonts", "false")] {
+        assert!(trip.saved_settings.contains(&item(k, v)), "{k} : {}", trip.saved_settings);
+    }
+    let andika: Vec<&String> = trip.saved_fonts.iter().filter(|n| n.contains("Andika")).collect();
+    assert!(!andika.is_empty(), "{:?}", trip.saved_fonts);
+    assert!(andika.iter().any(|n| trip.content.contains(&format!("xlink:href=\"{n}\"")) || trip.saved_styles.contains(&format!("xlink:href=\"{n}\""))), "Andika non déclarée");
+    assert!(trip.saved_len <= trip.exported_len + 4_000_000, "{} octets réenregistrés pour {} exportés : {:?}", trip.saved_len, trip.exported_len, trip.saved_fonts);
 }
 
 /// Un groupe et un groupe dans ce groupe reviennent tels quels de LibreOffice, relus par Cahutin.

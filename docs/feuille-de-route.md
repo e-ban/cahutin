@@ -49,6 +49,33 @@ Ce qui manque le plus pour les fiches et affiches, indépendamment de la classe.
 | Recto-verso et pages en vis-à-vis | Cahiers, livrets | M |
 | Rotation libre des blocs, miroir des photos | Mise en page plus libre | S |
 
+### Audit de l'éditeur
+
+> Fait (voir « Non publié » dans CHANGELOG.md).
+
+Décision du 2026-11-13 : l'édition d'un document doit être excellente avant toute nouvelle fonction. L'élémentaire viendra après la maternelle ; le suivi des apprentissages (étape D) attend des retours de terrain.
+
+Ce qui a été fait :
+
+- **Lot 1, ne rien perdre** : texte collé, fusion de cases, flèches et annulation, champ non rempli à l'export.
+- **Lot 2, les gestes attendus** : coller et déposer depuis l'extérieur, sélection, tableaux au clavier, alignement, ordre.
+- **Lot 3, le texte** : taille libre, texte trop long, typographie française, interligne, écrire sur les lignes.
+- **Lot 4, les sorties** : banc de fidélité élargi, avis près du bord, PDF Windows à chaque format, dialogue d'impression Linux.
+- **Chantiers longs** : listes à puces, ordre des pages, enregistrement automatique en option, vrai tableau LibreOffice, aller-retour ODG.
+
+Reste à essayer à la main (les agents n'ont pas pu le faire) :
+
+- Windows : presse-papiers, PDF, enregistrement automatique.
+- Une vraie imprimante : marges, page en paysage sous Linux, impression sur papier.
+- La vraie interface de LibreOffice : cliquer dans un tableau, dissocier un groupe, enregistrer.
+- Un écran tactile : glisser une miniature.
+- Un dossier synchronisé et une clé USB : enregistrement automatique.
+- Les touches mortes d'un vrai clavier français.
+
+Limites connues : sous Linux, une page en paysage sort réduite si l'on ne change pas le papier ; LibreOffice Draw met toutes les pages d'un document au format de la première ; les zones vides et les invites des modèles ne voyagent pas dans l'ODG ; les tableaux à tirets ou à lignes d'écriture restent des dessins dans LibreOffice.
+
+La suite : attendre les retours de l'enseignant qui utilise l'application avant de choisir parmi les étapes restantes.
+
 ### Étape B : la liste de la classe (0.7)
 
 > Faite (0.6 à 0.8).

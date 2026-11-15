@@ -1,6 +1,13 @@
 # Journal des versions
 
 
+## 0.18.1
+
+- Aide > Nouveautés : les nouveautés des versions 0.17 et 0.18 y sont, et la fenêtre s'ouvre une fois après la mise à jour.
+- Tiroir Formes > Graphisme : les choix « Pointillés » et « Lignes guides » se voient en entier, sans barre de défilement, même avec une grande taille d'interface.
+- Textes : le tiroir des photos est partout appelé par son nom, « tiroir Images, onglet Photos ».
+
+
 ## 0.18.0
 
 - LibreOffice Draw : un document exporté par Cahutin puis enregistré dans LibreOffice reste léger (par exemple 0,5 à 1,4 Mo au lieu de 18 Mo), donc facile à envoyer par courriel : LibreOffice n'y ajoute plus toutes les polices de l'ordinateur (polices chinoises comprises). Les polices de Cahutin restent dans le fichier. Un document déjà alourdi le reste ; pour l'alléger, dans LibreOffice : Fichier > Propriétés, onglet des polices, cocher « Incorporer seulement les polices qui sont utilisées dans les documents », décocher « Polices asiatiques » et « Polices complexes », puis enregistrer.

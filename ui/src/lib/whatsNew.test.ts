@@ -22,21 +22,24 @@ test("versions go from the newest to the oldest, each one once", () => {
   for (let k = 1; k < RELEASES.length; k++) expect(newer(RELEASES[k - 1].version, RELEASES[k].version)).toBe(true);
 });
 
-test("each novelty has a title, a text, its own screenshot on disk, and no long dash", () => {
+// La capture est facultative (rien de visible, pas de capture) ; celle qui est donnée existe, à sa version.
+test("each novelty has a title, a text, its own screenshot on disk if any, and no long dash", () => {
   for (const r of RELEASES) {
     expect(r.items.length).toBeGreaterThan(0);
     for (const n of r.items) {
       expect(n.title && n.text).toBeTruthy();
-      expect(n.image.startsWith(`/nouveautes/${r.version}/`)).toBe(true);
-      expect(onDisk.has(n.image)).toBe(true);
+      if (n.image !== undefined) {
+        expect(n.image.startsWith(`/nouveautes/${r.version}/`)).toBe(true);
+        expect(onDisk.has(n.image)).toBe(true);
+      }
       expect(n.title + n.text).not.toMatch(/[\u2013\u2014]/);
     }
   }
-  const images = RELEASES.flatMap((r) => r.items.map((n) => n.image));
+  const images = RELEASES.flatMap((r) => r.items.flatMap((n) => (n.image === undefined ? [] : [n.image])));
   expect(new Set(images).size).toBe(images.length);
 });
 
-test("version 0.16 opens with the new look", () => {
-  expect(WHATS_NEW.version).toBe("0.16");
-  expect(WHATS_NEW.items[0].image).toBe("/nouveautes/0.16/look.webp");
+test("version 0.18 opens with bulleted lists", () => {
+  expect(WHATS_NEW.version).toBe("0.18");
+  expect(WHATS_NEW.items[0].image).toBe("/nouveautes/0.18/puces.webp");
 });

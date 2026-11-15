@@ -156,7 +156,7 @@ const scenes = {
       for (const [id, name] of [["ferme", "Sortie à la ferme"], ["meteo", "La météo de la semaine"], ["emotions", "Le loto des émotions"], ["anniversaire", "Joyeux anniversaire"]]) {
         await c.openExampleDoc(id);
         const path = home + "/" + name + ".carnet";
-        await invoke("save_document", { path, doc: { ...e.doc, title: name } });
+        await invoke("save_document", { path, doc: { ...e.doc, title: name }, mode: "Replace", keepStart: false });
         await c.openPath(path);
       }
       e.showWelcome = true;
@@ -228,6 +228,145 @@ const scenes = {
     await sleep(1200);
     await s.js("[...document.querySelectorAll('td.pick-col input')].filter((_, i) => [1, 3, 5].includes(i)).forEach((b) => b.click());");
     await sleep(600);
+  },
+  // Les nouveautés de la 0.17 et de la 0.18 : fenêtre de 1440 × 888, ramenée à 1200 × 740 (la barre du haut
+  // tient en entier). « nouv-pages » : 1500 × 925, le coin bas gauche (929 × 573) agrandi à 1200 × 740.
+  async "nouv-puces"() {
+    await s.size(1440, 888);
+    await open("ferme");
+    const id = await run(`
+      const e = window.__editor;
+      const p = (text, list) => ({ align: null, runs: [{ text, bold: false, italic: false, underline: false, color: null, font: null, size_pt: null }], list: list ? "Bullet" : null });
+      const t = e.page.elements.find((x) => x.kind.type === "Text" && Math.round(x.frame.y_mm) === 210);
+      e.updateElement(t.id, (x) => ({ ...x, frame: { ...x.frame, y_mm: 200, h_mm: 72 }, kind: { ...x.kind, prompt: null,
+        style: { ...x.kind.style, size_pt: 16 },
+        content: { paragraphs: [p("Ce que nous avons vu :"), p("les chèvres et leurs petits", true), p("le tracteur rouge du fermier", true), p("les œufs des poules", true)] },
+        frame: { fill: "#ffffff", stroke: null, corner_radius_mm: 3, pattern: "Seyes", write_on_lines: true } } }));
+      e.zoom = 1;
+      return t.id;
+    `);
+    await clickElement(id);
+    await s.js("document.querySelector(`[data-id=\"${arguments[0]}\"]`)?.scrollIntoView({ block: 'center' })", [id]);
+    await sleep(400);
+    await clickText(".ctx button", "Cadre");
+  },
+  async "nouv-trop-long"() {
+    await s.size(1440, 888);
+    await open("ferme");
+    const id = await run(`
+      const e = window.__editor;
+      const t = e.page.elements.find((x) => x.kind.type === "Text" && x.kind.content.paragraphs.some((p) => p.runs.some((r) => r.text.includes("chèvres"))));
+      const text = "J'ai donné à manger aux chèvres ! Elles avaient très faim et la plus petite a mangé dans ma main.";
+      e.updateElement(t.id, (x) => ({ ...x, kind: { ...x.kind, content: { paragraphs: [{ align: null, runs: [{ text, bold: false, italic: false, underline: false, color: null, font: null, size_pt: null }], list: null }] } } }));
+      e.zoom = 1;
+      return t.id;
+    `);
+    await clickElement(id);
+    await s.js("document.querySelector(`[data-id=\"${arguments[0]}\"]`)?.scrollIntoView({ block: 'center' })", [id]);
+    await sleep(600);
+  },
+  async "nouv-pages"() {
+    await s.size(1500, 925);
+    // Un cahier de six pages, prises dans les exemples ; la page 5 glissée entre la 2 et la 3, pas encore lâchée.
+    await run(`
+      const c = window.__carnet, e = window.__editor;
+      const pages = [], assets = {};
+      for (const id of ["ferme", "saisons", "meteo", "sens", "jours", "prenom"]) { await c.openExampleDoc(id); pages.push(...e.doc.pages); Object.assign(assets, e.doc.assets); }
+      e.reset({ ...e.doc, title: "Cahier de vie", pages, assets }, null);
+      // À 53 %, le bord du recadrage tombe entre deux lignes d'écriture de la page.
+      e.showWelcome = false; e.zoom = 0.53; e.selection = [];
+      e.goToPage(5);
+    `);
+    await sleep(1500);
+    await run(`
+      const thumbs = [...document.querySelectorAll(".thumb")];
+      const b = thumbs[4].getBoundingClientRect(), t = thumbs[1].getBoundingClientRect();
+      const ev = (type, x, y, target) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", button: 0, isPrimary: true }));
+      ev("pointerdown", b.left + b.width / 2, b.top + b.height / 2, thumbs[4]);
+      for (let k = 1; k <= 10; k++) {
+        ev("pointermove", b.left + b.width / 2 + ((t.left - b.left) * k) / 10, b.top + b.height / 2 - 4, window);
+        await new Promise((r) => setTimeout(r, 30));
+      }
+    `);
+    await sleep(400);
+  },
+  async "nouv-enregistrement"() {
+    await s.size(1440, 888);
+    // Un exemple enregistré dans le dossier personnel des captures : il a un fichier, il peut s'enregistrer seul.
+    await run(`
+      const c = window.__carnet, e = window.__editor, invoke = window.__TAURI_INTERNALS__.invoke;
+      await c.openExampleDoc("ferme");
+      const path = ${JSON.stringify(process.env.HOME_CAP)} + "/Sortie à la ferme.carnet";
+      await invoke("save_document", { path, doc: { ...e.doc, title: "Sortie à la ferme" }, mode: "Replace", keepStart: false });
+      await c.openPath(path);
+      e.showWelcome = false; e.zoom = "fit";
+      e.prefsCategory = "saving"; e.showPreferences = true;
+    `);
+    await sleep(800);
+    await s.js("const b = [...document.querySelectorAll('label')].find((l) => l.textContent.includes('Enregistrer automatiquement'))?.querySelector('input'); if (b && !b.checked) b.click();");
+    await sleep(600);
+  },
+  async "nouv-bord"() {
+    await s.size(1440, 888);
+    await open("ferme");
+    // La chèvre à 3 mm du bord, et l'avis tel qu'il s'affiche quand on imprime (sans ouvrir la fenêtre d'impression).
+    await run(`
+      const e = window.__editor;
+      const goat = e.page.elements.find((x) => x.kind.type === "Image" && x.frame.w_mm > 30);
+      e.updateElement(goat.id, (x) => ({ ...x, frame: { ...x.frame, x_mm: 163, y_mm: 240 } }));
+      const { printWarning } = await import("/src/lib/printSafety.ts");
+      const w = printWarning(e.doc, { linux: false, pdf: false, tiles: false });
+      e.notify(w.message, { label: "Montrer", run: () => {} });
+    `);
+    await sleep(600);
+  },
+  async "nouv-graphisme"() {
+    await s.size(1440, 888);
+    await run(`
+      const c = window.__carnet, e = window.__editor;
+      c.settings.set("theme", "papier");
+      for (const [k, v] of [["graphismeDots", "progressif"], ["graphismeGuides", "Corridor"], ["graphismeArrow", true], ["graphismeRows", 4]]) localStorage.setItem("carnet." + k, JSON.stringify(v));
+      const { newDocument } = await import("/src/lib/factory.ts");
+      const { inspectorSections } = await import("/src/lib/inspectorSections.svelte.ts");
+      e.reset(newDocument("Graphisme"), null);
+      e.showWelcome = false; e.zoom = "fit"; e.selection = [];
+      inspectorSections.set("shapes-graphisme", true);
+      e.drawer = "shapes";
+    `);
+    await sleep(800);
+    await s.js("[...document.querySelectorAll('button')].find((b) => b.title?.startsWith('Ajouter des lignes de vagues'))?.click()");
+    await sleep(500);
+    // Le tiroir refermé : la page seule, de près.
+    await run(`const e = window.__editor; e.selection = []; e.drawer = null; e.zoom = 1;`);
+    await sleep(400);
+  },
+  async "nouv-regler"() {
+    await s.size(1440, 888);
+    await run(`
+      const c = window.__carnet, e = window.__editor;
+      c.settings.set("theme", "papier");
+      for (const [k, v] of [["graphismeDots", "progressif"], ["graphismeGuides", "Corridor"], ["graphismeArrow", true], ["graphismeRows", 4]]) localStorage.setItem("carnet." + k, JSON.stringify(v));
+      const { newDocument } = await import("/src/lib/factory.ts");
+      const { inspectorSections } = await import("/src/lib/inspectorSections.svelte.ts");
+      e.reset(newDocument("Graphisme"), null);
+      e.showWelcome = false; e.zoom = "fit"; e.selection = [];
+      inspectorSections.set("shapes-graphisme", true);
+      e.drawer = "shapes";
+    `);
+    await sleep(800);
+    await s.js("[...document.querySelectorAll('button')].find((b) => b.title?.startsWith('Ajouter des lignes de ponts'))?.click()");
+    await sleep(500);
+    // La troisième ligne choisie, comme d'un clic : ses motifs vides apparaissent en gris clair.
+    await run(`
+      const e = window.__editor;
+      const groups = [...new Set(e.page.elements.map((x) => x.group))];
+      e.drawer = null; e.zoom = 1;
+      e.selection = e.page.elements.filter((x) => x.group === groups[2]).map((x) => x.id);
+    `);
+    await sleep(600);
+    await s.js("document.querySelector('.ctx button[aria-haspopup=\"menu\"]')?.click()");
+    await sleep(400);
+    await clickText(".ctx [role=menuitem]", "Régler les lignes");
   },
   async "barre-du-bas"() {
     await s.size(1440, 900);

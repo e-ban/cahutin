@@ -1,6 +1,6 @@
 <script lang="ts">
-  // Fenêtre des nouveautés : une nouveauté à la fois, sa capture d'écran et deux phrases. Elle s'ouvre sur la
-  // dernière version ; le choix de la version, en haut, retrouve celles d'avant.
+  // Fenêtre des nouveautés : une nouveauté à la fois, sa capture d'écran (s'il y en a une) et deux phrases. Elle
+  // s'ouvre sur la dernière version ; le choix de la version, en haut, retrouve celles d'avant.
   import { fr } from "../../lib/i18n/fr";
   import { RELEASES } from "../../lib/whatsNew";
 
@@ -30,7 +30,7 @@
       {/if}
     </div>
     <h2 id="news-title">{item.title}</h2>
-    <img src={item.image} alt="" />
+    {#if item.image}<img src={item.image} alt="" />{/if}
     <p class="text">{item.text}</p>
     <div class="foot">
       <div class="dots" aria-hidden="true">

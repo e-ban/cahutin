@@ -1,13 +1,14 @@
 // Nouveautés des versions : une fenêtre montrée une fois, après la mise à jour, à qui utilisait déjà
 // Cahutin (un nouvel utilisateur a la visite guidée). Rouvrable depuis le menu Aide, où l'on retrouve aussi
 // les nouveautés des versions précédentes. Pour une nouvelle version : l'ajouter en tête de RELEASES, ses
-// captures dans `assets/nouveautes/<version>/`.
+// captures dans `assets/nouveautes/<version>/`. Une capture n'est pas obligatoire : une nouveauté qui ne change
+// rien de visible (un fichier mieux relu, par exemple) n'en a pas, et se range après celles qui en ont.
 
 export interface Novelty {
   title: string;
   text: string;
-  /** Capture d'écran, servie depuis `assets/nouveautes/<version>`. */
-  image: string;
+  /** Capture d'écran, servie depuis `assets/nouveautes/<version>` ; aucune quand rien ne se voit. */
+  image?: string;
 }
 
 export interface Release {
@@ -17,6 +18,55 @@ export interface Release {
 
 /** De la plus récente à la plus ancienne. */
 export const RELEASES: Release[] = [
+  {
+    version: "0.18",
+    items: [
+      {
+        title: "Des listes à puces, et le texte sur les lignes",
+        text: "Le bouton « Puces » met un point devant chaque ligne ; Entrée ajoute une ligne à la liste. Dans un cadre à lignes Seyès (bouton « Cadre »), le texte se pose sur les lignes ; la case « Écrire sur les lignes » le règle. Pour écarter les lignes d'un texte : Réglages > Mise en forme > Interligne.",
+        image: "/nouveautes/0.18/puces.webp",
+      },
+      {
+        title: "Un texte trop long, corrigé d'un clic",
+        text: "Un texte qui dépasse de son cadre est signalé : « Agrandir le cadre » ou « Réduire le texte » le corrige d'un clic. La taille se tape librement, jusqu'à 400 pt, pour une lettre géante sur une affiche. Pendant l'écriture, le bouton É écrit les lettres difficiles à taper (É, À, Ç…) et les guillemets « ».",
+        image: "/nouveautes/0.18/texte.webp",
+      },
+      {
+        title: "Changer l'ordre des pages",
+        text: "Glissez la miniature d'une page dans la bande des pages, en bas : un trait montre où elle va tomber. Les flèches à côté de « Supprimer » la déplacent d'une place. Ctrl+Z la remet où elle était.",
+        image: "/nouveautes/0.18/pages.webp",
+      },
+      {
+        title: "Un document qui s'enregistre tout seul",
+        text: "Préférences > Enregistrement : cochez « Enregistrer automatiquement ». Un document qui a déjà un fichier s'enregistre alors tout seul après chaque changement, et « Enregistré » s'affiche à côté du titre. Fichier > « Revenir à la version du début de séance » le rend tel qu'il était à l'ouverture.",
+        image: "/nouveautes/0.18/enregistrement.webp",
+      },
+      {
+        title: "Un avis avant d'imprimer",
+        text: "Beaucoup d'imprimantes n'impriment pas jusqu'au bord de la feuille. Quand un texte, une photo ou une image est à moins de 5 mm du bord, Cahutin vous prévient, sans rien changer ; « Montrer » va à la page en cause.",
+        image: "/nouveautes/0.18/impression.webp",
+      },
+      {
+        title: "Avec vos autres logiciels",
+        text: "Une image ou un texte copié ailleurs (une page web, Word, une capture d'écran) se colle sur la page avec Ctrl+V, et des photos se glissent depuis vos dossiers. Après « Imprimer / Exporter » > « Exporter pour LibreOffice », un tableau s'ouvre comme un vrai tableau dans LibreOffice Draw. Retouché dans LibreOffice, le document revient dans Cahutin avec ses groupes, ses champs et ses pictogrammes.",
+      },
+    ],
+  },
+  {
+    version: "0.17",
+    items: [
+      {
+        title: "Des fiches de graphisme à votre mesure",
+        text: "Tiroir Formes > Graphisme : réglez les « Pointillés » (toute la ligne, la moitié, quelques-uns, aucun, ou de moins en moins, ligne après ligne), les « Lignes guides » et la « Flèche de départ », qui montre dans quel sens commencer. Les ronds se tracent dans le sens de l'écriture.",
+        image: "/nouveautes/0.17/graphisme.webp",
+      },
+      {
+        title: "Changer des lignes déjà posées",
+        text: "Cliquez sur une ligne de graphisme, puis « Régler les lignes » (dans « ⋯ Plus ») : le motif, les pointillés, les lignes guides ou la flèche changent d'un coup, pour une ligne ou plusieurs. Tirez un côté pour allonger une ligne : les motifs gardent leur taille. Les motifs vides se voient en gris clair, jamais à l'impression.",
+        image: "/nouveautes/0.17/regler.webp",
+      },
+    ],
+  },
   {
     version: "0.16",
     items: [

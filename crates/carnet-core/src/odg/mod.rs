@@ -2031,6 +2031,14 @@ mod tests {
         assert_eq!(kinds, [&["rectangle"][..], &["trait"; 3], &["texte"]].concat());
         let back = read(edited_odg(&d, "styles.xml", one_line_less));
         assert_eq!(back.pages[0].background, Some(Background { color: "#fff8dc".into(), pattern: None }));
+        // Sans sa dernière ligne, le motif n'est pas non plus celui d'un autre format.
+        let last_line_less = |x: String| {
+            let at = x.rfind("<draw:line").unwrap();
+            let end = at + x[at..].find("/>").unwrap() + 2;
+            format!("{}{}", &x[..at], &x[end..])
+        };
+        let back = read(edited_odg(&d, "styles.xml", last_line_less));
+        assert_eq!(back.pages[0].background, Some(Background { color: "#fff8dc".into(), pattern: None }));
         assert!(matches!(&back.pages[0].elements[..], [e] if matches!(&e.kind, ElementKind::Text(t) if t.frame.as_ref().and_then(|f| f.pattern) == Some(Pattern::Lines))));
     }
 

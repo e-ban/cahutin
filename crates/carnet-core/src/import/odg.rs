@@ -615,9 +615,14 @@ fn same_marks(read: Vec<ReadMark>, expected: Vec<ReadMark>) -> bool {
     })
 }
 
+/// Formats de page de Cahutin, petit et grand côté en mm (A5, A4, A3 : `FORMATS` de ui/src/lib/pageFormat.ts).
+const CAHUTIN_FORMATS: [(f64, f64); 3] = [(148.0, 210.0), (210.0, 297.0), (297.0, 420.0)];
+
 /// Motif d'école d'une page maîtresse : ses traits (`draw:line`) et points (`draw:ellipse`, que LibreOffice réécrit
-/// en `draw:circle`) sont exactement ceux d'un motif de Cahutin à cette taille de page (`background::marks`). Sinon
-/// aucun (la couleur du fond reste).
+/// en `draw:circle`) sont exactement ceux d'un motif de Cahutin à cette taille de page (`background::marks`), ou à un
+/// format de Cahutin, en portrait ou en paysage : LibreOffice 24.2 réenregistre toutes les pages maîtresses sur une
+/// seule mise en page (A4 portrait, même quand la première page est A5), et les marques d'une page d'un autre
+/// format, inchangées, ne sont plus à la taille lue. Sinon aucun (la couleur du fond reste).
 fn master_pattern(doc: &roxmltree::Document, master: Node, size: PageSize) -> Option<Pattern> {
     let styles: HashMap<&str, Node> = doc.descendants().filter(|n| n.has_tag_name((STYLE, "style"))).filter_map(|n| Some((n.attribute((STYLE, "name"))?, n))).collect();
     let props = |n: Node| n.attribute((DRAW, "style-name")).and_then(|s| styles.get(s)).and_then(|s| s.children().find(|c| c.has_tag_name((STYLE, "graphic-properties"))));
@@ -639,7 +644,9 @@ fn master_pattern(doc: &roxmltree::Document, master: Node, size: PageSize) -> Op
     if read.is_empty() {
         return None;
     }
-    [Pattern::Seyes, Pattern::SmallSquares, Pattern::Lines, Pattern::Dots].into_iter().find(|p| same_marks(read.clone(), expected_marks(crate::background::marks(size, *p), |x, y| (x, y))))
+    let at = |size: PageSize| [Pattern::Seyes, Pattern::SmallSquares, Pattern::Lines, Pattern::Dots].into_iter().find(|p| same_marks(read.clone(), expected_marks(crate::background::marks(size, *p), |x, y| (x, y))));
+    let formats = CAHUTIN_FORMATS.into_iter().flat_map(|(s, l)| [(s, l), (l, s)]).map(|(width_mm, height_mm)| PageSize { width_mm, height_mm });
+    at(size).or_else(|| formats.filter(|f| *f != size).find_map(at))
 }
 
 /// Couleur de chaque style de page rempli d'une couleur (`style:drawing-page-properties`, `draw:fill="solid"`).
@@ -2511,6 +2518,43 @@ mod tests {
         let imported = read_odg(Cursor::new(odg_raw(pages, layouts, masters, &[])), &known()).unwrap();
         let sizes: Vec<(f64, f64)> = imported.pages.iter().map(|p| (p.size.width_mm, p.size.height_mm)).collect();
         assert_eq!(sizes, [(210.0, 148.0), (215.9, 279.4)]);
+    }
+
+    /// Une page A5 à points et une page A4 paysage à lignes, réenregistrées par LibreOffice (éléments, styles et unités
+    /// tels qu'il les écrit). LibreOffice 26.8 garde une mise en page par page maîtresse ; LibreOffice 24.2 les met
+    /// toutes sur une seule (ici A4 portrait) : les marques, dessinées pour leur format,
+    /// ne sont plus à la taille lue, et restent pourtant reconnues. Une marque en moins ou déplacée ne l'est pas.
+    #[test]
+    fn a_page_pattern_comes_back_when_libreoffice_keeps_one_page_layout() {
+        let cm = |mm: f64| format!("{}cm", (mm * 1000.0).round() / 10000.0);
+        let dot = |x: f64, y: f64| format!(r#"<draw:circle draw:style-name="Mgr4" draw:text-style-name="MP2" draw:layer="backgroundobjects" svg:width="0.06cm" svg:height="0.06cm" svg:x="{}" svg:y="{}"><text:p/></draw:circle>"#, cm(x - 0.3), cm(y - 0.3));
+        let line = |y: f64| format!(r#"<draw:line draw:style-name="Mgr5" draw:text-style-name="MP1" draw:layer="backgroundobjects" svg:x1="0cm" svg:y1="{0}" svg:x2="29.7cm" svg:y2="{0}"><text:p/></draw:line>"#, cm(y));
+        let styles = r##"<style:style style:name="Mgr4" style:family="graphic" style:parent-style-name="standard"><style:graphic-properties draw:stroke="none" draw:fill="solid" draw:fill-color="#bdbdbd" loext:decorative="false"/></style:style><style:style style:name="Mgr5" style:family="graphic" style:parent-style-name="standard"><style:graphic-properties draw:stroke="solid" svg:stroke-width="0.02cm" svg:stroke-color="#c8c8c8" draw:fill="none" fo:padding-top="0.135cm" fo:padding-bottom="0.135cm" fo:padding-left="0.26cm" fo:padding-right="0.26cm" loext:decorative="false"/></style:style><style:style style:name="Mdp1" style:family="drawing-page"><style:drawing-page-properties draw:background-size="border" draw:fill="solid" draw:fill-color="#ffffff"/></style:style><style:style style:name="Mdp2" style:family="drawing-page"><style:drawing-page-properties draw:background-size="border" draw:fill="solid" draw:fill-color="#fff8dc"/></style:style>"##;
+        let layout = |name: &str, w: &str, h: &str, o: &str| format!(r#"<style:page-layout style:name="{name}"><style:page-layout-properties fo:margin-top="0cm" fo:margin-bottom="0cm" fo:margin-left="0cm" fo:margin-right="0cm" fo:page-width="{w}" fo:page-height="{h}" style:print-orientation="{o}"/></style:page-layout>"#);
+        let pages = r#"<draw:page draw:name="page2" draw:style-name="dp1" draw:master-page-name="M2"/><draw:page draw:name="page3" draw:style-name="dp1" draw:master-page-name="M3"/>"#;
+        // Les points de 10 en 10 mm sur 148 × 210 (14 × 20, ligne par ligne), les lignes de 8 en 8 mm sur 297 × 210.
+        let grid = |rows: usize| -> Vec<(f64, f64)> { (1..=rows).flat_map(|j| (1..=14).map(move |i| (10.0 * i as f64, 10.0 * j as f64))).collect() };
+        let read_back = |dots: &[(f64, f64)], lines: usize, one_layout: bool| {
+            let dots: String = dots.iter().map(|&(x, y)| dot(x, y)).collect();
+            let lines: String = (1..=lines).map(|k| line(8.0 * k as f64)).collect();
+            let (m2, m3) = if one_layout { ("PM0", "PM0") } else { ("PM1", "PM2") };
+            let masters = format!(r#"<style:master-page style:name="M2" style:page-layout-name="{m2}" draw:style-name="Mdp2">{dots}</style:master-page><style:master-page style:name="M3" style:page-layout-name="{m3}" draw:style-name="Mdp1">{lines}</style:master-page>"#);
+            let mut layouts = layout("PM0", "21cm", "29.7cm", "portrait");
+            if !one_layout {
+                layouts += &(layout("PM1", "14.8cm", "21cm", "portrait") + &layout("PM2", "29.7cm", "21cm", "landscape"));
+            }
+            let imported = read_odg(Cursor::new(odg_with_styles(pages, &format!("{layouts}{styles}"), &masters, &[], "", "")), &known()).unwrap();
+            imported.pages.iter().map(|p| (p.background.clone().unwrap().pattern, p.size.width_mm, p.size.height_mm)).collect::<Vec<_>>()
+        };
+        let a5 = grid(20);
+        assert_eq!(read_back(&a5, 26, false), [(Some(Pattern::Dots), 148.0, 210.0), (Some(Pattern::Lines), 297.0, 210.0)]);
+        // LibreOffice 24.2 : la taille des pages est perdue, pas leur motif.
+        assert_eq!(read_back(&a5, 26, true), [(Some(Pattern::Dots), 210.0, 297.0), (Some(Pattern::Lines), 210.0, 297.0)]);
+        let mut shifted = a5.clone();
+        shifted[150].0 += 0.1;
+        for (dots, lines) in [(grid(19), 25), (a5[1..].to_vec(), 25), (shifted, 25)] {
+            assert_eq!(read_back(&dots, lines, true), [(None, 210.0, 297.0), (None, 210.0, 297.0)]);
+        }
     }
 
     /// Police absente sans équivalent : la police de repli, plus large, rétrécit jusqu'à la largeur d'origine.

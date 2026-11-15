@@ -1,10 +1,11 @@
 # Journal des versions
 
 
-## Non publié
+## 0.18.2
 
 - Barre du haut : l'étiquette « Enregistré » ou « Non enregistré » à côté du titre est retirée. Comme avant, un point sur le bouton « Enregistrer » montre qu'il reste des changements à enregistrer ; un document neuf et vide n'en a pas, et la bulle du bouton dit où en est l'enregistrement.
 - Une case « Automatique », à côté du bouton « Enregistrer », règle l'enregistrement automatique sans ouvrir les Préférences (c'est le même réglage que Préférences > Enregistrement, toujours décoché au départ). Dans une fenêtre étroite, le champ du titre se fait plus petit pour que la barre du haut reste entière.
+- Barre du haut : quand la fenêtre est étroite ou la taille de l'interface grande, la barre se resserre au lieu de sortir de l'écran. Les écarts se réduisent, puis le nom « Cahutin », « Préférences » et « Modèle » ne gardent que leur image, « Imprimer / Exporter » devient « Imprimer » puis une imprimante, puis la case « Automatique » perd son mot, et tout au bout « Enregistrer » ne garde que son image. Aucune commande ne disparaît : chacune garde sa bulle d'aide, et la barre reste la même quand la place suffit.
 
 ## 0.18.1
 

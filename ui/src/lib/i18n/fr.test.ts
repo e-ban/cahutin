@@ -117,3 +117,10 @@ test("the problem report says which file to attach and where to write", () => {
 test("the proposal bar reads well whatever the count", () => {
   expect(fr.assistant.locked).toBe("Acceptez ou refusez cette proposition avant de modifier la page (Ctrl+Z la refuse).");
 });
+
+/** Le tiroir des photos s'appelle « Images » depuis la 0.10 ; « Photos » n'est plus que son onglet. */
+test("no text sends to a drawer called Photos", () => {
+  expect(texts(fr).filter((t) => t.includes("tiroir Photos"))).toEqual([]);
+  expect(fr.libraryUsed(3)).not.toContain("tiroir Photos");
+  expect(fr.frameImageHint).toBe("Importez d'abord l'image dans le tiroir Images, onglet Photos.");
+});

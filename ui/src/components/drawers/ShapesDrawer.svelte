@@ -119,16 +119,15 @@
   <InspectorSection id="shapes-graphisme" title={fr.graphisme} hint={fr.sectionHints.graphisme} open={false}>
     <div class="options">
       <label>{fr.graphismeRows} <input type="number" min="1" max="12" bind:value={rows} /></label>
-      <label>{fr.graphismeDots}
-        <select bind:value={dots}>
-          {#each PRESETS as p (p)}<option value={p}>{fr.presets[p]}</option>{/each}
-        </select>
-      </label>
-      <label>{fr.graphismeGuides}
-        <select bind:value={guides}>
-          {#each GUIDES as g (g)}<option value={g}>{fr.guideLines[g]}</option>{/each}
-        </select>
-      </label>
+      <!-- Des choix visibles plutôt qu'une liste : un libellé long revient à la ligne, avec toutes les polices. -->
+      <fieldset class="choices">
+        <legend>{fr.graphismeDots}</legend>
+        {#each PRESETS as p (p)}<label><input type="radio" name="graphisme-dots" value={p} bind:group={dots} /> {fr.presets[p]}</label>{/each}
+      </fieldset>
+      <fieldset class="choices">
+        <legend>{fr.graphismeGuides}</legend>
+        {#each GUIDES as g (g)}<label><input type="radio" name="graphisme-guides" value={g} bind:group={guides} /> {fr.guideLines[g]}</label>{/each}
+      </fieldset>
       <label><input type="checkbox" bind:checked={arrow} /> {fr.graphismeArrow}</label>
     </div>
     <div class="grid motifs">
@@ -211,6 +210,25 @@
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+  .choices {
+    flex: 1 1 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .choices legend {
+    padding: 0;
+    margin-bottom: 2px;
+  }
+  .options .choices label {
+    align-items: flex-start;
+    padding: 2px 0;
+  }
+  .choices input {
+    margin: 2px 0 0;
+    flex-shrink: 0;
   }
   .options input[type="number"] {
     width: 4em;

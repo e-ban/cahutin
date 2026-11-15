@@ -437,9 +437,55 @@ impl<'a> Fonts<'a> {
     }
 }
 
-fn read_styles(doc: &roxmltree::Document, known_fonts: &[String], dashes: &HashMap<String, (f64, f64)>, dash_kinds: &HashMap<String, StrokeStyle>) -> Styles {
+/// Styles de `content.xml` (`doc`) ; `common` : `styles.xml`. Un style de dessin qui nomme un parent
+/// (`style:parent-style-name`, le plus souvent `standard` dans `styles.xml`) en prend chaque réglage qu'il n'écrit pas :
+/// une forme dessinée dans LibreOffice n'écrit que ce qui diffère de `standard`. Sans parent nommé, rien n'est hérité.
+fn read_styles(doc: &roxmltree::Document, common: Option<&roxmltree::Document>, known_fonts: &[String], dashes: &HashMap<String, (f64, f64)>, dash_kinds: &HashMap<String, StrokeStyle>) -> Styles {
     let fonts = Fonts::new(&[doc], known_fonts);
     let mut styles = Styles { text: HashMap::new(), graphic: HashMap::new(), align: HashMap::new(), line_spacing: HashMap::new(), on_lines: Default::default(), bullet_lists: HashMap::new(), cells: HashMap::new(), columns: HashMap::new(), rows: HashMap::new() };
+    let is_graphic = |n: Node| n.attribute((STYLE, "family")) == Some("graphic");
+    // Styles de dessin par nom, ceux de `content.xml` d'abord.
+    let mut by_name: HashMap<&str, Node> = HashMap::new();
+    for s in [Some(doc), common].into_iter().flatten().flat_map(|d| d.descendants()).filter(|n| n.has_tag_name((STYLE, "style")) && is_graphic(*n)) {
+        if let Some(name) = s.attribute((STYLE, "name")) {
+            by_name.entry(name).or_insert(s);
+        }
+    }
+    // Un réglage du style, sinon de ses parents (une chaîne qui boucle, fichier abîmé, s'arrête).
+    let get = |s: Node<'_, '_>, ns: &str, attr: &str| -> Option<String> {
+        let mut cur = Some(s);
+        for _ in 0..16 {
+            let c = cur?;
+            if let Some(v) = c.children().find(|n| n.has_tag_name((STYLE, "graphic-properties"))).and_then(|g| g.attribute((ns, attr))) {
+                return Some(v.to_string());
+            }
+            cur = c.attribute((STYLE, "parent-style-name")).and_then(|p| by_name.get(p).copied());
+        }
+        None
+    };
+    let graphic_of = |s: Node| -> GraphicStyle {
+        let a = |ns: &str, attr: &str| get(s, ns, attr);
+        let mm = |ns: &str, attr: &str| a(ns, attr).as_deref().and_then(length_mm);
+        let (fill_kind, stroke_kind) = (a(DRAW, "fill"), a(DRAW, "stroke"));
+        let fill = (fill_kind.as_deref() == Some("solid")).then(|| a(DRAW, "fill-color").unwrap_or_else(|| "#ffffff".into()));
+        let stroke = matches!(stroke_kind.as_deref(), Some("solid") | Some("dash")).then(|| Stroke {
+            width_mm: mm(SVG, "stroke-width").filter(|w| *w > 0.0).unwrap_or(HAIRLINE_MM),
+            color: a(SVG, "stroke-color").unwrap_or_else(|| "#000000".into()),
+            style: (stroke_kind.as_deref() == Some("dash")).then(|| a(DRAW, "stroke-dash").and_then(|d| dash_kinds.get(&d)).copied().unwrap_or(StrokeStyle::Dashed)),
+        });
+        let valign = a(DRAW, "textarea-vertical-align").map(|v| match v.as_str() {
+            "middle" => VAlign::Middle,
+            "bottom" => VAlign::Bottom,
+            _ => VAlign::Top,
+        });
+        let dash = (stroke_kind.as_deref() == Some("dash")).then(|| a(DRAW, "stroke-dash").and_then(|d| dashes.get(&d)).copied()).flatten();
+        let fill_image = (fill_kind.as_deref() == Some("bitmap")).then(|| a(DRAW, "fill-image-name")).flatten();
+        let marker_end = a(DRAW, "marker-end").filter(|m| !m.is_empty()).map(|_| mm(DRAW, "marker-end-width").unwrap_or(4.0));
+        let marker_start = a(DRAW, "marker-start").is_some_and(|m| !m.is_empty());
+        let shadow = a(DRAW, "shadow").as_deref() == Some("visible");
+        let protect = a(STYLE, "protect").is_some_and(|p| p.contains("position") || p.contains("size"));
+        GraphicStyle { fill, fill_image, stroke, dash, valign, padding_mm: mm(FO, "padding-left"), marker_end, marker_start, shadow, protect, padding_top_mm: mm(FO, "padding-top") }
+    };
     for s in doc.descendants().filter(|n| n.has_tag_name((STYLE, "style"))) {
         let Some(name) = s.attribute((STYLE, "name")) else { continue };
         if let Some(t) = s.children().find(|n| n.has_tag_name((STYLE, "text-properties"))) {
@@ -461,25 +507,14 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String], dashes: &HashM
         if s.children().find(|n| n.has_tag_name((STYLE, "paragraph-properties"))).and_then(|p| attr_mm(p, STYLE, "line-height-at-least")).is_some_and(|h| h > 0.0 && ((h / step).round() * step - h).abs() < 0.02) {
             styles.on_lines.insert(name.to_string());
         }
-        if let Some(g) = s.children().find(|n| n.has_tag_name((STYLE, "graphic-properties"))) {
-            let fill = (g.attribute((DRAW, "fill")) == Some("solid")).then(|| g.attribute((DRAW, "fill-color")).unwrap_or("#ffffff").to_string());
-            let stroke = matches!(g.attribute((DRAW, "stroke")), Some("solid") | Some("dash")).then(|| Stroke {
-                width_mm: attr_mm(g, SVG, "stroke-width").filter(|w| *w > 0.0).unwrap_or(HAIRLINE_MM),
-                color: g.attribute((SVG, "stroke-color")).unwrap_or("#000000").to_string(),
-                style: (g.attribute((DRAW, "stroke")) == Some("dash")).then(|| g.attribute((DRAW, "stroke-dash")).and_then(|d| dash_kinds.get(d)).copied().unwrap_or(StrokeStyle::Dashed)),
-            });
-            let valign = g.attribute((DRAW, "textarea-vertical-align")).map(|v| match v {
-                "middle" => VAlign::Middle,
-                "bottom" => VAlign::Bottom,
-                _ => VAlign::Top,
-            });
-            let dash = (g.attribute((DRAW, "stroke")) == Some("dash")).then(|| g.attribute((DRAW, "stroke-dash")).and_then(|d| dashes.get(d)).copied()).flatten();
-            let fill_image = (g.attribute((DRAW, "fill")) == Some("bitmap")).then(|| g.attribute((DRAW, "fill-image-name")).map(String::from)).flatten();
-            let marker_end = g.attribute((DRAW, "marker-end")).filter(|m| !m.is_empty()).map(|_| attr_mm(g, DRAW, "marker-end-width").unwrap_or(4.0));
-            let marker_start = g.attribute((DRAW, "marker-start")).is_some_and(|m| !m.is_empty());
-            let shadow = g.attribute((DRAW, "shadow")) == Some("visible");
-            let protect = g.attribute((STYLE, "protect")).is_some_and(|p| p.contains("position") || p.contains("size"));
-            styles.graphic.insert(name.to_string(), GraphicStyle { fill, fill_image, stroke, dash, valign, padding_mm: attr_mm(g, FO, "padding-left"), marker_end, marker_start, shadow, protect, padding_top_mm: attr_mm(g, FO, "padding-top") });
+        if s.children().any(|n| n.has_tag_name((STYLE, "graphic-properties"))) || (is_graphic(s) && s.has_attribute((STYLE, "parent-style-name"))) {
+            styles.graphic.insert(name.to_string(), graphic_of(s));
+        }
+    }
+    // Un objet peut aussi porter un style de `styles.xml` (`standard`, `objectwithoutfill`...).
+    for s in common.iter().flat_map(|d| d.descendants()).filter(|n| n.has_tag_name((STYLE, "style")) && is_graphic(*n)) {
+        if let Some(name) = s.attribute((STYLE, "name")).filter(|n| !styles.graphic.contains_key(*n)) {
+            styles.graphic.insert(name.to_string(), graphic_of(s));
         }
     }
     styles
@@ -1935,7 +1970,7 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
     let docs = [Some(&doc), styles_doc.as_ref()].into_iter().flatten().collect::<Vec<_>>();
     let dashes = stroke_dashes(&docs);
     let fills = fill_images(&docs);
-    let mut styles = read_styles(&doc, known_fonts, &dashes, &dash_styles(&docs));
+    let mut styles = read_styles(&doc, styles_doc.as_ref(), known_fonts, &dashes, &dash_styles(&docs));
     styles.bullet_lists = bullet_lists(&docs);
     (styles.cells, styles.columns, styles.rows) = table_styles(&docs, known_fonts);
     let sizes = page_sizes(styles_xml.as_deref());
@@ -2192,6 +2227,30 @@ mod tests {
         assert_eq!((plain(t), t.style.align, t.style.valign), ("Texte dans forme".to_string(), Align::Center, Some(VAlign::Middle)));
         assert_eq!(els[1].frame, els[0].frame);
         assert!(els[0].group.is_some() && els[0].group == els[1].group && els[2].group.is_none());
+    }
+
+    /// Une forme dessinée dans LibreOffice (relevé dans un fichier retouché par UNO et dans un dessin neuf, LibreOffice
+    /// 26.8) : son style automatique n'écrit que ce qui change, le reste vient de son style parent (`standard`, dans
+    /// `styles.xml` : fond vert plein, trait vert). Un réglage écrit l'emporte sur celui du parent ; sans parent nommé,
+    /// rien n'est hérité (les exports de Cahutin).
+    #[test]
+    fn a_shape_drawn_in_libreoffice_takes_what_its_style_does_not_say_from_its_parent() {
+        let common = r##"<style:style style:name="standard" style:family="graphic"><style:graphic-properties draw:stroke="solid" svg:stroke-width="0.106cm" svg:stroke-color="#127a02" draw:fill="solid" draw:fill-color="#18a303"/></style:style><style:style style:name="objectwithoutfill" style:family="graphic" style:parent-style-name="standard"><style:graphic-properties draw:fill="none"/></style:style>"##;
+        let auto = r##"<style:style style:name="grColour" style:family="graphic" style:parent-style-name="standard"><style:graphic-properties draw:fill-color="#ffee99"/></style:style><style:style style:name="grNone" style:family="graphic" style:parent-style-name="standard"><style:graphic-properties draw:fill="none" draw:stroke="none"/></style:style><style:style style:name="grChain" style:family="graphic" style:parent-style-name="objectwithoutfill"><style:graphic-properties/></style:style><style:style style:name="grOrphan" style:family="graphic"><style:graphic-properties draw:fill-color="#ffee99"/></style:style>"##;
+        let rect = |style: &str, y: u32| format!(r#"<draw:rect draw:style-name="{style}" svg:width="5cm" svg:height="2cm" svg:x="2cm" svg:y="{y}cm"><text:p/></draw:rect>"#);
+        let body = [rect("grColour", 2), rect("grNone", 6), rect("grChain", 10), rect("grOrphan", 14), rect("standard", 18)].concat();
+        let odg = odg_with_styles(&format!(r#"<draw:page draw:name="page1">{body}</draw:page>"#), &format!(r#"<style:page-layout style:name="PM1"><style:page-layout-properties {A4_LAYOUT}/></style:page-layout>"#), "", &[], auto, common);
+        let page = &read_drawing(Cursor::new(odg), &known()).unwrap().pages[0];
+        let got: Vec<(Option<String>, Option<(f64, String)>)> = page
+            .elements
+            .iter()
+            .map(|e| {
+                let ElementKind::Shape(s) = &e.kind else { panic!("{e:?}") };
+                (s.fill.clone(), s.stroke.as_ref().map(|st| ((st.width_mm * 100.0).round() / 100.0, st.color.clone())))
+            })
+            .collect();
+        let green = Some((1.06, "#127a02".to_string()));
+        assert_eq!(got, [(Some("#ffee99".into()), green.clone()), (None, None), (None, green.clone()), (None, None), (Some("#18a303".into()), green)]);
     }
 
     /// Un export de Cahutin retouché dans LibreOffice 26.8 par UNO (`tests/fixtures/retouche-libreoffice.odg` : le

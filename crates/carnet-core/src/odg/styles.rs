@@ -29,6 +29,8 @@ pub(crate) struct Registry {
     pub dashes: Vec<StrokeStyle>,
     /// Styles de liste à puces (`text:list-style`), dédupliqués : propriétés de l'étiquette, puis de la puce.
     pub lists: Vec<ListStyle>,
+    /// L'objet en cours d'écriture est verrouillé : ses styles graphiques le protègent (`style:protect`).
+    pub protect: bool,
 }
 
 #[derive(PartialEq)]
@@ -56,11 +58,18 @@ pub(crate) fn mm(v: f64) -> String {
 
 impl Registry {
     pub fn new(fonts: &FontSet) -> Registry {
-        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], masters: vec![], arrow_marker: false, dashes: vec![], lists: vec![] }
+        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], masters: vec![], arrow_marker: false, dashes: vec![], lists: vec![], protect: false }
     }
 
-    /// Style automatique dédupliqué ; renvoie son nom.
-    pub fn style(&mut self, family: &'static str, prefix: &str, props: Props) -> String {
+    /// Style automatique dédupliqué ; renvoie son nom. Pendant l'écriture d'un objet verrouillé (`protect`), un style
+    /// graphique protège sa place et sa taille (`style:protect="position size"`, que LibreOffice respecte et garde ; il
+    /// ignore l'attribut `draw:protect` de l'objet).
+    pub fn style(&mut self, family: &'static str, prefix: &str, mut props: Props) -> String {
+        if family == "graphic" && self.protect {
+            for (_, p) in props.iter_mut().filter(|(t, _)| *t == "style:graphic-properties") {
+                p.push(("style:protect", "position size".into()));
+            }
+        }
         if let Some(s) = self.styles.iter().find(|s| s.family == family && s.props == props) {
             return s.name.clone();
         }

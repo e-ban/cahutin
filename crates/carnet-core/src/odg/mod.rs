@@ -1,7 +1,7 @@
 //! Export ODG (LibreOffice Draw) : chaque élément devient un objet natif, les polices sont intégrées.
 
 mod content;
-pub(crate) use content::{PICTO_CELL_FILL, TURNED_FILL, turned_box_mm, turned_image};
+pub(crate) use content::{PICTO_CELL_FILL, PICTO_MARK, TURNED_FILL, picto_file, turned_box_mm, turned_image};
 mod package;
 mod styles;
 mod xml;
@@ -234,27 +234,37 @@ mod tests {
             v.sort();
             v
         };
-        for info in crate::examples::list() {
-            let doc = crate::examples::document(&info.id).unwrap();
+        let mut unexpected: Vec<String> = Vec::new();
+        // Les exemples, puis les modèles fournis (leurs photos d'exemple comprises).
+        let mut docs: Vec<(String, Document, AssetStore)> = crate::examples::list().into_iter().map(|i| (i.id.clone(), crate::examples::document(&i.id).unwrap(), AssetStore::default())).collect();
+        for t in crate::templates::builtin() {
+            let (page, assets) = crate::templates::instantiate(&t);
+            let mut d = Document::new(&t.info.name);
+            d.pages = vec![page];
+            let mut store = AssetStore::default();
+            for a in assets {
+                d.assets.insert(a.meta.id.clone(), a.meta.clone());
+                store.insert(a).unwrap();
+            }
+            docs.push((format!("modèle {}", t.info.id), d, store));
+        }
+        for (id, doc, store) in &docs {
             let mut buf = Cursor::new(Vec::new());
-            export_odg(&doc, &AssetStore::default(), &fonts, &mut buf).unwrap();
+            export_odg(doc, store, &fonts, &mut buf).unwrap();
             buf.set_position(0);
             let back = crate::import::odg::read_drawing(buf, &known).unwrap();
-            assert_eq!(back.report.skipped, 0, "{} : {:?}", info.id, back.report);
-            // Un champ non rempli s'exporte sous son nom (« Âge ») à l'encre transparente : c'est ce qu'on relit.
-            let shown = |t: &String| crate::fields::split(t).into_iter().map(|p| match p {
-                crate::fields::Piece::Text(x) => x.to_string(),
-                crate::fields::Piece::Field(f) => crate::fields::shown(f).unwrap(),
-            }).collect::<String>();
-            let (before, after) = (texts(&doc.pages).iter().map(shown).collect::<Vec<_>>(), texts(&back.pages));
+            assert_eq!(back.report.skipped, 0, "{} : {:?}", id, back.report);
+            // Un champ non rempli s'exporte sous son nom (« Âge ») à l'encre transparente, et revient champ.
+            let shown = |t: &String| t.clone();
+            let (before, after) = (texts(&doc.pages), texts(&back.pages));
             for t in &before {
-                assert!(after.contains(t), "{} : {t:?} perdu, relu {after:?}", info.id);
+                assert!(after.contains(t), "{} : {t:?} perdu, relu {after:?}", id);
             }
-            assert_eq!(pictos(&back.pages), pictos(&doc.pages), "{}", info.id);
+            assert_eq!(pictos(&back.pages), pictos(&doc.pages), "{}", id);
             // Le crédit OpenMoji ajouté par l'export ne revient pas.
-            assert!(!after.iter().any(|t| t.contains("OpenMoji")) || before.iter().any(|t| t.contains("OpenMoji")), "{} : {after:?}", info.id);
+            assert!(!after.iter().any(|t| t.contains("OpenMoji")) || before.iter().any(|t| t.contains("OpenMoji")), "{} : {after:?}", id);
             for (p, q) in doc.pages.iter().zip(&back.pages) {
-                assert_eq!(p.background.as_ref().map(|b| &b.color), q.background.as_ref().map(|b| &b.color), "{} : fond de page", info.id);
+                assert_eq!(p.background.as_ref().map(|b| &b.color), q.background.as_ref().map(|b| &b.color), "{} : fond de page", id);
             }
             // Chaque texte garde ses alignements, ses lettres creuses, sa police, sa taille et le fond de son cadre.
             let styled = |pages: &[Page]| -> Vec<String> {
@@ -279,8 +289,170 @@ mod tests {
                 v.sort();
                 v
             };
-            assert_eq!(styled(&back.pages), styled(&doc.pages), "{}", info.id);
+            assert_eq!(styled(&back.pages), styled(&doc.pages), "{}", id);
+            for (p, q) in doc.pages.iter().zip(&back.pages) {
+                for (cat, detail) in structural_diff(p, q) {
+                    if !STILL_LOST.iter().any(|(c, _)| *c == cat) {
+                        unexpected.push(format!("{} : {cat} : {detail}", id));
+                    }
+                }
+            }
         }
+        assert!(unexpected.is_empty(), "{} écart(s) :\n{}", unexpected.len(), unexpected.join("\n"));
+    }
+
+    /// Ce qu'un exemple perd encore en passant par son ODG, catégorie par catégorie (voir `structural_diff`).
+    /// `structural_diff` ne compare pas non plus, et ils ne reviennent pas : la marque de zone d'un élément (`zone`), le
+    /// recadrage d'une photo et son miroir (les pixels visibles partent prérecadrés et retournés : la photo revient
+    /// entière, recadrage au centre), la hauteur du cadre d'un trait ou d'une flèche (non écrite), les tailles des
+    /// colonnes et des lignes d'un tableau et le contenu de ses cases (voir `a_real_table_comes_back_as_the_same_table`),
+    /// le titre du document et ses styles nommés. Un tableau qui n'est pas simple revient en cases et traits groupés.
+    const STILL_LOST: &[(&str, &str)] = &[
+        ("Photo vide perdue", "une zone de photo vide n'est pas exportée (rien à imprimer, pas de zones de modèle dans l'ODG)"),
+        ("Texte vide perdu", "une zone de texte vide sans cadre n'est pas exportée (l'invite ne l'est jamais)"),
+        ("Texte.invite", "l'invite d'une zone de texte (le mot gris qui dit quoi écrire) n'est jamais exportée : elle s'imprimerait"),
+        ("Page.grille", "la grille de mise en page (cases de photos et de textes) n'a pas d'équivalent dans LibreOffice : les cases reviennent, la grille non"),
+    ];
+
+    /// Écarts entre une page et sa relecture, champ par champ (dans l'esprit du diff du banc d'aller-retour) : les
+    /// éléments sont appariés par nature et par centre du cadre (au plus près, à moins de 3 mm), les identifiants
+    /// ignorés. Chaque écart : sa catégorie (`Texte.interligne`, `élément perdu`...) et le détail.
+    fn structural_diff(before: &Page, after: &Page) -> Vec<(String, String)> {
+        let mut out: Vec<(String, String)> = Vec::new();
+        let kind = |e: &Element| match &e.kind {
+            ElementKind::Photo(_) => "Photo",
+            ElementKind::Text(_) => "Texte",
+            ElementKind::Shape(_) => "Forme",
+            ElementKind::Image(_) => "Pictogramme",
+            ElementKind::Table(_) => "Tableau",
+        };
+        let centre = |e: &Element| (e.frame.x_mm + e.frame.w_mm / 2.0, e.frame.y_mm + e.frame.h_mm / 2.0);
+        let mut pairs: Vec<(f64, usize, usize)> = Vec::new();
+        for (i, a) in before.elements.iter().enumerate() {
+            for (j, b) in after.elements.iter().enumerate() {
+                let ((x1, y1), (x2, y2)) = (centre(a), centre(b));
+                let d = (x1 - x2).hypot(y1 - y2);
+                if kind(a) == kind(b) && d < 3.0 {
+                    pairs.push((d, i, j));
+                }
+            }
+        }
+        pairs.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let (mut of_before, mut of_after) = (vec![None; before.elements.len()], vec![None; after.elements.len()]);
+        for (_, i, j) in pairs {
+            if of_before[i].is_none() && of_after[j].is_none() {
+                of_before[i] = Some(j);
+                of_after[j] = Some(i);
+            }
+        }
+        let mut push = |cat: &str, detail: String| out.push((cat.to_string(), detail));
+        let near = |a: f64, b: f64| (a - b).abs() < 0.02;
+        let angle = |a: f64| a.rem_euclid(360.0);
+        // Les morceaux d'un texte, à leur allure effective, ceux de même allure recollés ; les champs tels quels.
+        let looks = |t: &TextProps| -> Vec<(Option<ListKind>, Align, Vec<(String, bool, bool, bool, String, String, i64)>)> {
+            t.content
+                .paragraphs
+                .iter()
+                .map(|p| {
+                    let mut runs: Vec<(String, bool, bool, bool, String, String, i64)> = Vec::new();
+                    for r in &p.runs {
+                        let look = (r.bold, r.italic, r.underline, r.color.clone().unwrap_or_else(|| t.style.color.clone()).to_lowercase(), r.font.clone().unwrap_or_else(|| t.style.font.clone()), (r.size_pt.unwrap_or(t.style.size_pt) * 10.0).round() as i64);
+                        match runs.last_mut() {
+                            Some(last) if (last.1, last.2, last.3, &last.4, &last.5, last.6) == (look.0, look.1, look.2, &look.3, &look.4, look.5) => last.0.push_str(&r.text),
+                            _ => runs.push((r.text.clone(), look.0, look.1, look.2, look.3, look.4, look.5)),
+                        }
+                    }
+                    runs.retain(|r| !r.0.is_empty());
+                    (p.list, p.align.unwrap_or(t.style.align), runs)
+                })
+                .collect()
+        };
+        for (i, a) in before.elements.iter().enumerate() {
+            let Some(j) = of_before[i] else {
+                let what = match &a.kind {
+                    ElementKind::Photo(p) if p.asset.is_none() => "Photo vide perdue".to_string(),
+                    ElementKind::Text(t) if t.content.is_blank() && t.frame.as_ref().is_none_or(TextFrame::is_empty) => "Texte vide perdu".to_string(),
+                    _ => format!("{} perdu", kind(a)),
+                };
+                push(&what, format!("{a:?}"));
+                continue;
+            };
+            let b = &after.elements[j];
+            let (fa, mut fb) = (a.frame, b.frame);
+            // Un trait ou une flèche : sa hauteur n'est pas écrite (le trait passe au milieu du cadre), seul son milieu compte.
+            if matches!(&a.kind, ElementKind::Shape(s) if crate::shapes::is_stroke_only(s.shape)) {
+                fb = Frame { y_mm: fb.y_mm + (fb.h_mm - fa.h_mm) / 2.0, h_mm: fa.h_mm, ..fb };
+            }
+            if !(near(fa.x_mm, fb.x_mm) && near(fa.y_mm, fb.y_mm) && near(fa.w_mm, fb.w_mm) && near(fa.h_mm, fb.h_mm) && near(angle(fa.rotation_deg), angle(fb.rotation_deg))) {
+                push(&format!("{}.cadre", kind(a)), format!("{fa:?} → {fb:?}"));
+            }
+            if (a.locked, a.flip_h, a.flip_v) != (b.locked, b.flip_h, b.flip_v) {
+                push(&format!("{}.verrou ou miroir", kind(a)), format!("{:?} → {:?}", (a.locked, a.flip_h, a.flip_v), (b.locked, b.flip_h, b.flip_v)));
+            }
+            // Groupes : deux éléments partagent autant de niveaux de groupe avant et après.
+            for (k, c) in before.elements.iter().enumerate().skip(i + 1) {
+                let Some(l) = of_before[k] else { continue };
+                let shared = |x: &Element, y: &Element| crate::groups::path(x).iter().zip(crate::groups::path(y)).take_while(|(p, q)| *p == q).count();
+                if shared(a, c) != shared(b, &after.elements[l]) {
+                    push(&format!("{}.groupe", kind(a)), format!("{} et {} : {} niveau(x) communs → {}", i, k, shared(a, c), shared(b, &after.elements[l])));
+                }
+            }
+            match (&a.kind, &b.kind) {
+                (ElementKind::Text(x), ElementKind::Text(y)) => {
+                    if looks(x) != looks(y) {
+                        push("Texte.contenu", format!("{:?} → {:?}", looks(x), looks(y)));
+                    }
+                    let s = |t: &TextProps| (t.style.align, t.style.valign.unwrap_or_default(), t.style.outline.unwrap_or(false), t.style.font.clone(), (t.style.size_pt * 10.0).round() as i64, t.style.color.to_lowercase(), (t.style.padding() * 100.0).round() as i64);
+                    if s(x) != s(y) {
+                        push("Texte.style", format!("{:?} → {:?}", s(x), s(y)));
+                    }
+                    if x.style.line_spacing.map(|v| (v * 100.0).round() as i64) != y.style.line_spacing.map(|v| (v * 100.0).round() as i64) {
+                        push("Texte.interligne", format!("{:?} → {:?}", x.style.line_spacing, y.style.line_spacing));
+                    }
+                    if x.style.named != y.style.named {
+                        push("Texte.style nommé", format!("{:?} → {:?}", x.style.named, y.style.named));
+                    }
+                    if x.prompt != y.prompt {
+                        push("Texte.invite", format!("{:?} → {:?}", x.prompt, y.prompt));
+                    }
+                    let fr = |t: &TextProps| t.frame.clone().filter(|f| !f.is_empty()).map(|f| (f.fill.map(|c| c.to_lowercase()), f.stroke.map(|s| ((s.width_mm * 100.0).round() as i64, s.color.to_lowercase(), s.style.unwrap_or_default())), (f.corner_radius_mm * 100.0).round() as i64, f.image.is_some(), f.pattern, f.write_on_lines.unwrap_or(false)));
+                    if fr(x) != fr(y) {
+                        push("Texte.cadre", format!("{:?} → {:?}", fr(x), fr(y)));
+                    }
+                }
+                (ElementKind::Shape(x), ElementKind::Shape(y)) => {
+                    let s = |s: &ShapeProps| (s.shape, s.fill.clone().map(|c| c.to_lowercase()), s.stroke.clone().map(|s| ((s.width_mm * 100.0).round() as i64, s.color.to_lowercase(), s.style.unwrap_or_default())), (s.corner_radius_mm * 100.0).round() as i64, s.path.clone());
+                    if s(x) != s(y) {
+                        push("Forme", format!("{:?} → {:?}", s(x), s(y)));
+                    }
+                    if x.graphisme != y.graphisme {
+                        push("Forme.graphisme", format!("{:?}", x.graphisme.as_ref().map(|g| &g.motif)));
+                    }
+                }
+                (ElementKind::Image(x), ElementKind::Image(y)) if x.code != y.code || x.outline.unwrap_or(false) != y.outline.unwrap_or(false) => push("Pictogramme", format!("{x:?} → {y:?}")),
+                (ElementKind::Photo(x), ElementKind::Photo(y)) => {
+                    let s = |p: &PhotoProps| ((p.corner_radius_mm * 100.0).round() as i64, p.border.clone().map(|s| ((s.width_mm * 100.0).round() as i64, s.color.to_lowercase(), s.style.unwrap_or_default())), p.shadow);
+                    if s(x) != s(y) {
+                        push("Photo", format!("{:?} → {:?}", s(x), s(y)));
+                    }
+                }
+                (ElementKind::Table(x), ElementKind::Table(y)) if x.cells.len() != y.cells.len() || x.border.as_ref().map(|b| (b.width_mm * 100.0).round() as i64) != y.border.as_ref().map(|b| (b.width_mm * 100.0).round() as i64) => {
+                    push("Tableau", format!("{} cases → {}", x.cells.len(), y.cells.len()))
+                }
+                _ => {}
+            }
+        }
+        for (j, b) in after.elements.iter().enumerate().filter(|(j, _)| of_after[*j].is_none()) {
+            push(&format!("{} en plus", kind(b)), format!("{j} {b:?}"));
+        }
+        let bg = |p: &Page| p.background.clone().filter(|b| !(b.color.eq_ignore_ascii_case("#ffffff") && b.pattern.is_none())).map(|b| (b.color.to_lowercase(), b.pattern));
+        if bg(before) != bg(after) {
+            push("Page.fond", format!("{:?} → {:?}", bg(before), bg(after)));
+        }
+        if before.grid.is_some() != after.grid.is_some() {
+            push("Page.grille", String::new());
+        }
+        out
     }
 
     /// Une page à remplir exportée telle quelle : un champ non rempli sort blanc, comme à l'impression. Son nom
@@ -305,6 +477,22 @@ mod tests {
             })
             .collect();
         assert_eq!(shown, [("Bonjour ", false), ("Prénom", true), (" {toto}, ", false), ("2", true)], "{content}");
+    }
+
+    /// Un champ non rempli revient champ : d'après son nom quand il est le seul à s'afficher ainsi, d'après la
+    /// description du cadre pour une lettre (`{PRENOM_2}` et `{prenom_2}` montrent tous deux « 2 »). La description
+    /// ne nomme que les lettres, jamais une donnée d'élève ; un texte sans lettre n'en a pas.
+    #[test]
+    fn an_unfilled_field_comes_back_as_a_field() {
+        let mut letters = text(RichText::plain("{PRENOM_2}{prenom_2} et {prenom_10}"), None);
+        letters.frame.y_mm = 100.0;
+        let doc = doc_with(vec![text(RichText::plain("Bonjour {prenom} {toto}, {age} ({anniversaires_mars})"), None), letters]);
+        let content = export(&doc, &AssetStore::default()).xml("content.xml");
+        assert_eq!(content.matches("<svg:desc>").count(), 1, "{content}");
+        assert!(content.contains("<svg:desc>{PRENOM_2} {prenom_2} {prenom_10}</svg:desc>"), "{content}");
+        let back = round_trip(&doc, &AssetStore::default());
+        let plain: Vec<String> = back.pages[0].elements.iter().filter_map(|e| if let ElementKind::Text(t) = &e.kind { Some(t.content.paragraphs.iter().flat_map(|p| &p.runs).map(|r| r.text.as_str()).collect()) } else { None }).collect();
+        assert_eq!(plain, ["Bonjour {prenom} {toto}, {age} ({anniversaires_mars})", "{PRENOM_2}{prenom_2} et {prenom_10}"]);
     }
 
     /// Une image à colorier part en contour noir et revient à colorier.
@@ -365,7 +553,9 @@ mod tests {
             flip_h: false, flip_v: false,
         };
         let mut e = export(&doc_with(vec![el.clone()]), &AssetStore::default());
-        assert_eq!(e.read("Pictures/openmoji-contour-1F98A.svg"), crate::picto::outline_svg("1F98A").unwrap());
+        let written = e.read("Pictures/openmoji-contour-1F98A.svg");
+        let mark = b"<!-- cahutin:openmoji-contour-1F98A -->\n";
+        assert!(written.starts_with(mark) && written[mark.len()..] == crate::picto::outline_svg("1F98A").unwrap()[..]);
         let mut buf = Cursor::new(Vec::new());
         export_odg(&doc_with(vec![el]), &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
         buf.set_position(0);
@@ -987,7 +1177,9 @@ mod tests {
         let mut e = export(&doc_with(vec![picture_el("1F98A", None), picture_el("1F98A", None)]), &AssetStore::default());
         let names = e.names();
         assert_eq!(names.iter().filter(|n| *n == "Pictures/openmoji-1F98A.svg").count(), 1, "{names:?}");
-        assert_eq!(e.read("Pictures/openmoji-1F98A.svg"), crate::picto::svg("1F98A").unwrap());
+        // Le SVG de la banque, précédé du commentaire qui le nomme.
+        let mark = b"<!-- cahutin:openmoji-1F98A -->\n";
+        assert_eq!(e.read("Pictures/openmoji-1F98A.svg"), [&mark[..], &crate::picto::svg("1F98A").unwrap()].concat());
         let content = e.xml("content.xml");
         assert_eq!(content.matches(r#"xlink:href="Pictures/openmoji-1F98A.svg""#).count(), 2);
         assert!(e.xml("META-INF/manifest.xml").contains("image/svg+xml"));
@@ -1504,6 +1696,445 @@ mod tests {
         assert!(content.split("</draw:g>").nth(2).unwrap().contains("openmoji-1F431"));
     }
 
+    /// L'ODG tel que LibreOffice le réenregistre pour ses images : chaque fichier de `Pictures/` renommé d'un nom
+    /// haché (`Pictures/1000…N.svg`), octets inchangés ; `edit` peut changer les octets d'un fichier.
+    fn renamed_pictures(odg: &[u8], edit: impl Fn(&str, Vec<u8>) -> Vec<u8>) -> Vec<u8> {
+        let mut zip = ZipArchive::new(Cursor::new(odg.to_vec())).unwrap();
+        let names: Vec<String> = zip.file_names().map(|n| n.unwrap().into_owned()).collect();
+        let renamed: Vec<(String, String)> = names.iter().filter(|n| n.starts_with("Pictures/")).enumerate().map(|(i, n)| (n.clone(), format!("Pictures/100000000000{i:04}.svg"))).collect();
+        let mut out = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        for n in &names {
+            let mut bytes = Vec::new();
+            zip.by_name(n).unwrap().read_to_end(&mut bytes).unwrap();
+            let mut name = n.clone();
+            if let Some((_, new)) = renamed.iter().find(|(old, _)| old == n) {
+                bytes = edit(n, bytes);
+                name = new.clone();
+            } else if n.ends_with(".xml") {
+                let mut x = String::from_utf8(bytes).unwrap();
+                for (old, new) in &renamed {
+                    x = x.replace(old.as_str(), new);
+                }
+                bytes = x.into_bytes();
+            }
+            out.start_file(name, zip::write::SimpleFileOptions::default()).unwrap();
+            std::io::Write::write_all(&mut out, &bytes).unwrap();
+        }
+        out.finish().unwrap().into_inner()
+    }
+
+    /// Un pictogramme revient pictogramme après que LibreOffice a renommé son fichier, à colorier et en miroir
+    /// compris : le commentaire du SVG le nomme. Une image remplacée (octets changés) n'est pas un pictogramme ; un
+    /// fichier d'avant le commentaire est retrouvé parmi les images de la banque.
+    #[test]
+    fn a_picture_renamed_by_libreoffice_comes_back() {
+        let outlined = Element { kind: ElementKind::Image(ImageProps { code: "1F431".into(), outline: Some(true) }), ..picture_el("1F431", None) };
+        let mirrored = Element { flip_h: true, ..picture_el("2600", None) };
+        let doc = doc_with(vec![picture_el("1F98A", None), outlined, mirrored]);
+        let mut buf = Cursor::new(Vec::new());
+        export_odg(&doc, &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
+        let odg = buf.into_inner();
+        let pictos = |odg: Vec<u8>| -> Vec<(String, Option<bool>, bool)> {
+            let back = crate::import::odg::read_drawing(Cursor::new(odg), &[]).unwrap();
+            back.pages[0].elements.iter().filter_map(|e| if let ElementKind::Image(i) = &e.kind { Some((i.code.clone(), i.outline, e.flip_h)) } else { None }).collect()
+        };
+        let all = vec![("1F98A".to_string(), None, false), ("1F431".to_string(), Some(true), false), ("2600".to_string(), None, true)];
+        assert_eq!(pictos(renamed_pictures(&odg, |_, b| b)), all);
+        let changed = renamed_pictures(&odg, |n, mut b| {
+            if n.contains("1F98A") {
+                b.extend(b"<!-- retouche -->");
+            }
+            b
+        });
+        assert_eq!(pictos(changed), all[1..]);
+        // Avant le commentaire : le SVG de la banque tel quel ; retourné, il n'est pas retrouvé.
+        let old = renamed_pictures(&odg, |_, b| b[b.iter().position(|c| *c == b'\n').unwrap() + 1..].to_vec());
+        assert_eq!(pictos(old), all[..2]);
+    }
+
+    /// Le seul élément relu de la première page, hors mention de licence.
+    fn only(back: &crate::import::Imported) -> &Element {
+        assert_eq!(back.pages[0].elements.len(), 1, "{:?}", back.pages[0].elements);
+        &back.pages[0].elements[0]
+    }
+
+    /// Une flèche revient flèche, sa pointe au même bout, retournée comprise (le bout de la pointe : la fin du trait).
+    #[test]
+    fn an_arrow_keeps_its_head() {
+        let tip = |e: &Element| {
+            let f = e.frame;
+            let (sin, cos) = f.rotation_deg.to_radians().sin_cos();
+            let half = if e.flip_h { -f.w_mm / 2.0 } else { f.w_mm / 2.0 };
+            let r = |v: f64| (v * 100.0).round() / 100.0 + 0.0;
+            (r(f.x_mm + f.w_mm / 2.0 + half * cos), r(f.y_mm + f.h_mm / 2.0 + half * sin))
+        };
+        for (flip, rotation) in [(false, 0.0), (true, 0.0), (false, 30.0), (true, 200.0)] {
+            let mut arrow = Element { flip_h: flip, ..shape_el(ShapeKind::Arrow, Frame { rotation_deg: rotation, ..frame(20.0, 100.0, 60.0, 8.0) }) };
+            if let ElementKind::Shape(s) = &mut arrow.kind {
+                s.fill = None;
+            }
+            let back = round_trip(&doc_with(vec![arrow.clone()]), &AssetStore::default());
+            let e = only(&back);
+            let ElementKind::Shape(s) = &e.kind else { panic!("{e:?}") };
+            assert_eq!(s.shape, ShapeKind::Arrow, "{flip} {rotation}");
+            assert_eq!(s.stroke.as_ref().map(|s| s.width_mm), Some(1.0));
+            assert_eq!(tip(e), tip(&arrow), "{flip} {rotation} : {e:?}");
+            assert!((e.frame.w_mm - 60.0).abs() < 0.01);
+        }
+    }
+
+    /// Tirets et pointillés reviennent tels quels sur une forme, le cadre d'un texte et la bordure d'une photo.
+    #[test]
+    fn dotted_and_dashed_strokes_come_back() {
+        let mut store = AssetStore::default();
+        let asset = raw_asset(40, 30);
+        let id = asset.meta.id.clone();
+        store.insert(asset).unwrap();
+        for style in [StrokeStyle::Dashed, StrokeStyle::Dotted] {
+            let st = Stroke { width_mm: 0.8, color: "#c0392b".into(), style: Some(style) };
+            let mut shape = shape_el(ShapeKind::Rect, frame(20.0, 20.0, 40.0, 30.0));
+            if let ElementKind::Shape(s) = &mut shape.kind {
+                s.stroke = Some(st.clone());
+            }
+            let mut label = text(RichText::plain("Léa"), None);
+            if let ElementKind::Text(t) = &mut label.kind {
+                t.frame = Some(TextFrame { stroke: Some(st.clone()), ..TextFrame::default() });
+            }
+            let mut picture = photo(Some(&id), frame(120.0, 20.0, 40.0, 30.0), 0.0);
+            if let ElementKind::Photo(p) = &mut picture.kind {
+                p.border = Some(st.clone());
+            }
+            let back = round_trip(&doc_with(vec![shape, label, picture]), &store);
+            let strokes: Vec<Option<StrokeStyle>> = back.pages[0]
+                .elements
+                .iter()
+                .map(|e| match &e.kind {
+                    ElementKind::Shape(s) => s.stroke.as_ref().and_then(|s| s.style),
+                    ElementKind::Text(t) => t.frame.as_ref().and_then(|f| f.stroke.as_ref()).and_then(|s| s.style),
+                    ElementKind::Photo(p) => p.border.as_ref().and_then(|s| s.style),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(strokes, [Some(style); 3], "{:?}", back.pages[0].elements);
+        }
+    }
+
+    /// Une photo garde sa bordure (épaisseur, couleur) et son ombre.
+    #[test]
+    fn a_photo_keeps_its_border_and_shadow() {
+        let mut store = AssetStore::default();
+        let asset = raw_asset(40, 30);
+        let id = asset.meta.id.clone();
+        store.insert(asset).unwrap();
+        let mut picture = photo(Some(&id), frame(20.0, 20.0, 80.0, 60.0), 2.0);
+        if let ElementKind::Photo(p) = &mut picture.kind {
+            p.border = Some(Stroke { width_mm: 1.5, color: "#2e86c1".into(), style: None });
+            p.shadow = true;
+        }
+        let back = round_trip(&doc_with(vec![picture]), &store);
+        let ElementKind::Photo(p) = &only(&back).kind else { panic!() };
+        assert_eq!((p.border.clone(), p.shadow, p.corner_radius_mm), (Some(Stroke { width_mm: 1.5, color: "#2e86c1".into(), style: None }), true, 2.0));
+    }
+
+    /// L'image de fond d'un cadre de texte revient image de fond, droite ou tournée (ses pixels à leur place).
+    #[test]
+    fn a_text_frame_keeps_its_background_picture() {
+        for rotation in [0.0, 30.0] {
+            let mut store = AssetStore::default();
+            let asset = halves_asset();
+            let id = asset.meta.id.clone();
+            store.insert(asset).unwrap();
+            let mut label = text(RichText::plain("Léa"), None);
+            label.frame = Frame { rotation_deg: rotation, ..frame(20.0, 20.0, 80.0, 40.0) };
+            if let ElementKind::Text(t) = &mut label.kind {
+                t.frame = Some(TextFrame { image: Some(id.clone()), corner_radius_mm: 3.0, ..TextFrame::default() });
+            }
+            let back = round_trip(&doc_with(vec![label]), &store);
+            let ElementKind::Text(t) = &only(&back).kind else { panic!() };
+            let image = t.frame.as_ref().and_then(|f| f.image.clone()).expect("image de fond");
+            let asset = back.assets.iter().find(|a| a.meta.id == image).expect("image relue");
+            let img = image::load_from_memory(&asset.bytes).unwrap().to_rgba8();
+            // L'image de deux moitiés (rouge à gauche, bleue à droite) garde ses moitiés, à 2 : 1 comme le cadre.
+            let (w, h) = img.dimensions();
+            assert!((w as f64 / h as f64 - 2.0).abs() < 0.05, "{rotation} : {w} × {h}");
+            assert!(is_red(img.get_pixel(w / 4, h / 2)) && is_blue(img.get_pixel(3 * w / 4, h / 2)), "{rotation}");
+        }
+    }
+
+    /// L'interligne revient (un pourcentage de la hauteur naturelle) ; sans réglage, il reste absent.
+    #[test]
+    fn line_spacing_comes_back() {
+        for spacing in [Some(1.5), Some(0.9), None] {
+            let mut t = text(RichText::plain("Léa\nTom"), None);
+            if let ElementKind::Text(tp) = &mut t.kind {
+                tp.style.line_spacing = spacing;
+            }
+            let back = round_trip(&doc_with(vec![t]), &AssetStore::default());
+            let ElementKind::Text(tp) = &only(&back).kind else { panic!() };
+            assert_eq!(tp.style.line_spacing, spacing);
+        }
+    }
+
+    /// Une étiquette encadrée vide (une case à remplir à la main) revient, avec son cadre.
+    #[test]
+    fn an_empty_framed_label_comes_back() {
+        let mut t = text(RichText::default(), None);
+        if let ElementKind::Text(tp) = &mut t.kind {
+            tp.frame = Some(TextFrame { fill: Some("#fff1c1".into()), stroke: Some(Stroke { width_mm: 0.5, color: "#9aa5b1".into(), style: None }), corner_radius_mm: 3.0, ..TextFrame::default() });
+        }
+        let back = round_trip(&doc_with(vec![t.clone()]), &AssetStore::default());
+        let e = only(&back);
+        let (ElementKind::Text(a), ElementKind::Text(b)) = (&t.kind, &e.kind) else { panic!() };
+        assert!(b.content.is_blank() && e.frame == t.frame);
+        assert_eq!(a.frame, b.frame);
+    }
+
+    /// Une tabulation et un retour à la ligne dans un paragraphe reviennent tels quels.
+    #[test]
+    fn tabs_and_line_breaks_come_back() {
+        let t = text(RichText { paragraphs: vec![Paragraph { align: None, runs: vec![Run::plain("Lundi\tMardi\nMercredi")], list: None }] }, None);
+        let back = round_trip(&doc_with(vec![t]), &AssetStore::default());
+        let ElementKind::Text(tp) = &only(&back).kind else { panic!() };
+        assert_eq!(tp.content.paragraphs.len(), 1);
+        assert_eq!(tp.content.paragraphs[0].runs.iter().map(|r| r.text.as_str()).collect::<String>(), "Lundi\tMardi\nMercredi");
+    }
+
+    /// Un élément verrouillé (photo simple ou décorée, pictogramme, forme, trait, texte) l'est dans LibreOffice (son
+    /// style protège sa place et sa taille) et revient verrouillé ; les autres non.
+    #[test]
+    fn a_locked_element_comes_back_locked() {
+        let mut store = AssetStore::default();
+        let asset = raw_asset(40, 30);
+        let id = asset.meta.id.clone();
+        store.insert(asset).unwrap();
+        let els = vec![
+            photo(Some(&id), frame(10.0, 10.0, 40.0, 30.0), 0.0),
+            photo(Some(&id), frame(60.0, 10.0, 40.0, 30.0), 3.0),
+            picture_el("1F98A", None),
+            shape_el(ShapeKind::Star, frame(10.0, 60.0, 30.0, 30.0)),
+            shape_el(ShapeKind::Line, frame(60.0, 60.0, 30.0, 2.0)),
+            text(RichText::plain("Léa"), None),
+        ];
+        for locked in [true, false] {
+            let doc = doc_with(els.iter().cloned().map(|e| Element { locked, ..e }).collect());
+            let content = export(&doc, &store).xml("content.xml");
+            // Sans verrou, seule la mention de licence est protégée.
+            assert_eq!(content.matches(r#"style:protect="position size""#).count() > 1, locked, "{content}");
+            let back = round_trip(&doc, &store);
+            assert_eq!(back.pages[0].elements.len(), els.len());
+            assert!(back.pages[0].elements.iter().all(|e| e.locked == locked), "{:?}", back.pages[0].elements);
+        }
+    }
+
+    /// Le motif du fond de page (dessiné en traits et en points sur la page maîtresse) revient motif, sur une page de
+    /// chaque taille, avec sa couleur.
+    #[test]
+    fn a_page_pattern_comes_back() {
+        let mut d = doc_with(vec![]);
+        d.pages.clear();
+        let sizes = [A4_PORTRAIT, PageSize { width_mm: 297.0, height_mm: 210.0 }, PageSize { width_mm: 148.0, height_mm: 210.0 }];
+        for (i, pattern) in [Pattern::Seyes, Pattern::SmallSquares, Pattern::Lines, Pattern::Dots].into_iter().enumerate() {
+            d.pages.push(Page { background: Some(Background { color: if i % 2 == 0 { "#ffffff".into() } else { "#fff8dc".into() }, pattern: Some(pattern) }), ..Page::new(sizes[i % 3]) });
+        }
+        let back = round_trip(&d, &AssetStore::default());
+        let got: Vec<Option<Background>> = back.pages.iter().map(|p| p.background.clone()).collect();
+        assert_eq!(got, d.pages.iter().map(|p| p.background.clone()).collect::<Vec<_>>());
+    }
+
+    /// Un cadre de texte à lignes d'écriture (fond, bordure et coins dessinés à part, les lignes ou les points, puis le
+    /// texte) revient cadre à lignes, droit ou tourné, avec son fond, sa bordure, ses coins et l'écriture sur les lignes ;
+    /// l'image de fond aussi.
+    #[test]
+    fn a_lined_text_frame_comes_back() {
+        let mut store = AssetStore::default();
+        let asset = raw_asset(40, 30);
+        let id = asset.meta.id.clone();
+        store.insert(asset).unwrap();
+        let mut els = Vec::new();
+        for (i, pattern) in [Pattern::Seyes, Pattern::SmallSquares, Pattern::Lines, Pattern::Dots].into_iter().enumerate() {
+            for (j, rotation) in [0.0, 20.0].into_iter().enumerate() {
+                let mut t = text(RichText::plain("Léa"), None);
+                t.frame = Frame { rotation_deg: rotation, ..frame(10.0 + 100.0 * j as f64, 10.0 + 60.0 * i as f64, 80.0, 40.0) };
+                // Verrouillé : son fond, ses lignes et son texte le sont tous dans LibreOffice.
+                t.locked = j == 1;
+                if let ElementKind::Text(tp) = &mut t.kind {
+                    tp.frame = Some(TextFrame {
+                        fill: (i % 2 == 0).then(|| "#fff1c1".into()),
+                        stroke: Some(Stroke { width_mm: 0.5, color: "#9aa5b1".into(), style: if j == 1 { Some(StrokeStyle::Dashed) } else { None } }),
+                        corner_radius_mm: 2.0 * i as f64,
+                        image: (i == 3 && j == 0).then(|| id.clone()),
+                        pattern: Some(pattern),
+                        write_on_lines: matches!(pattern, Pattern::Seyes | Pattern::Lines).then_some(true),
+                    });
+                }
+                els.push(t);
+            }
+        }
+        // Une étiquette vide où l'on écrira sur les lignes.
+        let mut blank = text(RichText::default(), None);
+        blank.frame = frame(10.0, 250.0, 80.0, 40.0);
+        if let ElementKind::Text(tp) = &mut blank.kind {
+            tp.frame = Some(TextFrame { pattern: Some(Pattern::Seyes), write_on_lines: Some(true), ..TextFrame::default() });
+        }
+        els.push(blank);
+        let d = doc_with(els);
+        let back = round_trip(&d, &store);
+        let frames = |els: &[Element]| -> Vec<(Option<TextFrame>, bool)> {
+            els.iter().filter_map(|e| if let ElementKind::Text(t) = &e.kind { Some((t.frame.clone().map(|f| TextFrame { image: f.image.map(|_| "image".into()), ..f }), e.locked)) } else { None }).collect()
+        };
+        assert_eq!(back.pages[0].elements.len(), d.pages[0].elements.len(), "{:?}", back.pages[0].elements);
+        assert_eq!(frames(&back.pages[0].elements), frames(&d.pages[0].elements));
+    }
+
+    /// L'ODG exporté, une partie XML changée par `edit`.
+    fn edited_odg(doc: &Document, part: &str, edit: impl Fn(String) -> String) -> Vec<u8> {
+        let mut buf = Cursor::new(Vec::new());
+        export_odg(doc, &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
+        let mut zip = ZipArchive::new(Cursor::new(buf.into_inner())).unwrap();
+        let names: Vec<String> = zip.file_names().map(|n| n.unwrap().into_owned()).collect();
+        let mut out = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        for n in &names {
+            let mut bytes = Vec::new();
+            zip.by_name(n).unwrap().read_to_end(&mut bytes).unwrap();
+            if n == part {
+                bytes = edit(String::from_utf8(bytes).unwrap()).into_bytes();
+            }
+            out.start_file(n, zip::write::SimpleFileOptions::default()).unwrap();
+            std::io::Write::write_all(&mut out, &bytes).unwrap();
+        }
+        out.finish().unwrap().into_inner()
+    }
+
+    /// Un motif ou un cadre à lignes dont un seul trait a changé (ou manque) n'est pas reconnu : la page garde sa
+    /// couleur, le cadre est relu tel qu'il est dessiné (un rectangle, des traits, un texte).
+    #[test]
+    fn a_pattern_is_recognised_only_when_everything_matches() {
+        let mut t = text(RichText::plain("Léa"), None);
+        if let ElementKind::Text(tp) = &mut t.kind {
+            tp.frame = Some(TextFrame { pattern: Some(Pattern::Lines), stroke: Some(Stroke { width_mm: 0.5, color: "#000000".into(), style: None }), ..TextFrame::default() });
+        }
+        let d = with_background(doc_with(vec![t]), "#fff8dc", Some(Pattern::Lines));
+        let read = |odg: Vec<u8>| crate::import::odg::read_drawing(Cursor::new(odg), &[]).unwrap();
+        let one_line_less = |x: String| {
+            let at = x.find("<draw:line").unwrap();
+            let end = at + x[at..].find("/>").unwrap() + 2;
+            format!("{}{}", &x[..at], &x[end..])
+        };
+        let back = read(edited_odg(&d, "content.xml", one_line_less));
+        assert_eq!(back.pages[0].background.as_ref().map(|b| b.pattern), Some(Some(Pattern::Lines)));
+        let kinds: Vec<&str> = back.pages[0].elements.iter().map(|e| match &e.kind {
+            ElementKind::Shape(s) if s.shape == ShapeKind::Rect => "rectangle",
+            ElementKind::Shape(_) => "trait",
+            ElementKind::Text(t) if t.frame.as_ref().is_none_or(|f| f.pattern.is_none()) => "texte",
+            _ => "autre",
+        }).collect();
+        assert_eq!(kinds, [&["rectangle"][..], &["trait"; 3], &["texte"]].concat());
+        let back = read(edited_odg(&d, "styles.xml", one_line_less));
+        assert_eq!(back.pages[0].background, Some(Background { color: "#fff8dc".into(), pattern: None }));
+        assert!(matches!(&back.pages[0].elements[..], [e] if matches!(&e.kind, ElementKind::Text(t) if t.frame.as_ref().and_then(|f| f.pattern) == Some(Pattern::Lines))));
+    }
+
+    /// Un rectangle et un texte de même cadre, trop bas pour une ligne d'écriture, restent un rectangle et un texte.
+    /// Un cadre à lignes dont le texte a été mis seul dans un groupe (dans LibreOffice) n'est pas reconnu : ses
+    /// morceaux restent.
+    #[test]
+    fn a_lined_frame_is_not_made_up() {
+        let mut t = text(RichText::plain("Léa"), None);
+        t.frame = frame(20.0, 20.0, 80.0, 6.0);
+        let mut rect = shape_el(ShapeKind::Rect, frame(20.0, 20.0, 80.0, 6.0));
+        rect.locked = true;
+        let back = round_trip(&doc_with(vec![rect, t.clone()]), &AssetStore::default());
+        assert_eq!(back.pages[0].elements.len(), 2, "{:?}", back.pages[0].elements);
+        if let ElementKind::Text(tp) = &mut t.kind {
+            tp.frame = Some(TextFrame { pattern: Some(Pattern::Lines), ..TextFrame::default() });
+        }
+        t.frame = frame(20.0, 20.0, 80.0, 40.0);
+        let mut star = shape_el(ShapeKind::Star, frame(120.0, 20.0, 20.0, 20.0));
+        (t.group, star.group) = (Some("g".into()), Some("g".into()));
+        // Le groupe ouvert juste avant le texte : le fond et les lignes restent dehors.
+        let odg = edited_odg(&doc_with(vec![t, star]), "content.xml", |x| {
+            let x = x.replacen("<draw:g>", "", 1);
+            let at = x.find("<draw:frame").unwrap();
+            format!("{}<draw:g>{}", &x[..at], &x[at..])
+        });
+        let back = crate::import::odg::read_drawing(Cursor::new(odg), &[]).unwrap();
+        let els = &back.pages[0].elements;
+        assert_eq!(els.iter().filter(|e| matches!(&e.kind, ElementKind::Shape(s) if s.shape == ShapeKind::Line)).count(), 4, "{els:?}");
+        assert!(els.iter().any(|e| matches!(&e.kind, ElementKind::Text(t) if t.frame.is_none()) && e.group.is_some()));
+    }
+
+    /// Exporté puis relu par Cahutin (`read_drawing`).
+    fn round_trip(doc: &Document, store: &AssetStore) -> crate::import::Imported {
+        let fonts = FontSet::builtin();
+        let mut buf = Cursor::new(Vec::new());
+        export_odg(doc, store, &fonts, &mut buf).unwrap();
+        buf.set_position(0);
+        let known: Vec<String> = fonts.families().into_iter().map(|f| f.name).collect();
+        crate::import::odg::read_drawing(buf, &known).unwrap()
+    }
+
+    /// Les chemins de groupe des éléments, chaque groupe renommé d'après son premier membre (les identifiants
+    /// changent à l'import).
+    fn group_paths(els: &[Element]) -> Vec<Vec<usize>> {
+        let mut names: Vec<Id> = Vec::new();
+        els.iter()
+            .map(|e| {
+                crate::groups::path(e)
+                    .into_iter()
+                    .map(|g| match names.iter().position(|n| *n == g) {
+                        Some(i) => i,
+                        None => {
+                            names.push(g);
+                            names.len() - 1
+                        }
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// Un groupe, un groupe dans un groupe et ce qui est hors des groupes reviennent tels quels de LibreOffice.
+    #[test]
+    fn nested_groups_come_back() {
+        let mut d = doc_with(vec![picture_el("1F98A", Some("g")), picture_el("2600", Some("g")), picture_el("1F33B", Some("g")), picture_el("1F431", None), shape_el(ShapeKind::Star, frame(60.0, 120.0, 20.0, 20.0)), shape_el(ShapeKind::Heart, frame(90.0, 120.0, 20.0, 20.0))]);
+        d.pages[0].elements[0].subgroups = vec!["f".into()];
+        d.pages[0].elements[1].subgroups = vec!["f".into()];
+        d.pages[0].elements[4].group = Some("h".into());
+        d.pages[0].elements[5].group = Some("h".into());
+        let back = round_trip(&d, &AssetStore::default());
+        let els = &back.pages[0].elements;
+        assert_eq!(els.len(), 6, "{els:?}");
+        assert_eq!(group_paths(els), group_paths(&d.pages[0].elements));
+    }
+
+    /// Un tableau, simple (vrai tableau) ou non (traits et cases dans un groupe), garde son groupe et rien que lui ;
+    /// un groupe qui ne garde qu'un membre est défait.
+    #[test]
+    fn a_table_keeps_its_own_group_and_lonely_groups_are_undone() {
+        for dashed in [false, true] {
+            let (mut d, t) = table_doc(2, 2);
+            if dashed {
+                table_mut(&mut d, &t).border = Some(Stroke { width_mm: 1.0, color: "#c0392b".into(), style: Some(StrokeStyle::Dashed) });
+            }
+            let mut star = shape_el(ShapeKind::Star, frame(150.0, 150.0, 20.0, 20.0));
+            star.group = Some("seule".into());
+            d.pages[0].elements.push(star);
+            let back = round_trip(&d, &AssetStore::default());
+            let els = &back.pages[0].elements;
+            let star = els.iter().find(|e| matches!(&e.kind, ElementKind::Shape(s) if s.shape == ShapeKind::Star)).unwrap();
+            assert!(star.group.is_none(), "{dashed} : {star:?}");
+            if !dashed {
+                let table = els.iter().find(|e| matches!(e.kind, ElementKind::Table(_))).unwrap();
+                assert!(table.subgroups.is_empty() && els.iter().filter(|e| e.group == table.group).count() == 5, "{els:?}");
+            } else {
+                // Tableau en traits : ses traits (et ses cases écrites) restent ensemble, dans un groupe.
+                let g = els[0].group.clone().expect("groupe");
+                let rest: Vec<&Element> = els.iter().filter(|e| e.id != star.id).collect();
+                assert!(rest.len() >= 6 && rest.iter().all(|e| e.group.as_ref() == Some(&g) && e.subgroups.is_empty()), "{els:?}");
+            }
+        }
+    }
+
     #[test]
     fn credit_line_only_on_pages_with_pictures() {
         let mut d = doc_with(vec![picture_el("1F98A", None)]);
@@ -1511,7 +2142,10 @@ mod tests {
         let content = export(&d, &AssetStore::default()).xml("content.xml");
         let pages: Vec<&str> = content.split("<draw:page ").skip(1).collect();
         assert_eq!(pages.len(), 2);
-        assert!(pages[0].contains(OPENMOJI_CREDIT_PAGE) && pages[0].contains(r#"draw:protect="position size""#));
+        assert!(pages[0].contains(OPENMOJI_CREDIT_PAGE) && !content.contains("draw:protect"));
+        // La mention est verrouillée par son style, ce que LibreOffice respecte.
+        let credit_style = pages[0].split(OPENMOJI_CREDIT_PAGE).next().unwrap().rsplit(r#"<draw:frame draw:style-name=""#).next().unwrap().split('"').next().unwrap();
+        assert!(style_def(&content, credit_style).contains(r#"style:protect="position size""#), "{content}");
         assert!(!pages[1].contains(OPENMOJI_CREDIT_PAGE));
     }
 

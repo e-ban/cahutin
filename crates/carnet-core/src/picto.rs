@@ -75,6 +75,11 @@ pub fn base_code(code: &str) -> String {
     code.split('-').filter(|p| !matches!(*p, "1F3FB" | "1F3FC" | "1F3FD" | "1F3FE" | "1F3FF")).collect::<Vec<_>>().join("-")
 }
 
+/// Les noms des fichiers de la banque, sans `.svg` : les codes, et `contour/<code>` pour les versions à colorier.
+pub fn names() -> Vec<String> {
+    index().keys().cloned().collect()
+}
+
 pub fn count() -> usize {
     index().len()
 }

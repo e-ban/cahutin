@@ -418,23 +418,185 @@ fn picture_is_rendered() {
     assert!(ratio > 0.2, "image presque vide : {ratio:.2}");
 }
 
+/// Ce que Cahutin écrit pour se relire, réenregistré tel quel par LibreOffice (`soffice --convert-to odg`) puis relu
+/// par Cahutin : les pages relues et le `content.xml` réécrit. Un seul document et une seule conversion pour les tests
+/// qui suivent (le banc reste rapide). Page 1 : groupes imbriqués, pictogrammes (à colorier, en miroir), champs non
+/// remplis (lettres comprises), éléments verrouillés, flèches, photo bordée et ombrée, cadre Seyès où l'on écrit sur
+/// les lignes, sur un fond Seyès ; pages 2 à 4 : les autres motifs, à d'autres tailles.
+struct RoundTrip {
+    pages: Vec<Page>,
+    content: String,
+}
+
+fn libreoffice_round_trip() -> &'static RoundTrip {
+    static TRIP: std::sync::OnceLock<RoundTrip> = std::sync::OnceLock::new();
+    TRIP.get_or_init(|| {
+        let mut doc = Document::new("aller-retour");
+        let mut store = AssetStore::default();
+        let photo = halves_asset(&mut doc, &mut store);
+        let grouped = |code: &str, x: f64, path: &[&str]| {
+            let mut e = picture_element(code, x, None);
+            e.frame.w_mm = 20.0;
+            e.frame.h_mm = 20.0;
+            e.group = path.first().map(|g| g.to_string());
+            e.subgroups = path[1..].iter().map(|g| g.to_string()).collect();
+            e
+        };
+        let text_at = |y: f64, t: &str| element(frame_at(20.0, y, 120.0, 12.0, 0.0), text_kind(t, 14.0));
+        let mut star = element(frame_at(150.0, 20.0, 20.0, 20.0, 0.0), filled_shape(ShapeKind::Star, None));
+        star.group = Some("g".into());
+        let arrow = |y: f64, flip_h: bool| {
+            let k = ElementKind::Shape(ShapeProps { shape: ShapeKind::Arrow, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#c0392b".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None });
+            Element { flip_h, ..element(frame_at(20.0, y, 60.0, 8.0, 0.0), k) }
+        };
+        let mut framed = element(frame_at(90.0, 150.0, 100.0, 40.0, 0.0), text_kind("Léa", 14.0));
+        if let ElementKind::Text(t) = &mut framed.kind {
+            t.frame = Some(TextFrame { fill: Some("#fff1c1".into()), stroke: Some(Stroke { width_mm: 0.5, color: "#9aa5b1".into(), style: Some(StrokeStyle::Dashed) }), corner_radius_mm: 3.0, image: None, pattern: Some(Pattern::Seyes), write_on_lines: Some(true) });
+        }
+        let mut blank_lined = element(frame_at(90.0, 230.0, 100.0, 40.0, 0.0), text_kind("", 14.0));
+        if let ElementKind::Text(t) = &mut blank_lined.kind {
+            t.content = RichText::default();
+            t.frame = Some(TextFrame { pattern: Some(Pattern::Seyes), write_on_lines: Some(true), ..TextFrame::default() });
+        }
+        let mut bordered = element(frame_at(20.0, 200.0, 60.0, 30.0, 0.0), photo_kind(&photo));
+        if let ElementKind::Photo(p) = &mut bordered.kind {
+            p.border = Some(Stroke { width_mm: 1.5, color: "#2e86c1".into(), style: Some(StrokeStyle::Dotted) });
+            p.shadow = true;
+            p.corner_radius_mm = 2.0;
+        }
+        let mut outline = picture_element("1F431", 20.0, None);
+        outline.frame = frame_at(20.0, 45.0, 20.0, 20.0, 0.0);
+        outline.kind = ElementKind::Image(ImageProps { code: "1F431".into(), outline: Some(true) });
+        let mirrored = Element { flip_h: true, frame: frame_at(50.0, 45.0, 20.0, 20.0, 0.0), ..picture_element("2600", 0.0, None) };
+        let locked_star = Element { locked: true, ..element(frame_at(150.0, 50.0, 20.0, 20.0, 0.0), filled_shape(ShapeKind::Heart, None)) };
+        let locked_text = Element { locked: true, ..text_at(130.0, "Verrouillé") };
+        doc.pages[0].elements = vec![
+            grouped("1F98A", 20.0, &["g", "f"]),
+            grouped("2600", 50.0, &["g", "f"]),
+            grouped("1F33B", 80.0, &["g"]),
+            star,
+            outline,
+            mirrored,
+            text_at(75.0, "Bonjour {prenom} !"),
+            text_at(90.0, "{PRENOM_1}{prenom_2}"),
+            arrow(110.0, false),
+            arrow(120.0, true),
+            locked_star,
+            locked_text,
+            framed,
+            bordered,
+            blank_lined,
+        ];
+        doc.pages[0].background = Some(Background { color: "#ffffff".into(), pattern: Some(Pattern::Seyes) });
+        for (pattern, size, color) in [(Pattern::Dots, PageSize { width_mm: 148.0, height_mm: 210.0 }, "#fff8dc"), (Pattern::Lines, PageSize { width_mm: 297.0, height_mm: 210.0 }, "#ffffff"), (Pattern::SmallSquares, A4_PORTRAIT, "#eef6ff")] {
+            doc.pages.push(Page { background: Some(Background { color: color.into(), pattern: Some(pattern) }), ..Page::new(size) });
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let odg = dir.path().join("aller-retour.odg");
+        export_odg_to_path(&doc, &store, &FontSet::builtin(), &odg).unwrap();
+        let out = dir.path().join("relu");
+        soffice_convert(dir.path(), "odg", &odg, &out);
+        let saved = out.join("aller-retour.odg");
+        let mut content = String::new();
+        std::io::Read::read_to_string(&mut zip::ZipArchive::new(std::fs::File::open(&saved).unwrap()).unwrap().by_name("content.xml").unwrap(), &mut content).unwrap();
+        let known: Vec<String> = FontSet::builtin().families().into_iter().map(|f| f.name).collect();
+        let back = carnet_core::import::odg::read_drawing(std::fs::File::open(&saved).unwrap(), &known).unwrap();
+        RoundTrip { pages: back.pages, content }
+    })
+}
+
+/// L'élément relu de la page 1 dont le cadre a ce coin haut gauche (au 1/10 de mm).
+fn relu_at(x: f64, y: f64) -> &'static Element {
+    let page = &libreoffice_round_trip().pages[0];
+    page.elements.iter().find(|e| (e.frame.x_mm - x).abs() < 0.1 && (e.frame.y_mm - y).abs() < 0.1).unwrap_or_else(|| panic!("rien à {x} {y} : {:?}", page.elements))
+}
+
+/// Un groupe et un groupe dans ce groupe reviennent tels quels de LibreOffice, relus par Cahutin.
 #[test]
 #[ignore]
 fn groups_survive_a_libreoffice_round_trip() {
-    let mut doc = Document::new("groupe");
-    doc.pages[0].elements.push(picture_element("1F98A", ORIGIN_MM, Some("g")));
-    doc.pages[0].elements.push(picture_element("2600", ORIGIN_MM + 60.0, Some("g")));
-    let dir = tempfile::tempdir().unwrap();
-    let odg = dir.path().join("groupe.odg");
-    export_odg_to_path(&doc, &AssetStore::default(), &FontSet::builtin(), &odg).unwrap();
-    let out = dir.path().join("relu");
-    std::fs::create_dir(&out).unwrap();
-    let profile = format!("-env:UserInstallation=file://{}", dir.path().join("profil").display());
-    run(Command::new("soffice").arg(profile).args(["--headless", "--convert-to", "odg", "--outdir"]).arg(&out).arg(&odg));
-    let mut zip = zip::ZipArchive::new(std::fs::File::open(out.join("groupe.odg")).unwrap()).unwrap();
-    let mut content = String::new();
-    std::io::Read::read_to_string(&mut zip.by_name("content.xml").unwrap(), &mut content).unwrap();
-    assert!(content.contains("<draw:g"), "le groupe a disparu après LibreOffice");
+    let path = |x: f64| carnet_core::groups::path(relu_at(x, ORIGIN_MM));
+    let (fox, sun, flower, star) = (path(20.0), path(50.0), path(80.0), carnet_core::groups::path(relu_at(150.0, 20.0)));
+    assert_eq!((fox.len(), sun.len(), flower.len(), star.len()), (2, 2, 1, 1));
+    assert!(fox == sun && fox[0] == flower[0] && flower == star && fox[1] != fox[0]);
+    assert!(carnet_core::groups::path(relu_at(20.0, 45.0)).is_empty());
+}
+
+/// LibreOffice renomme les fichiers des pictogrammes : ils reviennent pictogrammes (à colorier, en miroir compris),
+/// et la page qui en a garde sa mention de licence à l'export suivant.
+#[test]
+#[ignore]
+fn pictures_survive_a_libreoffice_round_trip() {
+    let trip = libreoffice_round_trip();
+    assert!(!trip.content.contains("Pictures/openmoji-"), "LibreOffice ne renomme plus les images : le test ne prouve plus rien");
+    let picto = |x: f64, y: f64| match &relu_at(x, y).kind {
+        ElementKind::Image(i) => (i.code.clone(), i.outline, relu_at(x, y).flip_h),
+        k => panic!("{x} {y} : {k:?}"),
+    };
+    assert_eq!(picto(20.0, ORIGIN_MM), ("1F98A".to_string(), None, false));
+    assert_eq!(picto(20.0, 45.0), ("1F431".to_string(), Some(true), false));
+    assert_eq!(picto(50.0, 45.0), ("2600".to_string(), None, true));
+}
+
+/// Un champ non rempli revient champ, une lettre comprise (nommée dans la description du cadre).
+#[test]
+#[ignore]
+fn unfilled_fields_survive_a_libreoffice_round_trip() {
+    let text = |y: f64| match &relu_at(20.0, y).kind {
+        ElementKind::Text(t) => t.content.paragraphs.iter().flat_map(|p| &p.runs).map(|r| r.text.as_str()).collect::<String>(),
+        k => panic!("{k:?}"),
+    };
+    assert_eq!(text(75.0), "Bonjour {prenom} !");
+    assert_eq!(text(90.0), "{PRENOM_1}{prenom_2}");
+}
+
+/// Un élément verrouillé l'est encore dans le fichier réécrit (`style:protect`) et revient verrouillé ; les autres non.
+#[test]
+#[ignore]
+fn locks_survive_a_libreoffice_round_trip() {
+    let trip = libreoffice_round_trip();
+    // Le style du cœur verrouillé, celui du texte verrouillé (qu'il partage avec la mention de licence).
+    let protect: Vec<&str> = trip.content.split("style:protect=\"").skip(1).map(|s| s.split('"').next().unwrap()).collect();
+    assert!(protect.len() >= 2 && protect.iter().all(|p| p.contains("position")), "{protect:?}");
+    assert!(relu_at(150.0, 50.0).locked && relu_at(20.0, 130.0).locked);
+    assert!(!relu_at(150.0, 20.0).locked && !relu_at(20.0, 75.0).locked);
+}
+
+/// Les motifs de page (dessinés sur la page maîtresse) reviennent motifs, avec leur couleur, à chaque taille.
+#[test]
+#[ignore]
+fn page_patterns_survive_a_libreoffice_round_trip() {
+    let got: Vec<Option<Background>> = libreoffice_round_trip().pages.iter().map(|p| p.background.clone()).collect();
+    let bg = |c: &str, p| Some(Background { color: c.into(), pattern: Some(p) });
+    assert_eq!(got, [bg("#ffffff", Pattern::Seyes), bg("#fff8dc", Pattern::Dots), bg("#ffffff", Pattern::Lines), bg("#eef6ff", Pattern::SmallSquares)]);
+}
+
+/// Un cadre à lignes d'écriture revient cadre à lignes : fond, bordure en tirets, coins, Seyès, écrit sur les lignes.
+#[test]
+#[ignore]
+fn lined_frames_survive_a_libreoffice_round_trip() {
+    let ElementKind::Text(t) = &relu_at(90.0, 150.0).kind else { panic!() };
+    let want = TextFrame { fill: Some("#fff1c1".into()), stroke: Some(Stroke { width_mm: 0.5, color: "#9aa5b1".into(), style: Some(StrokeStyle::Dashed) }), corner_radius_mm: 3.0, image: None, pattern: Some(Pattern::Seyes), write_on_lines: Some(true) };
+    assert_eq!(t.frame.as_ref(), Some(&want));
+    // Une étiquette vide où l'on écrit sur les lignes : LibreOffice perd le style de son paragraphe vide.
+    let ElementKind::Text(t) = &relu_at(90.0, 230.0).kind else { panic!() };
+    assert_eq!(t.frame.as_ref().map(|f| (f.pattern, f.write_on_lines)), Some((Some(Pattern::Seyes), Some(true))));
+    // Rien d'autre du cadre ne reste sur la page (ni rectangle, ni traits).
+    let page = &libreoffice_round_trip().pages[0];
+    assert!(!page.elements.iter().any(|e| matches!(e.kind, ElementKind::Shape(_)) && e.frame.x_mm > 85.0 && e.frame.y_mm > 145.0), "{:?}", page.elements);
+}
+
+/// Une flèche revient flèche, la pointe au même bout (retournée : tournée d'un demi-tour) ; une photo garde sa bordure
+/// en pointillés et son ombre.
+#[test]
+#[ignore]
+fn arrows_and_photo_borders_survive_a_libreoffice_round_trip() {
+    let page = &libreoffice_round_trip().pages[0];
+    let arrow = |y: f64| page.elements.iter().find(|e| matches!(&e.kind, ElementKind::Shape(s) if s.shape == ShapeKind::Arrow) && (e.frame.y_mm + e.frame.h_mm / 2.0 - y).abs() < 0.1).unwrap_or_else(|| panic!("pas de flèche à {y} : {:?}", page.elements));
+    assert!(arrow(114.0).frame.rotation_deg.abs() < 0.01);
+    assert!((arrow(124.0).frame.rotation_deg.rem_euclid(360.0) - 180.0).abs() < 0.01);
+    let ElementKind::Photo(p) = &relu_at(20.0, 200.0).kind else { panic!() };
+    assert_eq!((p.border.clone(), p.shadow, p.corner_radius_mm), (Some(Stroke { width_mm: 1.5, color: "#2e86c1".into(), style: Some(StrokeStyle::Dotted) }), true, 2.0));
 }
 
 #[test]

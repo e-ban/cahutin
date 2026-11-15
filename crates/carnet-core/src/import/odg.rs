@@ -152,6 +152,8 @@ struct SpanStyle {
     underline: bool,
     /// Lettres creuses (contour de LibreOffice).
     outline: bool,
+    /// Encre transparente (`loext:opacity="0%"`) : un champ non rempli de Cahutin, écrit sous son nom.
+    transparent: bool,
 }
 
 #[derive(Clone, Default)]
@@ -164,6 +166,16 @@ struct GraphicStyle {
     dash: Option<(f64, f64)>,
     valign: Option<VAlign>,
     padding_mm: Option<f64>,
+    /// Pointe au bout du trait (`draw:marker-end`) : sa largeur en mm (4 mm sans largeur écrite).
+    marker_end: Option<f64>,
+    /// Pointe au début du trait (`draw:marker-start`).
+    marker_start: bool,
+    /// Ombre visible (`draw:shadow`).
+    shadow: bool,
+    /// Place ou taille protégée (`style:protect`) : l'objet est verrouillé.
+    protect: bool,
+    /// Marge du haut (`fo:padding-top`), en mm.
+    padding_top_mm: Option<f64>,
 }
 
 struct Styles {
@@ -171,6 +183,11 @@ struct Styles {
     graphic: HashMap<String, GraphicStyle>,
     /// Alignement des styles de paragraphe.
     align: HashMap<String, Align>,
+    /// Interligne des styles de paragraphe (`fo:line-height` en pour cent), en multiple de la hauteur naturelle.
+    line_spacing: HashMap<String, f64>,
+    /// Styles de paragraphe écrits sur des lignes d'écriture : une hauteur de ligne d'au moins un multiple de l'écart des
+    /// lignes (`style:line-height-at-least`, ce qu'écrit l'export pour un texte sur les lignes).
+    on_lines: std::collections::HashSet<String>,
     /// Styles de liste : vrai quand leur premier niveau est une puce (un caractère ou une image), faux pour des numéros.
     bullet_lists: HashMap<String, bool>,
     /// Styles de case de tableau (famille `table-cell`), de `content.xml` puis de `styles.xml`.
@@ -351,6 +368,27 @@ fn stroke_dashes(docs: &[&roxmltree::Document]) -> HashMap<String, (f64, f64)> {
         .collect()
 }
 
+/// Genre de chaque motif de pointillé (`draw:stroke-dash`) : des points quand le trait est court (au plus 1,5 fois
+/// l'épaisseur, ou 0,5 mm, ou des points sans longueur), des tirets sinon. L'export de Cahutin écrit 100 % pour les
+/// points et 300 % pour les tirets.
+fn dash_styles(docs: &[&roxmltree::Document]) -> HashMap<String, StrokeStyle> {
+    docs.iter()
+        .flat_map(|d| d.descendants())
+        .filter(|n| n.has_tag_name((DRAW, "stroke-dash")))
+        .filter_map(|n| {
+            let on = n.attribute((DRAW, "dots1-length")).map(str::trim);
+            let dotted = match on {
+                None => true,
+                Some(v) => match v.strip_suffix('%') {
+                    Some(p) => p.parse::<f64>().is_ok_and(|p| p <= 150.0),
+                    None => length_mm(v).is_some_and(|mm| mm <= 0.5),
+                },
+            };
+            Some((n.attribute((DRAW, "name"))?.to_string(), if dotted { StrokeStyle::Dotted } else { StrokeStyle::Dashed }))
+        })
+        .collect()
+}
+
 /// Polices nommées par les styles (`style:font-face`) et polices du poste : la police retenue pour un nom.
 struct Fonts<'a> {
     faces: HashMap<String, String>,
@@ -394,13 +432,14 @@ impl<'a> Fonts<'a> {
             italic: t.attribute((FO, "font-style")) == Some("italic"),
             underline: t.attribute((STYLE, "text-underline-style")).is_some_and(|u| u != "none"),
             outline: t.attribute((STYLE, "text-outline")) == Some("true"),
+            transparent: t.attribute((LOEXT, "opacity")) == Some("0%"),
         }
     }
 }
 
-fn read_styles(doc: &roxmltree::Document, known_fonts: &[String], dashes: &HashMap<String, (f64, f64)>) -> Styles {
+fn read_styles(doc: &roxmltree::Document, known_fonts: &[String], dashes: &HashMap<String, (f64, f64)>, dash_kinds: &HashMap<String, StrokeStyle>) -> Styles {
     let fonts = Fonts::new(&[doc], known_fonts);
-    let mut styles = Styles { text: HashMap::new(), graphic: HashMap::new(), align: HashMap::new(), bullet_lists: HashMap::new(), cells: HashMap::new(), columns: HashMap::new(), rows: HashMap::new() };
+    let mut styles = Styles { text: HashMap::new(), graphic: HashMap::new(), align: HashMap::new(), line_spacing: HashMap::new(), on_lines: Default::default(), bullet_lists: HashMap::new(), cells: HashMap::new(), columns: HashMap::new(), rows: HashMap::new() };
     for s in doc.descendants().filter(|n| n.has_tag_name((STYLE, "style"))) {
         let Some(name) = s.attribute((STYLE, "name")) else { continue };
         if let Some(t) = s.children().find(|n| n.has_tag_name((STYLE, "text-properties"))) {
@@ -415,12 +454,19 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String], dashes: &HashM
             };
             styles.align.insert(name.to_string(), align);
         }
+        if let Some(p) = s.children().find(|n| n.has_tag_name((STYLE, "paragraph-properties"))).and_then(|p| p.attribute((FO, "line-height"))).and_then(|v| v.strip_suffix('%')).and_then(|v| v.parse::<f64>().ok()) {
+            styles.line_spacing.insert(name.to_string(), p / 100.0);
+        }
+        let step = crate::background::WRITING_LINE_MM;
+        if s.children().find(|n| n.has_tag_name((STYLE, "paragraph-properties"))).and_then(|p| attr_mm(p, STYLE, "line-height-at-least")).is_some_and(|h| h > 0.0 && ((h / step).round() * step - h).abs() < 0.02) {
+            styles.on_lines.insert(name.to_string());
+        }
         if let Some(g) = s.children().find(|n| n.has_tag_name((STYLE, "graphic-properties"))) {
             let fill = (g.attribute((DRAW, "fill")) == Some("solid")).then(|| g.attribute((DRAW, "fill-color")).unwrap_or("#ffffff").to_string());
             let stroke = matches!(g.attribute((DRAW, "stroke")), Some("solid") | Some("dash")).then(|| Stroke {
                 width_mm: attr_mm(g, SVG, "stroke-width").filter(|w| *w > 0.0).unwrap_or(HAIRLINE_MM),
                 color: g.attribute((SVG, "stroke-color")).unwrap_or("#000000").to_string(),
-                style: (g.attribute((DRAW, "stroke")) == Some("dash")).then_some(StrokeStyle::Dashed),
+                style: (g.attribute((DRAW, "stroke")) == Some("dash")).then(|| g.attribute((DRAW, "stroke-dash")).and_then(|d| dash_kinds.get(d)).copied().unwrap_or(StrokeStyle::Dashed)),
             });
             let valign = g.attribute((DRAW, "textarea-vertical-align")).map(|v| match v {
                 "middle" => VAlign::Middle,
@@ -429,7 +475,11 @@ fn read_styles(doc: &roxmltree::Document, known_fonts: &[String], dashes: &HashM
             });
             let dash = (g.attribute((DRAW, "stroke")) == Some("dash")).then(|| g.attribute((DRAW, "stroke-dash")).and_then(|d| dashes.get(d)).copied()).flatten();
             let fill_image = (g.attribute((DRAW, "fill")) == Some("bitmap")).then(|| g.attribute((DRAW, "fill-image-name")).map(String::from)).flatten();
-            styles.graphic.insert(name.to_string(), GraphicStyle { fill, fill_image, stroke, dash, valign, padding_mm: attr_mm(g, FO, "padding-left") });
+            let marker_end = g.attribute((DRAW, "marker-end")).filter(|m| !m.is_empty()).map(|_| attr_mm(g, DRAW, "marker-end-width").unwrap_or(4.0));
+            let marker_start = g.attribute((DRAW, "marker-start")).is_some_and(|m| !m.is_empty());
+            let shadow = g.attribute((DRAW, "shadow")) == Some("visible");
+            let protect = g.attribute((STYLE, "protect")).is_some_and(|p| p.contains("position") || p.contains("size"));
+            styles.graphic.insert(name.to_string(), GraphicStyle { fill, fill_image, stroke, dash, valign, padding_mm: attr_mm(g, FO, "padding-left"), marker_end, marker_start, shadow, protect, padding_top_mm: attr_mm(g, FO, "padding-top") });
         }
     }
     styles
@@ -477,26 +527,96 @@ fn page_sizes(styles_xml: Option<&str>) -> PageSizes {
             layouts.insert(name, size);
         }
     }
-    let fills: HashMap<&str, String> = doc
-        .descendants()
-        .filter(|n| n.has_tag_name((STYLE, "style")) && n.attribute((STYLE, "family")) == Some("drawing-page"))
-        .filter_map(|n| {
-            let p = n.children().find(|c| c.has_tag_name((STYLE, "drawing-page-properties")))?;
-            if p.attribute((DRAW, "fill")) != Some("solid") {
-                return None;
-            }
-            Some((n.attribute((STYLE, "name"))?, p.attribute((DRAW, "fill-color"))?.to_string()))
-        })
-        .collect();
+    let fills = drawing_page_fills(&doc);
     for m in doc.descendants().filter(|n| n.has_tag_name((STYLE, "master-page"))) {
         if let (Some(name), Some(size)) = (m.attribute((STYLE, "name")), m.attribute((STYLE, "page-layout-name")).and_then(|l| layouts.get(l))) {
             sizes.by_master.insert(name.to_string(), *size);
         }
         if let (Some(name), Some(color)) = (m.attribute((STYLE, "name")), m.attribute((DRAW, "style-name")).and_then(|d| fills.get(d))) {
-            sizes.background.insert(name.to_string(), Background { color: color.clone(), pattern: None });
+            let size = sizes.by_master.get(name).copied().unwrap_or(sizes.default);
+            sizes.background.insert(name.to_string(), Background { color: color.clone(), pattern: master_pattern(&doc, m, size) });
         }
     }
     sizes
+}
+
+/// Trait ou point d'un motif lu : extrémités (ou centre et diamètre, en double), épaisseur, couleur.
+type ReadMark = (bool, [f64; 4], f64, String);
+
+/// Un motif tel que l'écrit l'export : ses traits (`Mark::Line`) et ses points (`Mark::Dot`), dans le repère `at`.
+fn expected_marks(marks: Vec<crate::background::Mark>, at: impl Fn(f64, f64) -> (f64, f64)) -> Vec<ReadMark> {
+    use crate::background::Mark;
+    marks
+        .into_iter()
+        .map(|m| match m {
+            Mark::Line { x1, y1, x2, y2, width_mm, color } => {
+                let ((ax, ay), (bx, by)) = (at(x1, y1), at(x2, y2));
+                (true, [ax, ay, bx, by], width_mm, color.to_lowercase())
+            }
+            Mark::Dot { x, y, d_mm, color } => {
+                let (cx, cy) = at(x, y);
+                (false, [cx, cy, d_mm, d_mm], 0.0, color.to_lowercase())
+            }
+        })
+        .collect()
+}
+
+/// Les traits et points lus sont exactement ceux attendus (au 1/20 de mm près, LibreOffice écrit au 1/100 de mm), dans
+/// n'importe quel ordre.
+fn same_marks(read: Vec<ReadMark>, expected: Vec<ReadMark>) -> bool {
+    if read.len() != expected.len() {
+        return false;
+    }
+    let mut used = vec![false; read.len()];
+    expected.iter().all(|b| {
+        let close = |a: &ReadMark| a.0 == b.0 && a.3 == b.3 && (a.2 - b.2).abs() < 0.02 && a.1.iter().zip(&b.1).all(|(x, y)| (x - y).abs() < 0.05);
+        match (0..read.len()).find(|&i| !used[i] && close(&read[i])) {
+            Some(i) => {
+                used[i] = true;
+                true
+            }
+            None => false,
+        }
+    })
+}
+
+/// Motif d'école d'une page maîtresse : ses traits (`draw:line`) et points (`draw:ellipse`, que LibreOffice réécrit
+/// en `draw:circle`) sont exactement ceux d'un motif de Cahutin à cette taille de page (`background::marks`). Sinon
+/// aucun (la couleur du fond reste).
+fn master_pattern(doc: &roxmltree::Document, master: Node, size: PageSize) -> Option<Pattern> {
+    let styles: HashMap<&str, Node> = doc.descendants().filter(|n| n.has_tag_name((STYLE, "style"))).filter_map(|n| Some((n.attribute((STYLE, "name"))?, n))).collect();
+    let props = |n: Node| n.attribute((DRAW, "style-name")).and_then(|s| styles.get(s)).and_then(|s| s.children().find(|c| c.has_tag_name((STYLE, "graphic-properties"))));
+    let mut read: Vec<ReadMark> = Vec::new();
+    for n in master.children().filter(|n| n.is_element()) {
+        let g = props(n);
+        let attr = |ns, a| g.and_then(|g| g.attribute((ns, a))).map(str::to_lowercase).unwrap_or_default();
+        if n.has_tag_name((DRAW, "line")) {
+            let p = [attr_mm(n, SVG, "x1")?, attr_mm(n, SVG, "y1")?, attr_mm(n, SVG, "x2")?, attr_mm(n, SVG, "y2")?];
+            read.push((true, p, g.and_then(|g| attr_mm(g, SVG, "stroke-width")).unwrap_or(0.0), attr(SVG, "stroke-color")));
+        } else if n.has_tag_name((DRAW, "ellipse")) || n.has_tag_name((DRAW, "circle")) {
+            let (w, h) = (attr_mm(n, SVG, "width")?, attr_mm(n, SVG, "height")?);
+            let (x, y) = (attr_mm(n, SVG, "x")?, attr_mm(n, SVG, "y")?);
+            read.push((false, [x + w / 2.0, y + h / 2.0, w, h], 0.0, attr(DRAW, "fill-color")));
+        } else if n.has_tag_name((DRAW, "frame")) || n.has_tag_name((DRAW, "rect")) || n.has_tag_name((DRAW, "custom-shape")) {
+            return None;
+        }
+    }
+    if read.is_empty() {
+        return None;
+    }
+    [Pattern::Seyes, Pattern::SmallSquares, Pattern::Lines, Pattern::Dots].into_iter().find(|p| same_marks(read.clone(), expected_marks(crate::background::marks(size, *p), |x, y| (x, y))))
+}
+
+/// Couleur de chaque style de page rempli d'une couleur (`style:drawing-page-properties`, `draw:fill="solid"`).
+fn drawing_page_fills(doc: &roxmltree::Document) -> HashMap<String, String> {
+    doc.descendants()
+        .filter(|n| n.has_tag_name((STYLE, "style")) && n.attribute((STYLE, "family")) == Some("drawing-page"))
+        .filter_map(|n| {
+            let p = n.children().find(|c| c.has_tag_name((STYLE, "drawing-page-properties")))?;
+            (p.attribute((DRAW, "fill")) == Some("solid")).then_some(())?;
+            Some((n.attribute((STYLE, "name"))?.to_string(), p.attribute((DRAW, "fill-color"))?.to_string()))
+        })
+        .collect()
 }
 
 /// Élément posé, ou place réservée à une ligne de texte (remplacée par son texte recollé).
@@ -525,6 +645,9 @@ struct PageReader<'a, R: Read + Seek> {
     /// Un dessin LibreOffice lu tel quel (dont l'export de Cahutin) : chaque cadre de texte reste un texte, avec
     /// ses alignements, sa marge et son fond. Sinon (import d'un PDF), un cadre par ligne, recollées ensuite.
     whole_frames: bool,
+    /// Premier objet posé dans le groupe (`draw:g`) en cours de lecture : un cadre à lignes d'écriture ne reprend rien
+    /// d'avant (voir `lined_frame`).
+    group_floor: usize,
     /// Fichier écrit par Cahutin avant `odg::MIRROR_AFTER_ROTATION` : une forme retournée d'un seul sens y porte
     /// l'angle de l'écran, et non celui de LibreOffice.
     screen_mirror_angles: bool,
@@ -633,19 +756,30 @@ fn readable(text: &str) -> String {
     text.chars().map(|c| if ('\u{E000}'..='\u{F8FF}').contains(&c) { '•' } else { c }).collect()
 }
 
-/// Texte d'un nœud, espaces ODF (`text:s`, `text:tab`) compris.
-fn node_text(n: Node, out: &mut String) {
+/// Texte d'un nœud, espaces ODF (`text:s`, `text:tab`, `text:line-break`) compris. `exact` : une tabulation et un
+/// retour à la ligne restent ce qu'ils sont (un dessin lu tel quel, comme l'export de Cahutin les écrit) ; sinon (import
+/// d'un PDF), une espace.
+fn node_text(n: Node, out: &mut String, exact: bool) {
     for c in n.children() {
-        if c.is_text() {
-            out.push_str(&readable(c.text().unwrap_or("")));
-        } else if c.has_tag_name((TEXT, "s")) {
-            let count = c.attribute((TEXT, "c")).and_then(|v| v.parse().ok()).unwrap_or(1);
-            out.push_str(&" ".repeat(count));
-        } else if c.has_tag_name((TEXT, "tab")) || c.has_tag_name((TEXT, "line-break")) {
-            out.push(' ');
-        } else {
-            node_text(c, out);
-        }
+        push_text(c, out, exact);
+    }
+}
+
+/// Le texte d'un nœud lui-même (voir `node_text`) : un texte, une espace ODF, ou le texte de ses enfants.
+fn push_text(c: Node, out: &mut String, exact: bool) {
+    if c.is_text() {
+        out.push_str(&readable(c.text().unwrap_or("")));
+    } else if c.has_tag_name((TEXT, "s")) {
+        let count = c.attribute((TEXT, "c")).and_then(|v| v.parse().ok()).unwrap_or(1);
+        out.push_str(&" ".repeat(count));
+    } else if exact && c.has_tag_name((TEXT, "tab")) {
+        out.push('\t');
+    } else if exact && c.has_tag_name((TEXT, "line-break")) {
+        out.push('\n');
+    } else if c.has_tag_name((TEXT, "tab")) || c.has_tag_name((TEXT, "line-break")) {
+        out.push(' ');
+    } else {
+        node_text(c, out, exact);
     }
 }
 
@@ -665,11 +799,61 @@ fn openmoji(href: &str) -> Option<(ImageProps, bool, bool)> {
     crate::picto::svg(code).is_some().then(|| (ImageProps { code: code.to_string(), outline }, flip_h, flip_v))
 }
 
+/// Pictogramme reconnu à ses octets, quel que soit le nom que LibreOffice a donné au fichier : le commentaire qui ouvre
+/// le SVG exporté par Cahutin le nomme (`odg::PICTO_MARK`), et le SVG doit être celui que Cahutin écrirait pour ce nom
+/// (une image remplacée ou retouchée reste une photo). Un SVG d'un fichier plus ancien, sans commentaire, est cherché
+/// parmi les images de la banque et leurs versions à colorier (voir `bank_svg`) ; retourné, il n'y est pas.
+fn openmoji_bytes(bytes: &[u8]) -> Option<(ImageProps, bool, bool)> {
+    let Some(rest) = bytes.strip_prefix(crate::odg::PICTO_MARK.as_bytes()) else { return bank_svg(bytes).map(|p| (p, false, false)) };
+    let end = rest.windows(4).position(|w| w == b" -->")?;
+    let stem = std::str::from_utf8(&rest[..end]).ok()?;
+    let (props, h, v) = openmoji(&format!("Pictures/{stem}.svg"))?;
+    (crate::odg::picto_file(&props.code, props.outline == Some(true), h, v)? == bytes).then_some((props, h, v))
+}
+
+/// L'image de la banque (ou sa version à colorier) dont le SVG est exactement `bytes`. L'empreinte de toutes les
+/// images n'est calculée qu'une fois, au premier SVG qui ressemble à une image OpenMoji (`id="emoji"`).
+fn bank_svg(bytes: &[u8]) -> Option<ImageProps> {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+    static BANK: std::sync::OnceLock<HashMap<u64, Vec<String>>> = std::sync::OnceLock::new();
+    if !bytes.windows(10).any(|w| w == b"id=\"emoji\"") {
+        return None;
+    }
+    let hash = |b: &[u8]| {
+        let mut h = DefaultHasher::new();
+        b.hash(&mut h);
+        h.finish()
+    };
+    let bank = BANK.get_or_init(|| {
+        let mut out: HashMap<u64, Vec<String>> = HashMap::new();
+        for name in crate::picto::names() {
+            if let Some(svg) = crate::picto::svg(&name) {
+                out.entry(hash(&svg)).or_default().push(name);
+            }
+        }
+        out
+    });
+    let name = bank.get(&hash(bytes))?.iter().find(|n| crate::picto::svg(n).as_deref() == Some(bytes))?;
+    Some(match name.strip_prefix("contour/") {
+        Some(code) => ImageProps { code: code.to_string(), outline: Some(true) },
+        None => ImageProps { code: name.clone(), outline: None },
+    })
+}
+
 /// Image de remplissage d'une case pictogramme exportée par Cahutin (`odg::PICTO_CELL_FILL`), même quand LibreOffice a
 /// renommé son fichier en réenregistrant : son nom garde celui du SVG (`_` y est écrit `_5f_`).
 fn openmoji_cell_fill(name: &str) -> Option<(ImageProps, bool, bool)> {
     let name = name.replace("_5f_", "_");
     openmoji(&format!("Pictures/{}.svg", name.strip_prefix(crate::odg::PICTO_CELL_FILL)?))
+}
+
+/// Les champs que l'export de Cahutin nomme dans la description d'un cadre de texte (`svg:desc`, « {PRENOM_1}
+/// {prenom_2} ») : ceux qui s'affichent comme un autre (`fields::shown_is_shared`), dans l'ordre du texte. Une
+/// description qui dit autre chose n'en nomme aucun.
+fn field_marks(frame: Node) -> Vec<String> {
+    let Some(desc) = frame.children().find(|c| c.has_tag_name((SVG, "desc"))).and_then(|d| d.text()) else { return Vec::new() };
+    let marks: Option<Vec<String>> = desc.split_whitespace().map(|t| t.strip_prefix('{')?.strip_suffix('}').filter(|f| crate::fields::shown_is_shared(f)).map(String::from)).collect();
+    marks.unwrap_or_default()
 }
 
 /// Polygone à quatre angles droits, côtés horizontaux et verticaux.
@@ -687,12 +871,16 @@ fn is_axis_rectangle(points: &str) -> bool {
     })
 }
 
-/// Un paragraphe lu : son alignement s'il en a un, ses passages, le passage qui donne l'allure d'une ligne vide, sa puce.
+/// Un paragraphe lu : son alignement s'il en a un, ses passages, le passage qui donne l'allure d'une ligne vide, sa puce,
+/// son interligne s'il en a un.
 struct ReadParagraph {
     align: Option<Align>,
     runs: Vec<Run>,
     first: Run,
     bullet: bool,
+    line_spacing: Option<f64>,
+    /// Écrit sur des lignes d'écriture (voir `Styles::on_lines`).
+    on_lines: bool,
 }
 
 /// Style d'un texte importé : la police, la taille et la couleur de son premier passage, l'alignement de son premier
@@ -707,8 +895,8 @@ fn text_style(first: &ReadParagraph, outline: bool, valign: Option<VAlign>, padd
         padding_mm,
         outline: outline.then_some(true),
         named: None,
-        // `fo:line-height` n'est pas lu : un texte importé garde l'interligne de sa police.
-        line_spacing: None,
+        // L'interligne du premier paragraphe ; 100 % (ce qu'écrit l'export sans réglage) : aucun.
+        line_spacing: first.line_spacing.filter(|v| (v - 1.0).abs() > 1e-6),
     }
 }
 
@@ -743,7 +931,7 @@ fn rich_text(paragraphs: Vec<ReadParagraph>, style: &TextStyle) -> RichText {
 impl<R: Read + Seek> PageReader<'_, R> {
     fn shape(&mut self, n: Node, frame: Frame, shape: ShapeKind) {
         let g = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s)).cloned().unwrap_or_default();
-        let (fill, stroke) = if shape == ShapeKind::Line {
+        let (fill, stroke) = if crate::shapes::is_stroke_only(shape) {
             (None, Some(g.stroke.unwrap_or(Stroke { width_mm: HAIRLINE_MM, color: "#000000".into(), style: None })))
         } else {
             (g.fill, g.stroke)
@@ -788,14 +976,14 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 if c.has_tag_name((TEXT, "span")) {
                     let st = c.attribute((TEXT, "style-name")).and_then(|s| self.styles.text.get(s)).cloned().unwrap_or_else(|| base.clone());
                     let mut t = String::new();
-                    node_text(c, &mut t);
+                    node_text(c, &mut t, false);
                     push(t, &st);
                 } else {
                     let mut t = String::new();
                     if c.is_text() {
                         t.push_str(&readable(c.text().unwrap_or("")));
                     } else {
-                        node_text(c, &mut t);
+                        node_text(c, &mut t, false);
                     }
                     push(t, &base);
                 }
@@ -853,9 +1041,14 @@ impl<R: Read + Seek> PageReader<'_, R> {
     /// Paragraphes d'un cadre de texte ou d'une case, avec leur alignement et leur marque de puce, et vrai si des lettres
     /// sont creuses. `fallback` donne ce que ni le paragraphe ni le passage ne disent (l'allure du texte d'une case) ;
     /// `zero_width` retire les espaces sans largeur (U+200B), qui tiennent basse une ligne de tableau vide.
-    fn paragraphs<'n>(&self, ps: impl Iterator<Item = Node<'n, 'n>>, fallback: &SpanStyle, zero_width: bool) -> (Vec<ReadParagraph>, bool) {
-        let mut paragraphs = Vec::new();
+    /// Un passage à l'encre transparente qui dit exactement le nom d'un champ redevient ce champ ; une lettre (qui ne
+    /// montre que son numéro) ne le redevient que si `marks` (voir `field_marks`) nomme dans l'ordre les lettres que
+    /// montrent ces passages. Un autre passage transparent reste du texte, à l'encre de sa couleur.
+    fn paragraphs<'n>(&self, ps: impl Iterator<Item = Node<'n, 'n>>, fallback: &SpanStyle, zero_width: bool, marks: &[String]) -> (Vec<ReadParagraph>, bool) {
+        let mut paragraphs: Vec<ReadParagraph> = Vec::new();
         let mut outline = false;
+        // Passages transparents qui montrent un nom de champ partagé (paragraphe, passage).
+        let mut shared: Vec<(usize, usize)> = Vec::new();
         for p in ps {
             let p_style = p.attribute((TEXT, "style-name"));
             let base = match p_style.and_then(|s| self.styles.text.get(s)) {
@@ -866,11 +1059,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
             for c in p.children() {
                 let st = if c.has_tag_name((TEXT, "span")) { c.attribute((TEXT, "style-name")).and_then(|s| self.styles.text.get(s)).cloned().unwrap_or_else(|| base.clone()) } else { base.clone() };
                 let mut t = String::new();
-                if c.is_text() {
-                    t.push_str(&readable(c.text().unwrap_or("")));
-                } else {
-                    node_text(c, &mut t);
-                }
+                push_text(c, &mut t, self.whole_frames);
                 if zero_width {
                     t.retain(|c| c != '\u{200B}');
                 }
@@ -878,6 +1067,12 @@ impl<R: Read + Seek> PageReader<'_, R> {
                     continue;
                 }
                 outline |= st.outline;
+                if st.transparent {
+                    match crate::fields::from_shown_run(&t) {
+                        Some(fields) => t = fields.iter().map(|f| format!("{{{f}}}")).collect(),
+                        None => shared.push((paragraphs.len(), runs.len())),
+                    }
+                }
                 runs.push(Run {
                     text: t,
                     bold: st.bold,
@@ -890,7 +1085,32 @@ impl<R: Read + Seek> PageReader<'_, R> {
             }
             // Le style du paragraphe donne la police d'une ligne vide.
             let first = runs.first().cloned().unwrap_or(Run { font: base.font.clone(), size_pt: base.size_pt, color: base.color.clone(), ..Run::plain("") });
-            paragraphs.push(ReadParagraph { align: p_style.and_then(|s| self.styles.align.get(s)).copied(), runs, first, bullet: self.bulleted(p) });
+            let line_spacing = p_style.and_then(|s| self.styles.line_spacing.get(s)).copied();
+            let on_lines = p_style.is_some_and(|s| self.styles.on_lines.contains(s));
+            paragraphs.push(ReadParagraph { align: p_style.and_then(|s| self.styles.align.get(s)).copied(), runs, first, bullet: self.bulleted(p), line_spacing, on_lines });
+        }
+        // Chaque passage prend les lettres suivantes de la description tant qu'elles montrent son texte (LibreOffice recolle
+        // deux lettres voisines en un passage : « 12 ») ; toutes doivent servir, et chaque passage en avoir.
+        let mut next = 0;
+        let mut taken: Vec<String> = Vec::new();
+        for &(p, r) in &shared {
+            let text = &paragraphs[p].runs[r].text;
+            let (mut shown, mut tokens) = (String::new(), String::new());
+            while shown.len() < text.len() && next < marks.len() {
+                shown.push_str(&crate::fields::shown(&marks[next]).unwrap_or_default());
+                tokens.push_str(&format!("{{{}}}", marks[next]));
+                next += 1;
+            }
+            if shown != *text {
+                taken.clear();
+                break;
+            }
+            taken.push(tokens);
+        }
+        if next == marks.len() && taken.len() == shared.len() {
+            for (&(p, r), tokens) in shared.iter().zip(taken) {
+                paragraphs[p].runs[r].text = tokens;
+            }
         }
         (paragraphs, outline)
     }
@@ -899,24 +1119,119 @@ impl<R: Read + Seek> PageReader<'_, R> {
     /// la bordure et l'arrondi du cadre. La mention de licence OpenMoji, ajoutée par l'export, est laissée.
     fn whole_text_box(&mut self, frame: Frame, frame_node: Node, text_box: Node) {
         let g = frame_node.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s)).cloned().unwrap_or_default();
-        let (paragraphs, outline) = self.paragraphs(text_box.descendants().filter(|n| n.has_tag_name((TEXT, "p"))), &SpanStyle::default(), false);
+        let (paragraphs, outline) = self.paragraphs(text_box.descendants().filter(|n| n.has_tag_name((TEXT, "p"))), &SpanStyle::default(), false, &field_marks(frame_node));
         let plain: String = paragraphs.iter().flat_map(|p| p.runs.iter().map(|r| r.text.as_str())).collect();
         if plain.trim() == crate::odg::OPENMOJI_CREDIT_PAGE || plain.trim() == crate::odg::OPENMOJI_CREDIT {
             return;
         }
-        let Some(first) = paragraphs.first() else { return };
-        let style = text_style(first, outline, g.valign, g.padding_mm);
-        let content = rich_text(paragraphs, &style);
         let radius = text_box.attribute((DRAW, "corner-radius")).and_then(length_mm).unwrap_or(0.0);
-        let text_frame = (g.fill.is_some() || g.stroke.is_some() || radius > 0.0).then(|| TextFrame { fill: g.fill.clone(), stroke: g.stroke.clone(), corner_radius_mm: radius, image: None, pattern: None, write_on_lines: None });
+        // Cadre à lignes d'écriture : son fond, sa bordure et ses lignes, dessinés juste avant par l'export, le redeviennent.
+        let visible = g.fill.is_some() || g.stroke.is_some() || g.fill_image.is_some();
+        let lined = if visible { None } else { self.lined_frame(frame) };
+        // Sans paragraphe ni cadre visible, rien ne se voit : rien n'est repris.
+        if paragraphs.is_empty() && !visible && lined.is_none() {
+            return;
+        }
+        let text_frame = match lined {
+            Some(mut lined) => {
+                // Écrit sur les lignes : la hauteur de ligne du paragraphe, ou (une étiquette vide, dont LibreOffice ne
+                // garde pas le style du paragraphe) la marge du haut, la descendante de la police, qui n'est alors pas
+                // celle des côtés.
+                let top_differs = matches!((g.padding_top_mm, g.padding_mm), (Some(t), Some(l)) if (t - l).abs() > 0.01);
+                let on_lines = paragraphs.first().is_some_and(|p| p.on_lines) || top_differs;
+                lined.write_on_lines = (on_lines && matches!(lined.pattern, Some(Pattern::Seyes | Pattern::Lines))).then_some(true);
+                Some(lined)
+            }
+            None => {
+                // Image de fond : une photo de la photothèque, décodée à la fin de la page comme les autres (`decode_page`).
+                let image = g.fill_image.as_ref().and_then(|name| Some((name.clone(), self.fill_images.get(name)?.clone()))).and_then(|(name, href)| self.fill_picture(frame, &name, &href, radius)).and_then(|e| match e.kind {
+                    ElementKind::Photo(p) => p.asset,
+                    _ => None,
+                });
+                (visible || radius > 0.0 || image.is_some()).then(|| TextFrame { fill: g.fill.clone(), stroke: g.stroke.clone(), corner_radius_mm: radius, image, pattern: None, write_on_lines: None })
+            }
+        };
+        // Une étiquette encadrée vide : l'allure de son paragraphe vide (ce qu'écrit l'export) ; sans elle (un paragraphe
+        // vide sans style, ou aucun), celle d'une zone de texte.
+        // L'allure du cadre : son style graphique (l'export), ou son style de texte (LibreOffice l'y range en
+        // réenregistrant).
+        let frame_text = [(DRAW, "style-name"), (DRAW, "text-style-name")].into_iter().filter_map(|a| frame_node.attribute(a).and_then(|s| self.styles.text.get(s))).find(|t| t.font.is_some());
+        let style = match (paragraphs.first(), frame_text) {
+            (Some(first), _) if first.first.font.is_some() || !first.runs.is_empty() => text_style(first, outline, g.valign, g.padding_mm),
+            // Le paragraphe vide a perdu son style en passant par LibreOffice : celui du cadre (voir `odg::content`).
+            (_, Some(t)) => {
+                let first = Run { font: t.font.clone(), size_pt: t.size_pt, color: t.color.clone(), ..Run::plain("") };
+                text_style(&ReadParagraph { align: paragraphs.first().and_then(|p| p.align), runs: Vec::new(), first, bullet: false, line_spacing: None, on_lines: false }, outline, g.valign, g.padding_mm)
+            }
+            _ => TextStyle { valign: g.valign, padding_mm: g.padding_mm, ..TextStyle::default_zone() },
+        };
+        // Rien d'écrit : aucun paragraphe, comme un texte vide de Cahutin.
+        let blank = paragraphs.iter().all(|p| p.runs.iter().all(|r| r.text.trim().is_empty()));
+        let content = if blank { RichText::default() } else { rich_text(paragraphs, &style) };
         let props = TextProps { content, style, prompt: None, frame: text_frame };
         self.items.push(Item::Element(Box::new(element(frame, ElementKind::Text(props)))));
+    }
+
+    /// Le fond, la bordure et les lignes (ou les points) d'un cadre de texte à lignes d'écriture tels que l'export les
+    /// écrit (`odg::content`, `frame_lines`), juste avant le cadre de texte `frame` : un rectangle (ou, avec une image
+    /// de fond, une photo) au même cadre, puis exactement les traits et les points d'un motif (`background::frame_marks`
+    /// à la taille du cadre, tournés avec lui), hors de tout groupe et dans le même groupe LibreOffice que le texte. Ils
+    /// sont retirés de la page et deviennent le cadre du texte. Si quelque chose ne colle pas (ou si le motif n'a aucun
+    /// trait à cette taille), rien n'est retiré.
+    fn lined_frame(&mut self, frame: Frame) -> Option<TextFrame> {
+        let same = |a: &Frame| [a.x_mm - frame.x_mm, a.y_mm - frame.y_mm, a.w_mm - frame.w_mm, a.h_mm - frame.h_mm].iter().all(|d| d.abs() < 0.05) && ((a.rotation_deg - frame.rotation_deg + 180.0).rem_euclid(360.0) - 180.0).abs() < 0.01;
+        let (cx, cy) = (frame.x_mm + frame.w_mm / 2.0, frame.y_mm + frame.h_mm / 2.0);
+        let (sin, cos) = frame.rotation_deg.to_radians().sin_cos();
+        let at = |x: f64, y: f64| {
+            let (dx, dy) = (x - frame.w_mm / 2.0, y - frame.h_mm / 2.0);
+            (cx + dx * cos - dy * sin, cy + dx * sin + dy * cos)
+        };
+        for pattern in [Pattern::Seyes, Pattern::SmallSquares, Pattern::Lines, Pattern::Dots] {
+            let expected = expected_marks(crate::background::frame_marks(PageSize { width_mm: frame.w_mm, height_mm: frame.h_mm }, pattern), at);
+            let n = expected.len();
+            // Un cadre trop petit pour une seule ligne : rien ne dit que le rectangle d'avant est le sien.
+            if n == 0 {
+                continue;
+            }
+            let Some(back) = self.items.len().checked_sub(n + 1).filter(|b| *b >= self.group_floor) else { continue };
+            let mut read: Vec<ReadMark> = Vec::new();
+            for it in &self.items[back + 1..] {
+                let Item::Element(e) = it else { break };
+                let ElementKind::Shape(s) = &e.kind else { break };
+                let f = e.frame;
+                match (s.shape, &s.stroke, &s.fill) {
+                    (ShapeKind::Line, Some(st), None) if e.group.is_none() => {
+                        let (sn, cs) = f.rotation_deg.to_radians().sin_cos();
+                        let (mx, my, hw) = (f.x_mm + f.w_mm / 2.0, f.y_mm + f.h_mm / 2.0, f.w_mm / 2.0);
+                        read.push((true, [mx - hw * cs, my - hw * sn, mx + hw * cs, my + hw * sn], st.width_mm, st.color.to_lowercase()));
+                    }
+                    (ShapeKind::Ellipse, None, Some(fill)) if e.group.is_none() && f.rotation_deg == 0.0 => read.push((false, [f.x_mm + f.w_mm / 2.0, f.y_mm + f.h_mm / 2.0, f.w_mm, f.h_mm], 0.0, fill.to_lowercase())),
+                    _ => break,
+                }
+            }
+            if read.len() != n || !same_marks(read, expected) {
+                continue;
+            }
+            let lined = match &self.items[back] {
+                Item::Element(e) if e.group.is_none() && same(&e.frame) => match &e.kind {
+                    ElementKind::Shape(s) if s.shape == ShapeKind::Rect => TextFrame { fill: s.fill.clone(), stroke: s.stroke.clone(), corner_radius_mm: s.corner_radius_mm, image: None, pattern: Some(pattern), write_on_lines: None },
+                    ElementKind::Photo(p) => TextFrame { fill: None, stroke: p.border.clone(), corner_radius_mm: p.corner_radius_mm, image: p.asset.clone(), pattern: Some(pattern), write_on_lines: None },
+                    _ => continue,
+                },
+                _ => continue,
+            };
+            self.items.truncate(back);
+            return Some(lined);
+        }
+        None
     }
 
     /// Les images d'un cadre : la première que Cahutin sait lire. LibreOffice range souvent une image en deux
     /// exemplaires, un dessin (WMF, EMF, SVG) puis une copie en PNG pour les logiciels qui ne lisent pas le premier.
     fn image(&mut self, frame: Frame, images: Vec<Node>) {
-        if let Some((picto, flip_h, flip_v)) = images[0].attribute((XLINK, "href")).and_then(openmoji) {
+        let href = images[0].attribute((XLINK, "href"));
+        let picto = href.and_then(openmoji).or_else(|| href.filter(|h| h.ends_with(".svg")).and_then(|h| read_entry(self.zip, h)).and_then(|b| openmoji_bytes(&b)));
+        if let Some((picto, flip_h, flip_v)) = picto {
             self.items.push(Item::Element(Box::new(Element { flip_h, flip_v, ..element(frame, ElementKind::Image(picto)) })));
             return;
         }
@@ -975,23 +1290,45 @@ impl<R: Read + Seek> PageReader<'_, R> {
     }
 
     /// Une forme remplie d'une image (la façon de LibreOffice de poser une photo dans un cadre, arrondi ou non) :
-    /// elle devient une photo, à sa place. Faux si la forme n'a pas d'image de remplissage lisible.
+    /// elle devient une photo, à sa place, avec le trait de la forme pour bordure et son ombre. Faux si la forme n'a
+    /// pas d'image de remplissage lisible.
     fn filled_with_image(&mut self, n: Node) -> bool {
+        let at = self.items.len();
+        let placed = self.filled_photo(n);
+        let g = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s));
+        if let (true, Some(g), Some(Item::Element(e))) = (placed, g, self.items.get_mut(at))
+            && let ElementKind::Photo(p) = &mut e.kind
+        {
+            p.border = g.stroke.clone();
+            p.shadow = g.shadow;
+        }
+        placed
+    }
+
+    fn filled_photo(&mut self, n: Node) -> bool {
         let name = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s)).and_then(|g| g.fill_image.clone());
         let href = name.as_ref().and_then(|name| self.fill_images.get(name)).cloned();
         let (Some(href), Some(frame)) = (href, frame_of(n)) else { return false };
         let radius = if n.has_tag_name((DRAW, "rect")) { n.attribute((DRAW, "corner-radius")).and_then(length_mm).unwrap_or(0.0) } else { 0.0 };
-        // Image posée tournée par l'export de Cahutin (`odg::turned_box_mm`) : redressée dans le cadre.
-        if frame.rotation_deg != 0.0 && name.is_some_and(|n| n.ends_with(crate::odg::TURNED_FILL)) {
-            let upright = read_entry(self.zip, &href).and_then(|b| image::load_from_memory(&b).ok()).and_then(|img| {
+        let Some(e) = self.fill_picture(frame, name.as_deref().unwrap_or(""), &href, radius) else { return false };
+        self.items.push(Item::Element(Box::new(e)));
+        true
+    }
+
+    /// La photo que donne l'image de remplissage `name` (rangée sous `href`) d'une forme ou d'un cadre de texte aux coins
+    /// arrondis de `radius`, sans la poser. Une image posée tournée par l'export de Cahutin (`odg::turned_box_mm`, son
+    /// nom finit par `odg::TURNED_FILL`) est redressée dans le cadre.
+    fn fill_picture(&mut self, frame: Frame, name: &str, href: &str, radius: f64) -> Option<Element> {
+        if frame.rotation_deg != 0.0 && name.ends_with(crate::odg::TURNED_FILL) {
+            let upright = read_entry(self.zip, href).and_then(|b| image::load_from_memory(&b).ok()).and_then(|img| {
                 let (bw, bh) = crate::odg::turned_box_mm(&frame, radius);
                 let px_per_mm = (img.width() as f64 / bw).max(img.height() as f64 / bh);
                 let out = crate::odg::turned_image(&img.to_rgba8(), (bw, bh), (frame.w_mm, frame.h_mm), px_per_mm, -frame.rotation_deg);
                 crate::photo::encode(&image::DynamicImage::ImageRgba8(out), Mime::Png).ok()
             });
-            return upright.is_some_and(|b| self.photo_from(frame, &format!("{href}{}", crate::odg::TURNED_FILL), radius, Some(b)));
+            return upright.and_then(|b| self.photo_element(frame, &format!("{href}{}", crate::odg::TURNED_FILL), radius, Some(b)));
         }
-        self.photo(frame, &href, radius)
+        self.photo_element(frame, href, radius, None)
     }
 
     /// Un tableau de LibreOffice (`table:table` dans un `draw:frame`) : un tableau de Cahutin à la place du cadre, ses
@@ -1092,13 +1429,13 @@ impl<R: Read + Seek> PageReader<'_, R> {
                     }
                     let cell = *n;
                     let ps = n.descendants().filter(|p| p.has_tag_name((TEXT, "p")) && p.ancestors().find(|a| a.has_tag_name((TABLE, "table-cell"))) == Some(cell));
-                    self.paragraphs(ps, &fallback, true)
+                    self.paragraphs(ps, &fallback, true, &[])
                 }
                 None => (Vec::new(), false),
             };
             let empty = paragraphs.iter().all(|p| p.runs.iter().all(|r| r.text.trim().is_empty()));
-            let first = paragraphs.first().map(|p| ReadParagraph { align: p.align, runs: Vec::new(), first: p.first.clone(), bullet: false });
-            let first = first.unwrap_or(ReadParagraph { align: None, runs: Vec::new(), first: Run { font: fallback.font.clone(), size_pt: fallback.size_pt, color: fallback.color.clone(), ..Run::plain("") }, bullet: false });
+            let first = paragraphs.first().map(|p| ReadParagraph { align: p.align, runs: Vec::new(), first: p.first.clone(), bullet: false, line_spacing: p.line_spacing, on_lines: false });
+            let first = first.unwrap_or(ReadParagraph { align: None, runs: Vec::new(), first: Run { font: fallback.font.clone(), size_pt: fallback.size_pt, color: fallback.color.clone(), ..Run::plain("") }, bullet: false, line_spacing: None, on_lines: false });
             let text_style = text_style(&first, outline, style.valign, style.padding_mm);
             // Une case sans paragraphe a la hauteur d'une ligne vide (LibreOffice : celle de sa police).
             let line_mm = |size_pt: f64| size_pt * CELL_LINE_EM * 25.4 / 72.0;
@@ -1195,13 +1532,41 @@ impl<R: Read + Seek> PageReader<'_, R> {
         self.items.extend(page.elements.into_iter().map(|e| Item::Element(Box::new(e))));
     }
 
+    /// Un objet de la page ; protégé dans LibreOffice (`style:protect` de son style), ce qu'il donne est verrouillé.
+    /// Un vrai tableau protégé : le tableau verrouillé, pas ses cases (comme l'export, qui ne protège que le tableau).
     fn node(&mut self, n: Node) {
+        let start = self.items.len();
+        self.node_kind(n);
+        if self.whole_frames && self.items.len() == start + 1 {
+            self.shape_text(n);
+        }
+        // Un cadre à lignes d'écriture a repris les objets posés avant lui (`lined_frame`) : il est le dernier.
+        let start = if self.items.len() < start { self.items.len() - 1 } else { start };
+        if n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s)).is_some_and(|g| g.protect) {
+            let table = n.children().any(|c| c.has_tag_name((TABLE, "table")));
+            for it in &mut self.items[start..] {
+                if let Item::Element(e) = it
+                    && (!table || matches!(e.kind, ElementKind::Table(_)))
+                {
+                    e.locked = true;
+                }
+            }
+        }
+    }
+
+    fn node_kind(&mut self, n: Node) {
         if !n.is_element() {
             return;
         }
         if n.has_tag_name((DRAW, "g")) {
+            let start = self.items.len();
+            let floor = std::mem::replace(&mut self.group_floor, start);
             for c in n.children() {
                 self.node(c);
+            }
+            self.group_floor = floor;
+            if self.whole_frames {
+                self.group_from(start);
             }
             return;
         }
@@ -1274,13 +1639,75 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 let (Some(x1), Some(y1), Some(x2), Some(y2)) = (attr_mm(n, SVG, "x1"), attr_mm(n, SVG, "y1"), attr_mm(n, SVG, "x2"), attr_mm(n, SVG, "y2")) else {
                     return self.skipped += 1;
                 };
-                // Trait Carnet : du milieu du bord gauche au milieu du bord droit du cadre, tourné.
+                // Trait Carnet : du milieu du bord gauche au milieu du bord droit du cadre, tourné. Une pointe au bout
+                // (`draw:marker-end`, ce qu'écrit l'export) en fait une flèche, haute de sa pointe ; une pointe au
+                // début seulement (dessinée dans LibreOffice) aussi, le trait pris dans l'autre sens. Une flèche
+                // retournée revient tournée d'un demi-tour : à l'écran, c'est la même.
+                let g = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s));
+                let start_only = g.is_some_and(|g| g.marker_end.is_none() && g.marker_start);
+                let ((x1, y1), (x2, y2)) = if start_only { ((x2, y2), (x1, y1)) } else { ((x1, y1), (x2, y2)) };
+                let head = g.and_then(|g| g.marker_end).or(start_only.then_some(4.0));
                 let len = (x2 - x1).hypot(y2 - y1);
-                let (cx, cy, h) = ((x1 + x2) / 2.0, (y1 + y2) / 2.0, 2.0);
+                let (cx, cy, h) = ((x1 + x2) / 2.0, (y1 + y2) / 2.0, head.unwrap_or(2.0).max(2.0));
                 let rotation_deg = (y2 - y1).atan2(x2 - x1).to_degrees();
-                self.shape(n, Frame { x_mm: cx - len / 2.0, y_mm: cy - h / 2.0, w_mm: len, h_mm: h, rotation_deg }, ShapeKind::Line);
+                self.shape(n, Frame { x_mm: cx - len / 2.0, y_mm: cy - h / 2.0, w_mm: len, h_mm: h, rotation_deg }, if head.is_some() { ShapeKind::Arrow } else { ShapeKind::Line });
             }
             _ => self.skipped += 1,
+        }
+    }
+
+    /// Le texte tapé dans une forme dans LibreOffice (ses `text:p`, que l'export de Cahutin n'écrit jamais) : un texte
+    /// posé sur la forme, au même cadre, centré comme LibreOffice le pose (sauf réglage de la forme), groupé avec elle.
+    /// Une forme sans texte (LibreOffice lui ajoute un paragraphe vide en réenregistrant) reste seule.
+    fn shape_text(&mut self, n: Node) {
+        let shaped = matches!(n.tag_name().name(), "rect" | "ellipse" | "circle" | "custom-shape" | "polygon") && n.tag_name().namespace() == Some(DRAW);
+        let Some(Item::Element(shape)) = self.items.last() else { return };
+        if !shaped || !matches!(shape.kind, ElementKind::Shape(_) | ElementKind::Photo(_)) {
+            return;
+        }
+        let (frame, group) = (shape.frame, crate::groups::path(shape));
+        let (paragraphs, outline) = self.paragraphs(n.children().filter(|c| c.has_tag_name((TEXT, "p"))), &SpanStyle::default(), false, &[]);
+        if paragraphs.iter().all(|p| p.runs.iter().all(|r| r.text.trim().is_empty())) {
+            return;
+        }
+        let g = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s)).cloned().unwrap_or_default();
+        let first = &paragraphs[0];
+        let mut style = text_style(first, outline, Some(g.valign.unwrap_or(VAlign::Middle)), g.padding_mm);
+        if first.align.is_none() {
+            style.align = Align::Center;
+        }
+        let content = rich_text(paragraphs, &style);
+        let id = new_id();
+        let mut text = element(frame, ElementKind::Text(TextProps { content, style, prompt: None, frame: None }));
+        crate::groups::set_path(&mut text, [group.clone(), vec![id.clone()]].concat());
+        if let Some(Item::Element(shape)) = self.items.last_mut() {
+            crate::groups::set_path(shape, [group, vec![id]].concat());
+        }
+        self.items.push(Item::Element(Box::new(text)));
+    }
+
+    /// Un groupe LibreOffice (`draw:g`) lu dans un dessin : les éléments posés depuis `start` en deviennent un groupe,
+    /// autour des groupes qu'ils forment déjà (un groupe dans un groupe). Un tableau et ses cases gardent leur seul
+    /// groupe, comme dans Cahutin, où un tableau n'entre dans aucun groupe. Les tracés redessinés au fond de la page ne
+    /// sont pas des éléments posés ici : ils quittent le groupe. Un groupe d'un seul membre ou vide est défait à la fin
+    /// de la page (`groups::dissolve_small_groups`).
+    fn group_from(&mut self, start: usize) {
+        let tables: Vec<Id> = self.items[start..]
+            .iter()
+            .filter_map(|it| match it {
+                Item::Element(e) if matches!(e.kind, ElementKind::Table(_)) => e.group.clone(),
+                _ => None,
+            })
+            .collect();
+        let id = new_id();
+        for it in &mut self.items[start..] {
+            if let Item::Element(e) = it
+                && !e.group.as_ref().is_some_and(|g| tables.contains(g))
+            {
+                let mut path = crate::groups::path(e);
+                path.insert(0, id.clone());
+                crate::groups::set_path(e, path);
+            }
         }
     }
 
@@ -1468,6 +1895,16 @@ fn decode_page(elements: &mut Vec<Element>, pending: Vec<(String, Vec<u8>, f64)>
         .collect();
     let cells: Vec<String> = elements.iter().filter_map(|e| if let ElementKind::Table(t) = &e.kind { Some(t.cells.iter().map(|c| c.element_id.clone())) } else { None }).flatten().collect();
     let mut lost = 0;
+    let decoded = |asset: &str| asset.strip_prefix(PENDING).and_then(|i| i.parse::<usize>().ok()).map(|at| ids.get(at).cloned().flatten());
+    for e in elements.iter_mut() {
+        if let ElementKind::Text(t) = &mut e.kind
+            && let Some(f) = &mut t.frame
+            && let Some(id) = f.image.as_deref().and_then(decoded)
+        {
+            lost += usize::from(id.is_none());
+            f.image = id;
+        }
+    }
     elements.retain_mut(|e| {
         let ElementKind::Photo(p) = &mut e.kind else { return true };
         let Some(at) = p.asset.as_deref().and_then(|a| a.strip_prefix(PENDING)).and_then(|i| i.parse::<usize>().ok()) else { return true };
@@ -1498,10 +1935,11 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
     let docs = [Some(&doc), styles_doc.as_ref()].into_iter().flatten().collect::<Vec<_>>();
     let dashes = stroke_dashes(&docs);
     let fills = fill_images(&docs);
-    let mut styles = read_styles(&doc, known_fonts, &dashes);
+    let mut styles = read_styles(&doc, known_fonts, &dashes, &dash_styles(&docs));
     styles.bullet_lists = bullet_lists(&docs);
     (styles.cells, styles.columns, styles.rows) = table_styles(&docs, known_fonts);
     let sizes = page_sizes(styles_xml.as_deref());
+    let page_fills = drawing_page_fills(&doc);
     let generator = read_entry(&mut zip, "meta.xml").and_then(|b| String::from_utf8(b).ok()).and_then(|x| {
         let meta = roxmltree::Document::parse(&x).ok()?;
         meta.descendants().find(|n| n.has_tag_name((META, "generator"))).and_then(|n| n.text()).map(str::to_string)
@@ -1514,7 +1952,7 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
     // Images déjà décodées, par chemin dans le fichier : une image reprise sur plusieurs pages ne l'est qu'une fois.
     let mut known: HashMap<String, String> = HashMap::new();
     for page_node in doc.descendants().filter(|n| n.has_tag_name((DRAW, "page"))) {
-        let mut reader = PageReader { styles: &styles, fill_images: &fills, known: &known, pending: Vec::new(), zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, drawings: Vec::new(), shrunk: 0, whole_frames, screen_mirror_angles };
+        let mut reader = PageReader { styles: &styles, fill_images: &fills, known: &known, pending: Vec::new(), zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, drawings: Vec::new(), shrunk: 0, whole_frames, screen_mirror_angles, group_floor: 0 };
         for c in page_node.children() {
             reader.node(c);
         }
@@ -1522,10 +1960,18 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
         shrunk += page_shrunk;
         skipped += decode_page(&mut elements, pending, &mut known, &mut assets);
         let size = page_node.attribute((DRAW, "master-page-name")).and_then(|m| sizes.by_master.get(m)).copied().unwrap_or(sizes.default);
-        let background = page_node.attribute((DRAW, "master-page-name")).and_then(|m| sizes.background.get(m)).cloned();
+        let mut background = page_node.attribute((DRAW, "master-page-name")).and_then(|m| sizes.background.get(m)).cloned();
+        // Un fond donné à la page elle-même dans LibreOffice (son style, dans `content.xml`) l'emporte sur celui de la
+        // page maîtresse.
+        if let Some(color) = page_node.attribute((DRAW, "style-name")).and_then(|n| page_fills.get(n)) {
+            background = Some(Background { color: color.clone(), pattern: background.and_then(|b| b.pattern) });
+        }
         let mut page = Page { elements, background, ..Page::new(size) };
         super::tidy::full_page_rect_to_background(&mut page);
         super::tidy::group_fragments(&mut page);
+        if whole_frames {
+            crate::groups::dissolve_small_groups(&mut page);
+        }
         // Les tracés au fond de la page, sous les textes et les photos. Peu nombreux (une fiche de graphisme) : des
         // formes modifiables ; nombreux (une illustration) : une image fixe, verrouillée, plus fidèle.
         let editable = (!drawings.is_empty() && drawings.len() <= EDITABLE_TRACES).then(|| drawings.iter().map(Drawing::to_shape).collect::<Option<Vec<_>>>()).flatten();
@@ -1651,6 +2097,133 @@ mod tests {
         let mut out = Cursor::new(Vec::new());
         RgbImage::from_pixel(40, 30, Rgb([240, 200, 120])).write_to(&mut out, ImageFormat::Png).unwrap();
         out.into_inner()
+    }
+
+    fn read_whole(body: &str) -> Imported {
+        read_drawing(Cursor::new(odg_fixture(body, A4_LAYOUT, &[])), &known()).unwrap()
+    }
+
+    /// Groupes d'un dessin LibreOffice : un groupe dans un groupe revient imbriqué ; un groupe d'un seul membre (un
+    /// élément ou un groupe) et un groupe vide sont défaits. Dans l'import d'un PDF, rien n'est groupé.
+    #[test]
+    fn libreoffice_groups_become_groups_and_lonely_ones_are_undone() {
+        let rect = |x: u32| format!(r#"<draw:rect draw:style-name="gr1" svg:x="{x}mm" svg:y="10mm" svg:width="5mm" svg:height="5mm"/>"#);
+        let body = format!("<draw:g><draw:g>{}{}</draw:g>{}</draw:g><draw:g><draw:g>{}{}</draw:g></draw:g><draw:g>{}</draw:g><draw:g/>", rect(10), rect(20), rect(30), rect(40), rect(50), rect(60));
+        let page = &read_whole(&body).pages[0];
+        let paths: Vec<usize> = page.elements.iter().map(|e| crate::groups::path(e).len()).collect();
+        assert_eq!(paths, [2, 2, 1, 1, 1, 0]);
+        let g = |i: usize| crate::groups::path(&page.elements[i]);
+        assert!(g(0) == g(1) && g(0)[0] == g(2)[0] && g(3) == g(4) && g(3) != g(0)[..1], "{:?}", page.elements);
+        assert!(read(&body).pages[0].elements.iter().all(|e| e.group.is_none()));
+    }
+
+    /// Un champ non rempli tel que LibreOffice le réenregistre (relevé dans `lo2/p09_champs.odg`, LibreOffice 26.8 : les
+    /// passages gardent leur style, l'encre transparente `loext:opacity="0%"`, les autres `100%`). Le nom d'un champ
+    /// redevient le champ ; une lettre ne le redevient que si la description du cadre la nomme encore ; un autre texte
+    /// transparent reste du texte.
+    #[test]
+    fn transparent_field_names_become_fields_again() {
+        let auto = r##"<style:style style:name="Tv" style:family="text"><style:text-properties fo:color="#222222" loext:opacity="100%" style:font-name="Liberation Sans" fo:font-size="14pt"/></style:style><style:style style:name="Tt" style:family="text"><style:text-properties fo:color="#222222" loext:opacity="0%" style:font-name="Liberation Sans" fo:font-size="14pt"/></style:style>"##;
+        let frame = |y: u32, spans: &str, desc: &str| format!(r#"<draw:frame draw:style-name="gr2" svg:width="19cm" svg:height="2cm" svg:x="1cm" svg:y="{y}cm"><draw:text-box><text:p>{spans}</text:p></draw:text-box>{desc}</draw:frame>"#);
+        let body = [
+            frame(1, r#"<text:span text:style-name="Tv">Bonjour </text:span><text:span text:style-name="Tt">Prénom</text:span><text:span text:style-name="Tv"> !</text:span>"#, ""),
+            frame(4, r#"<text:span text:style-name="Tt">2</text:span><text:span text:style-name="Tt">3</text:span>"#, "<svg:desc>{PRENOM_2} {prenom_3}</svg:desc>"),
+            frame(7, r#"<text:span text:style-name="Tt">2</text:span>"#, "<svg:desc>{PRENOM_4}</svg:desc>"),
+            frame(10, r#"<text:span text:style-name="Tt">2</text:span>"#, ""),
+            frame(13, r#"<text:span text:style-name="Tt">Coucou</text:span><text:span text:style-name="Tv">Prénom</text:span>"#, ""),
+            // Deux champs voisins recollés par LibreOffice en un passage.
+            frame(16, r#"<text:span text:style-name="Tt">12</text:span>"#, "<svg:desc>{PRENOM_1} {prenom_2}</svg:desc>"),
+            frame(19, r#"<text:span text:style-name="Tt">PRÉNOMÂge</text:span>"#, ""),
+        ]
+        .concat();
+        let odg = odg_with_styles(&format!(r#"<draw:page draw:name="page1">{body}</draw:page>"#), &format!(r#"<style:page-layout style:name="PM1"><style:page-layout-properties {A4_LAYOUT}/></style:page-layout>"#), "", &[], auto, "");
+        let page = &read_drawing(Cursor::new(odg), &known()).unwrap().pages[0];
+        let got: Vec<String> = texts(page).into_iter().map(plain).collect();
+        assert_eq!(got, ["Bonjour {prenom} !", "{PRENOM_2}{prenom_3}", "2", "2", "CoucouPrénom", "{PRENOM_1}{prenom_2}", "{PRENOM}{age}"]);
+    }
+
+    /// Un fond donné à la page dans LibreOffice (relevé dans un fichier retouché par UNO, LibreOffice 26.8 : le style
+    /// `dp1` de la page dans `content.xml`) l'emporte sur celui de la page maîtresse ; un style de page sans fond le
+    /// laisse.
+    #[test]
+    fn a_page_colour_set_in_libreoffice_is_the_page_background() {
+        let auto = r##"<style:style style:name="dp1" style:family="drawing-page"><style:drawing-page-properties draw:fill="solid" draw:fill-color="#ccffcc"/></style:style><style:style style:name="dp2" style:family="drawing-page"/>"##;
+        let pages = r#"<draw:page draw:name="page1" draw:style-name="dp1" draw:master-page-name="M1"/><draw:page draw:name="page2" draw:style-name="dp2" draw:master-page-name="M1"/>"#;
+        let layouts = format!(r##"<style:page-layout style:name="PM1"><style:page-layout-properties {A4_LAYOUT}/></style:page-layout><style:style style:name="Mdp1" style:family="drawing-page"><style:drawing-page-properties draw:fill="solid" draw:fill-color="#d8bc8a"/></style:style>"##);
+        let masters = r#"<style:master-page style:name="M1" style:page-layout-name="PM1" draw:style-name="Mdp1"/>"#;
+        let odg = odg_with_styles(pages, &layouts, masters, &[], auto, "");
+        let back = read_drawing(Cursor::new(odg), &known()).unwrap();
+        let colours: Vec<Option<String>> = back.pages.iter().map(|p| p.background.as_ref().map(|b| b.color.clone())).collect();
+        assert_eq!(colours, [Some("#ccffcc".to_string()), Some("#d8bc8a".to_string())]);
+    }
+
+    /// Une étiquette encadrée vide telle que LibreOffice la réenregistre (relevé dans `lo2/ex_prenom.odg`, LibreOffice
+    /// 26.8) : un paragraphe vide sans style, l'allure du cadre dans son style de texte (`draw:text-style-name`).
+    #[test]
+    fn an_empty_label_rewritten_by_libreoffice_keeps_its_font() {
+        let auto = r##"<style:style style:name="grE" style:family="graphic"><style:graphic-properties draw:stroke="solid" svg:stroke-width="0.05cm" svg:stroke-color="#9aa5b1" draw:fill="none"/></style:style><style:style style:name="P4" style:family="paragraph"><loext:graphic-properties draw:fill="none"/><style:text-properties fo:color="#c0392b" loext:opacity="100%" style:font-name="Liberation Sans" fo:font-size="28pt"/></style:style>"##;
+        let body = r#"<draw:frame draw:style-name="grE" draw:text-style-name="P4" svg:width="18cm" svg:height="3.6cm" svg:x="1.5cm" svg:y="15.4cm"><draw:text-box><text:p/></draw:text-box></draw:frame>"#;
+        let odg = odg_with_styles(&format!(r#"<draw:page draw:name="page1">{body}</draw:page>"#), &format!(r#"<style:page-layout style:name="PM1"><style:page-layout-properties {A4_LAYOUT}/></style:page-layout>"#), "", &[], auto, "");
+        let page = &read_drawing(Cursor::new(odg), &known()).unwrap().pages[0];
+        let t = texts(page)[0];
+        assert!(t.content.paragraphs.is_empty() && t.frame.as_ref().is_some_and(|f| f.stroke.is_some()));
+        assert_eq!((t.style.font.as_str(), t.style.size_pt, t.style.color.as_str()), ("Liberation Sans", 28.0, "#c0392b"));
+    }
+
+    /// Ce que l'enseignant ajoute dans LibreOffice (relevé dans un fichier retouché par UNO, LibreOffice 26.8) : le texte
+    /// tapé dans un rectangle devient un texte posé dessus, centré, groupé avec lui ; une forme au paragraphe vide reste
+    /// seule ; un smiley, un octogone (formes toutes faites inconnues) et un connecteur ne sont pas repris, et comptés.
+    #[test]
+    fn what_a_teacher_adds_in_libreoffice_is_read_or_counted() {
+        let auto = r##"<style:style style:name="gr12" style:family="graphic"><style:graphic-properties draw:textarea-horizontal-align="center" draw:textarea-vertical-align="middle"/></style:style><style:style style:name="P10" style:family="paragraph"><style:paragraph-properties fo:text-align="center"/></style:style>"##;
+        let body = concat!(
+            r#"<draw:custom-shape draw:style-name="gr12" svg:width="3cm" svg:height="3cm" svg:x="2cm" svg:y="24cm"><text:p/><draw:enhanced-geometry svg:viewBox="0 0 21600 21600" draw:type="smiley" draw:enhanced-path="U 10800 10800 10800 10800 0 360 Z N"/></draw:custom-shape>"#,
+            r#"<draw:custom-shape draw:style-name="gr12" svg:width="3cm" svg:height="3cm" svg:x="6cm" svg:y="24cm"><text:p/><draw:enhanced-geometry svg:viewBox="0 0 21600 21600" draw:type="octagon" draw:modifiers="6326" draw:enhanced-path="M ?f0 0 L ?f2 0 Z N"/></draw:custom-shape>"#,
+            r#"<draw:rect draw:style-name="gr12" draw:text-style-name="P10" svg:width="5cm" svg:height="2cm" svg:x="10cm" svg:y="24cm"><text:p text:style-name="P10">Texte dans forme</text:p></draw:rect>"#,
+            r#"<draw:ellipse draw:style-name="gr12" svg:width="2cm" svg:height="2cm" svg:x="10cm" svg:y="20cm"><text:p/></draw:ellipse>"#,
+            r#"<draw:connector draw:style-name="gr12" svg:x1="16cm" svg:y1="24cm" svg:x2="19cm" svg:y2="27cm" svg:d="M16000 24000v1500h3000v1500" svg:viewBox="0 0 3001 3001"><text:p/></draw:connector>"#,
+        );
+        let odg = odg_with_styles(&format!(r#"<draw:page draw:name="page1">{body}</draw:page>"#), &format!(r#"<style:page-layout style:name="PM1"><style:page-layout-properties {A4_LAYOUT}/></style:page-layout>"#), "", &[], auto, "");
+        let back = read_drawing(Cursor::new(odg), &known()).unwrap();
+        let els = &back.pages[0].elements;
+        assert_eq!(back.report.skipped, 3, "{:?}", back.report);
+        assert_eq!(els.len(), 3, "{els:?}");
+        let ElementKind::Text(t) = &els[1].kind else { panic!("{els:?}") };
+        assert_eq!((plain(t), t.style.align, t.style.valign), ("Texte dans forme".to_string(), Align::Center, Some(VAlign::Middle)));
+        assert_eq!(els[1].frame, els[0].frame);
+        assert!(els[0].group.is_some() && els[0].group == els[1].group && els[2].group.is_none());
+    }
+
+    /// Un export de Cahutin retouché dans LibreOffice 26.8 par UNO (`tests/fixtures/retouche-libreoffice.odg` : le
+    /// groupe déplacé de 3 mm, puis dissocié et regroupé ; formes et photo générées, sans texte) se rouvre avec son
+    /// groupe dans un groupe, sa forme verrouillée, sa flèche, ses tirets, sa photo bordée et ombrée, son fond à lignes.
+    #[test]
+    fn a_drawing_retouched_in_libreoffice_comes_back() {
+        let back = read_drawing(Cursor::new(include_bytes!("../../tests/fixtures/retouche-libreoffice.odg").to_vec()), &known()).unwrap();
+        let page = &back.pages[0];
+        assert_eq!(back.report.skipped, 0, "{:?}", back.report);
+        assert_eq!(page.background, Some(Background { color: "#fff8dc".into(), pattern: Some(Pattern::Lines) }));
+        let stars: Vec<&Element> = page.elements.iter().filter(|e| matches!(&e.kind, ElementKind::Shape(s) if s.shape == ShapeKind::Star)).collect();
+        let paths: Vec<Vec<Id>> = stars.iter().map(|e| crate::groups::path(e)).collect();
+        assert_eq!(paths.iter().map(Vec::len).collect::<Vec<_>>(), [2, 2, 1]);
+        assert!(paths[0] == paths[1] && paths[0][0] == paths[2][0]);
+        assert!((stars[0].frame.x_mm - 23.0).abs() < 0.01, "déplacé de 3 mm : {:?}", stars[0].frame);
+        let shape = |k: ShapeKind| page.elements.iter().find(|e| matches!(&e.kind, ElementKind::Shape(s) if s.shape == k)).unwrap();
+        assert!(shape(ShapeKind::Heart).locked && !stars[0].locked);
+        let ElementKind::Shape(rect) = &shape(ShapeKind::Rect).kind else { unreachable!() };
+        assert_eq!(rect.stroke.as_ref().and_then(|s| s.style), Some(StrokeStyle::Dashed));
+        shape(ShapeKind::Arrow);
+        let photo = page.elements.iter().find_map(|e| if let ElementKind::Photo(p) = &e.kind { Some(p) } else { None }).unwrap();
+        assert_eq!((photo.border.as_ref().and_then(|b| b.style), photo.shadow), (Some(StrokeStyle::Dotted), true));
+    }
+
+    /// Les espaces ODF posés directement dans le paragraphe (hors d'un passage) comptent, tabulation et retour à la ligne
+    /// compris.
+    #[test]
+    fn spaces_written_in_the_paragraph_itself_are_kept() {
+        let body = r#"<draw:frame draw:style-name="gr2" svg:width="10cm" svg:height="2cm" svg:x="1cm" svg:y="1cm"><draw:text-box><text:p>Lundi<text:tab/>Mardi<text:s text:c="2"/>!<text:line-break/>Jeudi</text:p></draw:text-box></draw:frame>"#;
+        let page = &read_whole(body).pages[0];
+        assert_eq!(plain(texts(page)[0]), "Lundi\tMardi  !\nJeudi");
     }
 
     #[test]

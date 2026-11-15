@@ -89,8 +89,6 @@ struct Writer<'a> {
     store: &'a AssetStore,
     pictures: Vec<Picture>,
     body: Xml,
-    /// Le prochain cadre de texte est protégé (mention de licence).
-    protect_next: bool,
 }
 
 /// Mention de licence : 6 pt, gris, centrée en bas de la page (même cadre qu'à l'écran).
@@ -183,20 +181,11 @@ impl Writer<'_> {
 
     /// Chemin dans l'archive du SVG OpenMoji de l'élément (en miroir s'il l'est), ajouté une seule fois.
     fn picto_path(&mut self, e: &Element, code: &str, outline: bool) -> Result<String, OdgError> {
-        // En miroir : une copie retournée, nommée `…-miroir-h.svg` (`-v`, `-hv`) pour être relue en miroir.
-        let mirror = match (e.flip_h, e.flip_v) {
-            (false, false) => "",
-            (true, false) => "-miroir-h",
-            (false, true) => "-miroir-v",
-            (true, true) => "-miroir-hv",
-        };
-        let base = if outline { format!("Pictures/openmoji-contour-{}", picto::base_code(code)) } else { format!("Pictures/openmoji-{code}") };
-        let path = format!("{base}{mirror}.svg");
+        let path = format!("Pictures/{}.svg", picto_stem(code, outline, e.flip_h, e.flip_v));
         // Décompressée seulement si elle n'est pas déjà dans l'archive (un code inconnu n'y est jamais).
         if !self.pictures.iter().any(|p| p.path == path) {
-            let svg = if outline { picto::outline_svg(code) } else { picto::svg(code) }.ok_or_else(|| OdgError::MissingPicture(code.to_string()))?;
-            let bytes = if mirror.is_empty() { Some(svg) } else { picto::mirrored_svg(&svg, e.flip_h, e.flip_v) };
-            self.pictures.push(Picture { path: path.clone(), media_type: "image/svg+xml", bytes: bytes.ok_or_else(|| OdgError::MissingPicture(code.to_string()))? });
+            let bytes = picto_file(code, outline, e.flip_h, e.flip_v).ok_or_else(|| OdgError::MissingPicture(code.to_string()))?;
+            self.pictures.push(Picture { path: path.clone(), media_type: "image/svg+xml", bytes });
         }
         Ok(path)
     }
@@ -210,9 +199,10 @@ impl Writer<'_> {
         style.align = Align::Center;
         let t = TextProps { content: RichText::plain(OPENMOJI_CREDIT_PAGE), style, prompt: None, frame: None };
         let e = Element { id: String::new(), frame: f, locked: true, zone: false, group: None, kind: ElementKind::Text(t.clone()), subgroups: Vec::new(), flip_h: false, flip_v: false };
-        self.protect_next = true;
+        self.reg.protect = true;
         // Sans image de fond, l'écriture du texte ne peut pas échouer.
         let _ = self.text(&e, &t);
+        self.reg.protect = false;
     }
 
     /// Image de la photothèque prérecadrée pour le cadre : LibreOffice reçoit exactement les pixels visibles.
@@ -364,7 +354,7 @@ impl Writer<'_> {
             (Some(image), _) => {
                 let radius = frame.map_or(0.0, |f| f.corner_radius_mm);
                 let path = self.cropped_picture(image, &e.frame, &Crop::COVER, (false, false), Some(radius), &format!("{}-fond", e.id))?;
-                let fill_name = format!("img_{}_fond", e.id);
+                let fill_name = format!("img_{}_fond{}", e.id, if e.frame.rotation_deg != 0.0 { TURNED_FILL } else { "" });
                 self.reg.fill_image(fill_name.clone(), path);
                 vec![("draw:fill", "bitmap".into()), ("draw:fill-image-name", fill_name), ("style:repeat", "stretch".into())]
             }
@@ -378,6 +368,7 @@ impl Writer<'_> {
             props = vec![("draw:fill", "none".into())];
             props.extend(stroke(self.reg, None));
         }
+        let blank_text = if blank { self.text_props(&Run::plain(""), &t.style) } else { Vec::new() };
         let style = self.reg.style(
             "graphic",
             "gr",
@@ -395,19 +386,39 @@ impl Writer<'_> {
                     ("fo:wrap-option", "wrap".into()),
                 ]]
                 .concat(),
-            )],
+            )]
+            .into_iter()
+            // Une étiquette vide : sa police, sa taille et sa couleur aussi dans le style du cadre (LibreOffice ne garde
+            // pas le style d'un paragraphe vide), celles du texte qu'on y tapera.
+            .chain(blank_text)
+            .collect(),
         );
         let mut a = vec![("draw:style-name", style)];
         a.extend(geometry(&e.frame));
-        if std::mem::take(&mut self.protect_next) {
-            a.push(("draw:protect", "position size".into()));
-        }
         self.body.open("draw:frame", &attrs(&a));
         let radius = frame.map(|f| f.corner_radius_mm).filter(|r| *r > 0.0).map(mm);
         let box_attrs: Vec<(&str, &str)> = radius.iter().map(|r| ("draw:corner-radius", r.as_str())).collect();
         self.body.open("draw:text-box", &box_attrs);
         self.paragraphs(t, on_lines);
         self.body.close();
+        // Les champs qui s'affichent comme un autre (une lettre ne montre que son numéro) : leurs noms dans la
+        // description du cadre, dans l'ordre du texte, pour que l'import les retrouve (`import::odg`, `field_marks`).
+        let shared: Vec<String> = t
+            .content
+            .paragraphs
+            .iter()
+            .flat_map(|p| &p.runs)
+            .flat_map(|r| crate::fields::split(&r.text))
+            .filter_map(|p| match p {
+                crate::fields::Piece::Field(f) if crate::fields::shown_is_shared(f) => Some(format!("{{{f}}}")),
+                _ => None,
+            })
+            .collect();
+        if !shared.is_empty() && !blank {
+            self.body.open("svg:desc", &[]);
+            self.body.text(&shared.join(" "));
+            self.body.close();
+        }
         self.body.close();
         Ok(())
     }
@@ -421,7 +432,11 @@ impl Writer<'_> {
         // taille du bloc, pour que la ligne garde sa hauteur ; LibreOffice ne connaît qu'une taille relative au premier
         // caractère du paragraphe : un premier mot d'une autre taille demande sa propre liste.
         let mut list: Option<String> = None;
-        for p in t.content.paragraphs.iter().filter(|_| !blank) {
+        // Un texte vide (une étiquette encadrée à remplir) : un paragraphe vide, qui ne montre rien et garde au texte sa
+        // police, sa taille et sa couleur.
+        let empty = [Paragraph { align: None, runs: Vec::new(), list: None }];
+        let paragraphs: &[Paragraph] = if blank { &empty } else { &t.content.paragraphs };
+        for p in paragraphs {
             let style = p.list.is_some().then(|| self.list_style(p, &t.style));
             if style != list {
                 if list.is_some() {
@@ -721,6 +736,33 @@ impl Writer<'_> {
     }
 }
 
+/// Nom du fichier d'un pictogramme dans l'archive, sans `Pictures/` ni `.svg` : `openmoji-1F98A`, à colorier
+/// `openmoji-contour-1F98A` ; en miroir, une copie retournée nommée `…-miroir-h` (`-v`, `-hv`).
+pub(crate) fn picto_stem(code: &str, outline: bool, flip_h: bool, flip_v: bool) -> String {
+    let mirror = match (flip_h, flip_v) {
+        (false, false) => "",
+        (true, false) => "-miroir-h",
+        (false, true) => "-miroir-v",
+        (true, true) => "-miroir-hv",
+    };
+    if outline { format!("openmoji-contour-{}{mirror}", picto::base_code(code)) } else { format!("openmoji-{code}{mirror}") }
+}
+
+/// Début du commentaire qui ouvre le SVG d'un pictogramme : `<!-- cahutin:openmoji-1F98A -->`, le nom de son fichier
+/// (voir `picto_stem`). LibreOffice renomme le fichier en réenregistrant, mais garde ses octets : l'import y retrouve le
+/// pictogramme. Un commentaire ne change rien au dessin.
+pub(crate) const PICTO_MARK: &str = "<!-- cahutin:";
+
+/// Les octets du SVG d'un pictogramme dans l'archive : le commentaire qui le nomme (`PICTO_MARK`), puis le SVG de la
+/// banque, à colorier ou retourné ; `None` pour un code inconnu.
+pub(crate) fn picto_file(code: &str, outline: bool, flip_h: bool, flip_v: bool) -> Option<Vec<u8>> {
+    let svg = if outline { picto::outline_svg(code) } else { picto::svg(code) }?;
+    let svg = if flip_h || flip_v { picto::mirrored_svg(&svg, flip_h, flip_v)? } else { svg };
+    let mut out = format!("{PICTO_MARK}{} -->\n", picto_stem(code, outline, flip_h, flip_v)).into_bytes();
+    out.extend(svg);
+    Some(out)
+}
+
 /// Début du nom de l'image de remplissage d'une case pictogramme, suivi du nom de son SVG (`case_openmoji-1F98A`) :
 /// LibreOffice renomme le fichier en réenregistrant, pas l'image de remplissage ; l'import y retrouve le pictogramme.
 pub(crate) const PICTO_CELL_FILL: &str = "case_";
@@ -841,7 +883,7 @@ fn write_run_text(x: &mut Xml, text: &str, at_start: &mut bool) {
 }
 
 pub(crate) fn content_xml(doc: &Document, store: &AssetStore, reg: &mut Registry) -> Result<(String, Vec<Picture>), OdgError> {
-    let mut w = Writer { reg, store, pictures: vec![], body: Xml::fragment(), protect_next: false };
+    let mut w = Writer { reg, store, pictures: vec![], body: Xml::fragment() };
     for (i, page) in doc.pages.iter().enumerate() {
         let master = w.reg.master_page(page.size, page.background.as_ref());
         w.body.open("draw:page", &[("draw:name", &format!("page{}", i + 1)), ("draw:master-page-name", &master)]);
@@ -878,11 +920,14 @@ pub(crate) fn content_xml(doc: &Document, store: &AssetStore, reg: &mut Registry
                 w.body.open("draw:g", &[]);
                 open.push(g.clone());
             }
+            // Un élément verrouillé l'est aussi dans LibreOffice : ni déplacé ni agrandi d'un geste.
+            w.reg.protect = e.locked;
             if real {
                 w.real_table(e, &page.elements)?;
             } else {
                 w.element(e)?;
             }
+            w.reg.protect = false;
         }
         for _ in 0..open.len() {
             w.body.close();

@@ -123,6 +123,38 @@ pub fn shown(field: &str) -> Option<String> {
     }
 }
 
+/// Deux champs s'affichent pareil : une lettre ne montre que son numéro, en capitale comme telle qu'elle s'écrit
+/// (`{PRENOM_2}` et `{prenom_2}` : « 2 »).
+pub fn shown_is_shared(field: &str) -> bool {
+    letter_index(field).is_some()
+}
+
+/// Le champ (sans accolades) qui s'affiche ainsi, s'il est le seul : un champ non rempli relu d'un ODG, où il est
+/// écrit sous son nom. Jamais une lettre (voir `shown_is_shared`).
+pub fn from_shown(text: &str) -> Option<String> {
+    let months = (1..=12).map(month_key);
+    let named = KEYS.iter().chain(&DATE_KEYS).chain(&CLASS_KEYS).map(|k| k.to_string()).chain(months);
+    let mut found = named.filter(|f| shown(f).as_deref() == Some(text));
+    let first = found.next()?;
+    found.next().is_none().then_some(first)
+}
+
+/// Les champs qui, mis bout à bout, s'affichent exactement ainsi (LibreOffice recolle en un seul passage deux champs
+/// voisins écrits à la même encre) ; `None` si ce n'en est pas une suite. Jamais une lettre.
+pub fn from_shown_run(text: &str) -> Option<Vec<String>> {
+    if text.is_empty() {
+        return Some(Vec::new());
+    }
+    let months = (1..=12).map(month_key);
+    let named: Vec<String> = KEYS.iter().chain(&DATE_KEYS).chain(&CLASS_KEYS).map(|k| k.to_string()).chain(months).collect();
+    named.into_iter().find_map(|f| {
+        let rest = text.strip_prefix(shown(&f)?.as_str())?;
+        let mut more = from_shown_run(rest)?;
+        more.insert(0, f);
+        Some(more)
+    })
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Piece<'a> {
     Text(&'a str),
@@ -401,6 +433,24 @@ mod tests {
         assert_eq!(shown("PRENOM_10").as_deref(), Some("10"));
         assert_eq!(shown("prenom").as_deref(), Some("Prénom"));
         assert_eq!(shown("toto"), None);
+    }
+
+    /// Chaque champ proposé se retrouve d'après ce qu'il affiche, sauf les lettres, qui s'affichent pareil en
+    /// capitale et telles qu'elles s'écrivent.
+    #[test]
+    fn a_field_is_found_from_what_it_shows_unless_shared() {
+        for f in KEYS.iter().chain(&DATE_KEYS).chain(&CLASS_KEYS).map(|k| k.to_string()).chain((1..=12).map(month_key)) {
+            assert_eq!(from_shown(&shown(&f).unwrap()), Some(f.clone()), "{f}");
+            assert!(!shown_is_shared(&f));
+        }
+        assert_eq!(from_shown("Prénom").as_deref(), Some("prenom"));
+        assert_eq!(from_shown("2"), None);
+        assert_eq!(from_shown("Bonjour"), None);
+        assert!(shown_is_shared("PRENOM_2") && shown_is_shared("prenom_2"));
+        // Deux champs collés en un passage.
+        assert_eq!(from_shown_run("PRÉNOMÂge"), Some(vec!["PRENOM".to_string(), "age".to_string()]));
+        assert_eq!(from_shown_run("Date courte"), Some(vec!["date_courte".to_string()]));
+        assert_eq!(from_shown_run("Prénom!"), None);
     }
 
     #[test]

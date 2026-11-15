@@ -300,10 +300,10 @@ const scenes = {
       await invoke("save_document", { path, doc: { ...e.doc, title: "Sortie à la ferme" }, mode: "Replace", keepStart: false });
       await c.openPath(path);
       e.showWelcome = false; e.zoom = "fit";
-      e.prefsCategory = "saving"; e.showPreferences = true;
     `);
     await sleep(800);
-    await s.js("const b = [...document.querySelectorAll('label')].find((l) => l.textContent.includes('Enregistrer automatiquement'))?.querySelector('input'); if (b && !b.checked) b.click();");
+    // La case « Automatique », à côté du bouton « Enregistrer ».
+    await s.js("const b = document.querySelector('header.top label.auto input'); if (b && !b.checked) b.click();");
     await sleep(600);
   },
   async "nouv-bord"() {
@@ -400,7 +400,8 @@ for (const [name, scene] of Object.entries(scenes)) {
     await s.shot(`${out}/${name}.png`);
     console.log("capture :", name);
   } finally {
-    await run(`window.__carnet.settings.set("theme", "papier");`).catch(() => {});
+    // Le thème et l'enregistrement automatique (décoché au départ) reviennent à leur réglage d'origine.
+    await run(`window.__carnet.settings.set("theme", "papier"); window.__carnet.settings.set("autosave", false);`).catch(() => {});
     await s.end().catch(() => {});
   }
 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AUTOSAVE_DELAY_MS, AUTOSAVE_MAX_WAIT_MS, AUTOSAVE_TICK_MS, Autosaver, classHoldAfterFill, classHoldAfterHistory, classHoldAfterSave, saveStatus, type AutosaveProblem, type AutosaveView, type ClassHold } from "./autosave";
+import { AUTOSAVE_DELAY_MS, AUTOSAVE_MAX_WAIT_MS, AUTOSAVE_TICK_MS, Autosaver, classHoldAfterFill, classHoldAfterHistory, classHoldAfterSave, saveState, type AutosaveProblem, type AutosaveView, type ClassHold } from "./autosave";
 
 type Doc = { n: number };
 
@@ -224,26 +224,38 @@ describe("Autosaver", () => {
   });
 });
 
-describe("saveStatus", () => {
-  const base = { enabled: true, path: "/docs/fiche.carnet", ownFile: true, dirty: false, editing: false, problem: null, held: false };
-  it("says saved, saving or not saved", () => {
-    expect(saveStatus(base)).toBe("saved");
-    expect(saveStatus({ ...base, dirty: true })).toBe("saving");
-    expect(saveStatus({ ...base, path: null })).toBe("unsaved");
-    expect(saveStatus({ ...base, dirty: true, problem: { kind: "changed" } })).toBe("unsaved");
-    expect(saveStatus({ ...base, dirty: true, problem: { kind: "failed", message: "x" } })).toBe("unsaved");
-    // Réglage décoché : comme avant, modifié veut dire non enregistré.
-    expect(saveStatus({ ...base, enabled: false, dirty: true })).toBe("unsaved");
-    expect(saveStatus({ ...base, enabled: false })).toBe("saved");
-    // Un texte en cours d'écriture (ou un recadrage) : pas encore écrit, il le sera à la sortie du bloc.
-    expect(saveStatus({ ...base, editing: true })).toBe("saving");
-    expect(saveStatus({ ...base, editing: true, enabled: false })).toBe("saved");
-    // Copie de secours reprise : son fichier d'origine n'est pas écrit tout seul.
-    expect(saveStatus({ ...base, ownFile: false, dirty: true })).toBe("unsaved");
-    // Retenu après un remplissage par la classe : modifié veut dire non enregistré, comme réglage décoché.
-    expect(saveStatus({ ...base, dirty: true, held: true })).toBe("unsaved");
-    expect(saveStatus({ ...base, editing: true, held: true })).toBe("saved");
-    expect(saveStatus({ ...base, held: true })).toBe("saved");
+describe("saveState", () => {
+  // Ce que dit la bulle du bouton « Enregistrer » ; le point, lui, suit seulement « modifié ».
+  const base = { enabled: true, ownFile: true, templateMode: false, dirty: false, editing: false, problem: null, held: false };
+  it("says nothing to save, saving by itself, or changes to save", () => {
+    expect(saveState(base)).toBe("auto");
+    expect(saveState({ ...base, dirty: true })).toBe("pending");
+    // Réglage décoché, document neuf ou copie de secours reprise : modifié veut dire à enregistrer soi-même.
+    expect(saveState({ ...base, enabled: false })).toBe("nothing");
+    expect(saveState({ ...base, enabled: false, dirty: true })).toBe("unsaved");
+    expect(saveState({ ...base, ownFile: false })).toBe("nothing");
+    expect(saveState({ ...base, ownFile: false, dirty: true })).toBe("unsaved");
+    // Échec ou fichier changé ailleurs : un avis à part le dit, la bulle reste simple.
+    expect(saveState({ ...base, dirty: true, problem: { kind: "changed" } })).toBe("unsaved");
+    expect(saveState({ ...base, dirty: true, problem: { kind: "failed", message: "x" } })).toBe("unsaved");
+    expect(saveState({ ...base, problem: { kind: "changed" } })).toBe("nothing");
+    // Retenu après un remplissage par la classe : enregistrer soi-même, ou « Enregistrer sous ».
+    expect(saveState({ ...base, dirty: true, held: true })).toBe("held");
+    expect(saveState({ ...base, dirty: true, held: true, enabled: false })).toBe("unsaved");
+    expect(saveState({ ...base, held: true })).toBe("nothing");
+    // Mode modèle : rien ne s'enregistre tout seul, modifié ou non.
+    expect(saveState({ ...base, templateMode: true })).toBe("template");
+    expect(saveState({ ...base, templateMode: true, dirty: true })).toBe("template");
+    expect(saveState({ ...base, templateMode: true, dirty: true, held: true })).toBe("held");
+    expect(saveState({ ...base, templateMode: true, enabled: false, dirty: true })).toBe("unsaved");
+    expect(saveState({ ...base, templateMode: true, dirty: true, problem: { kind: "failed", message: "x" } })).toBe("unsaved");
+    // Un texte en cours d'écriture n'est pas encore dans le document (pas de point) : la bulle dit quand il compte.
+    expect(saveState({ ...base, editing: true })).toBe("editing");
+    expect(saveState({ ...base, editing: true, enabled: false })).toBe("editingManual");
+    expect(saveState({ ...base, editing: true, ownFile: false })).toBe("editingManual");
+    expect(saveState({ ...base, editing: true, dirty: true })).toBe("pending");
+    expect(saveState({ ...base, editing: true, dirty: true, enabled: false })).toBe("unsaved");
+    expect(saveState({ ...base, editing: true, templateMode: true })).toBe("template");
   });
 });
 

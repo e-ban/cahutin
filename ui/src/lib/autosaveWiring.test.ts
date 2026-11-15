@@ -311,3 +311,36 @@ test("launch: a fill still running when another document opens changes nothing t
   expect(editor.doc).toBe(opened);
   expect(editor.classHold).toBeNull();
 });
+
+// La case « Automatique » de la barre du haut et celle des Préférences changent le même réglage, tout de suite.
+const sources = import.meta.glob<string>(["../components/layout/TopBar.svelte", "../components/prefs/SavingPrefs.svelte"], { query: "?raw", import: "default", eager: true });
+
+test("the top bar box and the Preferences box are the same setting", () => {
+  const files = Object.values(sources);
+  expect(files.length).toBe(2);
+  for (const src of files) {
+    expect(src).toContain("checked={settings.autosave}");
+    expect(src).toContain('settings.set("autosave", e.currentTarget.checked)');
+  }
+});
+
+test("checked from the top bar: a modified file is written after the delay; unchecked: nothing more", async () => {
+  settings.set("autosave", false);
+  autosaver.tick();
+  retitle("Lundi");
+  autosaver.tick();
+  await later();
+  expect(writes).toEqual([]);
+  settings.set("autosave", true);
+  expect(settings.autosave).toBe(true);
+  autosaver.tick();
+  await later();
+  expect(writes.map((w) => [w.title, w.mode])).toEqual([["Lundi", "Auto"]]);
+  expect(editor.dirty).toBe(false);
+  settings.set("autosave", false);
+  retitle("Mardi");
+  autosaver.tick();
+  for (let i = 0; i < 5; i++) await later();
+  expect(writes.map((w) => w.title)).toEqual(["Lundi"]);
+  expect(editor.dirty).toBe(true);
+});

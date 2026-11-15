@@ -259,19 +259,20 @@ export const fr = {
   exportOdg: "Exporter pour LibreOffice",
   exportOdgHint: "Fichier modifiable dans LibreOffice Draw",
   exportingOdg: "Export pour LibreOffice en cours…",
-  // Enregistrement automatique (lib/autosave.ts) : l'indicateur près du titre, les avis, la version du début de séance.
-  statusSaved: "Enregistré",
-  statusSaving: "Enregistrement…",
-  statusUnsaved: "Non enregistré",
-  statusSavedHint: "Chaque changement s'enregistre tout seul dans le fichier du document (réglage : Préférences > Enregistrement).",
-  statusSavedManualHint:
-    "Le document est enregistré. Après un changement, Ctrl+S l'enregistre. Il peut aussi s'enregistrer tout seul : cochez « Enregistrer automatiquement » dans Préférences > Enregistrement.",
-  statusSavingHint: "Vos changements s'enregistrent dans quelques secondes, tout seuls.",
+  // Enregistrement automatique (lib/autosave.ts) : la bulle du bouton « Enregistrer », les avis, la version du début de séance.
+  saveUnsavedLabel: "Enregistrer, des changements ne sont pas enregistrés",
+  statusNothing: "Rien de nouveau à enregistrer.",
+  statusAuto: "Le document s'enregistre tout seul après chaque changement (case « Automatique », à côté).",
+  autosaveToggle: "Automatique",
+  autosaveToggleHint:
+    "Coché : le document s'enregistre tout seul, quelques secondes après chaque changement. C'est le même réglage que Préférences > Enregistrement.",
+  autosaveToggleHintNoFile:
+    "Coché : après le premier enregistrement (Ctrl+S), le document s'enregistrera tout seul, quelques secondes après chaque changement. C'est le même réglage que Préférences > Enregistrement.",
+  statusPending: "Vos changements s'enregistrent tout seuls dans quelques secondes.",
   statusEditingHint: "Ce que vous écrivez s'enregistrera quand vous quitterez le bloc (Échap ou un clic ailleurs).",
-  statusUnsavedHint: "Pas encore enregistré : cliquez ici (ou Ctrl+S) pour enregistrer. Ensuite, chaque changement s'enregistre tout seul (Préférences > Enregistrement).",
+  statusEditingManualHint: "Ctrl+S enregistre aussi ce que vous êtes en train d'écrire.",
+  statusUnsaved: "Des changements ne sont pas enregistrés.",
   statusTemplateHint: "En mode modèle, rien ne s'enregistre tout seul dans le fichier du document : Ctrl+S l'enregistre. Après « Terminer le modèle », les changements s'enregistrent comme d'habitude.",
-  statusUnsavedManualHint:
-    "Pas encore enregistré : cliquez ici (ou Ctrl+S) pour enregistrer. Pour que le document s'enregistre tout seul après chaque changement, cochez « Enregistrer automatiquement » dans Préférences > Enregistrement.",
   statusClassHoldHint:
     "Les prénoms, les photos ou les renseignements de la classe viennent d'être ajoutés : rien ne s'enregistre tout seul pour l'instant. Enregistrez vous-même (cliquez ici ou Ctrl+S) pour les garder dans ce fichier, ou faites Fichier > « Enregistrer sous… » pour garder votre modèle tel qu'il était.",
   autosaveFailed: (reason: string) => `L'enregistrement automatique n'a pas marché. ${reason} Vos changements restent ici ; Cahutin réessaiera au prochain changement.`,
@@ -288,7 +289,7 @@ export const fr = {
   prefsSaving: "Enregistrement",
   prefsAutosave: "Enregistrer automatiquement",
   prefsAutosaveHint:
-    "Décoché (au départ) : enregistrez avec Ctrl+S ; Cahutin demande en partant s'il faut enregistrer. Coché : un document qui a déjà un fichier s'y enregistre tout seul, quelques secondes après chaque changement, sans question en partant, et Fichier > « Revenir à la version du début de séance » le rend tel qu'il était à l'ouverture. Après « Remplir avec ma classe » ou le choix d'une classe, rien ne s'enregistre tout seul avant que vous enregistriez vous-même.",
+    "Décoché (au départ) : enregistrez avec Ctrl+S ; Cahutin demande en partant s'il faut enregistrer. Coché : un document qui a déjà un fichier s'y enregistre tout seul, quelques secondes après chaque changement, sans question en partant, et Fichier > « Revenir à la version du début de séance » le rend tel qu'il était à l'ouverture. Après « Remplir avec ma classe » ou le choix d'une classe, rien ne s'enregistre tout seul avant que vous enregistriez vous-même. La même case, « Automatique », est en haut, à côté du bouton « Enregistrer ».",
   // Colonne d'icônes et tiroirs
   fonts: "Polices",
   closeDrawer: "Fermer",

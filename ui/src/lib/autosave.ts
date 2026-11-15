@@ -206,18 +206,21 @@ export function classHoldAfterSave<D>(h: ClassHold<D> | null, atStart: ClassHold
   return h && (h !== atStart || !h.on) ? h : null;
 }
 
-export type SaveStatus = "saved" | "saving" | "unsaved";
+export type SaveState = "nothing" | "auto" | "editing" | "editingManual" | "pending" | "unsaved" | "held" | "template";
 
-/** Ce que dit l'indicateur près du titre : « Enregistré », « Enregistrement… » (des changements partent dans
- *  quelques secondes, ou un texte en cours d'écriture, un recadrage, qui partiront à la sortie du bloc) ou « Non
- *  enregistré » (document sans fichier, réglage décoché et document modifié, retenu après un remplissage par la
- *  classe, échec, fichier changé par ailleurs). */
-export function saveStatus(s: { enabled: boolean; path: string | null; ownFile: boolean; dirty: boolean; editing: boolean; problem: AutosaveProblem; held: boolean }): SaveStatus {
-  if (!s.path) return "unsaved";
-  const auto = s.enabled && s.ownFile && !s.held;
-  // Un texte en cours d'écriture n'est encore ni dans le fichier ni dans la copie de secours : pas « Enregistré ».
-  if (!s.dirty && !(s.editing && auto)) return "saved";
-  return auto && !s.problem ? "saving" : "unsaved";
+/** Ce que dit la bulle du bouton « Enregistrer » (son point suit seulement « modifié ») : rien de nouveau à
+ *  enregistrer ; enregistré et s'enregistre tout seul ; un texte en cours d'écriture (pas encore dans le
+ *  document) ; des changements partent dans quelques secondes ; des changements à enregistrer soi-même (réglage
+ *  décoché, document sans fichier, échec, fichier changé ailleurs) ; retenu après un remplissage par la classe ;
+ *  mode modèle. */
+export function saveState(s: { enabled: boolean; ownFile: boolean; templateMode: boolean; dirty: boolean; editing: boolean; problem: AutosaveProblem; held: boolean }): SaveState {
+  const auto = s.enabled && s.ownFile;
+  if (auto && s.dirty && s.held) return "held";
+  if (auto && s.templateMode && !s.problem) return "template";
+  const running = auto && !s.held && !s.problem;
+  if (s.dirty) return running ? "pending" : "unsaved";
+  if (s.editing) return running ? "editing" : "editingManual";
+  return running ? "auto" : "nothing";
 }
 
 /** Heure locale d'une date enregistrée en UTC (« 9 novembre 2026 à 17:05 »). */

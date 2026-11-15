@@ -1,5 +1,5 @@
 // Branche le minuteur d'enregistrement automatique (lib/autosave.ts) sur l'éditeur et le disque, et tient ce
-// que l'interface en montre : le problème en cours (indicateur près du titre) et la version du début de séance
+// que l'interface en montre : le problème en cours (bulle du bouton « Enregistrer ») et la version du début de séance
 // (menu Fichier).
 import * as api from "./api";
 import { AUTOSAVE_TICK_MS, Autosaver, type AutosaveProblem } from "./autosave";

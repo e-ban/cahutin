@@ -104,6 +104,26 @@ test("the save question names the document and offers the way back", () => {
   expect(fr.dontSave).toBe("Ne pas enregistrer");
 });
 
+/** Le point du bouton « Enregistrer » s'entend aussi : le bouton garde son nom, suivi de l'état. */
+test("the save button tells a screen reader that changes are not saved", () => {
+  expect(fr.saveUnsavedLabel.startsWith(`${fr.save}, `)).toBe(true);
+  expect(fr.saveUnsavedLabel).toBe("Enregistrer, des changements ne sont pas enregistrés");
+  // Le texte de la retenue après « Remplir avec ma classe » garde son sens : enregistrer soi-même, ou ailleurs.
+  expect(fr.statusClassHoldHint).toContain("Enregistrez vous-même");
+  expect(fr.statusClassHoldHint).toContain("« Enregistrer sous… » pour garder votre modèle");
+});
+
+/** La case « Automatique » de la barre du haut : sa bulle dit ce qu'elle fait, et quand elle commence sans fichier. */
+test("the autosave box in the top bar explains itself", () => {
+  expect(fr.autosaveToggle).toBe("Automatique");
+  for (const hint of [fr.autosaveToggleHint, fr.autosaveToggleHintNoFile]) {
+    expect(hint).toContain("tout seul, quelques secondes après chaque changement");
+    expect(hint).toContain("Préférences > Enregistrement");
+  }
+  expect(fr.autosaveToggleHintNoFile).toContain("après le premier enregistrement");
+  expect(fr.prefsAutosaveHint).toContain("« Automatique », est en haut, à côté du bouton « Enregistrer »");
+});
+
 /** Signaler un problème : la messagerie s'ouvre, le message dit quel fichier joindre et à qui écrire sinon. */
 test("the problem report says which file to attach and where to write", () => {
   const opened = fr.reportMailOpened("rapport-carnet.txt", "Documents", "aide@exemple.fr");

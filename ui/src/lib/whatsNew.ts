@@ -38,7 +38,7 @@ export const RELEASES: Release[] = [
       },
       {
         title: "Un document qui s'enregistre tout seul",
-        text: "Préférences > Enregistrement : cochez « Enregistrer automatiquement ». Un document qui a déjà un fichier s'enregistre alors tout seul après chaque changement, et « Enregistré » s'affiche à côté du titre. Fichier > « Revenir à la version du début de séance » le rend tel qu'il était à l'ouverture.",
+        text: "Cochez la case « Automatique », à côté du bouton « Enregistrer » (ou Préférences > Enregistrement). Un document qui a déjà un fichier s'enregistre alors tout seul, quelques secondes après chaque changement. Fichier > « Revenir à la version du début de séance » le rend tel qu'il était à l'ouverture.",
         image: "/nouveautes/0.18/enregistrement.webp",
       },
       {

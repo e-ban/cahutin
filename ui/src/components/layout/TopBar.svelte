@@ -4,7 +4,7 @@
   import OutputMenu from "./OutputMenu.svelte";
   import { goHome, save } from "../../lib/fileActions";
   import { assistant } from "../../lib/assistant.svelte";
-  import { saveStatus } from "../../lib/autosave";
+  import { saveState } from "../../lib/autosave";
   import { autosave } from "../../lib/autosave.svelte";
   import { settings } from "../../lib/settings.svelte";
   import { editor } from "../../lib/docStore.svelte";
@@ -24,33 +24,36 @@
     }),
   );
 
-  // « Enregistré », « Enregistrement… » ou « Non enregistré », toujours visible à côté du titre.
-  const editing = $derived(!!editor.editingText || !!editor.cropping);
-  // En mode modèle, rien ne s'enregistre tout seul (lib/autosave.svelte.ts) : « Non enregistré » s'il y a des changements.
-  const ownFile = $derived(editor.ownFile && !editor.templateMode);
-  // Après un remplissage par la classe, rien ne s'enregistre tout seul avant un enregistrement à la main.
-  const held = $derived(!!editor.classHold?.on);
-  const status = $derived(saveStatus({ enabled: settings.autosave, path: editor.path, ownFile, dirty: editor.dirty, editing, problem: autosave.problem, held }));
-  const statusLabel = $derived(status === "saved" ? fr.statusSaved : status === "saving" ? fr.statusSaving : fr.statusUnsaved);
-  const statusHint = $derived(
-    settings.autosave && editor.ownFile && held && status === "unsaved"
-      ? fr.statusClassHoldHint
-      : settings.autosave && editor.ownFile && editor.templateMode && status !== "saving" && !autosave.problem
-      ? fr.statusTemplateHint
-      : status === "saving"
-      ? editing
-        ? fr.statusEditingHint
-        : fr.statusSavingHint
-      : status === "saved"
-        ? settings.autosave && ownFile
-          ? fr.statusSavedHint
-          : fr.statusSavedManualHint
-        : autosave.problem?.kind === "failed"
-          ? autosave.problem.message
-          : settings.autosave
-            ? fr.statusUnsavedHint
-            : fr.statusUnsavedManualHint,
+  // Le point du bouton « Enregistrer » : des changements ne sont pas dans le fichier (comme avant l'enregistrement
+  // automatique : un document neuf jamais modifié n'en a pas). Enregistrement automatique en marche, il reste le
+  // temps des quelques secondes d'attente. La bulle dit l'état en mots.
+  const saveInfo = $derived(
+    saveState({
+      enabled: settings.autosave,
+      ownFile: editor.ownFile,
+      templateMode: editor.templateMode,
+      dirty: editor.dirty,
+      editing: !!editor.editingText,
+      problem: autosave.problem,
+      held: !!editor.classHold?.on,
+    }),
   );
+  const saveHints = {
+    nothing: fr.statusNothing,
+    auto: fr.statusAuto,
+    editing: fr.statusEditingHint,
+    editingManual: fr.statusEditingManualHint,
+    pending: fr.statusPending,
+    unsaved: fr.statusUnsaved,
+    held: fr.statusClassHoldHint,
+    template: fr.statusTemplateHint,
+  };
+
+  function labelClick(e: MouseEvent) {
+    if (e.target instanceof HTMLInputElement) return;
+    e.preventDefault();
+    settings.set("autosave", !settings.autosave);
+  }
 
   function toggleTemplateMode() {
     editor.templateMode = !editor.templateMode;
@@ -72,13 +75,19 @@
     bind:this={titleEl}
     onchange={(e) => setTitle(e.currentTarget.value)}
   />
-  <!-- Non enregistré : un clic enregistre (ou demande où, la première fois). -->
-  <button class="status {status}" title={statusHint} aria-live="polite" aria-disabled={status !== "unsaved"} onclick={() => status === "unsaved" && save()}>
-    <Icon name={status === "saved" ? "check" : status === "saving" ? "history" : "alert"} />{statusLabel}
-  </button>
-  <button class="save" title="{fr.saveHint} (Ctrl+S)" onclick={() => save()}>
+  <button class="save" title={`${saveHints[saveInfo]}\n${fr.saveHint} (Ctrl+S)`} aria-label={editor.dirty ? fr.saveUnsavedLabel : undefined} onclick={() => save()}>
     <Icon name="save" />{fr.save}
+    {#if editor.dirty}<span class="dirty" aria-hidden="true"></span>{/if}
   </button>
+  <!-- Le même réglage que Préférences > Enregistrement. Masquée en mode modèle, où rien ne s'enregistre tout seul.
+       Un clic ne prend pas le focus : un texte en cours d'écriture reste ouvert (sur le libellé, WebKit donnerait le
+       focus à la case : le clic y est fait ici). Au clavier (Tab, Espace), elle se coche comme une autre case. -->
+  {#if !editor.templateMode}
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions (le clavier va à la case, qui se coche d'elle-même) -->
+    <label class="auto" title={editor.ownFile ? fr.autosaveToggleHint : fr.autosaveToggleHintNoFile} onmousedown={(e) => e.preventDefault()} onclick={labelClick}>
+      <input type="checkbox" aria-label={fr.prefsAutosave} checked={settings.autosave} onchange={(e) => settings.set("autosave", e.currentTarget.checked)} />{fr.autosaveToggle}
+    </label>
+  {/if}
   <div class="pair">
     <button onclick={() => editor.undo()} disabled={!editor.canUndo} title="{fr.undo} (Ctrl+Z)" aria-label={fr.undo}><Icon name="undo" /></button>
     <button onclick={() => editor.redo()} disabled={!editor.canRedo} title="{fr.redo} (Ctrl+Y)" aria-label={fr.redo}><Icon name="redo" /></button>
@@ -121,8 +130,11 @@
     width: 30px;
     height: 30px;
   }
+  /* Le titre cède de la place quand la fenêtre est étroite : le reste de la barre reste entier. */
   .title {
     width: 240px;
+    min-width: 80px;
+    flex-shrink: 1;
     border-color: transparent;
     background: transparent;
   }
@@ -142,21 +154,26 @@
     background: var(--panel);
     border-color: var(--line);
   }
-  /* L'état de l'enregistrement : un texte calme, sans animation ; « Non enregistré » se remarque et se clique. */
-  .status {
-    border-color: transparent;
-    background: transparent;
+  /* Le point des changements pas encore enregistrés, dans le bouton après le libellé. */
+  .dirty {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  /* La case de l'enregistrement automatique, discrète, collée au bouton « Enregistrer ». */
+  .auto {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: -4px;
     color: var(--muted);
     font-size: 0.92em;
-    padding: 4px 6px;
+    white-space: nowrap;
+    cursor: pointer;
   }
-  .status[aria-disabled="true"] {
-    cursor: default;
-  }
-  .status.unsaved {
-    color: var(--text);
-    background: var(--warn-bg);
-    border-color: var(--warn-line);
+  .auto input {
+    margin: 0;
   }
   /* Annuler et Rétablir : une seule bordure autour des deux, un trait entre eux. */
   .pair {

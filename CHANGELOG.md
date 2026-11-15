@@ -1,6 +1,11 @@
 # Journal des versions
 
 
+## Non publié
+
+- Barre du haut : l'étiquette « Enregistré » ou « Non enregistré » à côté du titre est retirée. Comme avant, un point sur le bouton « Enregistrer » montre qu'il reste des changements à enregistrer ; un document neuf et vide n'en a pas, et la bulle du bouton dit où en est l'enregistrement.
+- Une case « Automatique », à côté du bouton « Enregistrer », règle l'enregistrement automatique sans ouvrir les Préférences (c'est le même réglage que Préférences > Enregistrement, toujours décoché au départ). Dans une fenêtre étroite, le champ du titre se fait plus petit pour que la barre du haut reste entière.
+
 ## 0.18.1
 
 - Aide > Nouveautés : les nouveautés des versions 0.17 et 0.18 y sont, et la fenêtre s'ouvre une fois après la mise à jour.

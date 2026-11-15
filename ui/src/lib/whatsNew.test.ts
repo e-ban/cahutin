@@ -43,3 +43,11 @@ test("version 0.18 opens with bulleted lists", () => {
   expect(WHATS_NEW.version).toBe("0.18");
   expect(WHATS_NEW.items[0].image).toBe("/nouveautes/0.18/puces.webp");
 });
+
+// L'état de l'enregistrement se voit au point du bouton « Enregistrer » : plus rien ne s'affiche près du titre. La
+// case « Automatique » est à côté de ce bouton.
+test("the autosave novelty describes the real top bar", () => {
+  const n = RELEASES.find((r) => r.version === "0.18")!.items.find((x) => x.image === "/nouveautes/0.18/enregistrement.webp")!;
+  expect(n.text).toContain("« Automatique », à côté du bouton « Enregistrer »");
+  expect(n.text).not.toMatch(/à côté du titre|« Enregistré »/);
+});

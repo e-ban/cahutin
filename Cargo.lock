@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "cahutin-mcp"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "carnet-core",
  "image",
@@ -380,7 +380,7 @@ dependencies = [
 
 [[package]]
 name = "carnet-app"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "base64 0.23.1",
  "cahutin-mcp",
@@ -407,7 +407,7 @@ dependencies = [
 
 [[package]]
 name = "carnet-core"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "fontdb",
  "image",

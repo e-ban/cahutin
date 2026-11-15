@@ -2,7 +2,7 @@
 //! LibreOffice Draw en fait un ODG, lu par `read_odg`. Profil à part, sans interface, délai limite.
 
 use super::carnet::read_carnet;
-use super::odg::{read_drawing, read_odg};
+use super::odg::{from_cahutin, read_drawing, read_odg};
 use super::{ImportError, Imported};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -249,13 +249,13 @@ pub fn import_file(path: &Path, soffice: Option<&Path>, known_fonts: &[String], 
         return Err(ImportError::Unsupported);
     }
     // Un dessin LibreOffice (dont ceux qu'exporte Cahutin) se lit tel quel : passer par le PDF le
-    // découperait en tracés et en lettres isolées. Par le PDF seulement s'il saute plus qu'il ne garde.
+    // découperait en tracés et en lettres isolées (voir `keeps_drawing`).
     if ext == "odg" {
         let file = std::fs::File::open(path).map_err(|_| ImportError::Unreadable)?;
-        let direct = read_drawing(file, known_fonts);
-        let usable = |r: &Imported| r.report.skipped <= r.report.texts + r.report.images + r.report.shapes;
+        let marked = from_cahutin(&file);
+        let direct = read_drawing(&file, known_fonts);
         match (direct, soffice) {
-            (Ok(r), _) if usable(&r) => return Ok(r),
+            (Ok(r), _) if keeps_drawing(&r, marked) => return Ok(r),
             (r, None) => return r,
             _ => {}
         }
@@ -264,12 +264,28 @@ pub fn import_file(path: &Path, soffice: Option<&Path>, known_fonts: &[String], 
     let work = WorkDir::new()?;
     let odg = convert_to_odg(soffice, path, &work.0, TIMEOUT, cancel)?;
     let file = std::fs::File::open(odg).map_err(|_| ImportError::Unreadable)?;
-    read_odg(file, known_fonts)
+    let mut imported = read_odg(file, known_fonts)?;
+    imported.report.fallback = ext == "odg";
+    Ok(imported)
+}
+
+/// Un dessin LibreOffice lu objet par objet est gardé, plutôt que repris par le PDF tel qu'il se voit (ses images en
+/// morceaux, ses groupes, champs et pictogrammes perdus). D'un fichier de Cahutin (`from_cahutin`, même retouché dans
+/// LibreOffice) : dès qu'il reprend un élément, même s'il manque beaucoup de formes toutes faites, que le compte rendu
+/// dit ; rien de repris, la page serait vide et le PDF montre au moins tout. D'un autre fichier : s'il ne saute pas
+/// plus de dessins qu'il n'en garde.
+fn keeps_drawing(read: &Imported, from_cahutin: bool) -> bool {
+    if from_cahutin {
+        return read.pages.iter().any(|p| !p.elements.is_empty());
+    }
+    let r = &read.report;
+    r.skipped <= r.texts + r.images + r.shapes
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::import::ImportReport;
 
     /// Dans une AppImage, LibreOffice est lancé sans les chemins de l'AppImage : le reste de chaque variable est
     /// gardé, une variable qui n'en contenait pas d'autre disparaît, les autres ne bougent pas.
@@ -447,6 +463,101 @@ mod tests {
         let err = convert_to_odg(&soffice, &input, work.path(), Duration::from_millis(300), &AtomicBool::new(false)).err().unwrap();
         assert_eq!(err, ImportError::Timeout);
         assert!(start.elapsed() < Duration::from_secs(2));
+    }
+
+    /// Fiche de Cahutin (2 textes, 2 pictogrammes) où l'on a ajouté dans LibreOffice 26.8 des formes toutes faites
+    /// (smiley, octogone, soleil, lune, étoile, flèche, deux flèches de liaison), réenregistrée : polices
+    /// embarquées, miniature et réglages (imprimante) retirés, marque de Cahutin ajoutée à ses propriétés comme
+    /// l'écrit l'export depuis (LibreOffice 24.2 et 26.8 la gardent, mesuré).
+    const SHAPES_ADDED_IN_LIBREOFFICE: &[u8] = include_bytes!("../../tests/fixtures/formes-libreoffice.odg");
+
+    /// Le même ODG sans la marque de Cahutin (une ancienne version de Cahutin).
+    fn without_mark(odg: &[u8]) -> Vec<u8> {
+        use std::io::{Cursor, Read, Write};
+        let mut zin = zip::ZipArchive::new(Cursor::new(odg)).unwrap();
+        let mut buf = Cursor::new(Vec::new());
+        let mut zout = zip::ZipWriter::new(&mut buf);
+        for i in 0..zin.len() {
+            let mut f = zin.by_index(i).unwrap();
+            if f.name().unwrap() != "meta.xml" {
+                zout.raw_copy_file(f).unwrap();
+                continue;
+            }
+            let mut meta = String::new();
+            f.read_to_string(&mut meta).unwrap();
+            let mark = format!(r#"<meta:user-defined meta:name="{}">{}</meta:user-defined>"#, crate::odg::CAHUTIN_MARK_NAME, crate::odg::CAHUTIN_MARK);
+            assert!(meta.contains(&mark));
+            zout.start_file("meta.xml", zip::write::SimpleFileOptions::default()).unwrap();
+            zout.write_all(meta.replace(&mark, "").as_bytes()).unwrap();
+        }
+        zout.finish().unwrap();
+        buf.into_inner()
+    }
+
+    /// Faux soffice qui « convertit » en recopiant `odg` dans chaque dossier de sortie (le PDF puis l'ODG du PDF).
+    #[cfg(unix)]
+    fn soffice_copying(dir: &Path, log: &Path, odg: &Path) -> PathBuf {
+        let body = format!("while [ \"$#\" -gt 0 ]; do [ \"$1\" = --outdir ] && out=\"$2\"; shift; done\nmkdir -p \"$out\" && cp '{0}' \"$out/source.pdf\" && cp '{0}' \"$out/source.odg\"", odg.display());
+        fake_soffice(dir, log, &body)
+    }
+
+    /// Un fichier de Cahutin retouché dans LibreOffice se lit objet par objet, même quand il a plus de formes toutes
+    /// faites que d'éléments repris : ses pictogrammes restent des pictogrammes, les formes manquantes sont comptées.
+    #[cfg(unix)]
+    #[test]
+    fn a_cahutin_file_is_read_as_a_drawing_despite_ready_made_shapes() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("fiche.odg");
+        std::fs::write(&input, SHAPES_ADDED_IN_LIBREOFFICE).unwrap();
+        let log = dir.path().join("args.txt");
+        let soffice = soffice_copying(dir.path(), &log, &input);
+        let got = import_file(&input, Some(&soffice), &[], &AtomicBool::new(false)).unwrap();
+        assert!(!log.exists(), "LibreOffice lancé pour le repli");
+        let r = &got.report;
+        assert!(!r.fallback && r.ready_made > r.texts + r.images + r.shapes, "{r:?}");
+        let pictos = got.pages[0].elements.iter().filter(|e| matches!(e.kind, crate::model::ElementKind::Image(_))).count();
+        // L'étoile est reprise ; le smiley, l'octogone, le soleil, la lune, la flèche et les deux flèches de liaison manquent.
+        assert_eq!((r.texts, pictos, r.shapes, r.skipped, r.ready_made), (2, 2, 1, 7, 7), "{r:?}");
+    }
+
+    /// Sans la marque (un fichier d'une ancienne version de Cahutin, ou d'ailleurs), la règle reste : par le PDF dès que
+    /// la lecture objet par objet saute plus qu'elle ne garde, et le compte rendu le dit.
+    #[cfg(unix)]
+    #[test]
+    fn without_the_mark_too_many_skipped_shapes_go_through_the_pdf() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("fiche.odg");
+        std::fs::write(&input, without_mark(SHAPES_ADDED_IN_LIBREOFFICE)).unwrap();
+        let log = dir.path().join("args.txt");
+        let soffice = soffice_copying(dir.path(), &log, &input);
+        let got = import_file(&input, Some(&soffice), &[], &AtomicBool::new(false)).unwrap();
+        assert!(std::fs::read_to_string(&log).unwrap().contains("--infilter=draw_pdf_import"));
+        assert!(got.report.fallback, "{:?}", got.report);
+        // Un PDF ou un document de traitement de texte passe toujours par le PDF : ce n'est pas un repli.
+        let pdf = dir.path().join("fiche.pdf");
+        std::fs::write(&pdf, b"%PDF-1.4").unwrap();
+        assert!(!import_file(&pdf, Some(&soffice), &[], &AtomicBool::new(false)).unwrap().report.fallback);
+    }
+
+    /// La règle : d'un fichier de Cahutin, le dessin dès qu'il reprend un élément (sinon une page vide : le PDF montre au
+    /// moins tout) ; d'un autre, le dessin s'il ne saute pas plus de dessins qu'il n'en garde.
+    #[test]
+    fn the_drawing_is_kept_by_the_mark_or_by_the_counts() {
+        let read = crate::import::odg::read_drawing(std::io::Cursor::new(SHAPES_ADDED_IN_LIBREOFFICE), &[]).unwrap();
+        assert!(keeps_drawing(&read, true));
+        assert!(!keeps_drawing(&read, false));
+        // Presque tout remplacé dans LibreOffice par des formes toutes faites : un seul élément repris suffit.
+        let mut one = crate::import::odg::read_drawing(std::io::Cursor::new(SHAPES_ADDED_IN_LIBREOFFICE), &[]).unwrap();
+        one.pages[0].elements.truncate(1);
+        one.report = ImportReport { pages: 1, texts: 1, skipped: 40, ready_made: 40, ..ImportReport::default() };
+        assert!(keeps_drawing(&one, true) && !keeps_drawing(&one, false));
+        let mut empty = crate::import::odg::read_drawing(std::io::Cursor::new(SHAPES_ADDED_IN_LIBREOFFICE), &[]).unwrap();
+        empty.pages.iter_mut().for_each(|p| p.elements.clear());
+        empty.report = ImportReport { pages: 1, skipped: 7, ready_made: 7, ..ImportReport::default() };
+        assert!(!keeps_drawing(&empty, true));
+        let few = Imported { report: ImportReport { pages: 1, texts: 2, shapes: 1, skipped: 3, ..ImportReport::default() }, ..read };
+        assert!(keeps_drawing(&few, false));
+        assert!(!keeps_drawing(&Imported { report: ImportReport { skipped: 4, ..few.report.clone() }, ..few }, false));
     }
 
     /// Profil d'import : macros au niveau le plus strict (3, aucune macro), liens et contenus distants bloqués.

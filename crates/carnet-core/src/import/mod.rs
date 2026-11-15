@@ -22,10 +22,16 @@ pub struct ImportReport {
     pub images: usize,
     pub shapes: usize,
     pub skipped: usize,
+    /// Parmi `skipped`, les formes toutes faites de LibreOffice (smiley, flèche de liaison...) que Cahutin ne sait pas
+    /// redessiner.
+    pub ready_made: usize,
     /// Tracés (courbes, polygones) repris dans une image fixe, au fond de leur page.
     pub drawn: usize,
     /// Lignes en plus petit : leur police manque sur ce poste, la police de remplacement est plus large.
     pub shrunk: usize,
+    /// Dessin LibreOffice repris par le PDF, tel qu'il se voit (ses images en morceaux) : sa lecture objet par objet en
+    /// gardait trop peu.
+    pub fallback: bool,
 }
 
 impl ImportReport {

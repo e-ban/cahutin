@@ -41,6 +41,9 @@ pub(crate) fn meta_xml(openmoji: bool) -> String {
     x.open("meta:generator", &[]);
     x.text(&format!("cahutin/{} {}", env!("CARGO_PKG_VERSION"), super::MIRROR_AFTER_ROTATION));
     x.close();
+    x.open("meta:user-defined", &[("meta:name", super::CAHUTIN_MARK_NAME), ("meta:value-type", "string")]);
+    x.text(super::CAHUTIN_MARK);
+    x.close();
     if openmoji {
         x.open("meta:user-defined", &[("meta:name", "Crédits"), ("meta:value-type", "string")]);
         x.text(super::OPENMOJI_CREDIT);

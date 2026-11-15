@@ -5,10 +5,20 @@
  */
 export type ImportReport = { pages: number, texts: number, images: number, shapes: number, skipped: number, 
 /**
+ * Parmi `skipped`, les formes toutes faites de LibreOffice (smiley, flèche de liaison...) que Cahutin ne sait pas
+ * redessiner.
+ */
+ready_made: number, 
+/**
  * Tracés (courbes, polygones) repris dans une image fixe, au fond de leur page.
  */
 drawn: number, 
 /**
  * Lignes en plus petit : leur police manque sur ce poste, la police de remplacement est plus large.
  */
-shrunk: number, };
+shrunk: number, 
+/**
+ * Dessin LibreOffice repris par le PDF, tel qu'il se voit (ses images en morceaux) : sa lecture objet par objet en
+ * gardait trop peu.
+ */
+fallback: boolean, };

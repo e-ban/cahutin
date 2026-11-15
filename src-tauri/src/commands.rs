@@ -342,7 +342,7 @@ fn log_kind(path: &Path) -> &'static str {
 /// Ligne du journal d'un import : type de fichier et compteurs, jamais le nom ni le texte.
 fn import_log_line(kind: &str, result: Result<&ImportReport, ImportError>, ms: u128) -> String {
     match result {
-        Ok(r) => format!("import_file kind={kind} pages={} texts={} images={} shapes={} skipped={} drawn={} shrunk={} ms={ms}", r.pages, r.texts, r.images, r.shapes, r.skipped, r.drawn, r.shrunk),
+        Ok(r) => format!("import_file kind={kind} pages={} texts={} images={} shapes={} skipped={} ready_made={} drawn={} shrunk={} fallback={} ms={ms}", r.pages, r.texts, r.images, r.shapes, r.skipped, r.ready_made, r.drawn, r.shrunk, r.fallback),
         Err(e) => format!("import_file_failed kind={kind} error={e:?} ms={ms}"),
     }
 }
@@ -1122,8 +1122,8 @@ mod tests {
 
     #[test]
     fn import_log_never_names_the_file() {
-        let report = carnet_core::import::ImportReport { pages: 2, texts: 14, images: 1, shapes: 6, skipped: 3, drawn: 31, shrunk: 2 };
-        assert_eq!(import_log_line("docx", Ok(&report), 1234), "import_file kind=docx pages=2 texts=14 images=1 shapes=6 skipped=3 drawn=31 shrunk=2 ms=1234");
+        let report = carnet_core::import::ImportReport { pages: 2, texts: 14, images: 1, shapes: 6, skipped: 3, ready_made: 2, drawn: 31, shrunk: 2, fallback: true };
+        assert_eq!(import_log_line("docx", Ok(&report), 1234), "import_file kind=docx pages=2 texts=14 images=1 shapes=6 skipped=3 ready_made=2 drawn=31 shrunk=2 fallback=true ms=1234");
         assert_eq!(import_log_line("pdf", Err(carnet_core::import::ImportError::Timeout), 120000), "import_file_failed kind=pdf error=Timeout ms=120000");
     }
 

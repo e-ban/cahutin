@@ -46,6 +46,10 @@ pub const OPENMOJI_CREDIT_PAGE: &str = "Pictogrammes : OpenMoji, CC BY-SA 4.0";
 /// l'angle que LibreOffice attend (l'opposé de celui de l'écran, voir `content`). Un fichier de Cahutin sans elle
 /// (version 0.17.0 et avant) porte l'angle de l'écran ; l'import le relit tel quel.
 pub const MIRROR_AFTER_ROTATION: &str = "miroir-apres-rotation";
+/// Propriété du fichier (`meta:user-defined`) qui dit qu'il vient de Cahutin. LibreOffice réécrit le générateur en
+/// réenregistrant, mais garde cette propriété : l'import y reconnaît un fichier de Cahutin retouché.
+pub const CAHUTIN_MARK_NAME: &str = "Logiciel";
+pub const CAHUTIN_MARK: &str = "Cahutin";
 
 #[derive(Debug)]
 pub enum OdgError {
@@ -2172,6 +2176,17 @@ mod tests {
     fn meta_credits_only_when_pictures() {
         assert!(export(&doc_with(vec![picture_el("1F98A", None)]), &AssetStore::default()).xml("meta.xml").contains(OPENMOJI_CREDIT));
         assert!(!export(&doc_with(vec![]), &AssetStore::default()).xml("meta.xml").contains("OpenMoji"));
+    }
+
+    /// Chaque export porte la marque de Cahutin dans les propriétés du fichier, que LibreOffice garde en réenregistrant
+    /// (24.2 et 26.8, mesuré) : un simple mot, ni titre, ni chemin, ni version.
+    #[test]
+    fn meta_carries_the_cahutin_mark() {
+        let mark = format!(r#"<meta:user-defined meta:name="{CAHUTIN_MARK_NAME}" meta:value-type="string">{CAHUTIN_MARK}</meta:user-defined>"#);
+        assert_eq!((CAHUTIN_MARK_NAME, CAHUTIN_MARK), ("Logiciel", "Cahutin"));
+        for doc in [doc_with(vec![]), doc_with(vec![picture_el("1F98A", None)])] {
+            assert!(export(&doc, &AssetStore::default()).xml("meta.xml").contains(&mark));
+        }
     }
 
     #[test]

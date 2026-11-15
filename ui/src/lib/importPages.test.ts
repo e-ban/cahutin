@@ -3,7 +3,7 @@ import { newDocument, newPage } from "./factory";
 import { importReportText, insertImported, newDocumentFrom, placeImported, replacePage } from "./importPages";
 import type { AssetMeta, ImportedPages, ImportReport } from "./types";
 
-const report = (r: Partial<ImportReport> = {}): ImportReport => ({ pages: 1, texts: 0, images: 0, shapes: 0, skipped: 0, drawn: 0, shrunk: 0, ...r });
+const report = (r: Partial<ImportReport> = {}): ImportReport => ({ pages: 1, texts: 0, images: 0, shapes: 0, skipped: 0, ready_made: 0, drawn: 0, shrunk: 0, fallback: false, ...r });
 const meta = (id: string): AssetMeta => ({ id, width_px: 10, height_px: 10, mime: "Png" });
 const part = (n: number, assets: AssetMeta[] = []): ImportedPages => ({ pages: Array.from({ length: n }, newPage), assets, offered_fonts: [], report: report({ pages: n }) });
 
@@ -78,4 +78,26 @@ test("a welcome import keeps work done during the conversion", () => {
 test("many drawings left out are not counted out loud", () => {
   expect(importReportText("a.odg", report({ texts: 1, skipped: 1032 }))).toBe("a.odg : 1 page importée (1 texte). Quelques dessins n'ont pas pu être repris : comparez avec le fichier d'origine.");
   expect(importReportText("a.odg", report({ texts: 1, skipped: 5 }))).toBe("a.odg : 1 page importée (1 texte). 5 dessins n'ont pas pu être repris.");
+});
+
+test("ready-made LibreOffice shapes left out are named and counted", () => {
+  expect(importReportText("fiche.odg", report({ texts: 2, images: 2, shapes: 1, skipped: 7, ready_made: 7 }))).toBe(
+    "fiche.odg : 1 page importée (2 textes, 2 images, 1 forme). 7 formes toutes faites de LibreOffice (smiley, flèche de liaison…) n'ont pas été reprises : Cahutin ne sait pas les redessiner.",
+  );
+  expect(importReportText("fiche.odg", report({ texts: 1, skipped: 1, ready_made: 1 }))).toBe(
+    "fiche.odg : 1 page importée (1 texte). 1 forme toute faite de LibreOffice (smiley, flèche de liaison…) n'a pas été reprise : Cahutin ne sait pas la redessiner.",
+  );
+  // Beaucoup de formes : toujours dites en chiffre ; les autres dessins manquants gardent leur message.
+  expect(importReportText("fiche.odg", report({ texts: 1, skipped: 42, ready_made: 40 }))).toBe(
+    "fiche.odg : 1 page importée (1 texte). 40 formes toutes faites de LibreOffice (smiley, flèche de liaison…) n'ont pas été reprises : Cahutin ne sait pas les redessiner. 2 dessins n'ont pas pu être repris.",
+  );
+});
+
+test("a drawing taken through its PDF says it is shown as it looks", () => {
+  expect(importReportText("fiche.odg", report({ texts: 3, shapes: 46, fallback: true }))).toBe(
+    "fiche.odg : 1 page importée (3 textes, 46 formes). La page a été reprise telle qu'elle se voit : ses images sont en morceaux.",
+  );
+  expect(importReportText("fiche.odg", report({ pages: 2, texts: 3, drawn: 12, fallback: true }))).toBe(
+    "fiche.odg : 2 pages importées (3 textes). Les pages ont été reprises telles qu'elles se voient : leurs images sont en morceaux. 12 tracés repris en image fixe, au fond de la page.",
+  );
 });

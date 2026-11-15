@@ -176,6 +176,9 @@ struct GraphicStyle {
     protect: bool,
     /// Marge du haut (`fo:padding-top`), en mm.
     padding_top_mm: Option<f64>,
+    /// Allure du texte tapé dans la forme (`style:text-properties` du style et de ses parents) ; sans couleur : la
+    /// couleur automatique de LibreOffice (voir `auto_text_color`).
+    text: SpanStyle,
 }
 
 struct Styles {
@@ -422,17 +425,23 @@ impl<'a> Fonts<'a> {
 
     /// Allure d'un `style:text-properties`.
     fn span_style(&self, t: Node) -> SpanStyle {
+        self.span_style_by(|ns, attr| t.attribute((ns, attr)).map(String::from))
+    }
+
+    /// Allure d'après ses réglages, lus par `a` (espace de noms, nom).
+    fn span_style_by(&self, a: impl Fn(&str, &str) -> Option<String>) -> SpanStyle {
+        let font = a(STYLE, "font-name").map(|n| self.resolve(&n));
         SpanStyle {
-            font: t.attribute((STYLE, "font-name")).map(|n| self.resolve(n).0),
-            substituted: t.attribute((STYLE, "font-name")).is_some_and(|n| self.resolve(n).1),
-            equivalent: t.attribute((STYLE, "font-name")).is_some_and(|n| self.resolve(n).2),
-            size_pt: t.attribute((FO, "font-size")).and_then(|v| v.strip_suffix("pt")).and_then(|v| v.parse().ok()),
-            color: t.attribute((FO, "color")).map(String::from),
-            bold: t.attribute((FO, "font-weight")) == Some("bold"),
-            italic: t.attribute((FO, "font-style")) == Some("italic"),
-            underline: t.attribute((STYLE, "text-underline-style")).is_some_and(|u| u != "none"),
-            outline: t.attribute((STYLE, "text-outline")) == Some("true"),
-            transparent: t.attribute((LOEXT, "opacity")) == Some("0%"),
+            font: font.as_ref().map(|f| f.0.clone()),
+            substituted: font.as_ref().is_some_and(|f| f.1),
+            equivalent: font.as_ref().is_some_and(|f| f.2),
+            size_pt: a(FO, "font-size").as_deref().and_then(|v| v.strip_suffix("pt")).and_then(|v| v.parse().ok()),
+            color: a(FO, "color"),
+            bold: a(FO, "font-weight").as_deref() == Some("bold"),
+            italic: a(FO, "font-style").as_deref() == Some("italic"),
+            underline: a(STYLE, "text-underline-style").is_some_and(|u| u != "none"),
+            outline: a(STYLE, "text-outline").as_deref() == Some("true"),
+            transparent: a(LOEXT, "opacity").as_deref() == Some("0%"),
         }
     }
 }
@@ -451,20 +460,41 @@ fn read_styles(doc: &roxmltree::Document, common: Option<&roxmltree::Document>, 
             by_name.entry(name).or_insert(s);
         }
     }
-    // Un réglage du style, sinon de ses parents (une chaîne qui boucle, fichier abîmé, s'arrête).
-    let get = |s: Node<'_, '_>, ns: &str, attr: &str| -> Option<String> {
+    // Un réglage du style (dans ses `props` : `graphic-properties`, `text-properties`), sinon de ses parents (une chaîne
+    // qui boucle, fichier abîmé, s'arrête).
+    let get = |s: Node<'_, '_>, props: &str, ns: &str, attr: &str| -> Option<String> {
         let mut cur = Some(s);
         for _ in 0..16 {
             let c = cur?;
-            if let Some(v) = c.children().find(|n| n.has_tag_name((STYLE, "graphic-properties"))).and_then(|g| g.attribute((ns, attr))) {
+            if let Some(v) = c.children().find(|n| n.has_tag_name((STYLE, props))).and_then(|g| g.attribute((ns, attr))) {
                 return Some(v.to_string());
             }
             cur = c.attribute((STYLE, "parent-style-name")).and_then(|p| by_name.get(p).copied());
         }
         None
     };
+    // Couleur du texte : celle du style le plus proche qui en dit une ; `use-window-font-color` (la couleur automatique
+    // de LibreOffice, que `standard` écrit) ou rien d'écrit : aucune.
+    let text_color = |s: Node<'_, '_>| -> Option<String> {
+        let mut cur = Some(s);
+        for _ in 0..16 {
+            let c = cur?;
+            if let Some(t) = c.children().find(|n| n.has_tag_name((STYLE, "text-properties"))) {
+                if t.attribute((STYLE, "use-window-font-color")) == Some("true") {
+                    return None;
+                }
+                if let Some(v) = t.attribute((FO, "color")) {
+                    return Some(v.to_string());
+                }
+            }
+            cur = c.attribute((STYLE, "parent-style-name")).and_then(|p| by_name.get(p).copied());
+        }
+        None
+    };
+    // Les polices nommées par les styles parents sont déclarées dans `styles.xml`.
+    let all_fonts = Fonts::new(&[Some(doc), common].into_iter().flatten().collect::<Vec<_>>(), known_fonts);
     let graphic_of = |s: Node| -> GraphicStyle {
-        let a = |ns: &str, attr: &str| get(s, ns, attr);
+        let a = |ns: &str, attr: &str| get(s, "graphic-properties", ns, attr);
         let mm = |ns: &str, attr: &str| a(ns, attr).as_deref().and_then(length_mm);
         let (fill_kind, stroke_kind) = (a(DRAW, "fill"), a(DRAW, "stroke"));
         let fill = (fill_kind.as_deref() == Some("solid")).then(|| a(DRAW, "fill-color").unwrap_or_else(|| "#ffffff".into()));
@@ -484,7 +514,10 @@ fn read_styles(doc: &roxmltree::Document, common: Option<&roxmltree::Document>, 
         let marker_start = a(DRAW, "marker-start").is_some_and(|m| !m.is_empty());
         let shadow = a(DRAW, "shadow").as_deref() == Some("visible");
         let protect = a(STYLE, "protect").is_some_and(|p| p.contains("position") || p.contains("size"));
-        GraphicStyle { fill, fill_image, stroke, dash, valign, padding_mm: mm(FO, "padding-left"), marker_end, marker_start, shadow, protect, padding_top_mm: mm(FO, "padding-top") }
+        // L'encre transparente de `standard` (`loext:opacity="0%"`, sans effet sous la couleur automatique) n'est pas la
+        // marque d'un champ de Cahutin.
+        let text = SpanStyle { color: text_color(s), transparent: false, ..all_fonts.span_style_by(|ns, attr| get(s, "text-properties", ns, attr)) };
+        GraphicStyle { fill, fill_image, stroke, dash, valign, padding_mm: mm(FO, "padding-left"), marker_end, marker_start, shadow, protect, padding_top_mm: mm(FO, "padding-top"), text }
     };
     for s in doc.descendants().filter(|n| n.has_tag_name((STYLE, "style"))) {
         let Some(name) = s.attribute((STYLE, "name")) else { continue };
@@ -681,6 +714,8 @@ struct PageReader<'a, R: Read + Seek> {
     lines: Vec<Line>,
     assets: Vec<Asset>,
     skipped: usize,
+    /// Parmi `skipped`, les formes toutes faites de LibreOffice (smiley, flèche de liaison...) que Cahutin ne redessine pas.
+    ready_made: usize,
     drawings: Vec<Drawing>,
     /// Lignes rétrécies parce que leur police manquait.
     shrunk: usize,
@@ -923,6 +958,23 @@ struct ReadParagraph {
     line_spacing: Option<f64>,
     /// Écrit sur des lignes d'écriture (voir `Styles::on_lines`).
     on_lines: bool,
+}
+
+/// Couleur automatique du texte d'une forme (LibreOffice : `style:use-window-font-color`), d'après son fond plein :
+/// blanche sur un fond foncé, noire sur un fond clair ou sans fond plein. LibreOffice 26.8 la rend blanche jusqu'à une
+/// luminance relative (sRGB) entre 0,342 et 0,352 (relevé sur un rendu), d'où 0,345. LibreOffice 24.2 compare une autre
+/// luminance à 156 : les deux s'accordent sur les gris et les fonds foncés, pas sur un vert, un orange ou un cyan vifs,
+/// que 24.2 écrit en blanc.
+fn auto_text_color(fill: Option<&str>) -> &'static str {
+    let channel = |h: &str, i: usize| -> Option<f64> {
+        let c = f64::from(u8::from_str_radix(h.get(i..i + 2)?, 16).ok()?) / 255.0;
+        Some(if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) })
+    };
+    let luminance = fill.and_then(|f| f.strip_prefix('#')).filter(|h| h.len() == 6).and_then(|h| Some(0.2126 * channel(h, 0)? + 0.7152 * channel(h, 2)? + 0.0722 * channel(h, 4)?));
+    match luminance {
+        Some(l) if l <= 0.345 => "#ffffff",
+        _ => "#000000",
+    }
 }
 
 /// Style d'un texte importé : la police, la taille et la couleur de son premier passage, l'alignement de son premier
@@ -1675,7 +1727,11 @@ impl<R: Read + Seek> PageReader<'_, R> {
                         }
                     }
                 }
-                _ => self.skipped += 1,
+                // Une forme toute faite de LibreOffice que Cahutin ne sait pas redessiner (smiley, soleil, lune...).
+                _ => {
+                    self.skipped += 1;
+                    self.ready_made += 1;
+                }
             },
             "line" => {
                 let (Some(x1), Some(y1), Some(x2), Some(y2)) = (attr_mm(n, SVG, "x1"), attr_mm(n, SVG, "y1"), attr_mm(n, SVG, "x2"), attr_mm(n, SVG, "y2")) else {
@@ -1694,7 +1750,12 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 let rotation_deg = (y2 - y1).atan2(x2 - x1).to_degrees();
                 self.shape(n, Frame { x_mm: cx - len / 2.0, y_mm: cy - h / 2.0, w_mm: len, h_mm: h, rotation_deg }, if head.is_some() { ShapeKind::Arrow } else { ShapeKind::Line });
             }
-            _ => self.skipped += 1,
+            // Une flèche de liaison (`draw:connector`), une cote, une légende... : des objets de LibreOffice que Cahutin
+            // ne sait pas redessiner.
+            _ => {
+                self.skipped += 1;
+                self.ready_made += 1;
+            }
         }
     }
 
@@ -1708,11 +1769,14 @@ impl<R: Read + Seek> PageReader<'_, R> {
             return;
         }
         let (frame, group) = (shape.frame, crate::groups::path(shape));
-        let (paragraphs, outline) = self.paragraphs(n.children().filter(|c| c.has_tag_name((TEXT, "p"))), &SpanStyle::default(), false, &[]);
+        // Ce que le paragraphe ne dit pas vient du style de la forme et de ses parents ; la couleur automatique, du fond.
+        let g = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s)).cloned().unwrap_or_default();
+        let mut fallback = g.text.clone();
+        fallback.color = fallback.color.or_else(|| Some(auto_text_color(g.fill.as_deref()).into()));
+        let (paragraphs, outline) = self.paragraphs(n.children().filter(|c| c.has_tag_name((TEXT, "p"))), &fallback, false, &[]);
         if paragraphs.iter().all(|p| p.runs.iter().all(|r| r.text.trim().is_empty())) {
             return;
         }
-        let g = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s)).cloned().unwrap_or_default();
         let first = &paragraphs[0];
         let mut style = text_style(first, outline, Some(g.valign.unwrap_or(VAlign::Middle)), g.padding_mm);
         if first.align.is_none() {
@@ -1813,7 +1877,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
             .collect();
     }
 
-    fn finish(mut self) -> (Vec<Element>, Vec<Asset>, usize, Vec<Drawing>, usize, Vec<(String, Vec<u8>, f64)>) {
+    fn finish(mut self) -> (Vec<Element>, Vec<Asset>, usize, usize, Vec<Drawing>, usize, Vec<(String, Vec<u8>, f64)>) {
         self.attach_bullets();
         attach_underlines(&mut self.lines, &mut self.items);
         let obstacles: Vec<Frame> = self.items.iter().filter_map(|it| if let Item::Element(e) = it { Some(e.frame) } else { None }).collect();
@@ -1827,7 +1891,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 Item::Line(i) => by_last.remove(&i),
             })
             .collect();
-        (elements, self.assets, self.skipped, self.drawings, self.shrunk, self.pending)
+        (elements, self.assets, self.skipped, self.ready_made, self.drawings, self.shrunk, self.pending)
     }
 }
 
@@ -1968,6 +2032,15 @@ pub fn read_drawing(input: impl Read + Seek, known_fonts: &[String]) -> Result<I
     read(input, known_fonts, true)
 }
 
+/// Vrai si le fichier porte la marque de Cahutin dans ses propriétés (`odg::CAHUTIN_MARK`), même réenregistré par
+/// LibreOffice, qui réécrit le générateur mais garde les propriétés.
+pub fn from_cahutin(input: impl Read + Seek) -> bool {
+    let Ok(mut zip) = ZipArchive::new(input) else { return false };
+    let Some(meta) = read_entry(&mut zip, "meta.xml").and_then(|b| String::from_utf8(b).ok()) else { return false };
+    let Ok(meta) = roxmltree::Document::parse(&meta) else { return false };
+    meta.descendants().any(|n| n.has_tag_name((META, "user-defined")) && n.attribute((META, "name")) == Some(crate::odg::CAHUTIN_MARK_NAME) && n.text().map(str::trim) == Some(crate::odg::CAHUTIN_MARK))
+}
+
 fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> Result<Imported, ImportError> {
     let mut zip = ZipArchive::new(input).map_err(|_| ImportError::Unreadable)?;
     let content = read_entry(&mut zip, "content.xml").and_then(|b| String::from_utf8(b).ok()).ok_or(ImportError::Unreadable)?;
@@ -1989,16 +2062,17 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
     let screen_mirror_angles = generator.is_some_and(|g| g.starts_with("cahutin/") && !g.contains(crate::odg::MIRROR_AFTER_ROTATION));
     let mut pages = Vec::new();
     let mut assets = Vec::new();
-    let mut skipped = 0;
+    let (mut skipped, mut ready_made) = (0, 0);
     let (mut drawn, mut drawn_pages, mut shrunk) = (0, 0, 0);
     // Images déjà décodées, par chemin dans le fichier : une image reprise sur plusieurs pages ne l'est qu'une fois.
     let mut known: HashMap<String, String> = HashMap::new();
     for page_node in doc.descendants().filter(|n| n.has_tag_name((DRAW, "page"))) {
-        let mut reader = PageReader { styles: &styles, fill_images: &fills, known: &known, pending: Vec::new(), zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, drawings: Vec::new(), shrunk: 0, whole_frames, screen_mirror_angles, group_floor: 0 };
+        let mut reader = PageReader { styles: &styles, fill_images: &fills, known: &known, pending: Vec::new(), zip: &mut zip, items: Vec::new(), lines: Vec::new(), assets: Vec::new(), skipped: 0, ready_made: 0, drawings: Vec::new(), shrunk: 0, whole_frames, screen_mirror_angles, group_floor: 0 };
         for c in page_node.children() {
             reader.node(c);
         }
-        let (mut elements, page_assets, page_skipped, drawings, page_shrunk, pending) = reader.finish();
+        let (mut elements, page_assets, page_skipped, page_ready_made, drawings, page_shrunk, pending) = reader.finish();
+        ready_made += page_ready_made;
         shrunk += page_shrunk;
         skipped += decode_page(&mut elements, pending, &mut known, &mut assets);
         let size = page_node.attribute((DRAW, "master-page-name")).and_then(|m| sizes.by_master.get(m)).copied().unwrap_or(sizes.default);
@@ -2039,7 +2113,7 @@ fn read(input: impl Read + Seek, known_fonts: &[String], whole_frames: bool) -> 
         skipped += page_skipped;
     }
     let counted = ImportReport::count(&pages);
-    let report = ImportReport { skipped, drawn, shrunk, images: counted.images - drawn_pages, ..counted };
+    let report = ImportReport { skipped, ready_made, drawn, shrunk, images: counted.images - drawn_pages, ..counted };
     Ok(Imported { pages, assets, fonts: Vec::new(), report })
 }
 
@@ -2260,6 +2334,60 @@ mod tests {
         assert_eq!(got, [(Some("#ffee99".into()), green.clone()), (None, None), (None, green.clone()), (None, None), (Some("#18a303".into()), green)]);
     }
 
+    /// Le texte tapé dans une forme dans LibreOffice prend de la chaîne des styles parents ce que son style ne dit pas :
+    /// taille, police, gras, couleur (XML relevé dans deux fichiers de LibreOffice 26.8 : `standard` d'un export
+    /// réenregistré, la chaîne `Filled Blue` → `Filled` → `Shapes` → `Graphic` d'un dessin neuf). La couleur
+    /// automatique (`style:use-window-font-color`, ou aucune couleur écrite) est blanche sur un fond foncé, noire sur un
+    /// fond clair ou sans fond plein, comme LibreOffice 26.8 la rend. Un passage qui écrit sa taille et sa couleur les
+    /// garde ; un style sans parent nommé n'hérite de rien (sa couleur, qu'il n'écrit pas, reste automatique).
+    #[test]
+    fn text_typed_in_a_libreoffice_shape_takes_size_font_and_colour_from_its_parent_styles() {
+        let common = r##"<style:style style:name="standard" style:family="graphic"><style:graphic-properties draw:stroke="solid" svg:stroke-width="0.106cm" svg:stroke-color="#127a02" draw:fill="solid" draw:fill-color="#18a303" draw:textarea-horizontal-align="justify" fo:padding-top="0.125cm" fo:padding-bottom="0.125cm" fo:padding-left="0.25cm" fo:padding-right="0.25cm" fo:wrap-option="wrap" draw:shadow="hidden"/><style:paragraph-properties fo:margin-left="0cm" fo:margin-right="0cm" fo:margin-top="0cm" fo:margin-bottom="0cm" fo:line-height="100%" fo:text-indent="0cm"/><style:text-properties fo:font-variant="normal" fo:text-transform="none" style:use-window-font-color="true" loext:opacity="0%" style:text-outline="false" style:text-line-through-style="none" style:text-line-through-type="none" style:font-name="Liberation Sans" fo:font-family="&apos;Liberation Sans&apos;" style:font-family-generic="roman" style:font-pitch="variable" fo:font-size="18pt" fo:font-style="normal" fo:text-shadow="none" style:text-underline-style="none" fo:font-weight="normal" style:letter-kerning="true" style:font-size-asian="18pt" style:font-size-complex="18pt" style:text-emphasize="none" style:font-relief="none" loext:font-optical-sizing="auto" style:text-overline-style="none" style:text-overline-color="font-color"/></style:style><style:style style:name="Graphic" style:family="graphic"><style:graphic-properties draw:fill="solid" draw:fill-color="#ffffff"/><style:text-properties style:font-name="Liberation Sans" fo:font-family="&apos;Liberation Sans&apos;" style:font-family-generic="roman" style:font-pitch="variable" fo:font-size="18pt"/></style:style><style:style style:name="Shapes" style:family="graphic" style:parent-style-name="Graphic"><style:graphic-properties draw:stroke="none" draw:fill="gradient" draw:fill-gradient-name="Shapes"/><style:text-properties fo:font-size="14pt" fo:font-weight="bold"/></style:style><style:style style:name="Filled" style:family="graphic" style:parent-style-name="Shapes"><style:graphic-properties draw:fill="gradient" draw:fill-gradient-name="Filled"/></style:style><style:style style:name="Filled_20_Blue" style:display-name="Filled Blue" style:family="graphic" style:parent-style-name="Filled"><style:graphic-properties draw:fill-gradient-name="Filled_20_Blue"/><style:text-properties fo:color="#ffffff" loext:opacity="100%"/></style:style>"##;
+        let auto = r##"<style:style style:name="gr8" style:family="graphic" style:parent-style-name="standard"><style:graphic-properties draw:fill-color="#ffee99" draw:textarea-horizontal-align="center" draw:textarea-vertical-align="middle" loext:decorative="false"/><style:paragraph-properties style:writing-mode="lr-tb"/></style:style><style:style style:name="gr4" style:family="graphic" style:parent-style-name="standard"><style:graphic-properties draw:textarea-horizontal-align="center" draw:textarea-vertical-align="middle" loext:decorative="false"/><style:paragraph-properties style:writing-mode="lr-tb"/></style:style><style:style style:name="grNavy" style:family="graphic" style:parent-style-name="standard"><style:graphic-properties draw:fill-color="#000080"/></style:style><style:style style:name="grNoFill" style:family="graphic" style:parent-style-name="standard"><style:graphic-properties draw:fill="none"/></style:style><style:style style:name="grBlue" style:family="graphic" style:parent-style-name="Filled_20_Blue"><style:graphic-properties loext:decorative="false"/></style:style><style:style style:name="grOrphan" style:family="graphic"><style:graphic-properties draw:fill="solid" draw:fill-color="#000080"/></style:style><style:style style:name="P6" style:family="paragraph"><loext:graphic-properties draw:fill-color="#ffee99"/><style:paragraph-properties fo:text-align="center" loext:paragraph-composer="false"/></style:style><style:style style:name="TRed" style:family="text"><style:text-properties fo:color="#c0392b" fo:font-size="30pt"/></style:style>"##;
+        let rect = |style: &str, y: u32, p: &str| format!(r#"<draw:rect draw:style-name="{style}" draw:text-style-name="P6" draw:layer="layout" svg:width="6cm" svg:height="2cm" svg:x="2cm" svg:y="{y}cm">{p}</draw:rect>"#);
+        let body = [
+            rect("gr8", 1, "<text:p>Tapé dans LibreOffice</text:p>"),
+            rect("gr4", 4, "<text:p>Dans le cadre</text:p>"),
+            rect("grNavy", 7, "<text:p>Nuit</text:p>"),
+            rect("grNoFill", 10, "<text:p>Sans fond</text:p>"),
+            rect("grBlue", 13, "<text:p>Bleu</text:p>"),
+            rect("gr8", 16, r#"<text:p><text:span text:style-name="TRed">Rouge</text:span></text:p>"#),
+            rect("grOrphan", 19, "<text:p>Seul</text:p>"),
+        ]
+        .concat();
+        let odg = odg_with_styles(&format!(r#"<draw:page draw:name="page1">{body}</draw:page>"#), &format!(r#"<style:page-layout style:name="PM1"><style:page-layout-properties {A4_LAYOUT}/></style:page-layout>"#), "", &[], auto, common);
+        let page = &read_drawing(Cursor::new(odg), &known()).unwrap().pages[0];
+        let got: Vec<(String, f64, String, String, bool)> = texts(page).iter().map(|t| (plain(t), t.style.size_pt, t.style.font.clone(), t.style.color.clone(), t.content.paragraphs[0].runs[0].bold)).collect();
+        let sans = "Liberation Sans".to_string();
+        assert_eq!(
+            got,
+            [
+                ("Tapé dans LibreOffice".into(), 18.0, sans.clone(), "#000000".into(), false),
+                ("Dans le cadre".into(), 18.0, sans.clone(), "#ffffff".into(), false),
+                ("Nuit".into(), 18.0, sans.clone(), "#ffffff".into(), false),
+                ("Sans fond".into(), 18.0, sans.clone(), "#000000".into(), false),
+                ("Bleu".into(), 14.0, sans.clone(), "#ffffff".into(), true),
+                ("Rouge".into(), 30.0, sans.clone(), "#c0392b".into(), false),
+                ("Seul".into(), 12.0, FALLBACK_FONT.to_string(), "#ffffff".into(), false),
+            ]
+        );
+    }
+
+    /// Couleur automatique du texte d'une forme, d'après son fond, comme LibreOffice 26.8 la rend (relevé sur un rendu) :
+    /// blanche jusqu'à une luminance relative (sRGB) de 0,345, noire au-delà.
+    #[test]
+    fn automatic_text_colour_follows_the_fill_like_libreoffice() {
+        let auto = |fill: &str| auto_text_color(Some(fill));
+        for white in ["#141414", "#3f3f3f", "#808080", "#9e9e9e", "#0000ff", "#ff0000", "#18a303", "#c000c0", "#ff7070", "#9090ff"] {
+            assert_eq!(auto(white), "#ffffff", "{white}");
+        }
+        for black in ["#a0a0a0", "#ffee99", "#00ff00", "#ff8000", "#00c0c0", "#40b0b0", "#ff7878", "#ffffff"] {
+            assert_eq!(auto(black), "#000000", "{black}");
+        }
+        assert_eq!(auto_text_color(None), "#000000");
+        assert_eq!(auto("pas une couleur"), "#000000");
+    }
+
     /// Un export de Cahutin retouché dans LibreOffice 26.8 par UNO (`tests/fixtures/retouche-libreoffice.odg` : le
     /// groupe déplacé de 3 mm, puis dissocié et regroupé ; formes et photo générées, sans texte) se rouvre avec son
     /// groupe dans un groupe, sa forme verrouillée, sa flèche, ses tirets, sa photo bordée et ombrée, son fond à lignes.
@@ -2443,6 +2571,54 @@ mod tests {
             zip.finish().unwrap();
         }
         buf.into_inner()
+    }
+
+    /// Le même ODG, avec un `meta.xml` donné.
+    fn with_meta(odg: Vec<u8>, office_meta: &str) -> Vec<u8> {
+        let mut zin = ZipArchive::new(Cursor::new(odg)).unwrap();
+        let mut buf = Cursor::new(Vec::new());
+        {
+            let mut zip = zip::ZipWriter::new(&mut buf);
+            for i in 0..zin.len() {
+                zip.raw_copy_file(zin.by_index(i).unwrap()).unwrap();
+            }
+            zip.start_file("meta.xml", zip::write::SimpleFileOptions::default()).unwrap();
+            let meta = format!(r#"<?xml version="1.0" encoding="UTF-8"?><office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:meta="{META}"><office:meta>{office_meta}</office:meta></office:document-meta>"#);
+            zip.write_all(meta.as_bytes()).unwrap();
+            zip.finish().unwrap();
+        }
+        buf.into_inner()
+    }
+
+    /// La marque de Cahutin, telle que LibreOffice la réécrit (sans `meta:value-type`) ou telle que l'export l'écrit ; ni
+    /// le générateur (réécrit par LibreOffice), ni la mention OpenMoji seule, ni la marque sous un autre nom ne suffisent.
+    #[test]
+    fn the_cahutin_mark_is_found_in_the_file_properties() {
+        let odg = odg_fixture("", A4_LAYOUT, &[]);
+        let marked = |meta: &str| from_cahutin(Cursor::new(with_meta(odg.clone(), meta)));
+        assert!(marked(r#"<meta:generator>LibreOffice/24.2.7.2</meta:generator><meta:user-defined meta:name="Logiciel">Cahutin</meta:user-defined>"#));
+        assert!(marked(r#"<meta:user-defined meta:name="Logiciel" meta:value-type="string">Cahutin</meta:user-defined>"#));
+        assert!(!marked(r#"<meta:generator>cahutin/0.17.0 miroir-apres-rotation</meta:generator>"#));
+        assert!(!marked(r#"<meta:user-defined meta:name="Crédits">Pictogrammes : OpenMoji (openmoji.org), licence CC BY-SA 4.0</meta:user-defined>"#));
+        assert!(!marked(r#"<meta:user-defined meta:name="Auteur">Cahutin</meta:user-defined><meta:user-defined meta:name="Logiciel">Autre</meta:user-defined>"#));
+        assert!(!from_cahutin(Cursor::new(odg.clone())));
+        assert!(!from_cahutin(Cursor::new(b"pas un zip".to_vec())));
+        // Un export de Cahutin la porte.
+        let mut buf = Cursor::new(Vec::new());
+        crate::odg::export_odg(&crate::model::Document::new("Fiche"), &crate::photo::AssetStore::default(), &crate::fonts::FontSet::builtin(), &mut buf).unwrap();
+        assert!(from_cahutin(Cursor::new(buf.into_inner())));
+    }
+
+    /// Les formes toutes faites de LibreOffice que Cahutin ne redessine pas (un smiley, une flèche de liaison) sont
+    /// comptées à part parmi les dessins non repris ; un objet (graphique) manque aussi, sans en être une.
+    #[test]
+    fn ready_made_shapes_are_counted_apart() {
+        let smiley = r#"<draw:custom-shape draw:style-name="gr1" svg:width="3cm" svg:height="3cm" svg:x="1cm" svg:y="1cm"><draw:enhanced-geometry svg:viewBox="0 0 21600 21600" draw:type="smiley" draw:enhanced-path="U 10800 10800 10800 10800 0 360 Z N"/></draw:custom-shape>"#;
+        let connector = r#"<draw:connector draw:style-name="gr1" svg:x1="1cm" svg:y1="6cm" svg:x2="8cm" svg:y2="6cm"/>"#;
+        let chart = r#"<draw:frame svg:width="3cm" svg:height="3cm" svg:x="1cm" svg:y="9cm"><draw:object xlink:href="./Object 1"/></draw:frame>"#;
+        let rect = r#"<draw:rect draw:style-name="gr1" svg:width="3cm" svg:height="3cm" svg:x="10cm" svg:y="1cm"/>"#;
+        let r = read_whole(&format!("{smiley}{connector}{chart}{rect}")).report;
+        assert_eq!((r.shapes, r.skipped, r.ready_made, r.fallback), (1, 3, 2, false), "{r:?}");
     }
 
     /// Forme retournée de gauche à droite et tournée : LibreOffice la retourne après l'avoir tournée, l'angle lu est
@@ -3022,6 +3198,6 @@ mod tests {
             + r#"<draw:path draw:style-name="gr1" svg:width="2cm" svg:height="2cm" svg:x="5cm" svg:y="2cm" svg:viewBox="0 0 2000 2000" svg:d="M 0 0 L 2000 2000"/>"#
             + r#"<draw:frame svg:width="2cm" svg:height="2cm" svg:x="9cm" svg:y="9cm"><draw:image xlink:href="Pictures/img.png"/></draw:frame>"#;
         let imported = read_odg(Cursor::new(odg_fixture(&body, A4_LAYOUT, &[("img.png", png())])), &known()).unwrap();
-        assert_eq!(imported.report, ImportReport { pages: 1, texts: 1, images: 1, shapes: 2, skipped: 0, drawn: 0, shrunk: 0 });
+        assert_eq!(imported.report, ImportReport { pages: 1, texts: 1, images: 1, shapes: 2, skipped: 0, ready_made: 0, drawn: 0, shrunk: 0, fallback: false });
     }
 }

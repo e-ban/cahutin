@@ -10,8 +10,47 @@
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import Icon from "../Icon.svelte";
+  import { firstFitting, topBarHas, TOP_BAR_MAX, type TopBarStep } from "../../lib/topBarFit";
+  import { flushSync } from "svelte";
 
   let titleEl = $state<HTMLInputElement>();
+  let barEl = $state<HTMLElement>();
+
+  // Le palier de resserrement (lib/topBarFit.ts) : le premier où la dernière commande tient dans la barre. Tout est
+  // essayé et mesuré avant que l'écran soit redessiné : on ne voit que le résultat.
+  let level = $state(0);
+  const has = (step: TopBarStep) => topBarHas(level, step);
+  function fit() {
+    const bar = barEl;
+    if (!bar) return;
+    const fits = (l: number) => {
+      level = l;
+      flushSync();
+      const last = bar.lastElementChild;
+      if (!last) return true;
+      const end = bar.getBoundingClientRect().left + bar.clientWidth - parseFloat(getComputedStyle(bar).paddingRight);
+      return last.getBoundingClientRect().right <= end + 0.5;
+    };
+    const l = firstFitting(fits);
+    if (l !== level) {
+      level = l;
+      flushSync();
+    }
+  }
+  $effect(() => {
+    const bar = barEl;
+    if (!bar) return;
+    const ro = new ResizeObserver(() => fit());
+    // La boîte entière : les marges que changent les paliers ne relancent pas la mesure.
+    ro.observe(bar, { box: "border-box" });
+    document.fonts?.ready.then(() => fit());
+    return () => ro.disconnect();
+  });
+  // Ce qui change la largeur des commandes sans changer celle de la barre.
+  $effect(() => {
+    void [editor.templateMode, assistant.enabled, assistant.open, editor.dirty, settings.highContrast];
+    queueMicrotask(fit);
+  });
 
   function setTitle(title: string) {
     if (title !== editor.doc.title) editor.commit({ ...editor.doc, title });
@@ -62,10 +101,11 @@
   }
 </script>
 
-<header class="top">
-  <button class="logo" title={fr.homeHint} onclick={goHome}><img src="/logo/cahutin.svg" alt="" />{fr.appName}</button>
+<!-- Une commande réduite garde son nom écrit pour les lecteurs d'écran (.sr) et sa bulle. -->
+<header class="top" class:gaps={has("gaps")} class:tight={has("tight")} bind:this={barEl}>
+  <button class="logo" class:short={has("appName")} title={fr.homeHint} onclick={goHome}><img src="/logo/cahutin.svg" alt="" /><span class:sr={has("appName")}>{fr.appName}</span></button>
   <FileMenu />
-  <button class="ghost" title={fr.preferencesHint} onclick={() => (editor.showPreferences = true)}><Icon name="settings" />{fr.preferences}</button>
+  <button class="ghost" title={fr.preferencesHint} onclick={() => (editor.showPreferences = true)}><Icon name="settings" /><span class:sr={has("toolIcons")}>{fr.preferences}</span></button>
   <HelpMenu />
   <input
     class="title"
@@ -76,7 +116,7 @@
     onchange={(e) => setTitle(e.currentTarget.value)}
   />
   <button class="save" title={`${saveHints[saveInfo]}\n${fr.saveHint} (Ctrl+S)`} aria-label={editor.dirty ? fr.saveUnsavedLabel : undefined} onclick={() => save()}>
-    <Icon name="save" />{fr.save}
+    <Icon name="save" /><span class:sr={has("saveIcon")}>{fr.save}</span>
     {#if editor.dirty}<span class="dirty" aria-hidden="true"></span>{/if}
   </button>
   <!-- Le même réglage que Préférences > Enregistrement. Masquée en mode modèle, où rien ne s'enregistre tout seul.
@@ -85,7 +125,7 @@
   {#if !editor.templateMode}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions (le clavier va à la case, qui se coche d'elle-même) -->
     <label class="auto" title={editor.ownFile ? fr.autosaveToggleHint : fr.autosaveToggleHintNoFile} onmousedown={(e) => e.preventDefault()} onclick={labelClick}>
-      <input type="checkbox" aria-label={fr.prefsAutosave} checked={settings.autosave} onchange={(e) => settings.set("autosave", e.currentTarget.checked)} />{fr.autosaveToggle}
+      <input type="checkbox" aria-label={fr.prefsAutosave} checked={settings.autosave} onchange={(e) => settings.set("autosave", e.currentTarget.checked)} /><span class:sr={has("autoBox")}>{fr.autosaveToggle}</span>
     </label>
   {/if}
   <div class="pair">
@@ -93,11 +133,11 @@
     <button onclick={() => editor.redo()} disabled={!editor.canRedo} title="{fr.redo} (Ctrl+Y)" aria-label={fr.redo}><Icon name="redo" /></button>
   </div>
   <span class="spacer"></span>
-  <button class="ghost" class:tpl-on={editor.templateMode} data-guide="template-mode" onclick={toggleTemplateMode}><Icon name="template" />{fr.template}</button>
+  <button class="ghost" class:tpl-on={editor.templateMode} data-guide="template-mode" title={has("toolIcons") ? fr.template : undefined} onclick={toggleTemplateMode}><Icon name="template" /><span class:sr={has("toolIcons")}>{fr.template}</span></button>
   {#if assistant.enabled}
-    <button class="ghost" class:tpl-on={assistant.open} title={fr.assistant.buttonHint} onclick={() => (assistant.open = !assistant.open)}><Icon name="assistant" />{fr.assistant.button}</button>
+    <button class="ghost" class:tpl-on={assistant.open} title={fr.assistant.buttonHint} onclick={() => (assistant.open = !assistant.open)}><Icon name="assistant" /><span class:sr={has("toolIcons")}>{fr.assistant.button}</span></button>
   {/if}
-  <OutputMenu />
+  <OutputMenu size={has("outputIcon") ? "icon" : has("shortOutput") ? "short" : "full"} />
 </header>
 
 <style>
@@ -109,6 +149,35 @@
     padding: 8px 12px;
     background: var(--panel);
     border-bottom: 1px solid var(--line);
+  }
+  /* Les paliers de resserrement (lib/topBarFit.ts) : écarts réduits, puis au plus juste. */
+  .top.gaps {
+    gap: 6px;
+    padding: 8px;
+  }
+  .top.gaps .logo {
+    margin-right: 0;
+  }
+  .top.tight {
+    gap: 4px;
+    padding: 8px 6px;
+  }
+  .top.tight > button:not(.logo),
+  .top.tight > :global(.menu > .trigger) {
+    padding-left: 7px;
+    padding-right: 7px;
+  }
+  .top.tight .title {
+    min-width: 60px;
+  }
+  /* Le nom d'une commande réduite à son icône : plus écrit, toujours lu par les lecteurs d'écran. */
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .logo {
     border: none;
@@ -122,6 +191,12 @@
     font: 700 18px var(--title-font);
     color: var(--accent-strong);
     margin-right: 4px;
+  }
+  /* Sans son nom, le logo garde la hauteur de la ligne écrite (un caractère sans largeur, l'écart annulé) : la barre
+     ne change pas de hauteur et rien ne bouge en dessous. */
+  .logo.short::before {
+    content: "\200b";
+    margin-right: -6px;
   }
   .logo:hover {
     background: var(--bg);

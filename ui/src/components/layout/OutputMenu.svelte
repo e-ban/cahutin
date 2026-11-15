@@ -7,6 +7,9 @@
   import { formatOf } from "../../lib/pageFormat";
   import { settings } from "../../lib/settings.svelte";
 
+  /** Quand la barre du haut manque de place : « Imprimer », puis l'icône seule (le menu reste le même). */
+  let { size = "full" }: { size?: "full" | "short" | "icon" } = $props();
+
   let pdf = $state(false);
   canExportPdf().then((v) => (pdf = v)).catch(() => (pdf = false));
 
@@ -25,4 +28,4 @@
   ]);
 </script>
 
-<MenuButton label={fr.output} icon="print" {items} primary />
+<MenuButton label={fr.output} shown={size === "full" ? undefined : size === "short" ? fr.print : null} icon="print" {items} primary />

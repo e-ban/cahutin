@@ -31,7 +31,17 @@
     primary = false,
     icon,
     title,
-  }: { label: string; items: MenuItem[]; primary?: boolean; icon?: IconName; title?: string } = $props();
+    shown,
+  }: {
+    label: string;
+    items: MenuItem[];
+    primary?: boolean;
+    icon?: IconName;
+    title?: string;
+    /** Ce qui est écrit sur le bouton, plus court que `label` (null : l'icône seule) ; le nom complet reste dans la
+     *  bulle et pour les lecteurs d'écran. */
+    shown?: string | null;
+  } = $props();
 
   let open = $state(false);
   let root = $state<HTMLElement>();
@@ -82,8 +92,17 @@
 {/snippet}
 
 <div class="menu" bind:this={root}>
-  <button class="trigger" class:primary class:ghost={!primary} {title} aria-haspopup="menu" aria-expanded={open} onclick={() => (open = !open)}>
-    {#if icon}<Icon name={icon} />{/if}{label}<Icon name="chevronDown" size={14} />
+  <button
+    class="trigger"
+    class:primary
+    class:ghost={!primary}
+    title={shown === undefined ? title : (title ?? label)}
+    aria-label={shown === undefined ? undefined : label}
+    aria-haspopup="menu"
+    aria-expanded={open}
+    onclick={() => (open = !open)}
+  >
+    {#if icon}<Icon name={icon} />{/if}{shown === undefined ? label : (shown ?? "")}<Icon name="chevronDown" size={14} />
   </button>
   {#if open}
     <div use:fitInWindow={4} class="list" class:right={primary} role="menu">

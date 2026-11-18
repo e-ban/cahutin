@@ -46,6 +46,7 @@
   import UpdateBanner from "./components/layout/UpdateBanner.svelte";
   import { updates } from "./lib/updates.svelte";
   import LineHandles from "./components/LineHandles.svelte";
+  import PathExtender from "./components/PathExtender.svelte";
   import Transformer from "./components/Transformer.svelte";
   import GroupTransformer from "./components/GroupTransformer.svelte";
   import BottomBar from "./components/layout/BottomBar.svelte";
@@ -428,6 +429,7 @@
     {#if !editor.proposing}
       <Transformer {pageEl} zoom={editor.effectiveZoom} />
       <LineHandles {pageEl} zoom={editor.effectiveZoom} />
+      <PathExtender {pageEl} {stageEl} zoom={editor.effectiveZoom} />
       <GroupTransformer {pageEl} zoom={editor.effectiveZoom} onpick={select} />
       <ContextBar {pageEl} {stageEl} />
     {/if}

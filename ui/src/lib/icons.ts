@@ -22,6 +22,7 @@ import CircleHelp from "@lucide/svelte/icons/circle-help";
 import Group from "@lucide/svelte/icons/group";
 import Info from "@lucide/svelte/icons/info";
 import SendToBack from "@lucide/svelte/icons/send-to-back";
+import Spline from "@lucide/svelte/icons/spline";
 import TableCellsSplit from "@lucide/svelte/icons/table-cells-split";
 import Ungroup from "@lucide/svelte/icons/ungroup";
 import Check from "@lucide/svelte/icons/check";
@@ -101,6 +102,7 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Type from "@lucide/svelte/icons/type";
 import Undo2 from "@lucide/svelte/icons/undo-2";
 import Users from "@lucide/svelte/icons/users";
+import Waypoints from "@lucide/svelte/icons/waypoints";
 import X from "@lucide/svelte/icons/x";
 import ZoomIn from "@lucide/svelte/icons/zoom-in";
 import ZoomOut from "@lucide/svelte/icons/zoom-out";
@@ -112,6 +114,8 @@ export const ICONS = {
   arrowLeft: ArrowLeft,
   arrowRight: ArrowRight,
   swapEnds: ArrowLeftRight,
+  extendPath: Waypoints,
+  curve: Spline,
   assistant: Sparkles,
   back: ArrowLeft,
   ban: Ban,

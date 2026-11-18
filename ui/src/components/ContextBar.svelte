@@ -47,6 +47,7 @@
   import { setPictosOutline } from "../lib/pictos.svelte";
   import { ALIGNS, VALIGNS, currentFont, currentSize, isListActive, isMarkActive, setAlign, toggleList, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
   import type { NamedTextStyle, Frame, Guides } from "../lib/types";
+  import { extending } from "../lib/extending.svelte";
 
   let { pageEl, stageEl }: { pageEl: HTMLElement | undefined; stageEl: HTMLElement | undefined } = $props();
 
@@ -371,6 +372,10 @@
     </div>
   {/each}
   <button title={fr.lineSwapHint} onclick={swapLineEnds}><Icon name="swapEnds" /><span class="lbl"> {fr.lineSwap}</span></button>
+  {#if editor.selection.length === 1 && editor.selected}
+    {@const id = editor.selected.id}
+    <button data-extend-toggle class:on={extending.active} title={fr.extendButtonHint} onclick={() => extending.start(id, "end")}><Icon name="extendPath" /><span class="lbl"> {fr.extend}</span></button>
+  {/if}
 {/snippet}
 
 {#snippet alignPop()}

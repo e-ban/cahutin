@@ -9,7 +9,8 @@
   import { boundsOf } from "../lib/groups";
   import { handleTarget } from "../lib/handleTarget";
   import { isLineTarget } from "../lib/lineEnds";
-  import { dragPoint, insertPoint, isPath, pagePoints, segmentMids, type Pt } from "../lib/linePath";
+  import { dragPoint, endDirections, insertPoint, isPath, pagePoints, segmentMids, type Pt } from "../lib/linePath";
+  import { extending } from "../lib/extending.svelte";
   import { fr } from "../lib/i18n/fr";
   import { settings } from "../lib/settings.svelte";
   import { PX_PER_MM, mmToPx } from "../lib/units";
@@ -29,6 +30,19 @@
   const path = $derived(target?.kind.type === "Shape" && isPath(target.kind));
   const pts = $derived(target && target.kind.type === "Shape" ? pagePoints(target.frame, target.kind, !!target.flip_h, !!target.flip_v) : []);
   const mids = $derived(target && target.kind.type === "Shape" ? segmentMids(pts, path && !!target.kind.curve) : []);
+
+  /** Le « + » de prolongement, à 22 px de chaque bout (à côté de sa poignée), dans le prolongement du chemin. */
+  const PLUS_PX = 22;
+  const pluses = $derived.by(() => {
+    if (!target || target.kind.type !== "Shape" || pts.length < 2) return [];
+    const d = endDirections(pts, path && !!target.kind.curve);
+    const mm = (settings.bigHandles ? PLUS_PX + 8 : PLUS_PX) / (PX_PER_MM * zoom);
+    const at = (p: Pt, deg: number): Pt => ({ x: p.x + mm * Math.cos((deg * Math.PI) / 180), y: p.y + mm * Math.sin((deg * Math.PI) / 180) });
+    return [
+      { which: "start" as const, p: at(pts[0], d.start) },
+      { which: "end" as const, p: at(pts[pts.length - 1], d.end) },
+    ];
+  });
 
   type Drag = { id: string; mode: "point" | "mid"; i: number; base: Document; pts0: Pt[]; pointer: number; from: { x: number; y: number }; live: boolean };
   let drag = $state<Drag | null>(null);
@@ -134,6 +148,24 @@
         }}
       ></span>
     {/each}
+    {#if !extending.active}
+      {#each pluses as plus (plus.which)}
+        <button
+          class="plus"
+          class:big={settings.bigHandles}
+          class:hidden={editor.gesture}
+          style:left="{mmToPx(plus.p.x, zoom)}px"
+          style:top="{mmToPx(plus.p.y, zoom)}px"
+          title={fr.extendPlusHint}
+          aria-label={fr.extendPlusHint}
+          onpointerdown={(ev) => ev.stopPropagation()}
+          onclick={(ev) => {
+            ev.stopPropagation();
+            if (target) extending.start(target.id, plus.which);
+          }}>+</button
+        >
+      {/each}
+    {/if}
     {#if guides.x !== null}<span class="guide v" style:left="{mmToPx(guides.x, zoom)}px"></span>{/if}
     {#if guides.y !== null}<span class="guide h" style:top="{mmToPx(guides.y, zoom)}px"></span>{/if}
   </div>
@@ -177,6 +209,30 @@
     height: 18px;
     margin: -9px 0 0 -9px;
   }
+  /* « + » de prolongement : petit rond avec un plus, à côté du bout. */
+  .plus {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    padding: 0;
+    border-radius: 50%;
+    background: #4af;
+    color: #fff;
+    border: none;
+    font: bold 14px/16px sans-serif;
+    text-align: center;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+  .plus.big {
+    width: 26px;
+    height: 26px;
+    margin: -13px 0 0 -13px;
+    font-size: 20px;
+    line-height: 26px;
+  }
+  .plus.hidden,
   .handle.hidden {
     visibility: hidden;
   }

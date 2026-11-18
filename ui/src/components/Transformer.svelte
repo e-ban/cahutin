@@ -22,6 +22,8 @@
   let moveable: Moveable | null = null;
   let movedId: string | null = null;
   let live: RectPx | null = null;
+  /** Le geste a vraiment bougé (au-delà de la zone morte) : sinon, rien n'est enregistré. */
+  let moved = false;
 
   const target = $derived(handleTarget());
   // Un trait se règle par ses bouts (LineHandles) : ici, on le déplace seulement, sans cadre ni poignées.
@@ -31,6 +33,7 @@
     const e = target;
     if (!e) return;
     editor.gesture = true;
+    moved = false;
     live = {
       left: mmToPx(e.frame.x_mm, zoom),
       top: mmToPx(e.frame.y_mm, zoom),
@@ -53,9 +56,13 @@
     const e = target;
     if (!e || !live) return;
     let frame = rectPxToFrame(live, zoom);
+    const wasMoved = moved;
     live = null;
+    moved = false;
     const f = e.frame;
-    // Un simple clic ne bouge rien, même pas d'une retouche d'accrochage.
+    // Un simple clic ne bouge rien, même pas d'une retouche d'accrochage, ni de l'arrondi de l'angle au dixième de
+    // degré (un trait qui suit son élément a un angle quelconque : l'arrondir le déplacerait, et le décrocherait).
+    if (!wasMoved) return;
     if (frame.x_mm === f.x_mm && frame.y_mm === f.y_mm && frame.w_mm === f.w_mm && frame.h_mm === f.h_mm && frame.rotation_deg === f.rotation_deg) return;
     const lines = snapLines(
       editor.page.size,
@@ -92,6 +99,7 @@
     m.on("dragStart", start)
       .on("drag", (ev) => {
         if (!live || Math.hypot(ev.dist[0], ev.dist[1]) < DRAG_DEAD_ZONE_PX) return;
+        moved = true;
         live.left = ev.left;
         live.top = ev.top;
         ev.target.style.left = `${ev.left}px`;
@@ -106,6 +114,7 @@
       })
       .on("resize", (ev) => {
         if (!live) return;
+        moved = true;
         live.width = ev.width;
         live.height = ev.height;
         live.left = ev.drag.beforeTranslate[0];
@@ -123,6 +132,7 @@
       })
       .on("rotate", (ev) => {
         if (!live) return;
+        moved = true;
         live.rotation = ev.beforeRotate;
         ev.target.style.transform = ev.transform;
         publish();

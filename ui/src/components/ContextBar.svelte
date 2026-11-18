@@ -34,7 +34,7 @@
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
   import { endsOf, isLineTarget } from "../lib/lineEnds";
-  import { setClosed, setCurve, setHeadSize, setLineEnd, swapLineEnds } from "../lib/elementEdit";
+  import { convertToShape, setClosed, setCurve, setHeadSize, setLineEnd, swapLineEnds } from "../lib/elementEdit";
   import LineEndPicker from "./LineEndPicker.svelte";
   import { inTableGroup, isTableCell, selectedTable } from "../lib/table";
   import { alignUnits, arrangeUnits, expandSelection, groupOf, isLockedSelection } from "../lib/groups";
@@ -382,6 +382,9 @@
   <!-- Pas « disabled » : un bouton désactivé ne montre pas sa bulle, qui dit quoi faire d'abord. -->
   <button class:on={curved} class:off={!paths.length} aria-disabled={!paths.length} title={paths.length ? fr.curveHint : fr.curveNeedsElbow} onclick={() => paths.length && setCurve(!curved)}><Icon name="curve" /><span class="lbl"> {fr.curve}</span></button>
   <button class:on={closed} class:off={!paths.length} aria-disabled={!paths.length} title={paths.length ? (closed ? fr.openPathHint : fr.closePathHint) : fr.curveNeedsElbow} onclick={() => paths.length && setClosed(!closed)}><Icon name="closePath" /><span class="lbl"> {closed ? fr.openPath : fr.closePath}</span></button>
+  {#if paths.length}
+    <button title={closed ? fr.toShapeHint : fr.toShapeOpenHint} onclick={convertToShape}><Icon name="toShape" /><span class="lbl"> {fr.toShape}</span></button>
+  {/if}
   {#if editor.selection.length === 1 && editor.selected && !closed}
     {@const id = editor.selected.id}
     <button data-extend-toggle class:on={extending.active} title={fr.extendButtonHint} onclick={() => extending.start(id, "end")}><Icon name="extendPath" /><span class="lbl"> {fr.extend}</span></button>
@@ -685,7 +688,7 @@
     {:else if selected?.kind.type === "Shape"}
       {@const s = selected.kind}
       <!-- Un chemin fermé se remplit comme un rectangle. -->
-      {#if (!isStrokeOnly(s.shape) && s.shape !== "Path") || (s.closed && isPath(s))}
+      {#if (!isStrokeOnly(s.shape) && s.shape !== "Path") || (s.closed && isPath(s)) || (s.shape === "Path" && !s.graphisme && !!s.path?.trimEnd().endsWith("Z"))}
       <div class="wrap">
         <button onclick={() => toggle("fill")}><span class="dot" style:background={s.fill ?? "transparent"}></span><span class="lbl"> {fr.fill}</span></button>
         {#if pop === "fill"}<div use:fitInWindow class="pop"><ColorPicker value={s.fill} allowNone onchange={(c) => updateShape({ fill: c })} /></div>{/if}

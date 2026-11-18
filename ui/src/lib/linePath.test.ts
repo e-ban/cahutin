@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { closedCurveBeziers, curveBeziers, dragPoint, endDirections, extend, fromPagePoints, insertPoint, isPath, pagePoints, removePoint, segmentMids, type Pt } from "./linePath";
+import { closedCurveBeziers, curveBeziers, dragPoint, toShapePath, endDirections, extend, fromPagePoints, insertPoint, isPath, pagePoints, removePoint, segmentMids, type Pt } from "./linePath";
 import { lineEndpoints } from "./lineEnds";
 import type { Frame, ShapeProps } from "./types";
 
@@ -149,4 +149,23 @@ test("a closed path keeps closed through fromPagePoints, and has a closing segme
   expect(fromPagePoints(sq, s).patch.closed).toBe(true);
   expect(fromPagePoints(sq.slice(0, 2), s).patch.closed).toBeUndefined();
   expect(segmentMids(sq, false, true)).toEqual([{ x: 20, y: 10 }, { x: 30, y: 20 }, { x: 20, y: 20 }]);
+});
+
+test("toShapePath: a closed square becomes a closed path in the 0..1000 box", () => {
+  const frame: Frame = { x_mm: 0, y_mm: 0, w_mm: 1, h_mm: 1, rotation_deg: 0 };
+  const s = line({ closed: true });
+  const r = fromPagePoints([{ x: 10, y: 20 }, { x: 50, y: 20 }, { x: 50, y: 60 }, { x: 10, y: 60 }], s);
+  const out = toShapePath(r.frame, { ...s, ...r.patch }, false, false);
+  expect(out.frame).toEqual({ x_mm: 10, y_mm: 20, w_mm: 40, h_mm: 40, rotation_deg: 0 });
+  expect(out.path).toBe("M 0 0 L 1000 0 L 1000 1000 L 0 1000 Z");
+  void frame;
+});
+
+test("toShapePath: an open curve uses C and a flat path keeps a height", () => {
+  const s = line({ curve: true });
+  const r = fromPagePoints([{ x: 0, y: 0 }, { x: 20, y: 20 }, { x: 40, y: 0 }], s);
+  const out = toShapePath(r.frame, { ...s, ...r.patch }, false, false);
+  expect(out.path).toMatch(/^M [\d.]+ [\d.]+( C( [-\d.]+){6}){2}$/);
+  const flat = fromPagePoints([{ x: 0, y: 5 }, { x: 20, y: 5 }, { x: 40, y: 5 }], line());
+  expect(toShapePath(flat.frame, { ...line(), ...flat.patch }, false, false).frame.h_mm).toBeGreaterThan(0);
 });

@@ -107,7 +107,7 @@ test("a thicker stroke grows the hit area of a line with a large head", () => {
 });
 
 // Chemins : points, courbe, inversion.
-import { removePathPoint, setClosed, setCurve, setPathPoints } from "./elementEdit";
+import { convertToShape, removePathPoint, setClosed, setCurve, setPathPoints } from "./elementEdit";
 import { pagePoints } from "./linePath";
 
 const pts3 = [{ x: 20, y: 20 }, { x: 60, y: 20 }, { x: 60, y: 60 }];
@@ -194,4 +194,22 @@ test("setClosed closes paths only, in one undo step, and opens them back", () =>
   editor.redo();
   setClosed(false);
   expect("closed" in shapeOf(a.id).s).toBe(false);
+});
+
+test("convertToShape turns paths into resizable shapes, in one undo step", () => {
+  const { a, b } = threeShapes();
+  setPathPoints(a.id, pts3);
+  editor.selection = [a.id];
+  setClosed(true);
+  updateShape({ fill: "#ffcc00" });
+  editor.selection = [a.id, b.id];
+  convertToShape();
+  const { s } = shapeOf(a.id);
+  expect(s.shape).toBe("Path");
+  expect(s.fill).toBe("#ffcc00");
+  expect(s.path?.endsWith("Z")).toBe(true);
+  expect(["points", "curve", "closed", "ends"].some((k) => k in s)).toBe(false);
+  expect(shapeOf(b.id).s.shape).toBe("Line");
+  editor.undo();
+  expect(shapeOf(a.id).s.shape).toBe("Arrow");
 });

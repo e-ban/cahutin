@@ -2,7 +2,7 @@
 import { editor } from "./docStore.svelte";
 import { TEXT_PADDING_MM } from "./richtext";
 import { endsOf, isLineTarget, normalizeEnds, withHitHeight } from "./lineEnds";
-import { fromPagePoints, isPath, pagePoints, removePoint, type Pt } from "./linePath";
+import { fromPagePoints, isPath, pagePoints, removePoint, toShapePath, type Pt } from "./linePath";
 import type { Element, HeadSize, LineEnd, LineEnds, PhotoProps, ShapeProps, TableProps, TextFrame, TextStyle } from "./types";
 
 export function updateSelected(fn: (e: Element) => Element) {
@@ -116,6 +116,18 @@ export function removePathPoint(id: string, i: number) {
   const e = editor.page.elements.find((o) => o.id === id);
   if (!e || e.kind.type !== "Shape" || !isPath(e.kind)) return;
   setPathPoints(id, removePoint(pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v), i));
+}
+
+/** Les chemins sélectionnés deviennent des formes ordinaires (tracé libre) : elles se redimensionnent et se tournent
+ *  comme un rectangle, mais leurs points ne se tirent plus. Un chemin fermé garde son fond ; un chemin ouvert perd
+ *  ses pointes. Un pas d'annulation. */
+export function convertToShape() {
+  updateLines((e) => {
+    if (e.kind.type !== "Shape" || !isPath(e.kind)) return e;
+    const k = e.kind;
+    const out = toShapePath(e.frame, k, !!e.flip_h, !!e.flip_v);
+    return { ...e, frame: out.frame, flip_h: false, flip_v: false, kind: { type: "Shape", shape: "Path", fill: k.closed ? k.fill : null, stroke: k.stroke, corner_radius_mm: 0, path: out.path } };
+  });
 }
 
 /** Ferme (ou rouvre) les chemins sélectionnés : un segment revient du dernier point au premier ; fermé, un chemin

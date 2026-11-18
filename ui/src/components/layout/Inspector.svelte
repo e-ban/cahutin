@@ -13,7 +13,7 @@
   import { hasTemplateRole, templateRole, withTemplateRole } from "../../lib/templateRole";
   import { isStrokeOnly } from "../../lib/shapePaths";
   import { editLine, endsOf, isLineTarget, lineEndpoints } from "../../lib/lineEnds";
-  import { setClosed, setCurve, setHeadSize, setLineEnd, setPathPoints, swapLineEnds } from "../../lib/elementEdit";
+  import { convertToShape, setClosed, setCurve, setHeadSize, setLineEnd, setPathPoints, swapLineEnds } from "../../lib/elementEdit";
   import { isPath, pagePoints } from "../../lib/linePath";
   import LineEndPicker from "../LineEndPicker.svelte";
   import { fonts } from "../../lib/fonts.svelte";
@@ -431,6 +431,9 @@
           <input type="checkbox" disabled={!asPath} checked={!!s.closed} onchange={(e) => setClosed(e.currentTarget.checked)} />
           {fr.closePath}
         </label>
+        {#if asPath}
+          <button title={s.closed ? fr.toShapeHint : fr.toShapeOpenHint} onclick={convertToShape}><Icon name="toShape" /> {fr.toShape}</button>
+        {/if}
         <label class="check" title={asPath ? fr.curveHint : fr.curveNeedsElbow}>
           <input type="checkbox" disabled={!asPath} checked={!!s.curve} onchange={(e) => setCurve(e.currentTarget.checked)} />
           {fr.curve}

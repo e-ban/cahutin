@@ -140,3 +140,22 @@ export function dragPoint(o: { pts: Pt[]; i: number; to: Pt; shift: boolean; lin
   const [, p] = lineEndpoints(dragEnd({ frame: seg, flipH: false, which: "end", to: o.to, shift: o.shift, lines, tolMm: o.tolMm }), false);
   return o.pts.map((q, j) => (j === o.i ? p : q));
 }
+
+/** Un chemin devenu forme ordinaire (`Path`) : son tracé dans la boîte 0..1000 étirée sur un cadre sans rotation,
+ *  qui contient ses points (et les contrôles de sa courbe). La forme se redimensionne et se tourne comme les autres ;
+ *  ses points ne se tirent plus. Un chemin tout plat garde 1 mm d'épaisseur de cadre. */
+export function toShapePath(frame: Frame, s: ShapeProps, flipH: boolean, flipV: boolean): { frame: Frame; path: string } {
+  const pts = pagePoints(frame, s, flipH, flipV);
+  const curve = s.curve ? (s.closed ? closedCurveBeziers(pts) : curveBeziers(pts)) : null;
+  const all = [...pts, ...(curve ?? []).flatMap(([c1, c2]) => [c1, c2])];
+  const box = (vs: number[]) => {
+    const [lo, hi] = [Math.min(...vs), Math.max(...vs)];
+    return hi - lo >= 1 ? [lo, hi - lo] : [(lo + hi) / 2 - 0.5, 1];
+  };
+  const [x0, w] = box(all.map((p) => p.x));
+  const [y0, h] = box(all.map((p) => p.y));
+  const n = (v: number) => String(Math.round(v * 10) / 10 + 0);
+  const at = (p: Pt) => `${n(((p.x - x0) / w) * 1000)} ${n(((p.y - y0) / h) * 1000)}`;
+  const body = curve ? curve.map(([c1, c2, p]) => ` C ${at(c1)} ${at(c2)} ${at(p)}`).join("") : pts.slice(1).map((p) => ` L ${at(p)}`).join("");
+  return { frame: { x_mm: x0, y_mm: y0, w_mm: w, h_mm: h, rotation_deg: 0 }, path: `M ${at(pts[0])}${body}${s.closed ? " Z" : ""}` };
+}

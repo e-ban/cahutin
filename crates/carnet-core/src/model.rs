@@ -50,9 +50,9 @@ pub fn renew_ids(page: &mut Page) {
 /// un groupe ; 7 : miroir d'un élément autre qu'une photo, ou de haut en bas ; 8 : champs de la classe sans
 /// accents, `{prenom}` ; 9 : recette des lignes de graphisme, lue seulement : une version plus ancienne voit des
 /// lignes ordinaires ; 11 : interligne d'un texte ; 12 : texte écrit sur les lignes de son cadre ; 13 : puce devant un
-/// paragraphe ; 14 : terminaisons choisies sur un trait ; 15 : chemin à coudes ; 11 à 15, les seules versions que
-/// `native::written_version` écrit au-delà de 8).
-pub const FORMAT_VERSION: u32 = 15;
+/// paragraphe ; 14 : terminaisons choisies sur un trait ; 15 : chemin à coudes ; 16 : bout accroché à un élément ;
+/// 11 à 16, les seules versions que `native::written_version` écrit au-delà de 8).
+pub const FORMAT_VERSION: u32 = 16;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -516,6 +516,41 @@ pub struct ShapeProps {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub closed: bool,
+    /// Bouts accrochés à des éléments de la page (connecteur) : chacun suit son point (`connectors::follow_connectors`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub attach: Option<Attach>,
+}
+
+/// Les accroches des deux bouts d'un trait.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export)]
+pub struct Attach {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub start: Option<Anchor>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub end: Option<Anchor>,
+}
+
+/// Un bout accroché : l'élément et son point.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export)]
+pub struct Anchor {
+    pub element: Id,
+    pub at: AnchorPoint,
+}
+
+/// Les points d'accroche d'un élément : milieux des côtés de son cadre (rotation comprise) et centre.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export)]
+pub enum AnchorPoint {
+    Top,
+    Right,
+    Bottom,
+    Left,
+    Center,
 }
 
 /// Ce qui termine un bout de trait.
@@ -699,6 +734,7 @@ mod tests {
                 points: None,
                 curve: false,
                 closed: false,
+                attach: None,
             }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
@@ -752,6 +788,7 @@ mod tests {
             points: None,
             curve: false,
             closed: false,
+            attach: None,
         }
     }
 

@@ -354,7 +354,7 @@ pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
         return Err("closed demande au moins 3 points".into());
     }
     let ends = if closed { None } else { ends };
-    let mut props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve, closed };
+    let mut props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve, closed, attach: None };
     // Un chemin : son cadre vient de ses points ; deux points, un trait droit de l'un à l'autre.
     let frame = pts.as_ref().map(|p| match p[..] {
         [a, b] => carnet_core::shapes::line_frame(a, b, &props),

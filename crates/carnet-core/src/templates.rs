@@ -378,6 +378,7 @@ pub fn builtin() -> Vec<Template> {
         points: None,
         curve: false,
         closed: false,
+        attach: None,
     });
     let f = e.frame;
     completion.elements.push(Element {
@@ -846,7 +847,7 @@ mod tests {
         };
         page.elements.push(free(ElementKind::Photo(PhotoProps { asset: Some(child_id.clone()), crop: Crop::COVER, corner_radius_mm: 0.0, border: None, shadow: false, mirrored: false })));
         page.elements.push(free(ElementKind::Text(TextProps { content: RichText::plain("Léa a ri"), style: TextStyle::default_zone(), prompt: None, frame: None })));
-        page.elements.push(free(ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false })));
+        page.elements.push(free(ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None })));
         let t = from_page("Partagé", &page, &store);
         assert_eq!(t.page.elements.len(), 1);
         assert!(matches!(t.page.elements[0].kind, ElementKind::Shape(_)));

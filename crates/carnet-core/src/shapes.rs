@@ -333,6 +333,7 @@ mod tests {
             points: None,
             curve: false,
             closed: false,
+            attach: None,
         }
     }
 

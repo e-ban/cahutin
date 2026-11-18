@@ -2,6 +2,7 @@
 
 pub mod background;
 pub mod class;
+pub mod connectors;
 pub mod crop;
 pub mod examples;
 pub mod faces;

@@ -338,7 +338,7 @@ fn drawn_shapes_keep_their_geometry() {
             locked: false,
             zone: false,
             group: None,
-            kind: ElementKind::Shape(ShapeProps { shape: kind, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false }),
+            kind: ElementKind::Shape(ShapeProps { shape: kind, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
         });
@@ -377,6 +377,7 @@ fn arrow_has_its_head() {
             points: None,
             curve: false,
             closed: false,
+            attach: None,
         }),
         subgroups: Vec::new(),
         flip_h: false, flip_v: false,
@@ -419,6 +420,7 @@ fn every_line_end_renders_in_libreoffice() {
                 points: None,
                 curve: false,
                 closed: false,
+                attach: None,
             }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
@@ -500,7 +502,7 @@ fn libreoffice_round_trip() -> &'static RoundTrip {
         let mut star = element(frame_at(150.0, 20.0, 20.0, 20.0, 0.0), filled_shape(ShapeKind::Star, None));
         star.group = Some("g".into());
         let arrow = |y: f64, flip_h: bool| {
-            let k = ElementKind::Shape(ShapeProps { shape: ShapeKind::Arrow, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#c0392b".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false });
+            let k = ElementKind::Shape(ShapeProps { shape: ShapeKind::Arrow, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#c0392b".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None });
             Element { flip_h, ..element(frame_at(20.0, y, 60.0, 8.0, 0.0), k) }
         };
         let mut framed = element(frame_at(90.0, 150.0, 100.0, 40.0, 0.0), text_kind("Léa", 14.0));
@@ -581,7 +583,7 @@ const ROUND_TRIP_CURVE: [(f64, f64); 4] = [(150.0, 80.0), (165.0, 105.0), (180.0
 
 /// Un chemin passant par `pts` (mm de page).
 fn path_element(pts: &[(f64, f64)], curve: bool, shape: ShapeKind, ends: Option<carnet_core::model::LineEnds>) -> Element {
-    let mut s = ShapeProps { shape, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#2e86c1".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve, closed: false };
+    let mut s = ShapeProps { shape, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#2e86c1".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve, closed: false, attach: None };
     let (frame, points) = carnet_core::shapes::path_frame(pts, &s);
     s.points = Some(points);
     Element { id: new_id(), frame, locked: false, zone: false, group: None, kind: ElementKind::Shape(s), subgroups: Vec::new(), flip_h: false, flip_v: false }
@@ -919,6 +921,7 @@ fn dashes_have_the_screen_lengths() {
                 points: None,
                 curve: false,
                 closed: false,
+                attach: None,
             }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
@@ -1288,7 +1291,7 @@ fn frame_at(x_mm: f64, y_mm: f64, w_mm: f64, h_mm: f64, rotation_deg: f64) -> Fr
 }
 
 fn filled_shape(shape: ShapeKind, path: Option<&str>) -> ElementKind {
-    ElementKind::Shape(ShapeProps { shape, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0, path: path.map(String::from), graphisme: None, ends: None, points: None, curve: false, closed: false })
+    ElementKind::Shape(ShapeProps { shape, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0, path: path.map(String::from), graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None })
 }
 
 fn photo_kind(asset: &Id) -> ElementKind {
@@ -1442,7 +1445,7 @@ fn rotated_elements_fill_their_turned_box() {
     let line = frame_at(20.0, 200.0, 60.0, 4.0, 30.0);
     doc.pages[0].elements.push(element(
         line,
-        ElementKind::Shape(ShapeProps { shape: ShapeKind::Line, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#000000".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false }),
+        ElementKind::Shape(ShapeProps { shape: ShapeKind::Line, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#000000".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None }),
     ));
     let text = frame_at(10.0, 90.0, 100.0, 20.0, 90.0);
     doc.pages[1].elements.push(element(text, text_kind("Tourné", 14.0)));

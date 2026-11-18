@@ -92,6 +92,10 @@ pub fn written_version(doc: &Document) -> u32 {
     // Miroir d'un élément autre qu'une photo de gauche à droite, ou de haut en bas : inconnu avant la version 7.
     // Champ de la classe sans accents (`{prenom}`) : une version plus ancienne l'afficherait sans le remplir.
     let new_field = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if crate::fields::has_fields_text(t) || crate::fields::has_class_fields_text(t) || crate::fields::has_auto_fields_text(t));
+    // Bout accroché : une version plus ancienne ne le ferait plus suivre, puis effacerait l'accroche.
+    if elements().any(|e| matches!(&e.kind, ElementKind::Shape(s) if s.attach.is_some())) {
+        return 16;
+    }
     // Chemin à coudes : une version plus ancienne le dessinerait droit, puis effacerait ses points.
     if elements().any(|e| matches!(&e.kind, ElementKind::Shape(s) if s.points.is_some())) {
         return 15;
@@ -659,7 +663,7 @@ mod tests {
         assert_eq!(written_version(&doc), 6);
         let mut doc = Document::new("v");
         let mut path = picture(None);
-        path.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Path, fill: None, stroke: None, corner_radius_mm: 0.0, path: Some("M 0 0 L 1000 1000".into()), graphisme: None, ends: None, points: None, curve: false, closed: false });
+        path.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Path, fill: None, stroke: None, corner_radius_mm: 0.0, path: Some("M 0 0 L 1000 1000".into()), graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None });
         doc.pages[0].elements.push(path);
         assert_eq!(written_version(&doc), 6);
     }
@@ -670,7 +674,7 @@ mod tests {
         use crate::model::{HeadSize, LineEnd, LineEnds};
         let mut doc = Document::new("v");
         let mut line = picture(None);
-        line.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Arrow, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false });
+        line.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Arrow, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None });
         doc.pages[0].elements.push(line);
         assert_eq!(written_version(&doc), 1);
         if let ElementKind::Shape(s) = &mut doc.pages[0].elements[0].kind {
@@ -683,14 +687,13 @@ mod tests {
     fn written_version_is_15_with_points() {
         let mut doc = Document::new("v");
         let mut line = picture(None);
-        line.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Line, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false });
+        line.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Line, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None });
         doc.pages[0].elements.push(line);
         assert_eq!(written_version(&doc), 1);
         if let ElementKind::Shape(s) = &mut doc.pages[0].elements[0].kind {
             s.points = Some(vec![[0.0, 0.5], [0.5, 0.0], [1.0, 0.5]]);
         }
         assert_eq!(written_version(&doc), 15);
-        assert_eq!(FORMAT_VERSION, 15);
     }
 
     /// Bombe zip : une entrée minuscule qui se décompresse sans fin ne doit pas remplir la mémoire.
@@ -751,9 +754,9 @@ mod tests {
     }
 
     #[test]
-    fn newer_than_15_is_refused() {
+    fn newer_than_16_is_refused() {
         let mut doc = Document::new("futur");
-        doc.format_version = 16;
+        doc.format_version = 17;
         let json = serde_json::to_vec(&doc).unwrap();
         let mut buf = Cursor::new(Vec::new());
         {
@@ -764,7 +767,7 @@ mod tests {
         }
         buf.set_position(0);
         let err = load(buf).err().unwrap();
-        assert_eq!(err, NativeError::NewerVersion(16));
+        assert_eq!(err, NativeError::NewerVersion(17));
         assert!(err.message_fr().contains("plus récente"));
         assert!(err.message_fr().contains("mettez Cahutin à jour"), "dire quoi faire");
     }
@@ -846,9 +849,9 @@ mod tests {
         assert_eq!(with(text_el(plain.clone(), Some(frame))), 3);
         let dashed = Stroke { width_mm: 1.0, color: "#000000".into(), style: Some(StrokeStyle::Dashed) };
         let mut shape = picture(None);
-        shape.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: Some(dashed.clone()), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false });
+        shape.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: Some(dashed.clone()), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None });
         assert_eq!(with(shape.clone()), 3);
-        shape.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: Some(Stroke { style: Some(StrokeStyle::Solid), ..dashed.clone() }), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false });
+        shape.kind = ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: Some(Stroke { style: Some(StrokeStyle::Solid), ..dashed.clone() }), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None });
         assert_eq!(with(shape), 2);
         let mut photo = picture(None);
         photo.kind = ElementKind::Photo(PhotoProps { asset: None, crop: Crop::COVER, corner_radius_mm: 0.0, border: Some(dashed), shadow: false, mirrored: false });

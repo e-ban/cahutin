@@ -19,4 +19,13 @@ graphisme?: GraphismeRow,
  * Terminaisons d'un trait ou d'une flèche ; absentes : celles de son genre (`shapes::default_ends`), comme
  * avant leur ajout. Écrites seulement quand elles en diffèrent.
  */
-ends?: LineEnds, };
+ends?: LineEnds, 
+/**
+ * Coudes d'un trait ou d'une flèche (chemin) : 3 à 200 points, en fractions du cadre avant rotation et miroir,
+ * du bout « Début » au bout « Fin ». Absents : trait droit (`shapes::valid_points` les vérifie).
+ */
+points?: Array<[number, number]>, 
+/**
+ * Chemin adouci en courbe passant par ses points (`shapes::curve_beziers`) ; sans effet sans `points`.
+ */
+curve?: boolean, };

@@ -346,7 +346,7 @@ pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
         (c, w) => Some(Stroke { width_mm: w.unwrap_or(0.5).clamp(0.1, 20.0), color: c.unwrap_or("#222222".into()), style: None }),
     };
     let ends = line_ends(args, shape)?;
-    let props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends };
+    let props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve: false };
     let out = push(doc, args, false, ElementKind::Shape(props.clone()))?;
     // Un trait aux grandes pointes : son cadre les couvre.
     if let Some(e) = doc.pages.iter_mut().flat_map(|p| &mut p.elements).find(|e| json!(e.id) == out["element_id"]) {

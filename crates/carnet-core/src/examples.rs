@@ -100,6 +100,8 @@ pub(crate) fn shape(kind: ShapeKind, f: Frame, fill: Option<&str>, stroke: Optio
             path: None,
             graphisme: None,
             ends: None,
+            points: None,
+            curve: false,
         }),
     )
 }

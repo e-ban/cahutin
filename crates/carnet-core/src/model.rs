@@ -50,9 +50,9 @@ pub fn renew_ids(page: &mut Page) {
 /// un groupe ; 7 : miroir d'un élément autre qu'une photo, ou de haut en bas ; 8 : champs de la classe sans
 /// accents, `{prenom}` ; 9 : recette des lignes de graphisme, lue seulement : une version plus ancienne voit des
 /// lignes ordinaires ; 11 : interligne d'un texte ; 12 : texte écrit sur les lignes de son cadre ; 13 : puce devant un
-/// paragraphe ; 14 : terminaisons choisies sur un trait ; 11 à 14, les seules versions que `native::written_version`
-/// écrit au-delà de 8).
-pub const FORMAT_VERSION: u32 = 14;
+/// paragraphe ; 14 : terminaisons choisies sur un trait ; 15 : chemin à coudes ; 11 à 15, les seules versions que
+/// `native::written_version` écrit au-delà de 8).
+pub const FORMAT_VERSION: u32 = 15;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -502,6 +502,15 @@ pub struct ShapeProps {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub ends: Option<LineEnds>,
+    /// Coudes d'un trait ou d'une flèche (chemin) : 3 à 200 points, en fractions du cadre avant rotation et miroir,
+    /// du bout « Début » au bout « Fin ». Absents : trait droit (`shapes::valid_points` les vérifie).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub points: Option<Vec<[f64; 2]>>,
+    /// Chemin adouci en courbe passant par ses points (`shapes::curve_beziers`) ; sans effet sans `points`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub curve: bool,
 }
 
 /// Ce qui termine un bout de trait.
@@ -682,6 +691,8 @@ mod tests {
                 path: None,
                 graphisme: None,
                 ends: None,
+                points: None,
+                curve: false,
             }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
@@ -732,6 +743,8 @@ mod tests {
             path: Some("M 0 0 L 1000 1000".into()),
             graphisme,
             ends: None,
+            points: None,
+            curve: false,
         }
     }
 

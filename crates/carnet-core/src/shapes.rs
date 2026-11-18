@@ -25,6 +25,56 @@ pub fn path(kind: ShapeKind) -> Option<&'static str> {
 }
 
 /// Le tracé d'une forme : celui de sa sorte, ou pour un tracé libre le sien, s'il est valide.
+/// Plus grand nombre de points d'un chemin.
+pub const MAX_PATH_POINTS: usize = 200;
+
+/// Points d'un chemin acceptables : 3 à 200, finis, dans le cadre (fractions de 0 à 1).
+pub fn valid_points(p: &[[f64; 2]]) -> bool {
+    const EPS: f64 = 1e-6;
+    (3..=MAX_PATH_POINTS).contains(&p.len()) && p.iter().flatten().all(|v| v.is_finite() && (-EPS..=1.0 + EPS).contains(v))
+}
+
+/// Points d'un chemin en mm du cadre (avant rotation et miroir), s'il en a de valides.
+pub fn path_points_mm(frame: &crate::model::Frame, s: &ShapeProps) -> Option<Vec<(f64, f64)>> {
+    let p = s.points.as_deref().filter(|p| valid_points(p))?;
+    Some(p.iter().map(|[x, y]| (x * frame.w_mm, y * frame.h_mm)).collect())
+}
+
+/// Courbe d'un chemin : Catmull-Rom centripète passant par les points, une cubique par segment (contrôle 1,
+/// contrôle 2, arrivée). Aux bouts, la tangente va vers le voisin. Même calcul que `curveBeziers` (linePath.ts).
+pub fn curve_beziers(pts: &[(f64, f64)]) -> Vec<[(f64, f64); 3]> {
+    const EPS: f64 = 1e-12;
+    let dist = |a: (f64, f64), b: (f64, f64)| ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt().sqrt();
+    let lerp3 = |a: (f64, f64), b: (f64, f64)| (a.0 + (b.0 - a.0) / 3.0, a.1 + (b.1 - a.1) / 3.0);
+    let mut out = Vec::with_capacity(pts.len().saturating_sub(1));
+    for i in 0..pts.len().saturating_sub(1) {
+        let (p1, p2) = (pts[i], pts[i + 1]);
+        let p0 = if i == 0 { p1 } else { pts[i - 1] };
+        let p3 = if i + 2 < pts.len() { pts[i + 2] } else { p2 };
+        let (d1, d2, d3) = (dist(p0, p1), dist(p1, p2), dist(p2, p3));
+        if d2 < EPS {
+            out.push([p1, p2, p2]);
+            continue;
+        }
+        let b1 = if d1 < EPS {
+            lerp3(p1, p2)
+        } else {
+            let k = 3.0 * d1 * (d1 + d2);
+            let a = 2.0 * d1 * d1 + 3.0 * d1 * d2 + d2 * d2;
+            ((d1 * d1 * p2.0 - d2 * d2 * p0.0 + a * p1.0) / k, (d1 * d1 * p2.1 - d2 * d2 * p0.1 + a * p1.1) / k)
+        };
+        let b2 = if d3 < EPS {
+            lerp3(p2, p1)
+        } else {
+            let k = 3.0 * d3 * (d3 + d2);
+            let a = 2.0 * d3 * d3 + 3.0 * d3 * d2 + d2 * d2;
+            ((d3 * d3 * p1.0 - d2 * d2 * p3.0 + a * p2.0) / k, (d3 * d3 * p1.1 - d2 * d2 * p3.1 + a * p2.1) / k)
+        };
+        out.push([b1, b2, p2]);
+    }
+    out
+}
+
 pub fn path_of(s: &crate::model::ShapeProps) -> Option<&str> {
     match s.shape {
         ShapeKind::Path => s.path.as_deref().filter(|p| valid_path(p)),
@@ -108,6 +158,54 @@ pub fn head_width_mm(s: &ShapeProps) -> f64 {
 mod tests {
     use super::*;
 
+    /// `curve_beziers` de [(0,0),(10,10),(20,0)], arrondi au millionième (copié dans linePath.test.ts).
+    const CURVE_PARITY: [f64; 12] = [3.333333, 3.333333, 6.666667, 10.0, 10.0, 10.0, 13.333333, 10.0, 16.666667, 3.333333, 20.0, 0.0];
+
+    #[test]
+    fn points_absent_by_default() {
+        let json = r##"{"shape":"Line","fill":null,"stroke":null,"corner_radius_mm":0}"##;
+        let s: ShapeProps = serde_json::from_str(json).unwrap();
+        assert_eq!((s.points.clone(), s.curve), (None, false));
+        let back = serde_json::to_string(&s).unwrap();
+        assert!(!back.contains("\"points\"") && !back.contains("\"curve\""), "{back}");
+    }
+
+    #[test]
+    fn valid_points_bounds() {
+        let p = |n: usize| vec![[0.5, 0.5]; n];
+        assert!(!valid_points(&p(2)));
+        assert!(valid_points(&p(3)));
+        assert!(valid_points(&p(200)));
+        assert!(!valid_points(&p(201)));
+        assert!(!valid_points(&[[0.0, 0.0], [f64::NAN, 0.0], [1.0, 1.0]]));
+        assert!(!valid_points(&[[0.0, 0.0], [1.5, 0.0], [1.0, 1.0]]));
+    }
+
+    #[test]
+    fn curve_passes_through_points() {
+        let pts = [(0.0, 0.0), (10.0, 10.0), (20.0, 0.0)];
+        let c = curve_beziers(&pts);
+        assert_eq!(c.len(), 2);
+        assert_eq!(c[0][2], (10.0, 10.0));
+        assert_eq!(c[1][2], (20.0, 0.0));
+        // Départ : la tangente va vers le point suivant.
+        let (dx, dy) = (c[0][0].0 - 0.0, c[0][0].1 - 0.0);
+        assert!((dy / dx - 1.0).abs() < 1e-9, "{:?}", c[0][0]);
+        // Valeurs partagées avec linePath.test.ts (parité).
+        let r = |v: f64| (v * 1e6).round() / 1e6;
+        let flat: Vec<f64> = c.iter().flat_map(|b| b.iter().flat_map(|&(x, y)| [r(x), r(y)])).collect();
+        assert_eq!(flat, CURVE_PARITY.to_vec());
+    }
+
+    #[test]
+    fn repeated_points_stay_finite_rust() {
+        for b in curve_beziers(&[(0.0, 0.0), (0.0, 0.0), (5.0, 5.0)]) {
+            for (x, y) in b {
+                assert!(x.is_finite() && y.is_finite());
+            }
+        }
+    }
+
     #[test]
     fn only_simple_absolute_paths_are_valid() {
         assert!(valid_path("M 0 1000 C 0 0 250 0 250 1000 L 300 1000 Z"));
@@ -162,6 +260,8 @@ mod tests {
             path: None,
             graphisme: None,
             ends,
+            points: None,
+            curve: false,
         }
     }
 

@@ -7,7 +7,8 @@ import { movedPage, movePage } from "./pageOrder";
 import { pagesUsing, usedAssetIds, withoutAsset, type LibraryPhoto } from "./photoLibrary";
 import { readRecents, type Recent } from "./recents";
 import { readPref, writePref } from "./prefs";
-import type { AssetMeta, Document, Element, Page } from "./types";
+import { followDoc } from "./connectors";
+import type { AssetMeta, Document, Element, Frame, Page } from "./types";
 
 export type Zoom = number | "fit";
 export type ImagesTab = "photos" | "mine" | "pictos";
@@ -236,7 +237,8 @@ class Editor {
       this.proposalGate?.edit(next);
       return;
     }
-    this.#history.commit(next);
+    // Les bouts accrochés suivent leur élément dans le même pas (connectors.ts).
+    this.#history.commit(followDoc(this.#history.current, next));
     this.#sync();
   }
 
@@ -358,8 +360,12 @@ class Editor {
 
   preview(next: Document) {
     if (!this.#previewBase) this.#previewBase = this.#history.current;
-    this.doc = next;
+    this.doc = followDoc(this.doc, next);
   }
+
+  /** Cadres en cours d'un geste Moveable (déplacer, agrandir, tourner) : la page dessine les flèches accrochées avec
+   *  eux, en direct. Affichage seul : ni document ni historique. */
+  liveFrames = $state<Map<string, Frame> | null>(null);
 
   endPreview() {
     const base = this.#previewBase;

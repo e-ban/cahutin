@@ -124,3 +124,18 @@ export function attachTarget(page: Page, tip: Pt, ignoreId: string, tolMm: numbe
   }
   return null;
 }
+
+/** `followConnectors` sur chaque page qui a changé entre `before` et `after` ; rend `after` lui-même si rien ne
+ *  change. */
+export function followDoc<D extends { pages: Page[] }>(before: D | null, after: D): D {
+  const old = new Map((before?.pages ?? []).map((p) => [p.id, p]));
+  let changed = false;
+  const pages = after.pages.map((p) => {
+    const was = old.get(p.id) ?? null;
+    if (was === p) return p;
+    const q = followConnectors(was, p);
+    if (q !== p) changed = true;
+    return q;
+  });
+  return changed ? { ...after, pages } : after;
+}

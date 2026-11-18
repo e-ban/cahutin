@@ -2,6 +2,7 @@
 // que les marqueurs de l'export (crates/carnet-core/src/odg/styles.rs) : pointe de base `head` et de longueur
 // 1,5 × `head`, chevron dans le même triangle, rond et carré de `DOT_FACTOR` × `head`.
 import { DOT_FACTOR } from "./shapePaths";
+import { curveBeziers, endDirections, type Pt } from "./linePath";
 import type { LineEnd, LineEnds } from "./types";
 
 export type LinePart = { kind: "polygon" | "polyline" | "circle" | "rect"; attrs: Record<string, number | string> };
@@ -35,4 +36,30 @@ export function lineSvg(w: number, h: number, ends: LineEnds, head: number): { x
   const x1 = draw(ends.start, 0, 1);
   const x2 = w - draw(ends.end, w, -1);
   return { x1, x2, parts };
+}
+
+const fmt = (v: number) => String(Math.round(v * 1e4) / 1e4 + 0);
+
+/** Tracé d'un chemin (mm de son cadre) et ses terminaisons, orientées selon la direction d'arrivée à chaque bout :
+ *  mêmes dessins que `lineSvg`, posés sur le bout par `translate` puis `rotate`. Une flèche pleine recule le tracé
+ *  de la moitié de sa longueur, le long de cette direction. */
+export function pathSvg(pts: Pt[], curve: boolean, ends: LineEnds, head: number): { d: string; parts: LinePart[] } {
+  const dir = endDirections(pts, curve);
+  const parts: LinePart[] = [];
+  const place = (one: LinePart[], tip: Pt, deg: number) => {
+    for (const p of one) parts.push({ kind: p.kind, attrs: { ...p.attrs, transform: `translate(${fmt(tip.x)} ${fmt(tip.y)}) rotate(${fmt(deg)})` } });
+  };
+  // Une terminaison seule, pointe en (0, 0) : le début regarde vers -x, la fin vers +x.
+  const start = lineSvg(0, 0, { start: ends.start, end: "None", size: ends.size }, head);
+  const end = lineSvg(0, 0, { start: "None", end: ends.end, size: ends.size }, head);
+  const n = pts.length;
+  place(start.parts, pts[0], dir.start - 180);
+  place(end.parts, pts[n - 1], dir.end);
+  const back = (p: Pt, deg: number, by: number): Pt => (by ? { x: p.x - by * Math.cos((deg * Math.PI) / 180), y: p.y - by * Math.sin((deg * Math.PI) / 180) } : p);
+  const drawn = pts.map((p, i) => (i === 0 ? back(p, dir.start, start.x1) : i === n - 1 ? back(p, dir.end, -end.x2) : p));
+  const at = (p: Pt) => `${fmt(p.x)} ${fmt(p.y)}`;
+  const d = curve
+    ? `M ${at(drawn[0])}` + curveBeziers(drawn).map(([c1, c2, p]) => ` C ${at(c1)} ${at(c2)} ${at(p)}`).join("")
+    : `M ${at(drawn[0])}` + drawn.slice(1).map((p) => ` L ${at(p)}`).join("");
+  return { d, parts };
 }

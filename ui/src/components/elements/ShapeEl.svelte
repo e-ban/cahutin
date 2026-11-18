@@ -3,7 +3,8 @@
   // l'export.
   import { SHAPE_PATHS, SHAPE_VIEWBOX } from "../../lib/shapePaths";
   import { endsOf, headWidthMm } from "../../lib/lineEnds";
-  import { lineSvg } from "../../lib/lineSvg";
+  import { lineSvg, pathSvg } from "../../lib/lineSvg";
+  import { hitMm, isPath, pathPointsMm } from "../../lib/linePath";
   import { dashArray, isSolid } from "../../lib/strokes";
   import { mmToPx } from "../../lib/units";
   import type { Frame, ShapeProps } from "../../lib/types";
@@ -23,7 +24,23 @@
   const HIT_PX = 8;
 </script>
 
-{#if props.shape === "Line" || props.shape === "Arrow"}
+{#if (props.shape === "Line" || props.shape === "Arrow") && isPath(props)}
+  <!-- Chemin à coudes ou courbe : dessiné en mm de son cadre (rien ne s'étire), cliquable sur son tracé seul. -->
+  <svg class="shape hollow" width={w} height={h} viewBox="0 0 {frame.w_mm} {frame.h_mm}" aria-hidden="true">
+    {#if props.stroke}
+      {@const p = pathSvg(pathPointsMm(frame, props), !!props.curve, endsOf(props), headWidthMm(props))}
+      {@const c = props.stroke.color}
+      <path class="hit" d={p.d} stroke-width={hitMm(props)} />
+      <path d={p.d} fill="none" stroke={c} stroke-width={props.stroke.width_mm} stroke-dasharray={dashArray(props.stroke, props.stroke.width_mm)} stroke-linejoin="round" />
+      {#each p.parts as part, i (i)}
+        {#if part.kind === "polygon"}<polygon class="hit-all" {...part.attrs} fill={c} />
+        {:else if part.kind === "polyline"}<polyline class="hit-all" {...part.attrs} fill="none" stroke={c} stroke-linejoin="round" stroke-linecap="round" />
+        {:else if part.kind === "circle"}<circle class="hit-all" {...part.attrs} fill={c} />
+        {:else}<rect class="hit-all" {...part.attrs} fill={c} />{/if}
+      {/each}
+    {/if}
+  </svg>
+{:else if props.shape === "Line" || props.shape === "Arrow"}
   <svg class="shape" width={w} height={h} aria-hidden="true">
     {#if props.stroke}
       {@const line = lineSvg(w, h, endsOf(props), headW)}
@@ -97,6 +114,10 @@
     pointer-events: stroke;
   }
   .hit.solid {
+    pointer-events: all;
+  }
+  /* Terminaisons d'un chemin : cliquables comme son tracé. */
+  .hit-all {
     pointer-events: all;
   }
 </style>

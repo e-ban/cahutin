@@ -19,8 +19,11 @@ export function validPoints(p: [number, number][] | undefined | null): p is [num
 /** Un trait qui a des coudes. */
 export const isPath = (s: ShapeProps): boolean => validPoints(s.points);
 
+/** Points d'un chemin en mm de son cadre (avant rotation et miroir) ; vide s'il n'en a pas. */
+export const pathPointsMm = (frame: Frame, s: ShapeProps): Pt[] => (isPath(s) ? s.points!.map(([x, y]) => ({ x: x * frame.w_mm, y: y * frame.h_mm })) : []);
+
 /** Zone cliquable autour du tracé : la plus grande terminaison, 4 mm au moins. */
-const hitMm = (s: ShapeProps) => Math.max(4, headWidthMm(s));
+export const hitMm = (s: ShapeProps) => Math.max(4, headWidthMm(s));
 
 /** Points visibles en mm de page (rotation et miroir compris) ; un trait droit : ses deux bouts. */
 export function pagePoints(frame: Frame, s: ShapeProps, flipH: boolean, flipV: boolean): Pt[] {

@@ -1,12 +1,15 @@
 <script lang="ts">
-  // Poignées aux deux bouts d'un trait ou d'une flèche : tirer une poignée déplace ce bout, l'autre reste en place.
+  // Poignées d'un trait ou d'un chemin : une ronde par point (les deux bouts d'un trait droit, chaque coude d'un
+  // chemin), qui se tire, et une petite au milieu de chaque segment, qui ajoute un coude quand on la tire.
   // Pendant le geste, le document est en aperçu ; il change une seule fois au relâcher (un pas d'annulation).
-  // Échap, ou un geste interrompu, ne change rien.
+  // Échap, ou un geste interrompu, ne change rien. Double-clic sur un point d'un chemin : il est retiré.
   import { editor } from "../lib/docStore.svelte";
+  import { removePathPoint, throughPoints } from "../lib/elementEdit";
   import { snapLines } from "../lib/geometry";
   import { boundsOf } from "../lib/groups";
   import { handleTarget } from "../lib/handleTarget";
-  import { dragEnd, isLineTarget, lineEndpoints, withHitHeight, type Pt } from "../lib/lineEnds";
+  import { isLineTarget } from "../lib/lineEnds";
+  import { dragPoint, insertPoint, isPath, pagePoints, segmentMids, type Pt } from "../lib/linePath";
   import { fr } from "../lib/i18n/fr";
   import { settings } from "../lib/settings.svelte";
   import { PX_PER_MM, mmToPx } from "../lib/units";
@@ -14,17 +17,22 @@
 
   let { pageEl, zoom }: { pageEl: HTMLElement | undefined; zoom: number } = $props();
 
-  /** Lignes d'accroche à cette distance du bout, à l'écran (comme Moveable). */
+  /** Lignes d'accroche à cette distance du point, à l'écran (comme Moveable). */
   const SNAP_PX = 6;
+  /** Une poignée de milieu n'ajoute un coude qu'au-delà de ce geste (un simple clic ne change rien). */
+  const MID_DEAD_PX = 3;
 
   const target = $derived.by(() => {
     const e = handleTarget();
     return e && isLineTarget(e) ? e : null;
   });
-  const ends = $derived(target ? lineEndpoints(target.frame, !!target.flip_h) : null);
+  const path = $derived(target?.kind.type === "Shape" && isPath(target.kind));
+  const pts = $derived(target && target.kind.type === "Shape" ? pagePoints(target.frame, target.kind, !!target.flip_h, !!target.flip_v) : []);
+  const mids = $derived(target && target.kind.type === "Shape" ? segmentMids(pts, path && !!target.kind.curve) : []);
 
-  let drag = $state<{ id: string; which: "start" | "end"; base: Document; pointer: number } | null>(null);
-  /** Lignes où le bout s'est accroché pendant le geste, montrées sur la page. */
+  type Drag = { id: string; mode: "point" | "mid"; i: number; base: Document; pts0: Pt[]; pointer: number; from: { x: number; y: number }; live: boolean };
+  let drag = $state<Drag | null>(null);
+  /** Lignes où le point s'est accroché pendant le geste, montrées sur la page. */
   let guides = $state<{ x: number | null; y: number | null }>({ x: null, y: null });
 
   function toPage(ev: PointerEvent): Pt | null {
@@ -33,30 +41,34 @@
     return { x: (ev.clientX - r.left) / (PX_PER_MM * zoom), y: (ev.clientY - r.top) / (PX_PER_MM * zoom) };
   }
 
-  function start(ev: PointerEvent, which: "start" | "end") {
+  function start(ev: PointerEvent, mode: "point" | "mid", i: number) {
     if (!target || ev.button !== 0) return;
     ev.preventDefault();
     ev.stopPropagation();
     (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
-    drag = { id: target.id, which, base: editor.doc, pointer: ev.pointerId };
+    drag = { id: target.id, mode, i, base: editor.doc, pts0: pts, pointer: ev.pointerId, from: { x: ev.clientX, y: ev.clientY }, live: mode === "point" };
     editor.gesture = true;
   }
 
   function move(ev: PointerEvent) {
     if (!drag || ev.pointerId !== drag.pointer) return;
+    if (!drag.live && Math.hypot(ev.clientX - drag.from.x, ev.clientY - drag.from.y) < MID_DEAD_PX) return;
+    drag.live = true;
     const to = toPage(ev);
     const page = drag.base.pages[editor.pageIndex];
     const e = page?.elements.find((o) => o.id === drag!.id);
     if (!to || !e || e.kind.type !== "Shape") return;
     const lines = snapLines(page.size, page.elements.filter((o) => o.id !== e.id).map((o) => boundsOf([o.frame])));
     const tolMm = SNAP_PX / (PX_PER_MM * zoom);
-    const frame = withHitHeight(dragEnd({ frame: e.frame, flipH: !!e.flip_h, which: drag.which, to, shift: ev.shiftKey, lines, tolMm }), e.kind);
-    const [s, en] = lineEndpoints(frame, !!e.flip_h);
-    const tip = drag.which === "start" ? s : en;
+    // Milieu : un coude inséré après le point `i`, qui suit la souris.
+    const [base, i] = drag.mode === "mid" ? [insertPoint(drag.pts0, drag.i, to), drag.i + 1] : [drag.pts0, drag.i];
+    const next = dragPoint({ pts: base, i, to, shift: ev.shiftKey, lines, tolMm });
+    const tip = next[i];
+    const others = next.filter((_, j) => j !== i);
     const on = (v: number, ls: number[]) => (ls.some((l) => Math.abs(l - v) < 1e-6) ? v : null);
-    guides = ev.shiftKey ? { x: null, y: null } : { x: on(tip.x, lines.xs), y: on(tip.y, lines.ys) };
-    const next = { ...e, frame };
-    editor.preview({ ...drag.base, pages: drag.base.pages.map((p, i) => (i === editor.pageIndex ? { ...p, elements: p.elements.map((o) => (o.id === e.id ? next : o)) } : p)) });
+    guides = ev.shiftKey ? { x: null, y: null } : { x: on(tip.x, [...lines.xs, ...others.map((p) => p.x)]), y: on(tip.y, [...lines.ys, ...others.map((p) => p.y)]) };
+    const moved = throughPoints(e, e.kind, next);
+    editor.preview({ ...drag.base, pages: drag.base.pages.map((p, k) => (k === editor.pageIndex ? { ...p, elements: p.elements.map((o) => (o.id === e.id ? moved : o)) } : p)) });
   }
 
   function finish(keep: boolean) {
@@ -86,21 +98,40 @@
   }
 </script>
 
-{#if pageEl && target && ends && !editor.proposing}
+{#if pageEl && target && pts.length && !editor.proposing}
   <div class="line-handles" use:inPage>
-    {#each [["start", ends[0]], ["end", ends[1]]] as const as [which, p] (which)}
+    {#each mids as m, i (i)}
+      <span
+        class="handle mid"
+        class:big={settings.bigHandles}
+        class:hidden={editor.gesture && !drag}
+        style:left="{mmToPx(m.x, zoom)}px"
+        style:top="{mmToPx(m.y, zoom)}px"
+        title={fr.midHandleHint}
+        role="presentation"
+        onpointerdown={(ev) => start(ev, "mid", i)}
+        onpointermove={move}
+        onpointerup={() => finish(true)}
+        onpointercancel={() => finish(false)}
+      ></span>
+    {/each}
+    {#each pts as p, i (i)}
       <span
         class="handle"
         class:big={settings.bigHandles}
         class:hidden={editor.gesture && !drag}
         style:left="{mmToPx(p.x, zoom)}px"
         style:top="{mmToPx(p.y, zoom)}px"
-        title={fr.lineHandleHint}
+        title={path ? fr.pointHandleHint : fr.lineHandleHint}
         role="presentation"
-        onpointerdown={(ev) => start(ev, which)}
+        onpointerdown={(ev) => start(ev, "point", i)}
         onpointermove={move}
         onpointerup={() => finish(true)}
         onpointercancel={() => finish(false)}
+        ondblclick={(ev) => {
+          ev.stopPropagation();
+          if (target && path) removePathPoint(target.id, i);
+        }}
       ></span>
     {/each}
     {#if guides.x !== null}<span class="guide v" style:left="{mmToPx(guides.x, zoom)}px"></span>{/if}
@@ -132,6 +163,19 @@
     width: 26px;
     height: 26px;
     margin: -13px 0 0 -13px;
+  }
+  /* Milieu d'un segment : plus petite et claire, pour ne pas la confondre avec un point. */
+  .handle.mid {
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    border: 1.5px dashed #4af;
+    cursor: copy;
+  }
+  .handle.mid.big {
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
   }
   .handle.hidden {
     visibility: hidden;

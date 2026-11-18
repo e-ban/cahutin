@@ -32,8 +32,9 @@ function clean<T extends object>(o: T): T {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
 }
 
-/** Un trait aux réglages `kind` qui passe par `pts` (mm de page) : chemin ou trait droit, sans rotation ni miroir. */
-function throughPoints(e: Element, kind: ShapeProps, pts: Pt[]): Element {
+/** Un trait aux réglages `kind` qui passe par `pts` (mm de page) : chemin ou trait droit, sans rotation ni miroir.
+ *  Ne touche pas l'historique (les poignées s'en servent pour l'aperçu). */
+export function throughPoints(e: Element, kind: ShapeProps, pts: Pt[]): Element {
   const r = fromPagePoints(pts, kind);
   return { ...e, frame: r.frame, flip_h: false, flip_v: false, kind: { type: "Shape", ...clean({ ...kind, ...r.patch }) } };
 }

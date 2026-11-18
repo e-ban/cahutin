@@ -6,6 +6,10 @@
 use crate::model::{AnchorPoint, Element, ElementKind, Frame, Page};
 use crate::shapes::{line_frame, path_frame, path_page_points, valid_points};
 
+/// Un bout qui bouge de moins que ça (arrondi d'un geste, d'un calcul) ne compte pas comme déplacé : il ne se
+/// décroche pas, il revient sur son point. Même valeur que `DETACH_TOLERANCE_MM` (connectors.ts).
+pub const DETACH_TOLERANCE_MM: f64 = 0.05;
+
 /// Le point d'accroche d'un cadre, en mm de page : milieu d'un côté ou centre, rotation comprise (miroir ignoré).
 pub fn anchor_point(f: &Frame, at: AnchorPoint) -> (f64, f64) {
     let (fx, fy) = match at {
@@ -82,7 +86,7 @@ pub fn follow_connectors(before: Option<&Page>, after: &mut Page) {
                 let Some(now) = frames.get(&a.element) else { return false };
                 let tip_moved = was.as_ref().is_some_and(|w| {
                     let j = if k == 0 { 0 } else { w.len() - 1 };
-                    (w[j].0 - pts[k].0).abs() > 1e-9 || (w[j].1 - pts[k].1).abs() > 1e-9
+                    (w[j].0 - pts[k].0).hypot(w[j].1 - pts[k].1) > DETACH_TOLERANCE_MM
                 });
                 // Une accroche toute neuve (on vient de tirer le bout dessus) n'est jamais défaite.
                 let same_before = was_attach.as_ref().and_then(|w| if k == 0 { w.start.as_ref() } else { w.end.as_ref() }) == Some(a);
@@ -246,6 +250,16 @@ mod tests {
         follow_connectors(Some(&before), &mut after);
         assert_eq!(props_of(get(&after, "a")).attach, None);
         assert!(close(ends(&after, "a")[1], (60.0, 60.0)));
+    }
+
+    /// Un arrondi minuscule (moins de 0,05 mm) ne décroche pas : le bout revient sur son point.
+    #[test]
+    fn a_tiny_rounding_does_not_detach() {
+        let before = page();
+        let mut after = moved(&before, "a", |e| e.frame.rotation_deg += 0.04);
+        follow_connectors(Some(&before), &mut after);
+        assert!(props_of(get(&after, "a")).attach.is_some());
+        assert!(close(ends(&after, "a")[1], (60.0, 50.0)));
     }
 
     #[test]

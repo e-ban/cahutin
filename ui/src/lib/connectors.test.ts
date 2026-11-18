@@ -162,3 +162,10 @@ test("liveFollow moves attached arrows but leaves the elements Moveable is movin
   const both = liveFollow(p, new Map([["r", frame(80, 40, 40, 20)], ["a", { ...get(p, "a").frame, x_mm: 30 }]]));
   expect(get(both, "a")).toBe(get(p, "a"));
 });
+
+test("a tiny rounding does not detach", () => {
+  const before = page();
+  const after = followConnectors(before, moved(before, "a", (e) => ({ ...e, frame: { ...e.frame, rotation_deg: e.frame.rotation_deg + 0.04 } })));
+  expect(attachOf(after, "a")).toBeDefined();
+  close(ptsOf(after, "a")[1], { x: 60, y: 50 });
+});

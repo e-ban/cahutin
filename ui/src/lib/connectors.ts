@@ -6,6 +6,10 @@ import { fromPagePoints, pagePoints, type Pt } from "./linePath";
 import { tableOf } from "./table";
 import type { Anchor, AnchorPoint, Attach, Element, Frame, Page } from "./types";
 
+/** Un bout qui bouge de moins que ça (arrondi d'un geste, d'un calcul) ne compte pas comme déplacé : il ne se
+ *  décroche pas, il revient sur son point. Même valeur que `DETACH_TOLERANCE_MM` (connectors.rs). */
+export const DETACH_TOLERANCE_MM = 0.05;
+
 export const ANCHORS: AnchorPoint[] = ["Top", "Right", "Bottom", "Left", "Center"];
 const AT: Record<AnchorPoint, [number, number]> = { Top: [0.5, 0], Right: [1, 0.5], Bottom: [0.5, 1], Left: [0, 0.5], Center: [0.5, 0.5] };
 
@@ -65,7 +69,7 @@ export function followConnectors(before: Page | null, after: Page, live?: Map<st
       const now = frames.get(a.element);
       if (!now) return undefined;
       const w = wasPts ? wasPts[k === 0 ? 0 : wasPts.length - 1] : null;
-      const tipMoved = !!w && (Math.abs(w.x - pts[k].x) > 1e-9 || Math.abs(w.y - pts[k].y) > 1e-9);
+      const tipMoved = !!w && Math.hypot(w.x - pts[k].x, w.y - pts[k].y) > DETACH_TOLERANCE_MM;
       // Une accroche toute neuve (on vient de tirer le bout dessus) n'est jamais défaite.
       const oldA = o && o.kind.type === "Shape" ? (k === 0 ? o.kind.attach?.start : o.kind.attach?.end) : undefined;
       const sameBefore = !!oldA && oldA.element === a.element && oldA.at === a.at;

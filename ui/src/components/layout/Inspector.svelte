@@ -188,10 +188,10 @@
     {#if asLine}
       {@const [start] = lineEndpoints(selected.frame, !!selected.flip_h)}
       <div class="field">
-        <span>{fr.positionOnly}</span>
+        <span>{fr.lineStartHeading}</span>
         <div class="frame">
-          <label>{fr.lineStartX}<input type="number" step="0.5" disabled={frameFixed} value={Math.round(start.x * 10) / 10} onchange={(e) => setLine({ x: lineNum(e.currentTarget.value) })} /></label>
-          <label>{fr.lineStartY}<input type="number" step="0.5" disabled={frameFixed} value={Math.round(start.y * 10) / 10} onchange={(e) => setLine({ y: lineNum(e.currentTarget.value) })} /></label>
+          <label>{fr.posX}<input type="number" step="0.5" disabled={frameFixed} value={Math.round(start.x * 10) / 10} onchange={(e) => setLine({ x: lineNum(e.currentTarget.value) })} /></label>
+          <label>{fr.posY}<input type="number" step="0.5" disabled={frameFixed} value={Math.round(start.y * 10) / 10} onchange={(e) => setLine({ y: lineNum(e.currentTarget.value) })} /></label>
         </div>
       </div>
       <div class="field">

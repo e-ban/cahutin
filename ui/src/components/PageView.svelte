@@ -23,6 +23,8 @@
   import { IS_LINUX, resizeCursor } from "../lib/cursors";
   import { pixelRatio } from "../lib/pixelRatio.svelte";
   import { SAFE_MARGIN_MM, atRisk } from "../lib/printSafety";
+  import { handleTarget } from "../lib/handleTarget";
+  import { isLineTarget } from "../lib/lineEnds";
   import type { Crop, Document, Element, Frame, Page, RichText } from "../lib/types";
 
   let {
@@ -262,6 +264,11 @@
 
   // Ce que l'imprimante risque de couper (lib/printSafety.ts) : seulement sur la page qu'on modifie, jamais dans les
   // miniatures, les aperçus ni à l'impression (elles n'ont pas `onselect`).
+  /** Le trait qui a ses poignées de bout (LineHandles) : sans contour de sélection, ses deux poignées suffisent. */
+  const lineWithHandles = $derived.by(() => {
+    const t = onselect ? handleTarget() : null;
+    return t && isLineTarget(t) ? t.id : null;
+  });
   const risky = $derived(onselect ? new Set(atRisk(page).map((e) => e.id)) : new Set<string>());
   /** Le repère de la zone sûre : pendant un déplacement ou un redimensionnement, ou s'il y a un élément à risque. */
   const showSafeZone = $derived(!!onselect && (risky.size > 0 || (editor.gesture && selection.length > 0)));
@@ -359,6 +366,7 @@
     <div
       class="element"
       class:selected={selection.includes(e.id)}
+      class:line-handled={e.id === lineWithHandles}
       class:locked={e.locked}
       class:cropping={e.id === cropping}
       class:zone-photo={e.zone && e.kind.type === "Photo"}
@@ -529,6 +537,9 @@
   .element.selected {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
+  }
+  .element.selected.line-handled {
+    outline: none;
   }
   /* Tout près du bord : un liseré léger, que la sélection remplace. */
   .element.edge-risk:not(.selected) {

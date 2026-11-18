@@ -8,7 +8,7 @@
 
   const ENDS: LineEnd[] = ["None", "Arrow", "OpenArrow", "Circle", "Square"];
   const SIZES: HeadSize[] = ["Small", "Medium", "Large"];
-  const W = 44;
+  const W = 36;
   const H = 18;
   // L'aperçu montre le bout réglé : à gauche pour le début, à droite pour la fin.
   const preview = (end: LineEnd) => lineSvg(W, H, which === "start" ? { start: end, end: "None", size: "Medium" } : { start: "None", end, size: "Medium" }, 9);
@@ -46,6 +46,17 @@
     gap: 4px;
     align-items: center;
   }
+  /* Cinq cases égales qui tiennent dans la largeur du panneau Réglages comme dans le menu de la barre. */
+  .ends {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .ends button {
+    min-width: 0;
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+
   .sizes {
     margin-top: 6px;
   }

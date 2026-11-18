@@ -130,6 +130,14 @@ fn element_view(doc: &Document, page: &Page, e: &Element, selected: bool) -> Val
                     HeadSize::Large => "large",
                 });
             }
+            // Un chemin : ses points en mm de page (rotation et miroir compris), au dixième.
+            if let Some(pts) = carnet_core::shapes::path_page_points(&e.frame, s, e.flip_h, e.flip_v) {
+                let r = |v: f64| (v * 10.0).round() / 10.0 + 0.0;
+                v["points"] = json!(pts.iter().map(|&(x, y)| [r(x), r(y)]).collect::<Vec<_>>());
+                if s.curve {
+                    v["curve"] = json!(true);
+                }
+            }
             v
         }
         // Code OpenMoji d'une image décorative de la banque : public, pas une donnée de l'utilisateur.
@@ -388,6 +396,16 @@ mod tests {
         assert!(styles.contains(&json!({ "id": "titre", "name": "Titre" })), "{styles:?}");
         assert!(styles.contains(&json!({ "id": "s-perso" })), "{styles:?}");
         assert!(!v.to_string().contains("Style de"));
+    }
+
+    #[test]
+    fn layout_reports_points_in_mm() {
+        let mut d = Document::new("chemin");
+        crate::edit::add_shape(&mut d, &json!({ "page": 0, "x_mm": 0, "y_mm": 0, "w_mm": 1, "h_mm": 1, "shape": "arrow", "points": [[10, 50], [30, 50], [50, 70]], "curve": true })).unwrap();
+        let v = layout(&d, Some(0), &[]);
+        let shape = &v["pages"][0]["elements"][0];
+        assert_eq!(shape["points"], json!([[10.0, 50.0], [30.0, 50.0], [50.0, 70.0]]), "{v}");
+        assert_eq!(shape["curve"], json!(true), "{v}");
     }
 
     /// La vue ne garde que ce qui n'est pas la valeur par défaut, avec des millimètres courts.

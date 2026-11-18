@@ -56,6 +56,15 @@ pub fn path_page_points(frame: &crate::model::Frame, s: &ShapeProps, flip_h: boo
     )
 }
 
+/// Cadre d'un trait droit de `a` à `b` (mm de page) : le segment va du milieu du bord gauche au milieu du bord droit,
+/// tourné ; haut de la zone cliquable (comme `frameFromEndpoints`, lineEnds.ts, avec la hauteur de `fromPagePoints`).
+pub fn line_frame(a: (f64, f64), b: (f64, f64), s: &ShapeProps) -> crate::model::Frame {
+    let h = head_width_mm(s).max(4.0);
+    let w = (b.0 - a.0).hypot(b.1 - a.1);
+    let (cx, cy) = ((a.0 + b.0) / 2.0, (a.1 + b.1) / 2.0);
+    crate::model::Frame { x_mm: cx - w / 2.0, y_mm: cy - h / 2.0, w_mm: w, h_mm: h, rotation_deg: (b.1 - a.1).atan2(b.0 - a.0).to_degrees() }
+}
+
 /// Cadre et points (fractions) d'un chemin qui passe par `pts` (mm de page, 3 points au moins) : la boîte des points
 /// agrandie de la moitié de la zone cliquable (la plus grande terminaison, 4 mm au moins), sans rotation. Comme
 /// `fromPagePoints` (linePath.ts).
@@ -223,6 +232,15 @@ mod tests {
         let r = |v: f64| (v * 1e6).round() / 1e6;
         let flat: Vec<f64> = c.iter().flat_map(|b| b.iter().flat_map(|&(x, y)| [r(x), r(y)])).collect();
         assert_eq!(flat, CURVE_PARITY.to_vec());
+    }
+
+    /// Mêmes valeurs que « frame keeps the hit margin » (linePath.test.ts).
+    #[test]
+    fn path_frame_parity() {
+        let s: ShapeProps = serde_json::from_str(r##"{"shape":"Line","fill":null,"stroke":{"width_mm":1,"color":"#333333","style":null},"corner_radius_mm":0}"##).unwrap();
+        let (f, p) = path_frame(&[(10.0, 50.0), (30.0, 50.0), (50.0, 50.0)], &s);
+        assert_eq!((f.x_mm, f.y_mm, f.w_mm, f.h_mm, f.rotation_deg), (8.0, 48.0, 44.0, 4.0, 0.0));
+        assert_eq!(p, vec![[2.0 / 44.0, 0.5], [22.0 / 44.0, 0.5], [42.0 / 44.0, 0.5]]);
     }
 
     #[test]

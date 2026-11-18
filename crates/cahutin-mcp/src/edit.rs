@@ -346,13 +346,48 @@ pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
         (c, w) => Some(Stroke { width_mm: w.unwrap_or(0.5).clamp(0.1, 20.0), color: c.unwrap_or("#222222".into()), style: None }),
     };
     let ends = line_ends(args, shape)?;
-    let props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve: false };
+    let pts = path_points(args, shape)?;
+    let curve = args.get("curve").and_then(Value::as_bool).unwrap_or(false) && pts.as_ref().is_some_and(|p| p.len() >= 3);
+    let mut props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve };
+    // Un chemin : son cadre vient de ses points ; deux points, un trait droit de l'un à l'autre.
+    let frame = pts.as_ref().map(|p| match p[..] {
+        [a, b] => carnet_core::shapes::line_frame(a, b, &props),
+        _ => {
+            let (f, fr) = carnet_core::shapes::path_frame(p, &props);
+            props.points = Some(fr);
+            f
+        }
+    });
     let out = push(doc, args, false, ElementKind::Shape(props.clone()))?;
-    // Un trait aux grandes pointes : son cadre les couvre.
     if let Some(e) = doc.pages.iter_mut().flat_map(|p| &mut p.elements).find(|e| json!(e.id) == out["element_id"]) {
-        carnet_core::shapes::grow_to_hit_height(&mut e.frame, &props);
+        match frame {
+            Some(f) => e.frame = f,
+            // Un trait aux grandes pointes : son cadre les couvre.
+            None => carnet_core::shapes::grow_to_hit_height(&mut e.frame, &props),
+        }
     }
     Ok(out)
+}
+
+/// Les points d'un chemin demandés (`points`, mm de page) : 2 à 200, sur un trait ou une flèche seulement.
+fn path_points(args: &Value, shape: ShapeKind) -> Result<Option<Vec<(f64, f64)>>, String> {
+    let Some(v) = args.get("points") else { return Ok(None) };
+    if !carnet_core::shapes::is_stroke_only(shape) {
+        return Err("points ne va qu'à une forme line ou arrow".into());
+    }
+    let bad = || "points : une liste de 2 à 200 points [x, y] en mm".to_string();
+    let list = v.as_array().ok_or_else(bad)?;
+    if !(2..=carnet_core::shapes::MAX_PATH_POINTS).contains(&list.len()) {
+        return Err(bad());
+    }
+    let pts = list
+        .iter()
+        .map(|p| match p.as_array().map(|a| a.iter().map(Value::as_f64).collect::<Vec<_>>()).as_deref() {
+            Some([Some(x), Some(y)]) if x.abs() <= MAX_MM && y.abs() <= MAX_MM => Ok((*x, *y)),
+            _ => Err(bad()),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Some(pts))
 }
 
 /// Terminaisons demandées pour un trait (`start`, `end` ; `head_size`, hors du schéma pour le garder court), sinon
@@ -572,6 +607,42 @@ mod tests {
         assert_eq!((s.shape, s.fill.as_deref()), (ShapeKind::Star, Some("#ffcc00")));
         assert_eq!(s.stroke.as_ref().map(|st| st.width_mm), Some(1.0));
         assert!(add_shape(&mut d, &with(json!({ "shape": "path" }))).is_err());
+    }
+
+    #[test]
+    fn add_shape_with_points_makes_a_path() {
+        let mut d = doc();
+        let out = add_shape(&mut d, &with(json!({ "shape": "arrow", "points": [[10, 50], [30, 50], [50, 70]], "curve": true }))).unwrap();
+        let e = created(&d, &out);
+        let ElementKind::Shape(s) = &e.kind else { panic!() };
+        assert!(s.curve);
+        let pts = carnet_core::shapes::path_page_points(&e.frame, s, e.flip_h, e.flip_v).unwrap();
+        for (p, q) in pts.iter().zip([(10.0, 50.0), (30.0, 50.0), (50.0, 70.0)]) {
+            assert!((p.0 - q.0).abs() < 1e-9 && (p.1 - q.1).abs() < 1e-9, "{pts:?}");
+        }
+        assert!((e.frame.x_mm - 8.0).abs() < 1e-9 && (e.frame.w_mm - 44.0).abs() < 1e-9, "{:?}", e.frame);
+    }
+
+    #[test]
+    fn two_points_make_a_straight_line() {
+        let mut d = doc();
+        let out = add_shape(&mut d, &with(json!({ "shape": "line", "points": [[10, 10], [40, 50]], "curve": true }))).unwrap();
+        let e = created(&d, &out);
+        let ElementKind::Shape(s) = &e.kind else { panic!() };
+        assert_eq!((s.points.clone(), s.curve), (None, false));
+        assert!((e.frame.w_mm - 50.0).abs() < 1e-9, "{:?}", e.frame);
+        assert!((e.frame.x_mm + e.frame.w_mm / 2.0 - 25.0).abs() < 1e-9 && (e.frame.y_mm + e.frame.h_mm / 2.0 - 30.0).abs() < 1e-9, "{:?}", e.frame);
+        assert!((e.frame.rotation_deg - 53.13010235415598).abs() < 1e-9, "{:?}", e.frame);
+    }
+
+    #[test]
+    fn bad_points_are_refused() {
+        let mut d = doc();
+        let many: Vec<[f64; 2]> = (0..201).map(|i| [i as f64, 0.0]).collect();
+        for bad in [json!([[1, 1]]), json!(many), json!([[1, 1], ["x", 2]]), json!("non")] {
+            assert!(add_shape(&mut d, &with(json!({ "shape": "line", "points": bad }))).is_err(), "{bad}");
+        }
+        assert!(add_shape(&mut d, &with(json!({ "shape": "rect", "points": [[0, 0], [1, 1], [2, 0]] }))).is_err());
     }
 
     #[test]

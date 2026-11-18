@@ -192,17 +192,21 @@ export interface GroupTransform {
 
 /** Fin d'un geste sur plusieurs éléments (groupe ou sélection) : un seul pas d'annulation. */
 export function applyGroupTransform(ids: string[], t: GroupTransform) {
-  editor.updatePage((p) => {
-    let moved = p.elements.filter((e) => ids.includes(e.id));
-    if (t.factor !== 1) moved = scaleElements(moved, t.factor, t.origin);
-    if (t.deg !== 0 && t.center) moved = rotateElements(moved, t.deg, t.center);
-    if (t.dx_mm !== 0 || t.dy_mm !== 0) {
-      const r = (v: number) => Math.round(v * 10) / 10;
-      moved = moved.map((e) => ({ ...e, frame: { ...e.frame, x_mm: r(e.frame.x_mm + t.dx_mm), y_mm: r(e.frame.y_mm + t.dy_mm) } }));
-    }
-    const byId = new Map(moved.map((e) => [e.id, e]));
-    return { ...p, elements: p.elements.map((e) => byId.get(e.id) ?? e) };
-  });
+  editor.updatePage((p) => ({ ...p, elements: groupTransformElements(p.elements, ids, t) }));
+}
+
+/** Les éléments après un geste de groupe : `ids` agrandis, tournés puis déplacés ; les autres tels quels. Sert à la
+ *  fin du geste et pendant (flèches accrochées dessinées en direct). */
+export function groupTransformElements(elements: Element[], ids: string[], t: GroupTransform): Element[] {
+  let moved = elements.filter((e) => ids.includes(e.id));
+  if (t.factor !== 1) moved = scaleElements(moved, t.factor, t.origin);
+  if (t.deg !== 0 && t.center) moved = rotateElements(moved, t.deg, t.center);
+  if (t.dx_mm !== 0 || t.dy_mm !== 0) {
+    const r = (v: number) => Math.round(v * 10) / 10;
+    moved = moved.map((e) => ({ ...e, frame: { ...e.frame, x_mm: r(e.frame.x_mm + t.dx_mm), y_mm: r(e.frame.y_mm + t.dy_mm) } }));
+  }
+  const byId = new Map(moved.map((e) => [e.id, e]));
+  return elements.map((e) => byId.get(e.id) ?? e);
 }
 
 /** Valeur tapée dans le panneau de droite ; une image de la banque reste carrée. Avec `keepRatio`, changer la

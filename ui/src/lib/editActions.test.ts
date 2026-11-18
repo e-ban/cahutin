@@ -403,3 +403,24 @@ test("Suppr sur un élément verrouillé dit où le déverrouiller", async () =>
   expect(editor.notice).toBe(fr.lockedNoDelete);
   expect(fr.lockedNoDelete).toContain(`« ${fr.unlock} »`);
 });
+
+// Le calcul des cadres d'un geste de groupe sert pendant le geste (flèches accrochées en direct) et à la fin.
+import { applyGroupTransform, groupTransformElements } from "./editActions";
+import { shapeElement } from "./factory";
+test("groupTransformElements gives the frames applyGroupTransform commits", () => {
+  editor.reset(newDocument(), null);
+  const a = { ...shapeElement(editor.page, "Rect"), frame: { x_mm: 10, y_mm: 10, w_mm: 20, h_mm: 10, rotation_deg: 0 } };
+  const b = { ...shapeElement(editor.page, "Ellipse"), frame: { x_mm: 50, y_mm: 30, w_mm: 10, h_mm: 10, rotation_deg: 0 } };
+  editor.updatePage((p) => ({ ...p, elements: [a, b] }));
+  for (const t of [
+    { dx_mm: 5, dy_mm: -3, factor: 1, origin: { x_mm: 0, y_mm: 0 }, deg: 0, center: { x_mm: 35, y_mm: 25 } },
+    { dx_mm: 0, dy_mm: 0, factor: 1.5, origin: { x_mm: 10, y_mm: 10 }, deg: 0, center: { x_mm: 35, y_mm: 25 } },
+    { dx_mm: 0, dy_mm: 0, factor: 1, origin: { x_mm: 10, y_mm: 10 }, deg: 30, center: { x_mm: 35, y_mm: 25 } },
+  ]) {
+    const before = editor.page.elements;
+    const live = groupTransformElements(before, [a.id, b.id], t);
+    applyGroupTransform([a.id, b.id], t);
+    expect(live.map((e) => e.frame)).toEqual(editor.page.elements.map((e) => e.frame));
+    editor.undo();
+  }
+});

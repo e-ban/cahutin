@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { anchorPoint, attachTarget, followConnectors } from "./connectors";
+import { anchorPoint, attachTarget, followConnectors, liveFollow } from "./connectors";
 import { frameFromEndpoints } from "./lineEnds";
 import { fromPagePoints, pagePoints, type Pt } from "./linePath";
 import type { Element, Frame, Page, ShapeKind, ShapeProps } from "./types";
@@ -151,4 +151,14 @@ test("a fresh attachment is kept", () => {
   const after = followConnectors(before, moved(before, "a", (e) => (e.kind.type === "Shape" ? { ...e, frame: frameFromEndpoints({ x: 10, y: 50 }, { x: 80.2, y: 40.1 }, 4, false), kind: { ...e.kind, attach: { end: { element: "r", at: "Top" } } } } : e)));
   expect(attachOf(after, "a")).toBeDefined();
   close(ptsOf(after, "a")[1], { x: 80, y: 40 });
+});
+
+test("liveFollow moves attached arrows but leaves the elements Moveable is moving", () => {
+  const p = page();
+  const live = new Map([["r", frame(80, 40, 40, 20)]]);
+  const shown = liveFollow(p, live);
+  close(ptsOf(shown, "a")[1], { x: 80, y: 50 });
+  expect(get(shown, "r")).toBe(get(p, "r"));
+  const both = liveFollow(p, new Map([["r", frame(80, 40, 40, 20)], ["a", { ...get(p, "a").frame, x_mm: 30 }]]));
+  expect(get(both, "a")).toBe(get(p, "a"));
 });

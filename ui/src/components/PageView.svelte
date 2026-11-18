@@ -26,6 +26,7 @@
   import { handleTarget } from "../lib/handleTarget";
   import { isLineTarget } from "../lib/lineEnds";
   import { isPath } from "../lib/linePath";
+  import { liveFollow } from "../lib/connectors";
   import type { Crop, Document, Element, Frame, Page, RichText } from "../lib/types";
 
   let {
@@ -271,6 +272,8 @@
     const t = onselect ? handleTarget() : null;
     return t && isLineTarget(t) ? t.id : null;
   });
+  // Pendant un geste Moveable sur la page qu'on modifie : les flèches accrochées suivent en direct (connectors.ts).
+  const shownElements = $derived(onselect && editor.liveFrames ? liveFollow(page, editor.liveFrames).elements : page.elements);
   const risky = $derived(onselect ? new Set(atRisk(page).map((e) => e.id)) : new Set<string>());
   /** Le repère de la zone sûre : pendant un déplacement ou un redimensionnement, ou s'il y a un élément à risque. */
   const showSafeZone = $derived(!!onselect && (risky.size > 0 || (editor.gesture && selection.length > 0)));
@@ -364,7 +367,7 @@
       {/each}
     </svg>
   {/if}
-  {#each page.elements as e (e.id)}
+  {#each shownElements as e (e.id)}
     <div
       class="element"
       class:selected={selection.includes(e.id)}

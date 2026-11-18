@@ -8,7 +8,8 @@
   import Moveable from "moveable";
   import { onDestroy, tick } from "svelte";
   import { editor } from "../lib/docStore.svelte";
-  import { applyGroupTransform } from "../lib/editActions";
+  import { applyGroupTransform, groupTransformElements } from "../lib/editActions";
+  import { hasAttach } from "../lib/connectors";
   import { DRAG_DEAD_ZONE_PX, GUIDE_MARGIN_MM, ROTATE_STEP_DEG, SNAP_MM, settleMove, settleScale, shiftHeld, snapLines } from "../lib/geometry";
   import { boundsOf, isLockedSelection } from "../lib/groups";
   import { PX_PER_MM, mmToPx } from "../lib/units";
@@ -50,8 +51,27 @@
     gesture = { ids, box: boundsOf(frames), styles: targets.map((t) => t.style.cssText), dx: 0, dy: 0, factor: 1, w_px: 0, h_px: 0, dir: [1, 1], deg: 0 };
   }
 
+  /** Les cadres en cours du geste de groupe, pour que les flèches accrochées suivent en direct (seulement s'il y en a
+   *  sur la page) ; sans l'aimantation de fin de geste. */
+  function publish() {
+    const g = gesture;
+    if (!g || !hasAttach(editor.page) || table || row) return;
+    const k = PX_PER_MM * zoom;
+    const { box } = g;
+    const els = groupTransformElements(editor.page.elements, g.ids, {
+      dx_mm: g.dx / k,
+      dy_mm: g.dy / k,
+      factor: g.factor,
+      origin: { x_mm: g.dir[0] < 0 ? box.x_mm + box.w_mm : box.x_mm, y_mm: g.dir[1] < 0 ? box.y_mm + box.h_mm : box.y_mm },
+      deg: g.deg,
+      center: { x_mm: box.x_mm + box.w_mm / 2, y_mm: box.y_mm + box.h_mm / 2 },
+    });
+    editor.liveFrames = new Map(els.filter((e) => g.ids.includes(e.id)).map((e) => [e.id, e.frame]));
+  }
+
   function end(targets: HTMLElement[]) {
     editor.gesture = false;
+    editor.liveFrames = null;
     const g = gesture;
     gesture = null;
     if (!g) return;
@@ -141,6 +161,7 @@
         if (Math.hypot(dist[0], dist[1]) < DRAG_DEAD_ZONE_PX) return;
         events.forEach((ev) => (ev.target.style.transform = ev.transform));
         if (gesture) [gesture.dx, gesture.dy] = events[0].beforeTranslate;
+        publish();
       })
       .on("dragGroupEnd", () => end(targets))
       .on("resizeGroupStart", (ev) => {
@@ -159,12 +180,14 @@
           gesture.h_px = ev.height;
           gesture.dir = ev.direction;
         }
+        publish();
       })
       .on("resizeGroupEnd", () => end(targets))
       .on("rotateGroupStart", () => begin(targets))
       .on("rotateGroup", (ev) => {
         ev.events.forEach((e) => (e.target.style.transform = e.drag.transform));
         if (gesture) gesture.deg = ev.beforeDist;
+        publish();
       })
       .on("rotateGroupEnd", () => end(targets))
       // La zone du groupe recouvre la boîte englobante : un clic sur un autre élément (ou sur la page)

@@ -11,6 +11,7 @@
   import { settings } from "../lib/settings.svelte";
   import { handleTarget } from "../lib/handleTarget";
   import { isLineTarget } from "../lib/lineEnds";
+  import { hasAttach } from "../lib/connectors";
   import { PX_PER_MM, mmToPx } from "../lib/units";
   import { IS_LINUX, moveableCursorCss } from "../lib/cursors";
   import { pixelRatio } from "../lib/pixelRatio.svelte";
@@ -39,8 +40,16 @@
     };
   }
 
+  /** Le cadre en cours, pour que les flèches accrochées suivent en direct (seulement s'il y en a sur la page). */
+  function publish() {
+    const e = target;
+    if (!e || !live || !hasAttach(editor.page)) return;
+    editor.liveFrames = new Map([[e.id, rectPxToFrame(live, zoom)]]);
+  }
+
   function commit(gesture: "move" | "resize" | "rotate", keptRatio = false) {
     editor.gesture = false;
+    editor.liveFrames = null;
     const e = target;
     if (!e || !live) return;
     let frame = rectPxToFrame(live, zoom);
@@ -87,6 +96,7 @@
         live.top = ev.top;
         ev.target.style.left = `${ev.left}px`;
         ev.target.style.top = `${ev.top}px`;
+        publish();
       })
       .on("dragEnd", () => commit("move"))
       .on("resizeStart", (ev) => {
@@ -104,6 +114,7 @@
         ev.target.style.height = `${ev.height}px`;
         ev.target.style.left = `${live.left}px`;
         ev.target.style.top = `${live.top}px`;
+        publish();
       })
       .on("resizeEnd", () => commit("resize", !!moveable?.keepRatio))
       .on("rotateStart", (ev) => {
@@ -114,6 +125,7 @@
         if (!live) return;
         live.rotation = ev.beforeRotate;
         ev.target.style.transform = ev.transform;
+        publish();
       })
       .on("rotateEnd", () => commit("rotate"));
     return m;

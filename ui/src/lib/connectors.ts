@@ -152,3 +152,16 @@ export function withAttachEnd<K extends { attach?: Attach | null }>(kind: K, whi
   void _drop;
   return (next.start || next.end ? { ...rest, attach: next } : rest) as K;
 }
+
+/** La page dessinée pendant un geste Moveable : les flèches accrochées suivent les cadres en cours (`live`). Les
+ *  éléments que Moveable déplace lui-même gardent leur cadre enregistré (il les place, la page ne doit pas les
+ *  déplacer une seconde fois). */
+export function liveFollow(page: Page, live: Map<string, Frame>): Page {
+  const shown = followConnectors(null, page, live);
+  if (shown === page) return page;
+  const original = new Map(page.elements.map((e) => [e.id, e]));
+  return { ...shown, elements: shown.elements.map((e) => (live.has(e.id) ? original.get(e.id)! : e)) };
+}
+
+/** La page a au moins une flèche accrochée (sinon rien à suivre). */
+export const hasAttach = (page: Page): boolean => page.elements.some((e) => !!attachOf(e));

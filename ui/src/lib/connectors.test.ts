@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { anchorPoint, attachTarget, followConnectors, liveFollow } from "./connectors";
+import { anchorPoint, attachTarget, followConnectors, liveFollow, snapAllowed } from "./connectors";
 import { frameFromEndpoints } from "./lineEnds";
 import { fromPagePoints, pagePoints, type Pt } from "./linePath";
 import type { Element, Frame, Page, ShapeKind, ShapeProps } from "./types";
@@ -168,4 +168,14 @@ test("a tiny rounding does not detach", () => {
   const after = followConnectors(before, moved(before, "a", (e) => ({ ...e, frame: { ...e.frame, rotation_deg: e.frame.rotation_deg + 0.04 } })));
   expect(attachOf(after, "a")).toBeDefined();
   close(ptsOf(after, "a")[1], { x: 60, y: 50 });
+});
+
+test("an end cannot snap onto the point the other end already holds", () => {
+  const p = page();
+  const a = get(p, "a");
+  if (a.kind.type !== "Shape") throw new Error();
+  // La fin tient le milieu gauche de « r » : le début ne peut pas s'y accrocher aussi (trait de longueur nulle).
+  expect(snapAllowed(a.kind, "start", "r", "Left")).toBe(false);
+  expect(snapAllowed(a.kind, "start", "r", "Top")).toBe(true);
+  expect(snapAllowed(a.kind, "end", "r", "Left")).toBe(true);
 });

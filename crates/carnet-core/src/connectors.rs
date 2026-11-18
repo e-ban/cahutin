@@ -58,13 +58,19 @@ pub fn facing_anchors(a: &Frame, b: &Frame) -> (AnchorPoint, AnchorPoint) {
     (best.0, best.1)
 }
 
+/// La page a au moins un trait accroché (comme `hasAttach`, connectors.ts : seuls les traits, flèches et chemins
+/// comptent).
+pub fn has_attach(page: &Page) -> bool {
+    page.elements.iter().any(|e| matches!(&e.kind, ElementKind::Shape(s) if s.attach.is_some() && crate::shapes::is_stroke_only(s.shape)))
+}
+
 /// La règle des connecteurs, après une modification de la page (`before` : la page d'avant, s'il y en a une).
 /// 1. Décrocher : un bout accroché qui a bougé alors que son élément n'a pas bougé perd son accroche (on a déplacé la
 ///    flèche seule, ou tiré ce bout) ; un chemin fermé n'a pas d'accroche.
 /// 2. Suivre : chaque bout encore accroché va sur le point de son élément ; un élément absent le décroche. Les coudes
 ///    d'un chemin restent ; le cadre est recalculé (`line_frame`, `path_frame`). Un trait déjà en place ne change pas.
 pub fn follow_connectors(before: Option<&Page>, after: &mut Page) {
-    if !after.elements.iter().any(|e| matches!(&e.kind, ElementKind::Shape(s) if s.attach.is_some())) {
+    if !has_attach(after) {
         return;
     }
     let frames: std::collections::HashMap<String, Frame> = after.elements.iter().map(|e| (e.id.clone(), e.frame)).collect();

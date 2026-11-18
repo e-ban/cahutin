@@ -390,6 +390,9 @@ fn link_ends(doc: &Document, args: &Value, shape: ShapeKind) -> Result<Option<((
         (Some(f), Some(t)) => (f, t),
         _ => return Err("from et to vont ensemble".into()),
     };
+    if from == to {
+        return Err("from et to doivent être deux éléments différents".into());
+    }
     if !carnet_core::shapes::is_stroke_only(shape) {
         return Err("from et to ne vont qu'à une forme line ou arrow".into());
     }
@@ -696,6 +699,8 @@ mod tests {
         assert!(add_shape(&mut d, &with(json!({ "shape": "arrow", "from": "nope", "to": "t1" }))).is_err());
         assert!(add_shape(&mut d, &with(json!({ "shape": "arrow", "from": "t1" }))).is_err());
         assert!(add_shape(&mut d, &with(json!({ "shape": "rect", "from": "t1", "to": "verrou" }))).is_err());
+        // Relier un élément à lui-même donnerait un trait sans longueur.
+        assert!(add_shape(&mut d, &with(json!({ "shape": "arrow", "from": "t1", "to": "t1" }))).is_err());
     }
 
     #[test]

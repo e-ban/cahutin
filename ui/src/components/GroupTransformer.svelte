@@ -251,6 +251,8 @@
     window.removeEventListener("keyup", onKey);
     window.removeEventListener("blur", onBlur);
     moveable?.destroy();
+    // Disparu en plein geste (sélection changée, Ctrl+Z, autre page) : plus de cadres en cours à dessiner.
+    if (editor.liveFrames) editor.liveFrames = null;
   });
 
   // Curseurs des poignées : ceux du système (voir cursors.ts) ; le cadre d'un groupe n'est pas tourné.

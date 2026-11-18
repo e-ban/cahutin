@@ -11,7 +11,7 @@
   import { isLineTarget } from "../lib/lineEnds";
   import { MAX_PATH_POINTS, dragPoint, endDirections, insertPoint, isPath, pagePoints, segmentMids, type Pt } from "../lib/linePath";
   import { extending } from "../lib/extending.svelte";
-  import { ANCHORS, anchorPoint, attachTarget, withAttachEnd } from "../lib/connectors";
+  import { ANCHORS, anchorPoint, attachTarget, snapAllowed, withAttachEnd } from "../lib/connectors";
   import { fr } from "../lib/i18n/fr";
   import { settings } from "../lib/settings.svelte";
   import { PX_PER_MM, mmToPx } from "../lib/units";
@@ -86,7 +86,9 @@
     const [base, i] = drag.mode === "mid" ? [insertPoint(drag.pts0, drag.i, to), drag.i + 1] : [drag.pts0, drag.i];
     // Un bout (pas un coude) d'un trait ouvert : près d'un élément, ses points s'allument et le bout s'y accroche.
     const end = drag.mode === "point" && !e.kind.closed && (i === 0 || i === base.length - 1) ? (i === 0 ? "start" : "end") : null;
-    const hit = end ? attachTarget(page, to, e.id, ATTACH_PX / (PX_PER_MM * zoom)) : null;
+    const found = end ? attachTarget(page, to, e.id, ATTACH_PX / (PX_PER_MM * zoom)) : null;
+    // Jamais sur le point que tient déjà l'autre bout (trait de longueur nulle, invisible).
+    const hit = found?.snap && !snapAllowed(e.kind, end!, found.element.id, found.snap.at) ? { ...found, snap: null } : found;
     hover = hit ? { frame: hit.element.frame, at: hit.snap?.at ?? null } : null;
     const next = hit?.snap ? base.map((p, j) => (j === i ? hit.snap!.point : p)) : dragPoint({ pts: base, i, to, shift: ev.shiftKey, lines, tolMm });
     const kind = end ? withAttachEnd(e.kind, end, hit?.snap ? { element: hit.element.id, at: hit.snap.at } : undefined) : e.kind;

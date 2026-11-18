@@ -39,11 +39,15 @@ pub const SAVE_AS_TEMPLATE: &str = "save_as_template";
 pub fn apply(doc: &mut Document, name: &str, args: &Value, selection: &[Id]) -> Result<Value, String> {
     // Après chaque modification, les flèches accrochées suivent leurs éléments (ou se décrochent si on les a
     // déplacées seules), comme dans l'éditeur.
-    let before = (name != "get_layout").then(|| doc.pages.clone());
+    // Rien à suivre sans trait accroché : pas de copie des pages (une flèche que l'outil vient de relier est déjà
+    // posée sur ses points).
+    let before = (name != "get_layout" && doc.pages.iter().any(carnet_core::connectors::has_attach)).then(|| {
+        doc.pages.iter().map(|p| (p.id.clone(), p.clone())).collect::<std::collections::HashMap<_, _>>()
+    });
     let out = run(doc, name, args, selection);
     if let (Some(before), Ok(_)) = (before, &out) {
         for p in &mut doc.pages {
-            carnet_core::connectors::follow_connectors(before.iter().find(|b| b.id == p.id), p);
+            carnet_core::connectors::follow_connectors(before.get(&p.id), p);
         }
     }
     out

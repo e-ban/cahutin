@@ -183,3 +183,10 @@ export function remapAttach(elements: Element[], ids: Map<string, string>): Elem
     return { ...e, kind: start || end ? { ...kind, attach: clean({ start, end }) } : kind };
   });
 }
+
+/** Le bout `which` peut-il s'accrocher à ce point ? Pas sur celui que tient déjà l'autre bout (le trait n'aurait plus
+ *  de longueur, il deviendrait invisible). */
+export function snapAllowed(kind: { attach?: Attach | null }, which: "start" | "end", element: string, at: AnchorPoint): boolean {
+  const other = which === "start" ? kind.attach?.end : kind.attach?.start;
+  return !(other && other.element === element && other.at === at);
+}

@@ -198,7 +198,11 @@
     };
   });
 
-  onDestroy(() => moveable?.destroy());
+  onDestroy(() => {
+    moveable?.destroy();
+    // Disparu en plein geste (sélection changée, Ctrl+Z, autre page) : plus de cadres en cours à dessiner.
+    if (editor.liveFrames) editor.liveFrames = null;
+  });
 
   // Curseurs des poignées : ceux du système, dans le sens de la poignée sur l'élément tourné (voir cursors.ts).
   const cursorCss = $derived(moveableCursorCss(".cahutin-single", target?.frame.rotation_deg ?? 0, IS_LINUX, pixelRatio.value));

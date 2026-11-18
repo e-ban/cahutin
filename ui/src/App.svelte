@@ -71,7 +71,8 @@
   import { pictoElement, pictos } from "./lib/pictos.svelte";
   import { endNudge, handleKeyUp, handleShortcut, handleWheelZoom } from "./lib/shortcuts";
   import { roundedFrame } from "./lib/crop";
-  import { newDocument, newId } from "./lib/factory";
+  import { newDocument, newId, shapeElement } from "./lib/factory";
+  import { parseShapeTile } from "./lib/dnd";
   import { templates } from "./lib/templates.svelte";
   import { mmToPx } from "./lib/units";
   import type { AssetMeta, Crop, Frame, RichText } from "./lib/types";
@@ -407,6 +408,13 @@
       ontextdone={endTextEdit}
       oncontext={openContextMenu}
       onfocusmember={focusMember}
+      ondropshape={(tile, x, y) => {
+        const t = parseShapeTile(tile);
+        if (!t) return;
+        const el = { ...shapeElement(editor.page, t.shape, t.radius, { x_mm: x, y_mm: y }, t.ends), locked: editor.templateMode };
+        editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
+        editor.selection = [el.id];
+      }}
       ondroppicto={(code, x, y) => {
         const el = { ...pictoElement(editor.page, code, { x_mm: x, y_mm: y }, undefined, pictos.outline), locked: editor.templateMode };
         editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));

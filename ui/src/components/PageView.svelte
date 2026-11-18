@@ -6,7 +6,7 @@
   import TextEl from "./elements/TextEl.svelte";
   import { dragCrop, photoTrims, wheelCrop, withTrims, type Trims } from "../lib/crop";
   import { editor } from "../lib/docStore.svelte";
-  import { ASSET_MIME, CLASS_PHOTO_MIME, MY_IMAGE_MIME, PICTO_MIME } from "../lib/dnd";
+  import { ASSET_MIME, CLASS_PHOTO_MIME, MY_IMAGE_MIME, PICTO_MIME, SHAPE_MIME } from "../lib/dnd";
   import { fr } from "../lib/i18n/fr";
   import { pageHasPictos } from "../lib/pictos.svelte";
   import { TEXT_PADDING_MM } from "../lib/richtext";
@@ -46,6 +46,7 @@
     oncontext,
     onfocusmember,
     ondroppicto,
+    ondropshape,
     pageEl = $bindable(),
   }: {
     page: Page;
@@ -76,6 +77,8 @@
     onfocusmember?: (id: string) => boolean;
     /** Image de la banque lâchée sur la page, au point (mm). */
     ondroppicto?: (code: string, xMm: number, yMm: number) => void;
+    /** Une tuile du tiroir Formes déposée : sa description (JSON) et le point de dépôt. */
+    ondropshape?: (tile: string, xMm: number, yMm: number) => void;
     pageEl?: HTMLElement;
   } = $props();
 
@@ -136,7 +139,7 @@
   }
 
   function acceptsAsset(ev: DragEvent): boolean {
-    return [ASSET_MIME, PICTO_MIME, MY_IMAGE_MIME, CLASS_PHOTO_MIME, "Files", "text/uri-list"].some((t) => ev.dataTransfer?.types.includes(t));
+    return [ASSET_MIME, PICTO_MIME, SHAPE_MIME, MY_IMAGE_MIME, CLASS_PHOTO_MIME, "Files", "text/uri-list"].some((t) => ev.dataTransfer?.types.includes(t));
   }
 
   function drop(ev: DragEvent, elementId: string | null) {
@@ -145,6 +148,11 @@
     ev.stopPropagation();
     const r = pageEl.getBoundingClientRect();
     const [xMm, yMm] = [(ev.clientX - r.left) / (PX_PER_MM * zoom), (ev.clientY - r.top) / (PX_PER_MM * zoom)];
+    const tile = ev.dataTransfer!.getData(SHAPE_MIME);
+    if (tile) {
+      ondropshape?.(tile, xMm, yMm);
+      return;
+    }
     const picto = ev.dataTransfer!.getData(PICTO_MIME);
     if (picto) {
       ondroppicto?.(picto, xMm, yMm);

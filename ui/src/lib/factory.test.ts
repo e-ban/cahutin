@@ -24,3 +24,13 @@ test("a new element does not land exactly on the previous one", () => {
   const second = centeredFrame(page, 30, 30);
   expect([second.x_mm + 15, second.y_mm + 15]).toEqual([113, 156.5]);
 });
+
+test("shapeElement takes line ends, and centres the shape on a dropped point", () => {
+  const ends = { start: "Arrow", end: "Arrow", size: "Medium" } as const;
+  const el = shapeElement(newPage(), "Arrow", 0, { x_mm: 50, y_mm: 60 }, ends);
+  expect(el.kind.type === "Shape" && el.kind.ends).toEqual(ends);
+  expect(el.frame.x_mm + el.frame.w_mm / 2).toBeCloseTo(50);
+  expect(el.frame.y_mm + el.frame.h_mm / 2).toBeCloseTo(60);
+  const plain = shapeElement(newPage(), "Arrow");
+  expect(plain.kind.type === "Shape" && plain.kind.ends).toBeUndefined();
+});

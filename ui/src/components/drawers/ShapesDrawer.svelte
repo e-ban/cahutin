@@ -10,14 +10,16 @@
   import { SYMMETRY_FIGURES, maze, symmetry } from "../../lib/fiches";
   import { fr } from "../../lib/i18n/fr";
   import InspectorSection from "../layout/InspectorSection.svelte";
-  import type { Element, Guides, ShapeKind } from "../../lib/types";
+  import type { Element, Guides } from "../../lib/types";
+  import { SHAPE_MIME, shapeTile, type ShapeTile } from "../../lib/dnd";
 
-  const shapes: { shape: ShapeKind; radius: number; label: string }[] = [
+  const shapes: (ShapeTile & { label: string })[] = [
     { shape: "Rect", radius: 0, label: fr.rect },
     { shape: "Rect", radius: 6, label: fr.roundedRect },
     { shape: "Ellipse", radius: 0, label: fr.ellipse },
     { shape: "Line", radius: 0, label: fr.line },
     { shape: "Arrow", radius: 0, label: fr.arrow },
+    { shape: "Arrow", radius: 0, label: fr.doubleArrow, ends: { start: "Arrow", end: "Arrow", size: "Medium" } },
     { shape: "Star", radius: 0, label: fr.star },
     { shape: "Heart", radius: 0, label: fr.heart },
     { shape: "Bubble", radius: 0, label: fr.bubble },
@@ -25,7 +27,7 @@
   ];
 
   // Aperçu dessiné par le même composant que la page.
-  const previews: Element[] = shapes.map((s) => shapeElement(editor.page, s.shape, s.radius));
+  const previews: Element[] = shapes.map((s) => shapeElement(editor.page, s.shape, s.radius, undefined, s.ends));
 
   // Lignes de graphisme : la section (taille des motifs, aussi réglée dans les Préférences) et le nombre de
   // lignes, gardés d'une fois sur l'autre.
@@ -85,8 +87,8 @@
     editor.selection = [el.id];
   }
 
-  function add(shape: ShapeKind, radius: number) {
-    const el = shapeElement(editor.page, shape, radius);
+  function add(t: ShapeTile) {
+    const el = shapeElement(editor.page, t.shape, t.radius, undefined, t.ends);
     editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
     editor.selection = [el.id];
   }
@@ -96,7 +98,15 @@
   <div class="grid">
     {#each shapes as s, i (s.label)}
       {@const el = previews[i]}
-      <button onclick={() => add(s.shape, s.radius)}>
+      <!-- Un clic pose la forme au centre ; glissée, elle se pose là où on la lâche. -->
+      <button
+        draggable="true"
+        onclick={() => add(s)}
+        ondragstart={(e) => {
+          e.dataTransfer?.setData(SHAPE_MIME, shapeTile({ shape: s.shape, radius: s.radius, ends: s.ends }));
+          if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
+        }}
+      >
         <span class="preview" style:width="{el.frame.w_mm * 0.75}px" style:height="{el.frame.h_mm * 0.75}px">
           {#if el.kind.type === "Shape"}<ShapeEl props={el.kind} frame={el.frame} zoom={0.75 / 3.7795} />{/if}
         </span>

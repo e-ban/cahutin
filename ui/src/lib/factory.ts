@@ -1,6 +1,6 @@
 import { sizeIn } from "./pageFormat";
 import { settings } from "./settings.svelte";
-import type { Document, Element, Frame, Page, ShapeKind, Stroke, TextStyle } from "./types";
+import type { Document, Element, Frame, LineEnds, Page, ShapeKind, Stroke, TextStyle } from "./types";
 
 export const newId = () => crypto.randomUUID();
 
@@ -66,9 +66,9 @@ const SHAPE_DEFAULTS: Record<ShapeKind, { w: number; h: number; fill: string | n
   Path: { w: 120, h: 40, fill: null, stroke: { width_mm: 1.2, color: "#555555", style: "Dotted" } },
 };
 
-/** Nouvelle forme centrée sur la page (ou sur le point donné). */
-export function shapeElement(page: Page, shape: ShapeKind, corner_radius_mm = 0, at?: { x_mm: number; y_mm: number }): Element {
+/** Nouvelle forme centrée sur la page (ou sur le point donné) ; un trait peut recevoir ses terminaisons. */
+export function shapeElement(page: Page, shape: ShapeKind, corner_radius_mm = 0, at?: { x_mm: number; y_mm: number }, ends?: LineEnds): Element {
   const d = SHAPE_DEFAULTS[shape];
   const frame = at ? { x_mm: Math.round(at.x_mm - d.w / 2), y_mm: Math.round(at.y_mm - d.h / 2), w_mm: d.w, h_mm: d.h, rotation_deg: 0 } : centeredFrame(page, d.w, d.h);
-  return { id: newId(), frame, locked: false, zone: false, kind: { type: "Shape", shape, fill: d.fill, stroke: d.stroke && { ...d.stroke }, corner_radius_mm } };
+  return { id: newId(), frame, locked: false, zone: false, kind: { type: "Shape", shape, fill: d.fill, stroke: d.stroke && { ...d.stroke }, corner_radius_mm, ...(ends ? { ends } : {}) } };
 }

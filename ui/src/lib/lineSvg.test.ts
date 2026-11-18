@@ -89,3 +89,13 @@ test("the recoil never goes past the neighbouring point", () => {
   expect(x).toBeGreaterThan(0);
   expect(x).toBeLessThan(1);
 });
+
+test("a closed path has no ends and closes", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }];
+  const straight = pathSvg(pts, false, { start: "Circle", end: "Arrow", size: "Medium" }, 4, true);
+  expect(straight.d).toBe("M 0 0 L 10 0 L 10 10 Z");
+  expect(straight.parts).toEqual([]);
+  const curved = pathSvg(pts, true, { start: "None", end: "Arrow", size: "Medium" }, 4, true);
+  expect(curved.d.match(/C/g)).toHaveLength(3);
+  expect(curved.d.endsWith("Z")).toBe(true);
+});

@@ -41,9 +41,9 @@ export function pagePoints(frame: Frame, s: ShapeProps, flipH: boolean, flipV: b
 
 /** Cadre et champs d'un trait qui passe par `pts` (mm de page) : deux points, un trait droit ; plus, un chemin dont
  *  le cadre est la boîte des points agrandie de la moitié de la zone cliquable, sans rotation ni miroir. */
-export function fromPagePoints(pts: Pt[], s: ShapeProps): { frame: Frame; patch: Pick<ShapeProps, "points" | "curve">; flipH: false; flipV: false } {
+export function fromPagePoints(pts: Pt[], s: ShapeProps): { frame: Frame; patch: Pick<ShapeProps, "points" | "curve" | "closed">; flipH: false; flipV: false } {
   const hit = hitMm(s);
-  if (pts.length <= 2) return { frame: frameFromEndpoints(pts[0], pts[pts.length - 1], hit, false), patch: { points: undefined, curve: undefined }, flipH: false, flipV: false };
+  if (pts.length <= 2) return { frame: frameFromEndpoints(pts[0], pts[pts.length - 1], hit, false), patch: { points: undefined, curve: undefined, closed: undefined }, flipH: false, flipV: false };
   const xs = pts.map((p) => p.x);
   const ys = pts.map((p) => p.y);
   const m = hit / 2;
@@ -53,7 +53,7 @@ export function fromPagePoints(pts: Pt[], s: ShapeProps): { frame: Frame; patch:
   const h = Math.max(...ys) + m - y0;
   return {
     frame: { x_mm: x0, y_mm: y0, w_mm: w, h_mm: h, rotation_deg: 0 },
-    patch: { points: pts.map((p) => [(p.x - x0) / w, (p.y - y0) / h] as [number, number]), curve: s.curve || undefined },
+    patch: { points: pts.map((p) => [(p.x - x0) / w, (p.y - y0) / h] as [number, number]), curve: s.curve || undefined, closed: s.closed || undefined },
     flipH: false,
     flipV: false,
   };
@@ -74,37 +74,39 @@ export function extend(pts: Pt[], from: "start" | "end", p: Pt): Pt[] {
 /** Courbe passant par les points : Catmull-Rom centripète, une cubique par segment [contrôle 1, contrôle 2,
  *  arrivée] ; aux bouts, la tangente va vers le voisin (comme `curve_beziers`, shapes.rs). */
 export function curveBeziers(pts: Pt[]): [Pt, Pt, Pt][] {
+  const n = pts.length;
+  return pts.slice(0, -1).map((p, i) => crSegment(i === 0 ? p : pts[i - 1], p, pts[i + 1], i + 2 < n ? pts[i + 2] : pts[i + 1]));
+}
+
+/** Courbe d'un chemin fermé : la même, qui revient du dernier point au premier sans angle (comme
+ *  `closed_curve_beziers`, shapes.rs). */
+export function closedCurveBeziers(pts: Pt[]): [Pt, Pt, Pt][] {
+  const n = pts.length;
+  return pts.map((p, i) => crSegment(pts[(i + n - 1) % n], p, pts[(i + 1) % n], pts[(i + 2) % n]));
+}
+
+/** Un segment de Catmull-Rom centripète de `p1` à `p2` (voisins `p0`, `p3`) en cubique. */
+function crSegment(p0: Pt, p1: Pt, p2: Pt, p3: Pt): [Pt, Pt, Pt] {
   const EPS = 1e-12;
   const dist = (a: Pt, b: Pt) => Math.sqrt(Math.hypot(b.x - a.x, b.y - a.y));
   const third = (a: Pt, b: Pt): Pt => ({ x: a.x + (b.x - a.x) / 3, y: a.y + (b.y - a.y) / 3 });
-  const out: [Pt, Pt, Pt][] = [];
-  for (let i = 0; i + 1 < pts.length; i++) {
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const p0 = i === 0 ? p1 : pts[i - 1];
-    const p3 = i + 2 < pts.length ? pts[i + 2] : p2;
-    const [d1, d2, d3] = [dist(p0, p1), dist(p1, p2), dist(p2, p3)];
-    if (d2 < EPS) {
-      out.push([p1, p2, p2]);
-      continue;
-    }
-    const ctl = (da: number, pa: Pt, pb: Pt, pc: Pt): Pt => {
-      // Contrôle près de `pb`, entre `pa` (voisin de l'autre côté) et `pc` (l'autre bout du segment).
-      const k = 3 * da * (da + d2);
-      const a = 2 * da * da + 3 * da * d2 + d2 * d2;
-      return { x: (da * da * pc.x - d2 * d2 * pa.x + a * pb.x) / k, y: (da * da * pc.y - d2 * d2 * pa.y + a * pb.y) / k };
-    };
-    const b1 = d1 < EPS ? third(p1, p2) : ctl(d1, p0, p1, p2);
-    const b2 = d3 < EPS ? third(p2, p1) : ctl(d3, p3, p2, p1);
-    out.push([b1, b2, p2]);
-  }
-  return out;
+  const [d1, d2, d3] = [dist(p0, p1), dist(p1, p2), dist(p2, p3)];
+  if (d2 < EPS) return [p1, p2, p2];
+  const ctl = (da: number, pa: Pt, pb: Pt, pc: Pt): Pt => {
+    // Contrôle près de `pb`, entre `pa` (voisin de l'autre côté) et `pc` (l'autre bout du segment).
+    const k = 3 * da * (da + d2);
+    const a = 2 * da * da + 3 * da * d2 + d2 * d2;
+    return { x: (da * da * pc.x - d2 * d2 * pa.x + a * pb.x) / k, y: (da * da * pc.y - d2 * d2 * pa.y + a * pb.y) / k };
+  };
+  return [d1 < EPS ? third(p1, p2) : ctl(d1, p0, p1, p2), d3 < EPS ? third(p2, p1) : ctl(d3, p3, p2, p1), p2];
 }
 
-/** Milieu de chaque segment ; sur la courbe, son point à mi-parcours. */
-export function segmentMids(pts: Pt[], curve: boolean): Pt[] {
-  if (!curve) return pts.slice(1).map((p, i) => ({ x: (pts[i].x + p.x) / 2, y: (pts[i].y + p.y) / 2 }));
-  return curveBeziers(pts).map(([c1, c2, p], i) => ({ x: (pts[i].x + 3 * c1.x + 3 * c2.x + p.x) / 8, y: (pts[i].y + 3 * c1.y + 3 * c2.y + p.y) / 8 }));
+/** Milieu de chaque segment (fermé : celui qui revient au premier point aussi) ; sur la courbe, son point à
+ *  mi-parcours. */
+export function segmentMids(pts: Pt[], curve: boolean, closed = false): Pt[] {
+  const ends = closed ? pts.map((_, i) => pts[(i + 1) % pts.length]) : pts.slice(1);
+  if (!curve) return ends.map((p, i) => ({ x: (pts[i].x + p.x) / 2, y: (pts[i].y + p.y) / 2 }));
+  return (closed ? closedCurveBeziers(pts) : curveBeziers(pts)).map(([c1, c2, p], i) => ({ x: (pts[i].x + 3 * c1.x + 3 * c2.x + p.x) / 8, y: (pts[i].y + 3 * c1.y + 3 * c2.y + p.y) / 8 }));
 }
 
 const angle = (from: Pt, to: Pt) => (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;

@@ -2,7 +2,7 @@
 // que les marqueurs de l'export (crates/carnet-core/src/odg/styles.rs) : pointe de base `head` et de longueur
 // 1,5 × `head`, chevron dans le même triangle, rond et carré de `DOT_FACTOR` × `head`.
 import { DOT_FACTOR } from "./shapePaths";
-import { curveBeziers, endDirections, type Pt } from "./linePath";
+import { closedCurveBeziers, curveBeziers, endDirections, type Pt } from "./linePath";
 import type { LineEnd, LineEnds } from "./types";
 
 export type LinePart = { kind: "polygon" | "polyline" | "circle" | "rect"; attrs: Record<string, number | string> };
@@ -43,7 +43,13 @@ const fmt = (v: number) => String(Math.round(v * 1e4) / 1e4 + 0);
 /** Tracé d'un chemin (mm de son cadre) et ses terminaisons, orientées selon la direction d'arrivée à chaque bout :
  *  mêmes dessins que `lineSvg`, posés sur le bout par `translate` puis `rotate`. Une flèche pleine recule le tracé
  *  de la moitié de sa longueur, le long de cette direction. */
-export function pathSvg(pts: Pt[], curve: boolean, ends: LineEnds, head: number): { d: string; parts: LinePart[] } {
+export function pathSvg(pts: Pt[], curve: boolean, ends: LineEnds, head: number, closed = false): { d: string; parts: LinePart[] } {
+  const at = (p: Pt) => `${fmt(p.x)} ${fmt(p.y)}`;
+  // Fermé : pas de bouts, donc pas de terminaisons ; le tracé revient au premier point.
+  if (closed) {
+    const body = curve ? closedCurveBeziers(pts).map(([c1, c2, p]) => ` C ${at(c1)} ${at(c2)} ${at(p)}`).join("") : pts.slice(1).map((p) => ` L ${at(p)}`).join("");
+    return { d: `M ${at(pts[0])}${body} Z`, parts: [] };
+  }
   const dir = endDirections(pts, curve);
   const parts: LinePart[] = [];
   const place = (one: LinePart[], tip: Pt, deg: number) => {
@@ -55,7 +61,6 @@ export function pathSvg(pts: Pt[], curve: boolean, ends: LineEnds, head: number)
   const n = pts.length;
   place(start.parts, pts[0], dir.start - 180);
   place(end.parts, pts[n - 1], dir.end);
-  const at = (p: Pt) => `${fmt(p.x)} ${fmt(p.y)}`;
   // Recul d'une flèche pleine : jamais plus de 90 % du segment du bout (il ne dépasse pas le point voisin).
   const share = (by: number, a: Pt, b: Pt) => {
     const len = Math.hypot(b.x - a.x, b.y - a.y);

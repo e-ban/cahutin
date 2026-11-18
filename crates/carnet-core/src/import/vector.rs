@@ -129,7 +129,7 @@ impl Drawing {
             s
         });
         let frame = Frame { x_mm: x0, y_mm: y0, w_mm: w, h_mm: h, rotation_deg: 0.0 };
-        Some((frame, ShapeProps { shape: ShapeKind::Path, fill: self.fill_hex.clone(), stroke, corner_radius_mm: 0.0, path: Some(path), graphisme: None, ends: None, points: None, curve: false }))
+        Some((frame, ShapeProps { shape: ShapeKind::Path, fill: self.fill_hex.clone(), stroke, corner_radius_mm: 0.0, path: Some(path), graphisme: None, ends: None, points: None, curve: false, closed: false }))
     }
 
     /// Un tracé ouvert, sans fond, fait d'un seul morceau : ses points (mm de page) s'il se règle point par point

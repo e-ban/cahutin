@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { curveBeziers, dragPoint, endDirections, extend, fromPagePoints, insertPoint, isPath, pagePoints, removePoint, segmentMids, type Pt } from "./linePath";
+import { closedCurveBeziers, curveBeziers, dragPoint, endDirections, extend, fromPagePoints, insertPoint, isPath, pagePoints, removePoint, segmentMids, type Pt } from "./linePath";
 import { lineEndpoints } from "./lineEnds";
 import type { Frame, ShapeProps } from "./types";
 
@@ -134,4 +134,19 @@ test("dragPoint snaps to another point of the same path, and Shift gives 45°", 
 test("insertPoint refuses the 201st point", () => {
   const full = Array.from({ length: 200 }, (_, i) => ({ x: i, y: 0 }));
   expect(insertPoint(full, 3, { x: 3.5, y: 5 })).toBe(full);
+});
+
+test("closed curve wraps around; parity with Rust", () => {
+  const sq = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
+  const r = (v: number) => Math.round(v * 1e6) / 1e6 + 0;
+  // Copié de shapes.rs (CLOSED_PARITY).
+  expect(closedCurveBeziers(sq).flatMap((b) => b.flatMap((p) => [r(p.x), r(p.y)]))).toEqual([1.666667, -1.666667, 8.333333, -1.666667, 10.0, 0.0, 11.666667, 1.666667, 11.666667, 8.333333, 10.0, 10.0, 8.333333, 11.666667, 1.666667, 11.666667, 0.0, 10.0, -1.666667, 8.333333, -1.666667, 1.666667, 0.0, 0.0]);
+});
+
+test("a closed path keeps closed through fromPagePoints, and has a closing segment mid", () => {
+  const s = line({ closed: true, fill: "#ff0000" });
+  const sq = [{ x: 10, y: 10 }, { x: 30, y: 10 }, { x: 30, y: 30 }];
+  expect(fromPagePoints(sq, s).patch.closed).toBe(true);
+  expect(fromPagePoints(sq.slice(0, 2), s).patch.closed).toBeUndefined();
+  expect(segmentMids(sq, false, true)).toEqual([{ x: 20, y: 10 }, { x: 30, y: 20 }, { x: 20, y: 20 }]);
 });

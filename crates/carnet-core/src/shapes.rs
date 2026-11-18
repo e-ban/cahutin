@@ -79,36 +79,35 @@ pub fn path_frame(pts: &[(f64, f64)], s: &ShapeProps) -> (crate::model::Frame, V
 /// Courbe d'un chemin : Catmull-Rom centripète passant par les points, une cubique par segment (contrôle 1,
 /// contrôle 2, arrivée). Aux bouts, la tangente va vers le voisin. Même calcul que `curveBeziers` (linePath.ts).
 pub fn curve_beziers(pts: &[(f64, f64)]) -> Vec<[(f64, f64); 3]> {
+    let n = pts.len();
+    (0..n.saturating_sub(1)).map(|i| cr_segment(if i == 0 { pts[0] } else { pts[i - 1] }, pts[i], pts[i + 1], if i + 2 < n { pts[i + 2] } else { pts[i + 1] })).collect()
+}
+
+/// Courbe d'un chemin fermé : la même, qui revient du dernier point au premier sans angle (chaque point a ses deux
+/// voisins). Même calcul que `closedCurveBeziers` (linePath.ts).
+pub fn closed_curve_beziers(pts: &[(f64, f64)]) -> Vec<[(f64, f64); 3]> {
+    let n = pts.len();
+    (0..n).map(|i| cr_segment(pts[(i + n - 1) % n], pts[i], pts[(i + 1) % n], pts[(i + 2) % n])).collect()
+}
+
+/// Un segment de Catmull-Rom centripète de `p1` à `p2` (voisins `p0` et `p3`) en cubique. Un voisin confondu avec le
+/// bout donne une tangente vers l'autre bout du segment ; un segment nul reste un point.
+fn cr_segment(p0: (f64, f64), p1: (f64, f64), p2: (f64, f64), p3: (f64, f64)) -> [(f64, f64); 3] {
     const EPS: f64 = 1e-12;
     let dist = |a: (f64, f64), b: (f64, f64)| ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt().sqrt();
     let lerp3 = |a: (f64, f64), b: (f64, f64)| (a.0 + (b.0 - a.0) / 3.0, a.1 + (b.1 - a.1) / 3.0);
-    let mut out = Vec::with_capacity(pts.len().saturating_sub(1));
-    for i in 0..pts.len().saturating_sub(1) {
-        let (p1, p2) = (pts[i], pts[i + 1]);
-        let p0 = if i == 0 { p1 } else { pts[i - 1] };
-        let p3 = if i + 2 < pts.len() { pts[i + 2] } else { p2 };
-        let (d1, d2, d3) = (dist(p0, p1), dist(p1, p2), dist(p2, p3));
-        if d2 < EPS {
-            out.push([p1, p2, p2]);
-            continue;
-        }
-        let b1 = if d1 < EPS {
-            lerp3(p1, p2)
-        } else {
-            let k = 3.0 * d1 * (d1 + d2);
-            let a = 2.0 * d1 * d1 + 3.0 * d1 * d2 + d2 * d2;
-            ((d1 * d1 * p2.0 - d2 * d2 * p0.0 + a * p1.0) / k, (d1 * d1 * p2.1 - d2 * d2 * p0.1 + a * p1.1) / k)
-        };
-        let b2 = if d3 < EPS {
-            lerp3(p2, p1)
-        } else {
-            let k = 3.0 * d3 * (d3 + d2);
-            let a = 2.0 * d3 * d3 + 3.0 * d3 * d2 + d2 * d2;
-            ((d3 * d3 * p1.0 - d2 * d2 * p3.0 + a * p2.0) / k, (d3 * d3 * p1.1 - d2 * d2 * p3.1 + a * p2.1) / k)
-        };
-        out.push([b1, b2, p2]);
+    let (d1, d2, d3) = (dist(p0, p1), dist(p1, p2), dist(p2, p3));
+    if d2 < EPS {
+        return [p1, p2, p2];
     }
-    out
+    let ctl = |da: f64, pa: (f64, f64), pb: (f64, f64), pc: (f64, f64)| {
+        let k = 3.0 * da * (da + d2);
+        let a = 2.0 * da * da + 3.0 * da * d2 + d2 * d2;
+        ((da * da * pc.0 - d2 * d2 * pa.0 + a * pb.0) / k, (da * da * pc.1 - d2 * d2 * pa.1 + a * pb.1) / k)
+    };
+    let b1 = if d1 < EPS { lerp3(p1, p2) } else { ctl(d1, p0, p1, p2) };
+    let b2 = if d3 < EPS { lerp3(p2, p1) } else { ctl(d3, p3, p2, p1) };
+    [b1, b2, p2]
 }
 
 /// Le tracé d'une forme : celui de sa sorte, ou pour un tracé libre le sien, s'il est valide.
@@ -244,6 +243,31 @@ mod tests {
     }
 
     #[test]
+    fn closed_absent_by_default() {
+        let s: ShapeProps = serde_json::from_str(r##"{"shape":"Line","fill":null,"stroke":null,"corner_radius_mm":0}"##).unwrap();
+        assert!(!s.closed);
+        assert!(!serde_json::to_string(&s).unwrap().contains("closed"));
+    }
+
+    /// Valeurs partagées avec linePath.test.ts (parité) : la courbe fermée d'un carré.
+    const CLOSED_PARITY: [f64; 24] = [1.666667, -1.666667, 8.333333, -1.666667, 10.0, 0.0, 11.666667, 1.666667, 11.666667, 8.333333, 10.0, 10.0, 8.333333, 11.666667, 1.666667, 11.666667, 0.0, 10.0, -1.666667, 8.333333, -1.666667, 1.666667, 0.0, 0.0];
+
+    #[test]
+    fn closed_curve_wraps_around() {
+        let pts = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)];
+        let c = closed_curve_beziers(&pts);
+        assert_eq!(c.len(), 4);
+        assert_eq!(c[3][2], (0.0, 0.0));
+        // Au premier point, la tangente est parallèle à (dernier -> deuxième), comme à tout autre point.
+        let (dx, dy) = (c[0][0].0 - 0.0, c[0][0].1 - 0.0);
+        let (ex, ey) = (10.0 - 0.0, 0.0 - 10.0);
+        assert!((dx * ey - dy * ex).abs() < 1e-9, "{:?}", c[0][0]);
+        let r = |v: f64| (v * 1e6).round() / 1e6;
+        let flat: Vec<f64> = c.iter().flat_map(|b| b.iter().flat_map(|&(x, y)| [r(x), r(y)])).collect();
+        assert_eq!(flat, CLOSED_PARITY.to_vec());
+    }
+
+    #[test]
     fn repeated_points_stay_finite_rust() {
         for b in curve_beziers(&[(0.0, 0.0), (0.0, 0.0), (5.0, 5.0)]) {
             for (x, y) in b {
@@ -308,6 +332,7 @@ mod tests {
             ends,
             points: None,
             curve: false,
+            closed: false,
         }
     }
 

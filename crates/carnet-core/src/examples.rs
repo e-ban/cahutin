@@ -102,6 +102,7 @@ pub(crate) fn shape(kind: ShapeKind, f: Frame, fill: Option<&str>, stroke: Optio
             ends: None,
             points: None,
             curve: false,
+            closed: false,
         }),
     )
 }

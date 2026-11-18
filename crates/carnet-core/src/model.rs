@@ -511,6 +511,11 @@ pub struct ShapeProps {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub curve: bool,
+    /// Chemin fermé : un segment va du dernier point au premier, sans terminaisons, et `fill` le remplit ; sans
+    /// effet sans `points`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub closed: bool,
 }
 
 /// Ce qui termine un bout de trait.
@@ -693,6 +698,7 @@ mod tests {
                 ends: None,
                 points: None,
                 curve: false,
+                closed: false,
             }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
@@ -745,6 +751,7 @@ mod tests {
             ends: None,
             points: None,
             curve: false,
+            closed: false,
         }
     }
 

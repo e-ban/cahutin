@@ -28,4 +28,9 @@ points?: Array<[number, number]>,
 /**
  * Chemin adouci en courbe passant par ses points (`shapes::curve_beziers`) ; sans effet sans `points`.
  */
-curve?: boolean, };
+curve?: boolean, 
+/**
+ * Chemin fermé : un segment va du dernier point au premier, sans terminaisons, et `fill` le remplit ; sans
+ * effet sans `points`.
+ */
+closed?: boolean, };

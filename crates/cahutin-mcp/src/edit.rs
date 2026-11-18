@@ -348,7 +348,7 @@ pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
     let ends = line_ends(args, shape)?;
     let pts = path_points(args, shape)?;
     let curve = args.get("curve").and_then(Value::as_bool).unwrap_or(false) && pts.as_ref().is_some_and(|p| p.len() >= 3);
-    let mut props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve };
+    let mut props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve, closed: false };
     // Un chemin : son cadre vient de ses points ; deux points, un trait droit de l'un à l'autre.
     let frame = pts.as_ref().map(|p| match p[..] {
         [a, b] => carnet_core::shapes::line_frame(a, b, &props),

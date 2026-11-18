@@ -1,7 +1,7 @@
 //! Géométrie des formes dessinées par un tracé : le même tracé sert à l'écran (SVG) et à l'export
 //! (forme personnalisée ODG, toujours modifiable dans LibreOffice).
 
-use crate::model::ShapeKind;
+use crate::model::{HeadSize, LineEnd, LineEnds, ShapeKind, ShapeProps};
 
 /// Le tracé s'inscrit dans un carré de `VIEWBOX` unités, étiré à la taille du cadre.
 pub const VIEWBOX: f64 = 1000.0;
@@ -65,6 +65,28 @@ pub fn is_stroke_only(kind: ShapeKind) -> bool {
     matches!(kind, ShapeKind::Line | ShapeKind::Arrow)
 }
 
+/// Terminaisons d'un trait qui n'en précise pas : aucune pour un trait, une flèche pleine au bout pour une flèche.
+pub fn default_ends(kind: ShapeKind) -> LineEnds {
+    let end = if kind == ShapeKind::Arrow { LineEnd::Arrow } else { LineEnd::None };
+    LineEnds { start: LineEnd::None, end, size: HeadSize::Medium }
+}
+
+/// Terminaisons d'un trait : les siennes, ou celles de son genre.
+pub fn ends_of(s: &ShapeProps) -> LineEnds {
+    s.ends.unwrap_or_else(|| default_ends(s.shape))
+}
+
+/// Facteur de chaque taille de terminaison ; les mêmes à l'écran (`ui/src/lib/shapePaths.ts`, un test le vérifie).
+pub const HEAD_FACTORS: [(HeadSize, f64); 3] = [(HeadSize::Small, 0.7), (HeadSize::Medium, 1.0), (HeadSize::Large, 1.5)];
+
+/// Largeur d'une pointe de flèche, en mm : quatre fois le trait, 4 mm au moins (la taille moyenne), multipliée par
+/// le facteur de la taille choisie.
+pub fn head_width_mm(s: &ShapeProps) -> f64 {
+    let size = ends_of(s).size;
+    let factor = HEAD_FACTORS.iter().find(|(k, _)| *k == size).map_or(1.0, |(_, f)| *f);
+    (s.stroke.as_ref().map_or(1.0, |st| st.width_mm) * 4.0).max(4.0) * factor
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,6 +134,45 @@ mod tests {
             assert!(path(kind).is_none());
         }
         assert!(is_stroke_only(ShapeKind::Arrow) && !is_stroke_only(ShapeKind::Star));
+    }
+
+    fn line(kind: ShapeKind, width_mm: f64, ends: Option<LineEnds>) -> ShapeProps {
+        ShapeProps {
+            shape: kind,
+            fill: None,
+            stroke: Some(crate::model::Stroke { width_mm, color: "#333333".into(), style: None }),
+            corner_radius_mm: 0.0,
+            path: None,
+            graphisme: None,
+            ends,
+        }
+    }
+
+    #[test]
+    fn ends_default_by_kind() {
+        let medium = HeadSize::Medium;
+        assert_eq!(ends_of(&line(ShapeKind::Line, 1.0, None)), LineEnds { start: LineEnd::None, end: LineEnd::None, size: medium });
+        assert_eq!(ends_of(&line(ShapeKind::Arrow, 1.0, None)), LineEnds { start: LineEnd::None, end: LineEnd::Arrow, size: medium });
+        let set = LineEnds { start: LineEnd::Circle, end: LineEnd::OpenArrow, size: HeadSize::Large };
+        assert_eq!(ends_of(&line(ShapeKind::Line, 1.0, Some(set))), set);
+    }
+
+    #[test]
+    fn head_width_matches_todays_arrow() {
+        assert_eq!(head_width_mm(&line(ShapeKind::Arrow, 1.0, None)), 4.0);
+        assert_eq!(head_width_mm(&line(ShapeKind::Arrow, 2.0, None)), 8.0);
+        let small = Some(LineEnds { start: LineEnd::None, end: LineEnd::Arrow, size: HeadSize::Small });
+        assert!((head_width_mm(&line(ShapeKind::Arrow, 1.0, small)) - 2.8).abs() < 1e-9);
+        let large = Some(LineEnds { start: LineEnd::None, end: LineEnd::Arrow, size: HeadSize::Large });
+        assert!((head_width_mm(&line(ShapeKind::Arrow, 2.0, large)) - 12.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn old_shape_serializes_without_ends() {
+        let json = serde_json::to_string(&line(ShapeKind::Arrow, 1.0, None)).unwrap();
+        assert!(!json.contains("ends"), "{json}");
+        let back: ShapeProps = serde_json::from_str(r#"{"shape":"Arrow","fill":null,"stroke":null,"corner_radius_mm":0}"#).unwrap();
+        assert_eq!(back.ends, None);
     }
 
     #[test]

@@ -24,10 +24,6 @@ fn geometry(f: &Frame) -> Vec<(&'static str, String)> {
     }
 }
 
-/// Largeur de la pointe d'une flèche : quatre fois le trait, 4 mm au moins (comme à l'écran).
-pub(crate) fn arrow_head_mm(s: &ShapeProps) -> f64 {
-    (s.stroke.as_ref().map_or(1.0, |st| st.width_mm) * 4.0).max(4.0)
-}
 
 /// Extrémités d'un trait : milieux des bords gauche et droit du cadre, tournés autour de son centre
 /// (sens horaire, comme à l'écran).
@@ -686,7 +682,7 @@ impl Writer<'_> {
         if s.shape == ShapeKind::Arrow {
             self.reg.arrow_marker = true;
             props.push(("draw:marker-end", ARROW_MARKER.into()));
-            props.push(("draw:marker-end-width", mm(arrow_head_mm(s))));
+            props.push(("draw:marker-end-width", mm(shapes::head_width_mm(s))));
         }
         let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", props)]);
         let mut a = vec![("draw:style-name", style)];

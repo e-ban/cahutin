@@ -50,8 +50,9 @@ pub fn renew_ids(page: &mut Page) {
 /// un groupe ; 7 : miroir d'un élément autre qu'une photo, ou de haut en bas ; 8 : champs de la classe sans
 /// accents, `{prenom}` ; 9 : recette des lignes de graphisme, lue seulement : une version plus ancienne voit des
 /// lignes ordinaires ; 11 : interligne d'un texte ; 12 : texte écrit sur les lignes de son cadre ; 13 : puce devant un
-/// paragraphe ; 11, 12 et 13, les seules versions que `native::written_version` écrit au-delà de 8).
-pub const FORMAT_VERSION: u32 = 13;
+/// paragraphe ; 14 : terminaisons choisies sur un trait ; 11 à 14, les seules versions que `native::written_version`
+/// écrit au-delà de 8).
+pub const FORMAT_VERSION: u32 = 14;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -496,6 +497,42 @@ pub struct ShapeProps {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub graphisme: Option<GraphismeRow>,
+    /// Terminaisons d'un trait ou d'une flèche ; absentes : celles de son genre (`shapes::default_ends`), comme
+    /// avant leur ajout. Écrites seulement quand elles en diffèrent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub ends: Option<LineEnds>,
+}
+
+/// Ce qui termine un bout de trait.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export)]
+pub enum LineEnd {
+    None,
+    /// Pointe de flèche pleine (triangle).
+    Arrow,
+    /// Pointe de flèche ouverte (chevron au trait).
+    OpenArrow,
+    Circle,
+    Square,
+}
+
+/// Taille des terminaisons d'un trait, rapportée à son épaisseur (`shapes::head_width_mm`).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export)]
+pub enum HeadSize {
+    Small,
+    Medium,
+    Large,
+}
+
+/// Terminaisons des deux bouts d'un trait : `start` au bord gauche du cadre, `end` au bord droit (avant miroir).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export)]
+pub struct LineEnds {
+    pub start: LineEnd,
+    pub end: LineEnd,
+    pub size: HeadSize,
 }
 
 /// Recette d'une ligne de graphisme : de quoi la reconstruire quand on règle ses cases ou ses repères.
@@ -644,6 +681,7 @@ mod tests {
                 corner_radius_mm: 0.0,
                 path: None,
                 graphisme: None,
+                ends: None,
             }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
@@ -693,6 +731,7 @@ mod tests {
             corner_radius_mm: 0.0,
             path: Some("M 0 0 L 1000 1000".into()),
             graphisme,
+            ends: None,
         }
     }
 

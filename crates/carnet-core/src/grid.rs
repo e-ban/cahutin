@@ -293,7 +293,7 @@ mod tests {
             locked: true,
             zone: false,
             group: None,
-            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None }),
+            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
         };

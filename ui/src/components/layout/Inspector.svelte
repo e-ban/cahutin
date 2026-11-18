@@ -13,7 +13,8 @@
   import { hasTemplateRole, templateRole, withTemplateRole } from "../../lib/templateRole";
   import { isStrokeOnly } from "../../lib/shapePaths";
   import { editLine, endsOf, isLineTarget, lineEndpoints } from "../../lib/lineEnds";
-  import { setHeadSize, setLineEnd, swapLineEnds } from "../../lib/elementEdit";
+  import { setCurve, setHeadSize, setLineEnd, setPathPoints, swapLineEnds } from "../../lib/elementEdit";
+  import { isPath, pagePoints } from "../../lib/linePath";
   import LineEndPicker from "../LineEndPicker.svelte";
   import { fonts } from "../../lib/fonts.svelte";
   import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isListActive, isMarkActive, toggleList, setAlign, setColor, setFont, setLineSpacing, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
@@ -30,9 +31,20 @@
   const update = updateSelected;
   /** Un trait ou une flèche : réglé par son début, sa longueur et son angle. */
   const asLine = $derived(isLineTarget(selected));
+  /** Un chemin à coudes : réglé par son début seulement (longueur et angle n'ont pas de sens). */
+  const asPath = $derived(selected?.kind.type === "Shape" && isPath(selected.kind));
   function setLine(patch: { x?: number; y?: number; length?: number; angle?: number }) {
     const vals = Object.values(patch);
     if (vals.some((v) => v === undefined || !Number.isFinite(v))) return;
+    const e = selected;
+    if (e?.kind.type === "Shape" && isPath(e.kind)) {
+      // Le début va en (x, y) : tout le chemin suit.
+      const pts = pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v);
+      const dx = (patch.x ?? pts[0].x) - pts[0].x;
+      const dy = (patch.y ?? pts[0].y) - pts[0].y;
+      setPathPoints(e.id, pts.map((p) => ({ x: p.x + dx, y: p.y + dy })));
+      return;
+    }
     update((e) => ({ ...e, frame: editLine(e.frame, !!e.flip_h, patch) }));
   }
   const lineNum = (raw: string) => Number(raw.replace(",", "."));
@@ -186,7 +198,7 @@
 
     <Section id="frame" title={fr.sectionFrame}>
     {#if asLine}
-      {@const [start] = lineEndpoints(selected.frame, !!selected.flip_h)}
+      {@const [start] = selected.kind.type === "Shape" ? pagePoints(selected.frame, selected.kind, !!selected.flip_h, !!selected.flip_v) : lineEndpoints(selected.frame, !!selected.flip_h)}
       <div class="field">
         <span>{fr.lineStartHeading}</span>
         <div class="frame">
@@ -194,6 +206,7 @@
           <label>{fr.posY}<input type="number" step="0.5" disabled={frameFixed} value={Math.round(start.y * 10) / 10} onchange={(e) => setLine({ y: lineNum(e.currentTarget.value) })} /></label>
         </div>
       </div>
+      {#if !asPath}
       <div class="field">
         <label>{fr.lineLength}<input type="number" step="0.5" min="3" disabled={frameFixed} value={Math.round(selected.frame.w_mm * 10) / 10} onchange={(e) => setLine({ length: lineNum(e.currentTarget.value) })} /></label>
       </div>
@@ -204,6 +217,7 @@
           {@render quarterTurns(frameFixed)}
         </div>
       </div>
+      {/if}
     {:else}
     <div class="field">
       <span>{fr.positionOnly}</span>
@@ -411,6 +425,10 @@
           </div>
         {/each}
         <button title={fr.lineSwapHint} onclick={swapLineEnds}><Icon name="swapEnds" /> {fr.lineSwap}</button>
+        <label class="check" title={asPath ? fr.curveHint : fr.curveNeedsElbow}>
+          <input type="checkbox" disabled={!asPath} checked={!!s.curve} onchange={(e) => setCurve(e.currentTarget.checked)} />
+          {fr.curve}
+        </label>
       {/if}
       {#if s.shape === "Rect"}
         <div class="field">

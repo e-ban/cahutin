@@ -34,7 +34,7 @@
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
   import { endsOf, isLineTarget } from "../lib/lineEnds";
-  import { setHeadSize, setLineEnd, swapLineEnds } from "../lib/elementEdit";
+  import { setCurve, setHeadSize, setLineEnd, swapLineEnds } from "../lib/elementEdit";
   import LineEndPicker from "./LineEndPicker.svelte";
   import { inTableGroup, isTableCell, selectedTable } from "../lib/table";
   import { alignUnits, arrangeUnits, expandSelection, groupOf, isLockedSelection } from "../lib/groups";
@@ -48,6 +48,7 @@
   import { ALIGNS, VALIGNS, currentFont, currentSize, isListActive, isMarkActive, setAlign, toggleList, setColor, setFont, setSize, setVAlign, toggleMark } from "../lib/textFormat.svelte";
   import type { NamedTextStyle, Frame, Guides } from "../lib/types";
   import { extending } from "../lib/extending.svelte";
+  import { isPath } from "../lib/linePath";
 
   let { pageEl, stageEl }: { pageEl: HTMLElement | undefined; stageEl: HTMLElement | undefined } = $props();
 
@@ -372,6 +373,10 @@
     </div>
   {/each}
   <button title={fr.lineSwapHint} onclick={swapLineEnds}><Icon name="swapEnds" /><span class="lbl"> {fr.lineSwap}</span></button>
+  {@const paths = editor.page.elements.filter((e) => editor.selection.includes(e.id) && e.kind.type === "Shape" && isPath(e.kind))}
+  {@const curved = paths.length > 0 && paths.every((e) => e.kind.type === "Shape" && !!e.kind.curve)}
+  <!-- Pas « disabled » : un bouton désactivé ne montre pas sa bulle, qui dit quoi faire d'abord. -->
+  <button class:on={curved} class:off={!paths.length} aria-disabled={!paths.length} title={paths.length ? fr.curveHint : fr.curveNeedsElbow} onclick={() => paths.length && setCurve(!curved)}><Icon name="curve" /><span class="lbl"> {fr.curve}</span></button>
   {#if editor.selection.length === 1 && editor.selected}
     {@const id = editor.selected.id}
     <button data-extend-toggle class:on={extending.active} title={fr.extendButtonHint} onclick={() => extending.start(id, "end")}><Icon name="extendPath" /><span class="lbl"> {fr.extend}</span></button>
@@ -880,6 +885,11 @@
 {/if}
 
 <style>
+  /* Bouton sans effet pour l'instant (Courbe sur un trait droit) : grisé, sa bulle dit quoi faire d'abord. */
+  button.off {
+    opacity: 0.45;
+    cursor: default;
+  }
   .pop.styles {
     display: grid;
     gap: 4px;

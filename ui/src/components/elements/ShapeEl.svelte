@@ -2,7 +2,8 @@
   // Rectangle et ellipse en CSS ; les formes dessinées, les tracés libres et les traits en SVG, avec le tracé de
   // l'export.
   import { SHAPE_PATHS, SHAPE_VIEWBOX } from "../../lib/shapePaths";
-  import { headWidthMm } from "../../lib/lineEnds";
+  import { endsOf, headWidthMm } from "../../lib/lineEnds";
+  import { lineSvg } from "../../lib/lineSvg";
   import { dashArray, isSolid } from "../../lib/strokes";
   import { mmToPx } from "../../lib/units";
   import type { Frame, ShapeProps } from "../../lib/types";
@@ -15,9 +16,8 @@
   const strokePx = $derived(props.stroke ? mmToPx(props.stroke.width_mm, zoom) : 0);
   const w = $derived(mmToPx(frame.w_mm, zoom));
   const h = $derived(mmToPx(frame.h_mm, zoom));
-  // Pointe de flèche : même proportion que celle de LibreOffice (base 20, longueur 30).
+  // Pointe de flèche : même proportion que le marqueur de l'export (base 20, longueur 30).
   const headW = $derived(mmToPx(headWidthMm(props), zoom));
-  const headL = $derived(headW * 1.5);
   const dash = $derived(dashArray(props.stroke, strokePx));
   /** Épaisseur cliquable autour du contour d'une forme vide. */
   const HIT_PX = 8;
@@ -26,10 +26,16 @@
 {#if props.shape === "Line" || props.shape === "Arrow"}
   <svg class="shape" width={w} height={h} aria-hidden="true">
     {#if props.stroke}
-      <line x1="0" y1={h / 2} x2={props.shape === "Arrow" ? w - headL / 2 : w} y2={h / 2} stroke={props.stroke.color} stroke-width={strokePx} stroke-dasharray={dash} />
-      {#if props.shape === "Arrow"}
-        <polygon points="{w},{h / 2} {w - headL},{h / 2 - headW / 2} {w - headL},{h / 2 + headW / 2}" fill={props.stroke.color} />
-      {/if}
+      {@const line = lineSvg(w, h, endsOf(props), headW)}
+      {@const c = props.stroke.color}
+      <line x1={line.x1} y1={h / 2} x2={line.x2} y2={h / 2} stroke={c} stroke-width={strokePx} stroke-dasharray={dash} />
+      <!-- Terminaisons pleines de la couleur du trait, jamais en tirets ; le chevron, au trait. -->
+      {#each line.parts as part, i (i)}
+        {#if part.kind === "polygon"}<polygon {...part.attrs} fill={c} />
+        {:else if part.kind === "polyline"}<polyline {...part.attrs} fill="none" stroke={c} stroke-linejoin="round" stroke-linecap="round" />
+        {:else if part.kind === "circle"}<circle {...part.attrs} fill={c} />
+        {:else}<rect {...part.attrs} fill={c} />{/if}
+      {/each}
     {/if}
   </svg>
 {:else if path}

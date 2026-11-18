@@ -3,6 +3,7 @@
   import Drawer from "../layout/Drawer.svelte";
   import ShapeEl from "../elements/ShapeEl.svelte";
   import { editor } from "../../lib/docStore.svelte";
+  import { pen } from "../../lib/pen.svelte";
   import { centeredFrame, shapeElement } from "../../lib/factory";
   import { settings } from "../../lib/settings.svelte";
   import { MOTIFS, PATHS, dottedPath, graphismeRows, motifPreview, PRESETS, type Level, type Motif, type Preset } from "../../lib/graphisme";
@@ -113,6 +114,11 @@
         {s.label}
       </button>
     {/each}
+    <!-- Le crayon : chaque tracé sur la page devient un chemin ; recliquer, ou Échap, le range. -->
+    <button data-pen-toggle class:on={pen.active} aria-pressed={pen.active} title={fr.penHintButton} onclick={() => (pen.active = !pen.active)}>
+      <span class="preview"><Icon name="pen" size={22} /></span>
+      {fr.pen}
+    </button>
   </div>
 
   <!-- La section (PS, MS, GS) règle toutes les fiches ci-dessous : elle reste visible. -->
@@ -193,6 +199,11 @@
 </Drawer>
 
 <style>
+  /* Le crayon pris : sa tuile reste enfoncée. */
+  .grid button.on {
+    outline: 2px solid var(--accent, #2b7de9);
+    background: var(--accent-soft, #e8f1fd);
+  }
   .grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

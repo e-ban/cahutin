@@ -2,6 +2,7 @@
 import { editor } from "./docStore.svelte";
 import { TEXT_PADDING_MM } from "./richtext";
 import { endsOf, isLineTarget, normalizeEnds, withHitHeight } from "./lineEnds";
+import { fromPagePoints, isPath, pagePoints, removePoint, type Pt } from "./linePath";
 import type { Element, HeadSize, LineEnd, LineEnds, PhotoProps, ShapeProps, TableProps, TextFrame, TextStyle } from "./types";
 
 export function updateSelected(fn: (e: Element) => Element) {
@@ -26,11 +27,30 @@ function previewElement(id: string, fn: (e: Element) => Element) {
 export const endPreview = () => editor.endPreview();
 
 const photo = (patch: Partial<PhotoProps>) => (e: Element): Element => (e.kind.type === "Photo" ? { ...e, kind: { ...e.kind, ...patch } } : e);
+/** Champs absents plutôt que `undefined` : le document reste le même qu'avant l'ajout des chemins. */
+function clean<T extends object>(o: T): T {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
+}
+
+/** Un trait aux réglages `kind` qui passe par `pts` (mm de page) : chemin ou trait droit, sans rotation ni miroir. */
+function throughPoints(e: Element, kind: ShapeProps, pts: Pt[]): Element {
+  const r = fromPagePoints(pts, kind);
+  return { ...e, frame: r.frame, flip_h: false, flip_v: false, kind: { type: "Shape", ...clean({ ...kind, ...r.patch }) } };
+}
+
+/** Un trait dont les réglages deviennent `kind` : sa zone cliquable suit ses pointes ; un chemin garde ses points
+ *  en place (son cadre est recalculé, pas étiré). */
+function refit(e: Element, kind: ShapeProps): Element {
+  if (e.kind.type !== "Shape") return e;
+  if (isPath(kind)) return throughPoints(e, kind, pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v));
+  return { ...e, frame: withHitHeight(e.frame, kind), kind: { type: "Shape", ...kind } };
+}
+
 const shape = (patch: Partial<ShapeProps>) => (e: Element): Element => {
   if (e.kind.type !== "Shape") return e;
   const kind = { ...e.kind, ...patch };
   // Un trait plus épais a des pointes plus grandes : sa zone cliquable les suit.
-  return { ...e, frame: isLineTarget(e) ? withHitHeight(e.frame, kind) : e.frame, kind };
+  return isLineTarget(e) ? refit(e, kind) : { ...e, kind };
 };
 
 const table = (patch: Partial<TableProps>) => (e: Element): Element => (e.kind.type === "Table" ? { ...e, kind: { ...e.kind, ...patch } } : e);
@@ -77,11 +97,35 @@ export function updateLines(fn: (e: Element) => Element) {
  *  assez haut pour la plus grande. */
 const lineEnds = (patch: (ends: LineEnds) => LineEnds) => (e: Element): Element => {
   if (e.kind.type !== "Shape") return e;
-  const kind = { ...e.kind, ends: normalizeEnds(e.kind.shape, patch(endsOf(e.kind))) ?? undefined };
-  return { ...e, frame: withHitHeight(e.frame, kind), kind };
+  return refit(e, { ...e.kind, ends: normalizeEnds(e.kind.shape, patch(endsOf(e.kind))) ?? undefined });
 };
 
 export const setLineEnd = (which: "start" | "end", end: LineEnd) => updateLines(lineEnds((x) => ({ ...x, [which]: end })));
 export const setHeadSize = (size: HeadSize) => updateLines(lineEnds((x) => ({ ...x, size })));
 /** Les terminaisons changent de bout ; le trait ne bouge pas. */
-export const swapLineEnds = () => updateLines(lineEnds((x) => ({ ...x, start: x.end, end: x.start })));
+export const swapLineEnds = () =>
+  updateLines((e) => {
+    const swapped = lineEnds((x) => ({ ...x, start: x.end, end: x.start }))(e);
+    // Un chemin se parcourt à l'envers : son premier point devient le dernier.
+    if (swapped.kind.type !== "Shape" || !isPath(swapped.kind)) return swapped;
+    return throughPoints(swapped, swapped.kind, pagePoints(swapped.frame, swapped.kind, !!swapped.flip_h, !!swapped.flip_v).reverse());
+  });
+
+/** Le trait `id` passe désormais par `pts` (mm de page), en un pas d'annulation : deux points, un trait droit. */
+export function setPathPoints(id: string, pts: Pt[]) {
+  editor.updateElement(id, (e) => (e.kind.type === "Shape" ? throughPoints(e, e.kind, pts) : e));
+}
+
+/** Retire le point `i` du trait `id` (rien sur un trait droit). */
+export function removePathPoint(id: string, i: number) {
+  const e = editor.page.elements.find((o) => o.id === id);
+  if (!e || e.kind.type !== "Shape" || !isPath(e.kind)) return;
+  setPathPoints(id, removePoint(pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v), i));
+}
+
+/** Adoucit (ou redonne leurs angles à) les chemins sélectionnés ; sans effet ni pas d'annulation sur des traits droits. */
+export function setCurve(on: boolean) {
+  const ids = new Set(editor.selection);
+  if (!editor.page.elements.some((e) => ids.has(e.id) && e.kind.type === "Shape" && isPath(e.kind) && !!e.kind.curve !== on)) return;
+  updateLines((e) => (e.kind.type === "Shape" && isPath(e.kind) ? { ...e, kind: clean({ ...e.kind, curve: on || undefined }) } : e));
+}

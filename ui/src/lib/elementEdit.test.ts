@@ -105,3 +105,79 @@ test("a thicker stroke grows the hit area of a line with a large head", () => {
   updateShape({ stroke: { width_mm: 3, color: "#333333", style: null } });
   expect(shapeOf(a.id).e.frame.h_mm).toBeCloseTo(18, 9);
 });
+
+// Chemins : points, courbe, inversion.
+import { removePathPoint, setCurve, setPathPoints } from "./elementEdit";
+import { pagePoints } from "./linePath";
+
+const pts3 = [{ x: 20, y: 20 }, { x: 60, y: 20 }, { x: 60, y: 60 }];
+const pointsOf = (id: string) => {
+  const { e, s } = shapeOf(id);
+  return pagePoints(e.frame, s, !!e.flip_h, !!e.flip_v);
+};
+
+test("setPathPoints is one undo step", () => {
+  const { a } = threeShapes();
+  const before = shapeOf(a.id).e;
+  setPathPoints(a.id, pts3);
+  expect(shapeOf(a.id).s.points).toHaveLength(3);
+  pointsOf(a.id).forEach((p, i) => {
+    expect(p.x).toBeCloseTo(pts3[i].x, 9);
+    expect(p.y).toBeCloseTo(pts3[i].y, 9);
+  });
+  editor.undo();
+  expect(shapeOf(a.id).e).toEqual(before);
+});
+
+test("swapLineEnds reverses the points", () => {
+  const { a } = threeShapes();
+  setPathPoints(a.id, pts3);
+  editor.selection = [a.id];
+  swapLineEnds();
+  const got = pointsOf(a.id);
+  [...pts3].reverse().forEach((p, i) => {
+    expect(got[i].x).toBeCloseTo(p.x, 9);
+    expect(got[i].y).toBeCloseTo(p.y, 9);
+  });
+  expect(shapeOf(a.id).s.ends).toEqual({ start: "Arrow", end: "None", size: "Medium" });
+});
+
+test("setCurve ignores straight lines", () => {
+  const { a, b } = threeShapes();
+  setPathPoints(a.id, pts3);
+  editor.selection = [a.id, b.id];
+  setCurve(true);
+  expect(shapeOf(a.id).s.curve).toBe(true);
+  expect(shapeOf(b.id).s.curve).toBeFalsy();
+  editor.undo();
+  expect(shapeOf(a.id).s.curve).toBeFalsy();
+  editor.selection = [b.id];
+  const doc = editor.doc;
+  setCurve(true);
+  expect(editor.doc).toBe(doc);
+});
+
+test("removePathPoint down to two points drops points and curve", () => {
+  const { a } = threeShapes();
+  setPathPoints(a.id, pts3);
+  editor.selection = [a.id];
+  setCurve(true);
+  removePathPoint(a.id, 1);
+  const { s } = shapeOf(a.id);
+  expect(s.points).toBeUndefined();
+  expect(s.curve).toBeFalsy();
+  const [p, q] = pointsOf(a.id);
+  expect([p.x, p.y, q.x, q.y].map((v) => Math.round(v * 1e6) / 1e6)).toEqual([20, 20, 60, 60]);
+});
+
+test("a thicker path keeps its points in place", () => {
+  const { a } = threeShapes();
+  setPathPoints(a.id, pts3);
+  editor.selection = [a.id];
+  updateShape({ stroke: { width_mm: 3, color: "#333333", style: null } });
+  setHeadSize("Large");
+  pointsOf(a.id).forEach((p, i) => {
+    expect(p.x).toBeCloseTo(pts3[i].x, 9);
+    expect(p.y).toBeCloseTo(pts3[i].y, 9);
+  });
+});

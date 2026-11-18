@@ -2,7 +2,7 @@
 //! Les structures du modèle ne sont jamais sérialisées telles quelles : un champ ajouté plus tard au
 //! modèle n'est pas envoyé tant qu'il n'est pas écrit ici.
 
-use carnet_core::{Document, Element, ElementKind, Id, Page, Pattern, ShapeKind, Stroke};
+use carnet_core::{Document, Element, ElementKind, HeadSize, Id, LineEnd, Page, Pattern, ShapeKind, Stroke};
 use serde_json::{Value, json};
 
 /// Mise en page de tout le document, ou d'une seule page (indice à partir de 0).
@@ -105,13 +105,33 @@ fn element_view(doc: &Document, page: &Page, e: &Element, selected: bool) -> Val
                 "mirrored": p.mirrored,
             })
         }
-        ElementKind::Shape(s) => json!({
-            "type": "shape",
-            "shape": shape_name(s.shape),
-            "fill": s.fill,
-            "border": s.stroke.as_ref().map(stroke_view),
-            "corner_radius_mm": s.corner_radius_mm,
-        }),
+        ElementKind::Shape(s) => {
+            let mut v = json!({
+                "type": "shape",
+                "shape": shape_name(s.shape),
+                "fill": s.fill,
+                "border": s.stroke.as_ref().map(stroke_view),
+                "corner_radius_mm": s.corner_radius_mm,
+            });
+            // Terminaisons d'un trait, quand elles diffèrent de celles de son genre.
+            if let Some(ends) = s.ends.filter(|_| carnet_core::shapes::is_stroke_only(s.shape)) {
+                let name = |e: LineEnd| match e {
+                    LineEnd::None => "none",
+                    LineEnd::Arrow => "arrow",
+                    LineEnd::OpenArrow => "open_arrow",
+                    LineEnd::Circle => "circle",
+                    LineEnd::Square => "square",
+                };
+                v["start"] = json!(name(ends.start));
+                v["end"] = json!(name(ends.end));
+                v["head_size"] = json!(match ends.size {
+                    HeadSize::Small => "small",
+                    HeadSize::Medium => "medium",
+                    HeadSize::Large => "large",
+                });
+            }
+            v
+        }
         // Code OpenMoji d'une image décorative de la banque : public, pas une donnée de l'utilisateur.
         ElementKind::Image(i) => json!({ "type": "image", "openmoji": i.code, "name": crate::pictos::name(&i.code), "to_color": i.outline.unwrap_or(false) }),
         // Un tableau : sa structure ; ses cases sont des éléments de la page, vus comme les autres.

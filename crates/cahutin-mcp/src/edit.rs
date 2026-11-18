@@ -3,7 +3,7 @@
 //! jamais le contenu d'un texte ni une photo.
 
 use carnet_core::{
-    Align, Background, Crop, Document, Element, ElementKind, Frame, ImageProps, Page, Pattern, PhotoProps, RichText, ShapeKind, ShapeProps, Stroke,
+    Align, Background, Crop, Document, Element, ElementKind, Frame, HeadSize, ImageProps, LineEnd, LineEnds, Page, Pattern, PhotoProps, RichText, ShapeKind, ShapeProps, Stroke,
     StrokeStyle, TextFrame, TextProps, TextStyle, VAlign, new_id,
 };
 use serde_json::{Value, json};
@@ -338,11 +338,47 @@ pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
         s => return Err(format!("forme inconnue : {s} (rect, ellipse, line, arrow, star, heart, bubble, cloud)")),
     };
     let fill = color(args, "fill")?;
+    let line = carnet_core::shapes::is_stroke_only(shape);
     let stroke = match (color(args, "border_color")?, number(args, "border_width_mm")?) {
+        // Un trait sans trait serait invisible : celui du tiroir Formes.
+        (None, None) if line => Some(Stroke { width_mm: 1.0, color: "#333333".into(), style: None }),
         (None, None) => None,
         (c, w) => Some(Stroke { width_mm: w.unwrap_or(0.5).clamp(0.1, 20.0), color: c.unwrap_or("#222222".into()), style: None }),
     };
-    push(doc, args, false, ElementKind::Shape(ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None }))
+    let ends = line_ends(args, shape)?;
+    push(doc, args, false, ElementKind::Shape(ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends }))
+}
+
+/// Terminaisons demandées pour un trait (`start`, `end` ; `head_size`, hors du schéma pour le garder court), sinon
+/// celles de son genre ; seulement si elles en diffèrent.
+fn line_ends(args: &Value, shape: ShapeKind) -> Result<Option<LineEnds>, String> {
+    let (start, end, size) = (text(args, "start")?, text(args, "end")?, text(args, "head_size")?);
+    if start.is_none() && end.is_none() && size.is_none() {
+        return Ok(None);
+    }
+    if !carnet_core::shapes::is_stroke_only(shape) {
+        return Err("start, end et head_size ne vont qu'à une forme line ou arrow".into());
+    }
+    let end_of = |v: &str| match v {
+        "none" => Ok(LineEnd::None),
+        "arrow" => Ok(LineEnd::Arrow),
+        "open_arrow" => Ok(LineEnd::OpenArrow),
+        "circle" => Ok(LineEnd::Circle),
+        "square" => Ok(LineEnd::Square),
+        o => Err(format!("terminaison inconnue : {o} (none, arrow, open_arrow, circle, square)")),
+    };
+    let default = carnet_core::shapes::default_ends(shape);
+    let ends = LineEnds {
+        start: start.map(end_of).transpose()?.unwrap_or(default.start),
+        end: end.map(end_of).transpose()?.unwrap_or(default.end),
+        size: match size {
+            None | Some("medium") => HeadSize::Medium,
+            Some("small") => HeadSize::Small,
+            Some("large") => HeadSize::Large,
+            Some(o) => return Err(format!("taille inconnue : {o} (small, medium, large)")),
+        },
+    };
+    Ok((ends != default).then_some(ends))
 }
 
 /// Image de la banque trouvée par un mot-clé français ; rend aussi son nom.
@@ -530,6 +566,44 @@ mod tests {
         assert_eq!((s.shape, s.fill.as_deref()), (ShapeKind::Star, Some("#ffcc00")));
         assert_eq!(s.stroke.as_ref().map(|st| st.width_mm), Some(1.0));
         assert!(add_shape(&mut d, &with(json!({ "shape": "path" }))).is_err());
+    }
+
+    #[test]
+    fn add_line_is_visible_by_default() {
+        let mut d = doc();
+        let out = add_shape(&mut d, &with(json!({ "shape": "line" }))).unwrap();
+        let ElementKind::Shape(s) = &created(&d, &out).kind else { panic!() };
+        assert_eq!(s.stroke, Some(Stroke { width_mm: 1.0, color: "#333333".into(), style: None }));
+        let out = add_shape(&mut d, &with(json!({ "shape": "rect" }))).unwrap();
+        let ElementKind::Shape(s) = &created(&d, &out).kind else { panic!() };
+        assert_eq!(s.stroke, None);
+    }
+
+    #[test]
+    fn add_arrow_with_ends() {
+        use carnet_core::model::{HeadSize, LineEnd, LineEnds};
+        let mut d = doc();
+        let out = add_shape(&mut d, &with(json!({ "shape": "arrow", "start": "circle", "end": "open_arrow" }))).unwrap();
+        let ElementKind::Shape(s) = &created(&d, &out).kind else { panic!() };
+        assert_eq!(s.ends, Some(LineEnds { start: LineEnd::Circle, end: LineEnd::OpenArrow, size: HeadSize::Medium }));
+        // Les terminaisons par défaut d'une flèche ne s'écrivent pas.
+        let out = add_shape(&mut d, &with(json!({ "shape": "arrow", "end": "arrow" }))).unwrap();
+        let ElementKind::Shape(s) = &created(&d, &out).kind else { panic!() };
+        assert_eq!(s.ends, None);
+        assert!(add_shape(&mut d, &with(json!({ "shape": "line", "start": "banana" }))).is_err());
+        assert!(add_shape(&mut d, &with(json!({ "shape": "star", "start": "arrow" }))).is_err());
+    }
+
+    #[test]
+    fn layout_reports_ends() {
+        let mut d = doc();
+        let out = add_shape(&mut d, &with(json!({ "shape": "arrow", "start": "circle" }))).unwrap();
+        let plain = add_shape(&mut d, &with(json!({ "shape": "arrow" }))).unwrap();
+        let view = crate::view::layout(&d, Some(0), &[]);
+        let find = |id: &Value| view["pages"][0]["elements"].as_array().unwrap().iter().find(|e| e["id"] == *id).unwrap().clone();
+        let a = find(&out["element_id"]);
+        assert_eq!((a["start"].as_str(), a["end"].as_str(), a["head_size"].as_str()), (Some("circle"), Some("arrow"), Some("medium")), "{a}");
+        assert!(find(&plain["element_id"]).get("start").is_none());
     }
 
     #[test]

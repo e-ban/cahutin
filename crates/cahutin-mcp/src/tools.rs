@@ -133,8 +133,8 @@ pub fn definitions() -> Value {
         },
         {
             "name": "add_shape",
-            "description": "Ajoute une forme.",
-            "inputSchema": frame(json!({ "shape": one_of(&["rect", "ellipse", "line", "arrow", "star", "heart", "bubble", "cloud"]), "fill": text, "border_color": text, "border_width_mm": num }), &["shape"]),
+            "description": "Ajoute une forme ; line, arrow : start, end parmi none, arrow, open_arrow, circle, square.",
+            "inputSchema": frame(json!({ "shape": one_of(&["rect", "ellipse", "line", "arrow", "star", "heart", "bubble", "cloud"]), "fill": text, "border_color": text, "border_width_mm": num, "start": text, "end": text }), &["shape"]),
         },
         {
             "name": "add_image",
@@ -270,10 +270,11 @@ mod tests {
 #[cfg(test)]
 mod size {
     /// Les descriptions des outils partent à chaque demande, et chaque échange les relit : un petit modèle
-    /// local (Ollama, 16 000 jetons) doit garder la place de la page et de la conversation.
+    /// local (Ollama, 16 000 jetons) doit garder la place de la page et de la conversation. Les terminaisons
+    /// des traits (start, end) ont demandé un peu de place.
     #[test]
     fn the_tool_descriptions_stay_small() {
         let n = serde_json::to_string(&super::definitions()).unwrap().len();
-        assert!(n <= 10_500, "{n} octets");
+        assert!(n <= 10_600, "{n} octets");
     }
 }

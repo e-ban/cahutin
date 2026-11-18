@@ -1,6 +1,14 @@
 # Journal des versions
 
 
+## Non publié
+
+- Traits et flèches : un trait ou une flèche sélectionné montre une poignée ronde à chaque bout ; on tire un bout pour l'amener où l'on veut, l'autre reste en place. Le bout s'accroche aux bords et aux centres des autres éléments ; près de l'horizontale ou de la verticale, le trait s'y cale ; avec Maj, il ne prend que des angles de 45°. Échap pendant le geste le défait, Ctrl+Z après.
+- Traits et flèches : « Début » et « Fin », dans la barre de l'élément et dans Réglages, choisissent ce qui termine chaque bout : rien, une flèche pleine, une flèche ouverte, un rond ou un carré, en trois tailles (petite, moyenne, grande). « Inverser » échange les deux bouts. Plusieurs traits sélectionnés se règlent ensemble. Dans Réglages, un trait se règle par son début, sa longueur et son angle, et son contour s'appelle « Épaisseur ».
+- Tiroir Formes : une tuile « Double flèche ». Chaque forme se pose au centre d'un clic, ou se glisse jusqu'à l'endroit voulu de la page.
+- LibreOffice Draw : les pointes choisies voyagent dans le fichier exporté et reviennent à leur bout quand on le rouvre, aussi après l'avoir enregistré dans LibreOffice. Une pointe dessinée au début d'un trait dans LibreOffice reste au début (le trait n'est plus retourné). Les flèches des documents existants ne changent pas. Un document où l'on a choisi des pointes ne s'ouvre pas dans une version plus ancienne de Cahutin (qui les perdrait), qui demande alors la mise à jour.
+- Assistant : il peut choisir les pointes d'un trait, et un trait qu'il pose sans épaisseur n'est plus invisible.
+
 ## 0.18.2
 
 - Barre du haut : l'étiquette « Enregistré » ou « Non enregistré » à côté du titre est retirée. Comme avant, un point sur le bouton « Enregistrer » montre qu'il reste des changements à enregistrer ; un document neuf et vide n'en a pas, et la bulle du bouton dit où en est l'enregistrement.

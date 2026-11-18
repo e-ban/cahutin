@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { dragEnd, endsOf, isLineTarget, frameFromEndpoints, headWidthMm, lineEndpoints, normalizeEnds, withHitHeight } from "./lineEnds";
+import { dragEnd, editLine, endsOf, isLineTarget, frameFromEndpoints, headWidthMm, lineEndpoints, normalizeEnds, withHitHeight } from "./lineEnds";
 import type { Frame, LineEnds, ShapeProps } from "./types";
 
 const shape = (kind: "Line" | "Arrow", width_mm: number, ends: LineEnds | null = null): ShapeProps => ({
@@ -119,4 +119,27 @@ test("isLineTarget: lines and arrows, never a graphisme base line", () => {
   const recipe = { motif: "ponts", level: "MS", cells: [], guides: "Base", arrow: true } as unknown as NonNullable<ShapeProps["graphisme"]>;
   expect(isLineTarget(el({ ...shape("Line", 1), graphisme: recipe }))).toBe(false);
   expect(isLineTarget(undefined)).toBe(false);
+});
+
+test("editLine: length and angle keep the start in place; the start moves the whole line", () => {
+  for (const flip of [false, true]) {
+    const f = frame(30);
+    const [s, e] = lineEndpoints(f, flip);
+    const longer = editLine(f, flip, { length: 50 });
+    const [s1] = lineEndpoints(longer, flip);
+    expect(longer.w_mm).toBeCloseTo(50, 9);
+    expect(longer.rotation_deg).toBeCloseTo(30, 9);
+    expect(s1.x).toBeCloseTo(s.x, 9);
+    expect(s1.y).toBeCloseTo(s.y, 9);
+    const turned = editLine(f, flip, { angle: 90 });
+    const [s2] = lineEndpoints(turned, flip);
+    expect(turned.rotation_deg).toBeCloseTo(90, 9);
+    expect(s2.x).toBeCloseTo(s.x, 9);
+    expect(s2.y).toBeCloseTo(s.y, 9);
+    const moved = editLine(f, flip, { x: 10, y: 20 });
+    const [s3, e3] = lineEndpoints(moved, flip);
+    expect([s3.x, s3.y]).toEqual([10, 20].map((v, i) => expect.closeTo(v, 9) as unknown as number));
+    expect(e3.x - s3.x).toBeCloseTo(e.x - s.x, 9);
+    expect(editLine(f, flip, { length: 1 }).w_mm).toBe(3);
+  }
 });

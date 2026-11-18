@@ -33,6 +33,9 @@
   import { fitInWindow } from "../lib/popover";
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
+  import { endsOf, isLineTarget } from "../lib/lineEnds";
+  import { setHeadSize, setLineEnd, swapLineEnds } from "../lib/elementEdit";
+  import LineEndPicker from "./LineEndPicker.svelte";
   import { inTableGroup, isTableCell, selectedTable } from "../lib/table";
   import { alignUnits, arrangeUnits, expandSelection, groupOf, isLockedSelection } from "../lib/groups";
   import { blockFrieze, friezeIn, friezeMotifKeys, friezeSettings, removeFrieze, replaceFriezeMotifs, resizeFrieze } from "../lib/decor";
@@ -49,7 +52,7 @@
 
   const ROTATION_HANDLE_GAP = 44;
 
-  type Pop = "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "alignPage" | "distribute" | "frame" | "cut" | "fields" | "repeat" | "styles" | "frieze" | "graphisme" | "more";
+  type Pop = "lineStart" | "lineEnd" | "corners" | "border" | "color" | "align" | "fill" | "stroke" | "alignMany" | "alignPage" | "distribute" | "frame" | "cut" | "fields" | "repeat" | "styles" | "frieze" | "graphisme" | "more";
   let pop = $state<Pop | null>(null);
   let barEl = $state<HTMLElement>();
   let pos = $state<{ left: number; top: number } | null>(null);
@@ -67,6 +70,9 @@
   const canGroup = $derived(!editor.selection.some(inGrid));
   const selected = $derived(editor.selected);
   const many = $derived(editor.selection.length > 1);
+  // Que des traits ou des flèches (un ou plusieurs) : leurs terminaisons se règlent ensemble, avec celles du premier.
+  const lineEls = $derived(editor.selection.map((id) => editor.page.elements.find((e) => e.id === id)));
+  const lineEndsNow = $derived(lineEls.length > 0 && lineEls.every((e) => isLineTarget(e)) && lineEls[0]?.kind.type === "Shape" ? endsOf(lineEls[0].kind) : null);
   const table = $derived(selectedTable(editor.page, editor.selection));
   // En mode modèle, une case de grille a sa propre barre (CellBar).
   const cellInTemplate = $derived(editor.templateMode && editor.selection.some((id) => inGrid(id)));
@@ -355,6 +361,18 @@
 </script>
 
 <!-- Un bloc seul : sa place sur la page ; plusieurs : leur place entre eux. -->
+{#snippet lineTools(ends: NonNullable<typeof lineEndsNow>)}
+  {#each [["lineStart", "start"], ["lineEnd", "end"]] as const as [key, which] (key)}
+    <div class="wrap">
+      <button class:on={pop === key} onclick={() => toggle(key)}>{which === "start" ? fr.lineStart : fr.lineEnd}<span class="lbl"> <Icon name="chevronDown" size={14} /></span></button>
+      {#if pop === key}
+        <div use:fitInWindow class="pop"><LineEndPicker {which} value={ends[which]} size={ends.size} onpick={(e) => setLineEnd(which, e)} onsize={setHeadSize} /></div>
+      {/if}
+    </div>
+  {/each}
+  <button title={fr.lineSwapHint} onclick={swapLineEnds}><Icon name="swapEnds" /><span class="lbl"> {fr.lineSwap}</span></button>
+{/snippet}
+
 {#snippet alignPop()}
   <div use:fitInWindow class="pop list">
     {#each alignModes as [mode, label] (mode)}<button onclick={() => alignSelection(mode)}>{onPage() ? fr.alignPage[mode] : label}</button>{/each}
@@ -433,6 +451,10 @@
         <button class="main" title="Ctrl+Maj+G" onclick={ungroupSelection}><Icon name="ungroup" /><span class="lbl"> {fr.ungroup}</span></button>
       {:else}
         <button class="main" title="Ctrl+G" disabled={!canGroup} onclick={groupSelection}><Icon name="group" /><span class="lbl"> {fr.group}</span></button>
+      {/if}
+      {#if lineEndsNow}
+        <span class="sep"></span>
+        {@render lineTools(lineEndsNow)}
       {/if}
       {#if table?.kind.type === "Table"}
         {@const t = table.kind}
@@ -654,7 +676,7 @@
       </div>
       {/if}
       <div class="wrap">
-        <button class:on={!!s.stroke} onclick={() => toggle("stroke")}><Icon name="border" /><span class="lbl"> {fr.stroke}</span></button>
+        <button class:on={!!s.stroke} onclick={() => toggle("stroke")}><Icon name="border" /><span class="lbl"> {isStrokeOnly(s.shape) ? fr.lineThickness : fr.stroke}</span></button>
         {#if pop === "stroke"}
           <div use:fitInWindow class="pop">
             <span>{s.stroke ? `${s.stroke.width_mm} mm` : fr.noStroke}</span>
@@ -677,6 +699,9 @@
           </div>
         {/if}
       </div>
+      {#if lineEndsNow && !many}
+        {@render lineTools(lineEndsNow)}
+      {/if}
       {#if s.shape === "Rect"}
         <div class="wrap">
           <button onclick={() => toggle("corners")}><Icon name="corners" /><span class="lbl"> {fr.corners}</span></button>

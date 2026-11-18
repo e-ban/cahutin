@@ -6,6 +6,7 @@ import ALargeSmall from "@lucide/svelte/icons/a-large-small";
 import AlignHorizontalDistributeCenter from "@lucide/svelte/icons/align-horizontal-distribute-center";
 import AlignLeft from "@lucide/svelte/icons/align-left";
 import ArrowLeft from "@lucide/svelte/icons/arrow-left";
+import ArrowLeftRight from "@lucide/svelte/icons/arrow-left-right";
 import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import Baby from "@lucide/svelte/icons/baby";
 import Ban from "@lucide/svelte/icons/ban";
@@ -110,6 +111,7 @@ export const ICONS = {
   align: AlignLeft,
   arrowLeft: ArrowLeft,
   arrowRight: ArrowRight,
+  swapEnds: ArrowLeftRight,
   assistant: Sparkles,
   back: ArrowLeft,
   ban: Ban,

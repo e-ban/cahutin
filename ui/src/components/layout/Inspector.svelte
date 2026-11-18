@@ -12,6 +12,9 @@
   import { fr } from "../../lib/i18n/fr";
   import { hasTemplateRole, templateRole, withTemplateRole } from "../../lib/templateRole";
   import { isStrokeOnly } from "../../lib/shapePaths";
+  import { editLine, endsOf, isLineTarget, lineEndpoints } from "../../lib/lineEnds";
+  import { setHeadSize, setLineEnd, swapLineEnds } from "../../lib/elementEdit";
+  import LineEndPicker from "../LineEndPicker.svelte";
   import { fonts } from "../../lib/fonts.svelte";
   import { ALIGNS, VALIGNS, activeTip, currentFont, currentSize, isListActive, isMarkActive, toggleList, setAlign, setColor, setFont, setLineSpacing, setSize, setVAlign, toggleMark, updatePrompt } from "../../lib/textFormat.svelte";
   import { LINE_SPACINGS, writesOnLines } from "../../lib/lineSpacing";
@@ -25,6 +28,14 @@
   const selected = $derived(editor.selected);
 
   const update = updateSelected;
+  /** Un trait ou une flèche : réglé par son début, sa longueur et son angle. */
+  const asLine = $derived(isLineTarget(selected));
+  function setLine(patch: { x?: number; y?: number; length?: number; angle?: number }) {
+    const vals = Object.values(patch);
+    if (vals.some((v) => v === undefined || !Number.isFinite(v))) return;
+    update((e) => ({ ...e, frame: editLine(e.frame, !!e.flip_h, patch) }));
+  }
+  const lineNum = (raw: string) => Number(raw.replace(",", "."));
 
   // Groupe sélectionné : sa position déplace tous ses éléments.
   const groupIds = $derived.by(() => {
@@ -174,6 +185,26 @@
     <h3>{selected.kind.type === "Photo" ? fr.photo : selected.kind.type === "Text" ? fr.text : selected.kind.type === "Image" ? fr.picture : fr.shape}</h3>
 
     <Section id="frame" title={fr.sectionFrame}>
+    {#if asLine}
+      {@const [start] = lineEndpoints(selected.frame, !!selected.flip_h)}
+      <div class="field">
+        <span>{fr.positionOnly}</span>
+        <div class="frame">
+          <label>{fr.lineStartX}<input type="number" step="0.5" disabled={frameFixed} value={Math.round(start.x * 10) / 10} onchange={(e) => setLine({ x: lineNum(e.currentTarget.value) })} /></label>
+          <label>{fr.lineStartY}<input type="number" step="0.5" disabled={frameFixed} value={Math.round(start.y * 10) / 10} onchange={(e) => setLine({ y: lineNum(e.currentTarget.value) })} /></label>
+        </div>
+      </div>
+      <div class="field">
+        <label>{fr.lineLength}<input type="number" step="0.5" min="3" disabled={frameFixed} value={Math.round(selected.frame.w_mm * 10) / 10} onchange={(e) => setLine({ length: lineNum(e.currentTarget.value) })} /></label>
+      </div>
+      <div class="field">
+        <span>{fr.angle}</span>
+        <div class="row">
+          <input class="deg" type="number" step="1" disabled={frameFixed} value={Math.round(selected.frame.rotation_deg * 10) / 10} onchange={(e) => setLine({ angle: lineNum(e.currentTarget.value) })} />
+          {@render quarterTurns(frameFixed)}
+        </div>
+      </div>
+    {:else}
     <div class="field">
       <span>{fr.positionOnly}</span>
       <div class="frame">
@@ -201,6 +232,7 @@
         {@render quarterTurns(frameFixed)}
       </div>
     </div>
+    {/if}
     </Section>
     <Section id="arrange" title={fr.sectionArrange} open={false}>{@render turnAndOrder(frameFixed, mirrorable)}</Section>
 
@@ -352,7 +384,7 @@
       </div>
       {/if}
       <div class="field">
-        <span>Trait : {s.stroke ? `${s.stroke.width_mm} mm` : "aucun"}</span>
+        <span>{isStrokeOnly(s.shape) ? fr.lineThickness : "Trait"} : {s.stroke ? `${s.stroke.width_mm} mm` : "aucun"}</span>
         <input
           type="range"
           min={isStrokeOnly(s.shape) ? 0.5 : 0}
@@ -370,6 +402,16 @@
           <StrokeStylePicker value={s.stroke.style} onpick={(style) => updateShape({ stroke: { ...s.stroke!, style: style === "Solid" ? null : style } })} />
         {/if}
       </div>
+      {#if asLine}
+        {@const ends = endsOf(s)}
+        {#each [["start", fr.lineStart], ["end", fr.lineEnd]] as const as [which, label] (which)}
+          <div class="field">
+            <span>{label}</span>
+            <LineEndPicker {which} value={ends[which]} size={ends.size} onpick={(e) => setLineEnd(which, e)} onsize={setHeadSize} />
+          </div>
+        {/each}
+        <button title={fr.lineSwapHint} onclick={swapLineEnds}><Icon name="swapEnds" /> {fr.lineSwap}</button>
+      {/if}
       {#if s.shape === "Rect"}
         <div class="field">
           <span>Coins arrondis : {s.corner_radius_mm} mm</span>

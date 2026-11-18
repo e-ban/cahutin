@@ -1,7 +1,8 @@
 // Modifications de l'élément sélectionné, partagées par la barre flottante et le panneau de droite.
 import { editor } from "./docStore.svelte";
 import { TEXT_PADDING_MM } from "./richtext";
-import type { Element, PhotoProps, ShapeProps, TableProps, TextFrame, TextStyle } from "./types";
+import { endsOf, isLineTarget, normalizeEnds, withHitHeight } from "./lineEnds";
+import type { Element, HeadSize, LineEnd, LineEnds, PhotoProps, ShapeProps, TableProps, TextFrame, TextStyle } from "./types";
 
 export function updateSelected(fn: (e: Element) => Element) {
   const e = editor.selected;
@@ -60,3 +61,22 @@ export const updateTextStyle = (patch: Partial<TextStyle>) => updateSelected(tex
 export const previewTextStyle = (patch: Partial<TextStyle>) => previewSelected(textStyle(patch));
 export const updateTextFrame = (patch: Partial<TextFrame>) => updateSelected(textFrame(patch));
 export const previewTextFrame = (patch: Partial<TextFrame>) => previewSelected(textFrame(patch));
+
+/** Applique `fn` à chaque trait ou flèche sélectionné, en un seul pas d'annulation ; les autres éléments ne changent pas. */
+export function updateLines(fn: (e: Element) => Element) {
+  const ids = new Set(editor.selection);
+  editor.updatePage((p) => ({ ...p, elements: p.elements.map((e) => (ids.has(e.id) && isLineTarget(e) ? fn(e) : e)) }));
+}
+
+/** Terminaisons d'un trait changées par `patch` : enregistrées seulement si elles diffèrent de son genre, et le cadre
+ *  assez haut pour la plus grande. */
+const lineEnds = (patch: (ends: LineEnds) => LineEnds) => (e: Element): Element => {
+  if (e.kind.type !== "Shape") return e;
+  const kind = { ...e.kind, ends: normalizeEnds(e.kind.shape, patch(endsOf(e.kind))) ?? undefined };
+  return { ...e, frame: withHitHeight(e.frame, kind), kind };
+};
+
+export const setLineEnd = (which: "start" | "end", end: LineEnd) => updateLines(lineEnds((x) => ({ ...x, [which]: end })));
+export const setHeadSize = (size: HeadSize) => updateLines(lineEnds((x) => ({ ...x, size })));
+/** Les terminaisons changent de bout ; le trait ne bouge pas. */
+export const swapLineEnds = () => updateLines(lineEnds((x) => ({ ...x, start: x.end, end: x.start })));

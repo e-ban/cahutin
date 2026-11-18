@@ -109,3 +109,18 @@ export function withHitHeight(f: Frame, s: ShapeProps): Frame {
 export function isLineTarget(e: Element | undefined): boolean {
   return e?.kind.type === "Shape" && (e.kind.shape === "Line" || e.kind.shape === "Arrow") && !e.kind.graphisme;
 }
+
+/** Un trait réglé au clavier : `x`, `y` déplacent son début (le trait entier suit), `length` et `angle` (sa rotation)
+ *  le changent autour de son début, qui reste en place. */
+export function editLine(f: Frame, flipH: boolean, patch: { x?: number; y?: number; length?: number; angle?: number }): Frame {
+  const [s, e] = lineEndpoints(f, flipH);
+  const start = { x: patch.x ?? s.x, y: patch.y ?? s.y };
+  const length = Math.max(MIN_LINE_MM, patch.length ?? f.w_mm);
+  // Direction visible du début vers la fin : la rotation, d'un demi-tour de plus en miroir.
+  const dir = (patch.angle ?? f.rotation_deg) + (flipH ? 180 : 0);
+  const unchanged = patch.length === undefined && patch.angle === undefined;
+  const end = unchanged ? { x: e.x + start.x - s.x, y: e.y + start.y - s.y } : polar(start, length, dir);
+  const g = frameFromEndpoints(start, end, f.h_mm, flipH);
+  // La direction ne change qu'avec `angle` : la rotation enregistrée reste celle du trait (pas un équivalent à 360° près).
+  return { ...g, rotation_deg: patch.angle ?? f.rotation_deg };
+}

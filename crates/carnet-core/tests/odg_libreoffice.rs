@@ -529,6 +529,13 @@ fn libreoffice_round_trip() -> &'static RoundTrip {
             text_at(90.0, "{PRENOM_1}{prenom_2}"),
             arrow(110.0, false),
             arrow(120.0, true),
+            {
+                let mut a = arrow(130.0, false);
+                if let ElementKind::Shape(s) = &mut a.kind {
+                    s.ends = Some(carnet_core::model::LineEnds { start: carnet_core::model::LineEnd::Square, end: carnet_core::model::LineEnd::OpenArrow, size: carnet_core::model::HeadSize::Small });
+                }
+                a
+            },
             locked_star,
             locked_text,
             framed,
@@ -669,6 +676,10 @@ fn arrows_and_photo_borders_survive_a_libreoffice_round_trip() {
     let arrow = |y: f64| page.elements.iter().find(|e| matches!(&e.kind, ElementKind::Shape(s) if s.shape == ShapeKind::Arrow) && (e.frame.y_mm + e.frame.h_mm / 2.0 - y).abs() < 0.1).unwrap_or_else(|| panic!("pas de flèche à {y} : {:?}", page.elements));
     assert!(arrow(114.0).frame.rotation_deg.abs() < 0.01);
     assert!((arrow(124.0).frame.rotation_deg.rem_euclid(360.0) - 180.0).abs() < 0.01);
+    // Les terminaisons choisies reviennent à leur bout, avec leur taille.
+    let ElementKind::Shape(s) = &arrow(134.0).kind else { panic!() };
+    use carnet_core::model::{HeadSize, LineEnd, LineEnds};
+    assert_eq!(s.ends, Some(LineEnds { start: LineEnd::Square, end: LineEnd::OpenArrow, size: HeadSize::Small }), "{s:?}");
     let ElementKind::Photo(p) = &relu_at(20.0, 200.0).kind else { panic!() };
     assert_eq!((p.border.clone(), p.shadow, p.corner_radius_mm), (Some(Stroke { width_mm: 1.5, color: "#2e86c1".into(), style: Some(StrokeStyle::Dotted) }), true, 2.0));
 }

@@ -156,6 +156,28 @@ struct SpanStyle {
     transparent: bool,
 }
 
+/// Terminaison d'un bout de trait d'après son marqueur ODG : son genre (au nom du marqueur, une pointe pleine pour un
+/// nom inconnu), sa taille (la plus proche de sa largeur) et sa largeur en mm (celle d'une pointe moyenne sans largeur
+/// écrite).
+fn line_end(name: &str, width_mm: Option<f64>, stroke_mm: f64) -> (LineEnd, HeadSize, f64) {
+    let n = name.replace("_20_", " ").to_lowercase();
+    let end = if n.contains("circle") {
+        LineEnd::Circle
+    } else if n.contains("square") {
+        LineEnd::Square
+    } else if n == "line arrow" || n == "line" || n == "line short" {
+        LineEnd::OpenArrow
+    } else {
+        LineEnd::Arrow
+    };
+    let medium = (stroke_mm * 4.0).max(4.0);
+    let round = matches!(end, LineEnd::Circle | LineEnd::Square);
+    let width = width_mm.unwrap_or(if round { medium * crate::shapes::DOT_FACTOR } else { medium });
+    let ratio = width / if round { medium * crate::shapes::DOT_FACTOR } else { medium };
+    let size = crate::shapes::HEAD_FACTORS.iter().min_by(|a, b| (a.1 - ratio).abs().total_cmp(&(b.1 - ratio).abs())).map_or(HeadSize::Medium, |f| f.0);
+    (end, size, width)
+}
+
 #[derive(Clone, Default)]
 struct GraphicStyle {
     fill: Option<String>,
@@ -166,10 +188,10 @@ struct GraphicStyle {
     dash: Option<(f64, f64)>,
     valign: Option<VAlign>,
     padding_mm: Option<f64>,
-    /// Pointe au bout du trait (`draw:marker-end`) : sa largeur en mm (4 mm sans largeur écrite).
-    marker_end: Option<f64>,
-    /// Pointe au début du trait (`draw:marker-start`).
-    marker_start: bool,
+    /// Terminaison au début du trait (`draw:marker-start`) : le nom du marqueur et sa largeur en mm, si elle est écrite.
+    marker_start: Option<(String, Option<f64>)>,
+    /// Terminaison au bout du trait (`draw:marker-end`).
+    marker_end: Option<(String, Option<f64>)>,
     /// Ombre visible (`draw:shadow`).
     shadow: bool,
     /// Place ou taille protégée (`style:protect`) : l'objet est verrouillé.
@@ -510,8 +532,8 @@ fn read_styles(doc: &roxmltree::Document, common: Option<&roxmltree::Document>, 
         });
         let dash = (stroke_kind.as_deref() == Some("dash")).then(|| a(DRAW, "stroke-dash").and_then(|d| dashes.get(&d)).copied()).flatten();
         let fill_image = (fill_kind.as_deref() == Some("bitmap")).then(|| a(DRAW, "fill-image-name")).flatten();
-        let marker_end = a(DRAW, "marker-end").filter(|m| !m.is_empty()).map(|_| mm(DRAW, "marker-end-width").unwrap_or(4.0));
-        let marker_start = a(DRAW, "marker-start").is_some_and(|m| !m.is_empty());
+        let marker_end = a(DRAW, "marker-end").filter(|m| !m.is_empty()).map(|m| (m, mm(DRAW, "marker-end-width")));
+        let marker_start = a(DRAW, "marker-start").filter(|m| !m.is_empty()).map(|m| (m, mm(DRAW, "marker-start-width")));
         let shadow = a(DRAW, "shadow").as_deref() == Some("visible");
         let protect = a(STYLE, "protect").is_some_and(|p| p.contains("position") || p.contains("size"));
         // L'encre transparente de `standard` (`loext:opacity="0%"`, sans effet sous la couleur automatique) n'est pas la
@@ -1737,18 +1759,30 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 let (Some(x1), Some(y1), Some(x2), Some(y2)) = (attr_mm(n, SVG, "x1"), attr_mm(n, SVG, "y1"), attr_mm(n, SVG, "x2"), attr_mm(n, SVG, "y2")) else {
                     return self.skipped += 1;
                 };
-                // Trait Carnet : du milieu du bord gauche au milieu du bord droit du cadre, tourné. Une pointe au bout
-                // (`draw:marker-end`, ce qu'écrit l'export) en fait une flèche, haute de sa pointe ; une pointe au
-                // début seulement (dessinée dans LibreOffice) aussi, le trait pris dans l'autre sens. Une flèche
-                // retournée revient tournée d'un demi-tour : à l'écran, c'est la même.
+                // Trait Carnet : du milieu du bord gauche au milieu du bord droit du cadre, tourné. Chaque marqueur donne
+                // la terminaison de son bout (`line_end`) ; une pointe de flèche en fait une flèche. Le cadre est haut de
+                // la plus large terminaison. Une flèche retournée revient tournée d'un demi-tour : à l'écran, c'est la même.
                 let g = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s));
-                let start_only = g.is_some_and(|g| g.marker_end.is_none() && g.marker_start);
-                let ((x1, y1), (x2, y2)) = if start_only { ((x2, y2), (x1, y1)) } else { ((x1, y1), (x2, y2)) };
-                let head = g.and_then(|g| g.marker_end).or(start_only.then_some(4.0));
+                let width = g.and_then(|g| g.stroke.as_ref()).map_or(1.0, |s| s.width_mm);
+                let start = g.and_then(|g| g.marker_start.as_ref()).map(|(m, w)| line_end(m, *w, width));
+                let end = g.and_then(|g| g.marker_end.as_ref()).map(|(m, w)| line_end(m, *w, width));
+                let pick = |e: Option<(LineEnd, HeadSize, f64)>| e.map_or(LineEnd::None, |e| e.0);
+                let pointed = |e: LineEnd| matches!(e, LineEnd::Arrow | LineEnd::OpenArrow);
+                let kind = if pointed(pick(start)) || pointed(pick(end)) { ShapeKind::Arrow } else { ShapeKind::Line };
+                // La taille : celle de la terminaison de la fin, sinon du début.
+                let size = end.or(start).map_or(HeadSize::Medium, |e| e.1);
+                let ends = LineEnds { start: pick(start), end: pick(end), size };
+                let ends = (ends != crate::shapes::default_ends(kind) && (ends.start, ends.end) != (LineEnd::None, LineEnd::None)).then_some(ends);
                 let len = (x2 - x1).hypot(y2 - y1);
-                let (cx, cy, h) = ((x1 + x2) / 2.0, (y1 + y2) / 2.0, head.unwrap_or(2.0).max(2.0));
+                let h = start.into_iter().chain(end).map(|e| e.2).fold(2.0, f64::max);
+                let (cx, cy) = ((x1 + x2) / 2.0, (y1 + y2) / 2.0);
                 let rotation_deg = (y2 - y1).atan2(x2 - x1).to_degrees();
-                self.shape(n, Frame { x_mm: cx - len / 2.0, y_mm: cy - h / 2.0, w_mm: len, h_mm: h, rotation_deg }, if head.is_some() { ShapeKind::Arrow } else { ShapeKind::Line });
+                self.shape(n, Frame { x_mm: cx - len / 2.0, y_mm: cy - h / 2.0, w_mm: len, h_mm: h, rotation_deg }, kind);
+                if let Some(Item::Element(e)) = self.items.last_mut()
+                    && let ElementKind::Shape(s) = &mut e.kind
+                {
+                    s.ends = ends;
+                }
             }
             // Une flèche de liaison (`draw:connector`), une cote, une légende... : des objets de LibreOffice que Cahutin
             // ne sait pas redessiner.

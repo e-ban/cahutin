@@ -1856,6 +1856,56 @@ mod tests {
         }
     }
 
+    fn line_back(ends: crate::model::LineEnds) -> (Element, Element) {
+        let mut el = with_ends(ShapeKind::Line, Some(ends));
+        el.frame.rotation_deg = 30.0;
+        let back = round_trip(&doc_with(vec![el.clone()]), &AssetStore::default());
+        (el, only(&back).clone())
+    }
+
+    /// Chaque terminaison revient à son bout, avec sa taille, et le trait garde sa place.
+    #[test]
+    fn import_reads_each_end() {
+        use crate::model::{HeadSize, LineEnd, LineEnds};
+        let all = [LineEnd::None, LineEnd::Arrow, LineEnd::OpenArrow, LineEnd::Circle, LineEnd::Square];
+        for (i, &start) in all.iter().enumerate() {
+            for &end in &all {
+                let size = [HeadSize::Small, HeadSize::Medium, HeadSize::Large][i % 3];
+                let ends = LineEnds { start, end, size };
+                let (el, back) = line_back(ends);
+                let ElementKind::Shape(s) = &back.kind else { panic!("{back:?}") };
+                assert_eq!(crate::shapes::ends_of(s), LineEnds { size: if start == LineEnd::None && end == LineEnd::None { HeadSize::Medium } else { size }, ..ends }, "{ends:?}");
+                let (a, b) = (&el.frame, &back.frame);
+                let centre = |f: &Frame| (f.x_mm + f.w_mm / 2.0, f.y_mm + f.h_mm / 2.0);
+                assert!((centre(a).0 - centre(b).0).abs() < 0.01 && (centre(a).1 - centre(b).1).abs() < 0.01, "{ends:?} {b:?}");
+                assert!((a.w_mm - b.w_mm).abs() < 0.01 && (a.rotation_deg - b.rotation_deg).abs() < 0.01, "{ends:?} {b:?}");
+            }
+        }
+    }
+
+    /// Une pointe au début seulement reste au début : le trait n'est plus retourné.
+    #[test]
+    fn start_only_marker_is_kept_at_start() {
+        use crate::model::{HeadSize, LineEnd, LineEnds};
+        let ends = LineEnds { start: LineEnd::Arrow, end: LineEnd::None, size: HeadSize::Medium };
+        let (el, back) = line_back(ends);
+        let ElementKind::Shape(s) = &back.kind else { panic!() };
+        assert_eq!(crate::shapes::ends_of(s), ends);
+        assert!((back.frame.rotation_deg - el.frame.rotation_deg).abs() < 0.01, "{back:?}");
+    }
+
+    /// Une pointe que Cahutin ne connaît pas revient en flèche pleine.
+    #[test]
+    fn unknown_marker_becomes_filled_arrow() {
+        let d = doc_with(vec![with_ends(ShapeKind::Arrow, None)]);
+        let odg = edited_odg(&d, "content.xml", |x| x.replace(r#"draw:marker-end="Arrow""#, r#"draw:marker-end="Smiley""#));
+        let back = crate::import::odg::read_drawing(Cursor::new(odg), &[]).unwrap();
+        let ElementKind::Shape(s) = &only(&back).kind else { panic!() };
+        assert_eq!(s.shape, ShapeKind::Arrow);
+        assert_eq!(crate::shapes::ends_of(s).end, crate::model::LineEnd::Arrow);
+        assert_eq!(s.ends, None);
+    }
+
     /// Tirets et pointillés reviennent tels quels sur une forme, le cadre d'un texte et la bordure d'une photo.
     #[test]
     fn dotted_and_dashed_strokes_come_back() {

@@ -40,6 +40,34 @@ pub fn path_points_mm(frame: &crate::model::Frame, s: &ShapeProps) -> Option<Vec
     Some(p.iter().map(|[x, y]| (x * frame.w_mm, y * frame.h_mm)).collect())
 }
 
+/// Points visibles d'un chemin en mm de page : rotation et miroir du cadre compris (comme `pagePoints`, linePath.ts).
+pub fn path_page_points(frame: &crate::model::Frame, s: &ShapeProps, flip_h: bool, flip_v: bool) -> Option<Vec<(f64, f64)>> {
+    let p = s.points.as_deref().filter(|p| valid_points(p))?;
+    let (cx, cy) = (frame.x_mm + frame.w_mm / 2.0, frame.y_mm + frame.h_mm / 2.0);
+    let (sin, cos) = frame.rotation_deg.to_radians().sin_cos();
+    Some(
+        p.iter()
+            .map(|&[fx, fy]| {
+                let dx = (if flip_h { 1.0 - fx } else { fx }) * frame.w_mm - frame.w_mm / 2.0;
+                let dy = (if flip_v { 1.0 - fy } else { fy }) * frame.h_mm - frame.h_mm / 2.0;
+                (cx + dx * cos - dy * sin, cy + dx * sin + dy * cos)
+            })
+            .collect(),
+    )
+}
+
+/// Cadre et points (fractions) d'un chemin qui passe par `pts` (mm de page, 3 points au moins) : la boîte des points
+/// agrandie de la moitié de la zone cliquable (la plus grande terminaison, 4 mm au moins), sans rotation. Comme
+/// `fromPagePoints` (linePath.ts).
+pub fn path_frame(pts: &[(f64, f64)], s: &ShapeProps) -> (crate::model::Frame, Vec<[f64; 2]>) {
+    let m = head_width_mm(s).max(4.0) / 2.0;
+    let fold = |f: fn(f64, f64) -> f64, init: f64, get: fn(&(f64, f64)) -> f64| pts.iter().map(get).fold(init, f);
+    let (x0, y0) = (fold(f64::min, f64::INFINITY, |p| p.0) - m, fold(f64::min, f64::INFINITY, |p| p.1) - m);
+    let (w, h) = (fold(f64::max, f64::NEG_INFINITY, |p| p.0) + m - x0, fold(f64::max, f64::NEG_INFINITY, |p| p.1) + m - y0);
+    let frame = crate::model::Frame { x_mm: x0, y_mm: y0, w_mm: w, h_mm: h, rotation_deg: 0.0 };
+    (frame, pts.iter().map(|&(x, y)| [(x - x0) / w, (y - y0) / h]).collect())
+}
+
 /// Courbe d'un chemin : Catmull-Rom centripète passant par les points, une cubique par segment (contrôle 1,
 /// contrôle 2, arrivée). Aux bouts, la tangente va vers le voisin. Même calcul que `curveBeziers` (linePath.ts).
 pub fn curve_beziers(pts: &[(f64, f64)]) -> Vec<[(f64, f64); 3]> {

@@ -540,6 +540,8 @@ fn libreoffice_round_trip() -> &'static RoundTrip {
                 }
                 a
             },
+            path_element(&ROUND_TRIP_ELBOWS, false, ShapeKind::Arrow, Some(carnet_core::model::LineEnds { start: carnet_core::model::LineEnd::Circle, end: carnet_core::model::LineEnd::Arrow, size: carnet_core::model::HeadSize::Medium })),
+            path_element(&ROUND_TRIP_CURVE, true, ShapeKind::Line, None),
             locked_star,
             locked_text,
             framed,
@@ -569,6 +571,41 @@ fn libreoffice_round_trip() -> &'static RoundTrip {
         let len = |p: &Path| std::fs::metadata(p).unwrap().len();
         RoundTrip { pages: back.pages, content, exported_len: len(&odg), saved_len: len(&saved), saved_settings, saved_styles, saved_fonts }
     })
+}
+
+// Hors des cadres à lignes (x > 85 et y > 145 : voir `lined_frames_survive_a_libreoffice_round_trip`).
+const ROUND_TRIP_ELBOWS: [(f64, f64); 4] = [(20.0, 245.0), (45.0, 245.0), (45.0, 265.0), (70.0, 280.0)];
+const ROUND_TRIP_CURVE: [(f64, f64); 4] = [(150.0, 80.0), (165.0, 105.0), (180.0, 85.0), (195.0, 110.0)];
+
+/// Un chemin passant par `pts` (mm de page).
+fn path_element(pts: &[(f64, f64)], curve: bool, shape: ShapeKind, ends: Option<carnet_core::model::LineEnds>) -> Element {
+    let mut s = ShapeProps { shape, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#2e86c1".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve };
+    let (frame, points) = carnet_core::shapes::path_frame(pts, &s);
+    s.points = Some(points);
+    Element { id: new_id(), frame, locked: false, zone: false, group: None, kind: ElementKind::Shape(s), subgroups: Vec::new(), flip_h: false, flip_v: false }
+}
+
+/// Un chemin à coudes et un chemin courbe, réenregistrés par LibreOffice, reviennent modifiables point par point,
+/// avec leurs terminaisons.
+#[test]
+#[ignore]
+fn paths_come_back_from_libreoffice() {
+    let page = &libreoffice_round_trip().pages[0];
+    let paths: Vec<_> = page.elements.iter().filter(|e| matches!(&e.kind, ElementKind::Shape(s) if s.points.is_some())).collect();
+    assert_eq!(paths.len(), 2, "{:?}", page.elements);
+    for (want, curve) in [(&ROUND_TRIP_ELBOWS, false), (&ROUND_TRIP_CURVE, true)] {
+        let e = paths.iter().find(|e| matches!(&e.kind, ElementKind::Shape(s) if s.curve == curve)).unwrap_or_else(|| panic!("courbe {curve} : {paths:?}"));
+        let ElementKind::Shape(s) = &e.kind else { panic!() };
+        let got = carnet_core::shapes::path_page_points(&e.frame, s, e.flip_h, e.flip_v).unwrap();
+        assert_eq!(got.len(), want.len(), "{got:?}");
+        for (g, w) in got.iter().zip(want.iter()) {
+            assert!((g.0 - w.0).abs() < 0.05 && (g.1 - w.1).abs() < 0.05, "{got:?}");
+        }
+        if !curve {
+            use carnet_core::model::{HeadSize, LineEnd, LineEnds};
+            assert_eq!((s.shape, s.ends), (ShapeKind::Arrow, Some(LineEnds { start: LineEnd::Circle, end: LineEnd::Arrow, size: HeadSize::Medium })), "{s:?}");
+        }
+    }
 }
 
 /// L'élément relu de la page 1 dont le cadre a ce coin haut gauche (au 1/10 de mm).

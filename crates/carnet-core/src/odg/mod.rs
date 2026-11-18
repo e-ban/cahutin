@@ -1908,6 +1908,123 @@ mod tests {
         assert_eq!(s.ends, None);
     }
 
+    /// Un chemin posé par ses points (mm de page).
+    fn path_el(kind: ShapeKind, pts: &[(f64, f64)], curve: bool, ends: Option<crate::model::LineEnds>) -> Element {
+        let mut el = shape_el(kind, frame(0.0, 0.0, 1.0, 1.0));
+        if let ElementKind::Shape(s) = &mut el.kind {
+            s.ends = ends;
+            s.curve = curve;
+            let (f, fr) = crate::shapes::path_frame(pts, s);
+            s.points = Some(fr);
+            el.frame = f;
+        }
+        el
+    }
+
+    fn page_points(e: &Element) -> Vec<(f64, f64)> {
+        let ElementKind::Shape(s) = &e.kind else { panic!("{e:?}") };
+        crate::shapes::path_page_points(&e.frame, s, e.flip_h, e.flip_v).unwrap_or_else(|| panic!("pas un chemin : {e:?}"))
+    }
+
+    const ELBOWS: [(f64, f64); 4] = [(20.0, 30.0), (60.0, 30.0), (60.0, 80.0), (110.0, 95.0)];
+
+    #[test]
+    fn elbow_path_exports_polyline() {
+        use crate::model::{HeadSize, LineEnd, LineEnds};
+        let ends = LineEnds { start: LineEnd::Circle, end: LineEnd::Arrow, size: HeadSize::Large };
+        let mut e = export(&doc_with(vec![path_el(ShapeKind::Arrow, &ELBOWS, false, Some(ends))]), &AssetStore::default());
+        let c = e.xml("content.xml");
+        let doc = roxmltree::Document::parse(&c).unwrap();
+        let poly = doc.descendants().find(|n| n.has_tag_name("polyline")).unwrap_or_else(|| panic!("{c}"));
+        let points = poly.attribute(("urn:oasis:names:tc:opendocument:xmlns:drawing:1.0", "points")).unwrap();
+        assert_eq!(points.split_whitespace().count(), 4, "{points}");
+        assert!(c.contains(r#"draw:marker-start="Circle""#) && c.contains(r#"draw:marker-end="Arrow""#), "{c}");
+        assert!(!c.contains("<draw:line "), "{c}");
+    }
+
+    #[test]
+    fn curve_path_exports_path() {
+        let mut e = export(&doc_with(vec![path_el(ShapeKind::Line, &ELBOWS, true, None)]), &AssetStore::default());
+        let c = e.xml("content.xml");
+        let doc = roxmltree::Document::parse(&c).unwrap();
+        let path = doc.descendants().find(|n| n.has_tag_name("path")).unwrap_or_else(|| panic!("{c}"));
+        let d = path.attribute(("http://www.w3.org/2000/svg", "d")).or_else(|| path.attribute(("urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0", "d"))).unwrap();
+        assert!(d.starts_with('M'), "{d}");
+        assert!(!d.contains('L') && d.matches('C').count() == 3, "{d}");
+    }
+
+    fn assert_points(a: &[(f64, f64)], b: &[(f64, f64)], tol: f64) {
+        assert_eq!(a.len(), b.len(), "{a:?} {b:?}");
+        for (p, q) in a.iter().zip(b) {
+            assert!((p.0 - q.0).abs() < tol && (p.1 - q.1).abs() < tol, "{a:?} {b:?}");
+        }
+    }
+
+    #[test]
+    fn elbow_path_round_trips() {
+        use crate::model::{HeadSize, LineEnd, LineEnds};
+        let ends = LineEnds { start: LineEnd::Square, end: LineEnd::OpenArrow, size: HeadSize::Small };
+        let el = path_el(ShapeKind::Arrow, &ELBOWS, false, Some(ends));
+        let back = round_trip(&doc_with(vec![el.clone()]), &AssetStore::default());
+        let b = only(&back);
+        let ElementKind::Shape(s) = &b.kind else { panic!() };
+        assert_eq!((s.shape, s.ends, s.curve), (ShapeKind::Arrow, Some(ends), false));
+        assert_points(&page_points(b), &ELBOWS, 0.01);
+    }
+
+    #[test]
+    fn curve_path_round_trips() {
+        let el = path_el(ShapeKind::Line, &ELBOWS, true, None);
+        let back = round_trip(&doc_with(vec![el]), &AssetStore::default());
+        let b = only(&back);
+        let ElementKind::Shape(s) = &b.kind else { panic!("{b:?}") };
+        assert_eq!((s.shape, s.ends, s.curve), (ShapeKind::Line, None, true));
+        assert_points(&page_points(b), &ELBOWS, 0.01);
+    }
+
+    /// Une polyligne de LibreOffice, ouverte et sans fond, devient un chemin qu'on règle point par point.
+    #[test]
+    fn plain_polyline_becomes_editable_path() {
+        let d = doc_with(vec![path_el(ShapeKind::Arrow, &ELBOWS, false, None)]);
+        let back = crate::import::odg::read_drawing(Cursor::new(edited_odg(&d, "content.xml", |x| x)), &[]).unwrap();
+        let b = only(&back);
+        let ElementKind::Shape(s) = &b.kind else { panic!() };
+        assert_eq!(s.shape, ShapeKind::Arrow);
+        assert!(s.points.is_some());
+    }
+
+    /// Une courbe dessinée ailleurs (Bézier quelconque) reste un tracé libre : elle ne change pas de forme.
+    #[test]
+    fn foreign_bezier_stays_a_path() {
+        let d = doc_with(vec![path_el(ShapeKind::Line, &ELBOWS, true, None)]);
+        let odg = edited_odg(&d, "content.xml", |x| {
+            let doc = roxmltree::Document::parse(&x).unwrap();
+            let path = doc.descendants().find(|n| n.has_tag_name("path")).unwrap();
+            let old = path.attributes().find(|a| a.name() == "d").unwrap().value().to_string();
+            // Un premier point de contrôle déplacé loin de celui de la courbe de Cahutin.
+            let mut parts: Vec<String> = old.split_whitespace().map(str::to_string).collect();
+            let c = parts.iter().position(|p| p == "C").unwrap();
+            let v: f64 = parts[c + 2].parse().unwrap();
+            parts[c + 2] = format!("{}", v + 20000.0);
+            x.replace(&old, &parts.join(" "))
+        });
+        let back = crate::import::odg::read_drawing(Cursor::new(odg), &[]).unwrap();
+        let ElementKind::Shape(s) = &only(&back).kind else { panic!() };
+        assert_eq!(s.shape, ShapeKind::Path);
+        assert!(s.points.is_none());
+    }
+
+    /// Un polygone (fermé) garde le traitement d'aujourd'hui (tracé libre), même sans fond.
+    #[test]
+    fn closed_polygon_stays_as_today() {
+        let d = doc_with(vec![path_el(ShapeKind::Line, &ELBOWS, false, None)]);
+        let odg = edited_odg(&d, "content.xml", |x| x.replace("<draw:polyline ", "<draw:polygon "));
+        let back = crate::import::odg::read_drawing(Cursor::new(odg), &[]).unwrap();
+        let ElementKind::Shape(s) = &only(&back).kind else { panic!() };
+        assert_eq!(s.shape, ShapeKind::Path);
+        assert!(s.points.is_none());
+    }
+
     /// Tirets et pointillés reviennent tels quels sur une forme, le cadre d'un texte et la bordure d'une photo.
     #[test]
     fn dotted_and_dashed_strokes_come_back() {

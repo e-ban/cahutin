@@ -132,6 +132,43 @@ impl Drawing {
         Some((frame, ShapeProps { shape: ShapeKind::Path, fill: self.fill_hex.clone(), stroke, corner_radius_mm: 0.0, path: Some(path), graphisme: None, ends: None, points: None, curve: false }))
     }
 
+    /// Un tracé ouvert, sans fond, fait d'un seul morceau : ses points (mm de page) s'il se règle point par point
+    /// comme un chemin de Cahutin. Segments droits : un chemin à coudes ; cubiques qui sont exactement la courbe de
+    /// Cahutin passant par leurs extrémités (à 0,5 % de la taille du tracé près) : un chemin courbe. 3 à 200 points.
+    pub(super) fn editable_points(&self) -> Option<(Vec<(f64, f64)>, bool)> {
+        if self.fill.is_some() || self.stroke.is_none() {
+            return None;
+        }
+        let mut segs = self.path.segments();
+        let PathSegment::MoveTo(first) = segs.next()? else { return None };
+        let mut pts = vec![(first.x as f64, first.y as f64)];
+        let (mut lines, mut cubics) = (0, Vec::new());
+        for seg in segs {
+            match seg {
+                PathSegment::LineTo(p) => {
+                    lines += 1;
+                    pts.push((p.x as f64, p.y as f64));
+                }
+                PathSegment::CubicTo(c1, c2, p) => {
+                    cubics.push([(c1.x as f64, c1.y as f64), (c2.x as f64, c2.y as f64)]);
+                    pts.push((p.x as f64, p.y as f64));
+                }
+                _ => return None,
+            }
+        }
+        if !(3..=crate::shapes::MAX_PATH_POINTS).contains(&pts.len()) || (lines > 0 && !cubics.is_empty()) {
+            return None;
+        }
+        if cubics.is_empty() {
+            return Some((pts, false));
+        }
+        let b = self.path.bounds();
+        let tol = 0.005 * (b.width() as f64).hypot(b.height() as f64);
+        let close = |a: (f64, f64), b: (f64, f64)| (a.0 - b.0).hypot(a.1 - b.1) <= tol;
+        let ours = crate::shapes::curve_beziers(&pts);
+        ours.iter().zip(&cubics).all(|(o, c)| close(o[0], c[0]) && close(o[1], c[1])).then_some((pts, true))
+    }
+
     /// Le motif de pointillé du document (trait, espace, en mm).
     pub(super) fn with_dash(mut self, dash: Option<(f64, f64)>) -> Drawing {
         self.dash = dash.map(|(on, off)| (on as f32, off as f32));

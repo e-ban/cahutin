@@ -1727,6 +1727,8 @@ impl<R: Read + Seek> PageReader<'_, R> {
                     _ => None,
                 });
                 match drawing {
+                    // Ouvert et sans fond, de 3 à 200 points : un chemin de Cahutin, avec ses terminaisons.
+                    Some(d) if let Some((pts, curve)) = d.editable_points() => self.path_from(n, &pts, curve),
                     Some(d) => self.drawings.push(d.with_dash(g.dash)),
                     None => self.skipped += 1,
                 }
@@ -1759,22 +1761,10 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 let (Some(x1), Some(y1), Some(x2), Some(y2)) = (attr_mm(n, SVG, "x1"), attr_mm(n, SVG, "y1"), attr_mm(n, SVG, "x2"), attr_mm(n, SVG, "y2")) else {
                     return self.skipped += 1;
                 };
-                // Trait Carnet : du milieu du bord gauche au milieu du bord droit du cadre, tourné. Chaque marqueur donne
-                // la terminaison de son bout (`line_end`) ; une pointe de flèche en fait une flèche. Le cadre est haut de
+                // Trait Carnet : du milieu du bord gauche au milieu du bord droit du cadre, tourné. Le cadre est haut de
                 // la plus large terminaison. Une flèche retournée revient tournée d'un demi-tour : à l'écran, c'est la même.
-                let g = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s));
-                let width = g.and_then(|g| g.stroke.as_ref()).map_or(1.0, |s| s.width_mm);
-                let start = g.and_then(|g| g.marker_start.as_ref()).map(|(m, w)| line_end(m, *w, width));
-                let end = g.and_then(|g| g.marker_end.as_ref()).map(|(m, w)| line_end(m, *w, width));
-                let pick = |e: Option<(LineEnd, HeadSize, f64)>| e.map_or(LineEnd::None, |e| e.0);
-                let pointed = |e: LineEnd| matches!(e, LineEnd::Arrow | LineEnd::OpenArrow);
-                let kind = if pointed(pick(start)) || pointed(pick(end)) { ShapeKind::Arrow } else { ShapeKind::Line };
-                // La taille : celle de la terminaison de la fin, sinon du début.
-                let size = end.or(start).map_or(HeadSize::Medium, |e| e.1);
-                let ends = LineEnds { start: pick(start), end: pick(end), size };
-                let ends = (ends != crate::shapes::default_ends(kind) && (ends.start, ends.end) != (LineEnd::None, LineEnd::None)).then_some(ends);
+                let (kind, ends, h) = self.line_ends_of(n);
                 let len = (x2 - x1).hypot(y2 - y1);
-                let h = start.into_iter().chain(end).map(|e| e.2).fold(2.0, f64::max);
                 let (cx, cy) = ((x1 + x2) / 2.0, (y1 + y2) / 2.0);
                 let rotation_deg = (y2 - y1).atan2(x2 - x1).to_degrees();
                 self.shape(n, Frame { x_mm: cx - len / 2.0, y_mm: cy - h / 2.0, w_mm: len, h_mm: h, rotation_deg }, kind);
@@ -1792,6 +1782,39 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 self.skipped += 1;
                 self.ready_made += 1;
             }
+        }
+    }
+
+    /// Genre et terminaisons d'un trait d'après les marqueurs de son style : chaque marqueur donne la terminaison de son
+    /// bout (`line_end`) ; une pointe de flèche en fait une flèche. Rend aussi la largeur de la plus large terminaison.
+    fn line_ends_of(&self, n: roxmltree::Node) -> (ShapeKind, Option<LineEnds>, f64) {
+        let g = n.attribute((DRAW, "style-name")).and_then(|s| self.styles.graphic.get(s));
+        let width = g.and_then(|g| g.stroke.as_ref()).map_or(1.0, |s| s.width_mm);
+        let start = g.and_then(|g| g.marker_start.as_ref()).map(|(m, w)| line_end(m, *w, width));
+        let end = g.and_then(|g| g.marker_end.as_ref()).map(|(m, w)| line_end(m, *w, width));
+        let pick = |e: Option<(LineEnd, HeadSize, f64)>| e.map_or(LineEnd::None, |e| e.0);
+        let pointed = |e: LineEnd| matches!(e, LineEnd::Arrow | LineEnd::OpenArrow);
+        let kind = if pointed(pick(start)) || pointed(pick(end)) { ShapeKind::Arrow } else { ShapeKind::Line };
+        // La taille : celle de la terminaison de la fin, sinon du début.
+        let size = end.or(start).map_or(HeadSize::Medium, |e| e.1);
+        let ends = LineEnds { start: pick(start), end: pick(end), size };
+        let ends = (ends != crate::shapes::default_ends(kind) && (ends.start, ends.end) != (LineEnd::None, LineEnd::None)).then_some(ends);
+        (kind, ends, start.into_iter().chain(end).map(|e| e.2).fold(2.0, f64::max))
+    }
+
+    /// Un chemin de Cahutin passant par `pts` (mm de page), avec les terminaisons du style de `n`.
+    fn path_from(&mut self, n: roxmltree::Node, pts: &[(f64, f64)], curve: bool) {
+        let (kind, ends, _) = self.line_ends_of(n);
+        self.shape(n, Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 1.0, h_mm: 1.0, rotation_deg: 0.0 }, kind);
+        if let Some(Item::Element(e)) = self.items.last_mut()
+            && let ElementKind::Shape(s) = &mut e.kind
+        {
+            s.ends = ends;
+            s.curve = curve;
+            s.fill = None;
+            let (frame, points) = crate::shapes::path_frame(pts, s);
+            s.points = Some(points);
+            e.frame = frame;
         }
     }
 

@@ -702,6 +702,33 @@ impl Writer<'_> {
         }
         let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", props)]);
         let mut a = vec![("draw:style-name", style)];
+        if stroke_only && let Some(pts) = shapes::path_page_points(&e.frame, s, e.flip_h, e.flip_v) {
+            // Chemin : ses points visibles (rotation et miroir déjà appliqués), dans une boîte en micromètres.
+            // Coudes : `draw:polyline` ; courbe : `draw:path` fait de cubiques (`shapes::curve_beziers`). LibreOffice
+            // oriente les terminaisons selon le premier et le dernier segment, comme l'écran.
+            let x0 = pts.iter().map(|p| p.0).fold(f64::INFINITY, f64::min);
+            let y0 = pts.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
+            let w = (pts.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max) - x0).max(0.01);
+            let h = (pts.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max) - y0).max(0.01);
+            let um = |v: f64| format!("{}", (v * 1000.0).round() as i64);
+            let at = |p: (f64, f64)| (um(p.0 - x0), um(p.1 - y0));
+            a.extend([("svg:x", mm(x0)), ("svg:y", mm(y0)), ("svg:width", mm(w)), ("svg:height", mm(h))]);
+            a.push(("svg:viewBox", format!("0 0 {} {}", um(w), um(h))));
+            if s.curve {
+                let mut d = { let (x, y) = at(pts[0]); format!("M {x} {y}") };
+                for [c1, c2, p] in shapes::curve_beziers(&pts) {
+                    let ((ax, ay), (bx, by), (px, py)) = (at(c1), at(c2), at(p));
+                    d.push_str(&format!(" C {ax} {ay} {bx} {by} {px} {py}"));
+                }
+                a.push(("svg:d", d));
+                self.body.empty("draw:path", &attrs(&a));
+            } else {
+                let points = pts.iter().map(|&p| { let (x, y) = at(p); format!("{x},{y}") }).collect::<Vec<_>>().join(" ");
+                a.push(("draw:points", points));
+                self.body.empty("draw:polyline", &attrs(&a));
+            }
+            return;
+        }
         if stroke_only {
             let mut ends = line_ends(&e.frame);
             if e.flip_h {

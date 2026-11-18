@@ -55,8 +55,8 @@ pub fn facing_anchors(a: &Frame, b: &Frame) -> (AnchorPoint, AnchorPoint) {
 }
 
 /// La règle des connecteurs, après une modification de la page (`before` : la page d'avant, s'il y en a une).
-/// 1. Décrocher : un bout accroché dont le trait a bougé (cadre, points, miroir) alors que son élément n'a pas bougé
-///    perd son accroche (on a déplacé la flèche seule).
+/// 1. Décrocher : un bout accroché qui a bougé alors que son élément n'a pas bougé perd son accroche (on a déplacé la
+///    flèche seule, ou tiré ce bout) ; un chemin fermé n'a pas d'accroche.
 /// 2. Suivre : chaque bout encore accroché va sur le point de son élément ; un élément absent le décroche. Les coudes
 ///    d'un chemin restent ; le cadre est recalculé (`line_frame`, `path_frame`). Un trait déjà en place ne change pas.
 pub fn follow_connectors(before: Option<&Page>, after: &mut Page) {
@@ -69,20 +69,21 @@ pub fn follow_connectors(before: Option<&Page>, after: &mut Page) {
         let e = &after.elements[i];
         let ElementKind::Shape(s) = &e.kind else { continue };
         let Some(attach) = s.attach.clone() else { continue };
-        let line_moved = old(&e.id).is_some_and(|o| {
-            let ElementKind::Shape(os) = &o.kind else { return true };
-            o.frame != e.frame || os.points != s.points || o.flip_h != e.flip_h || o.flip_v != e.flip_v
-        });
-        let keep = |a: &Option<crate::model::Anchor>| {
-            a.clone().filter(|a| {
-                let Some(now) = frames.get(&a.element) else { return false };
-                // Le trait a bougé seul : son élément est à la même place qu'avant.
-                !(line_moved && old(&a.element).is_some_and(|o| o.frame == *now))
-            })
-        };
-        let (start, end) = (keep(&attach.start), keep(&attach.end));
         let Some(mut pts) = line_points(e) else { continue };
         let n = pts.len();
+        let was = old(&e.id).and_then(line_points);
+        // Un bout a bougé seul : il n'est plus où il était, alors que son élément est à la même place qu'avant.
+        let keep = |a: &Option<crate::model::Anchor>, k: usize| {
+            a.clone().filter(|a| {
+                let Some(now) = frames.get(&a.element) else { return false };
+                let tip_moved = was.as_ref().is_some_and(|w| {
+                    let j = if k == 0 { 0 } else { w.len() - 1 };
+                    (w[j].0 - pts[k].0).abs() > 1e-9 || (w[j].1 - pts[k].1).abs() > 1e-9
+                });
+                !(tip_moved && old(&a.element).is_some_and(|o| o.frame == *now)) && !s.closed
+            })
+        };
+        let (start, end) = (keep(&attach.start, 0), keep(&attach.end, n - 1));
         let mut changed = false;
         for (a, k) in [(&start, 0), (&end, n - 1)] {
             if let Some(a) = a {
@@ -248,6 +249,47 @@ mod tests {
         follow_connectors(Some(&before), &mut after);
         assert!(props_of(get(&after, "a")).attach.is_some());
         assert!(close(ends(&after, "a")[1], (65.0, 50.0)));
+    }
+
+    /// Tirer un coude d'un chemin accroché : ses bouts n'ont pas bougé, il reste accroché.
+    #[test]
+    fn moving_an_elbow_keeps_the_attachment() {
+        let mut before = page();
+        let elbows = [(10.0, 50.0), (30.0, 80.0), (60.0, 50.0)];
+        if let Some(a) = before.elements.iter_mut().find(|e| e.id == "a")
+            && let ElementKind::Shape(s) = &mut a.kind
+        {
+            let (f, pts) = crate::shapes::path_frame(&elbows, s);
+            s.points = Some(pts);
+            a.frame = f;
+        }
+        let mut after = before.clone();
+        if let Some(a) = after.elements.iter_mut().find(|e| e.id == "a")
+            && let ElementKind::Shape(s) = &mut a.kind
+        {
+            let (f, pts) = crate::shapes::path_frame(&[(10.0, 50.0), (35.0, 95.0), (60.0, 50.0)], s);
+            s.points = Some(pts);
+            a.frame = f;
+        }
+        follow_connectors(Some(&before), &mut after);
+        assert!(props_of(get(&after, "a")).attach.is_some());
+    }
+
+    /// Un chemin fermé n'a pas de bouts : pas d'accroche.
+    #[test]
+    fn a_closed_path_has_no_attachment() {
+        let before = page();
+        let mut after = before.clone();
+        if let Some(a) = after.elements.iter_mut().find(|e| e.id == "a")
+            && let ElementKind::Shape(s) = &mut a.kind
+        {
+            let (f, pts) = crate::shapes::path_frame(&[(10.0, 50.0), (35.0, 95.0), (60.0, 50.0)], s);
+            s.points = Some(pts);
+            s.closed = true;
+            a.frame = f;
+        }
+        follow_connectors(Some(&before), &mut after);
+        assert_eq!(props_of(get(&after, "a")).attach, None);
     }
 
     #[test]

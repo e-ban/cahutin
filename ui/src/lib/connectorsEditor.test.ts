@@ -72,3 +72,56 @@ test("a document without attachment is returned as is", () => {
   const next = { ...doc, pages: [...doc.pages] };
   expect(followDoc(doc, next)).toBe(next);
 });
+
+// Actions qui gardent ou retirent l'accroche.
+import { convertToShape, removePathPoint, setClosed, setPathPoints, swapLineEnds } from "./elementEdit";
+import { extending } from "./extending.svelte";
+import { pasteElements } from "./clipboard";
+
+function pathSetup() {
+  const ids = setup();
+  setPathPoints(ids.a, [{ x: 10, y: 50 }, { x: 30, y: 80 }, { x: 60, y: 50 }]);
+  editor.selection = [ids.a];
+  return ids;
+}
+
+test("swap keeps the anchors at their points", () => {
+  const { a, r } = setup();
+  editor.selection = [a];
+  swapLineEnds();
+  expect(attach(a)?.end?.element).toBe(r);
+});
+
+test("dragging an elbow keeps the attachment, and closing or converting drops it", () => {
+  const { a, r } = pathSetup();
+  expect(attach(a)?.end?.element).toBe(r);
+  setClosed(true);
+  expect(attach(a)).toBeUndefined();
+  editor.undo();
+  convertToShape();
+  expect(attach(a)).toBeUndefined();
+});
+
+test("removing an attached end drops it", () => {
+  const { a } = pathSetup();
+  removePathPoint(a, 2);
+  expect(attach(a)).toBeUndefined();
+});
+
+test("extending from an attached end detaches it", () => {
+  const { a } = pathSetup();
+  extending.start(a, "end");
+  extending.add({ x: 120, y: 90 }, false, { xs: [], ys: [] }, 0);
+  extending.finish();
+  expect(attach(a)).toBeUndefined();
+});
+
+test("pasting arrow and label together reattaches to the copy; the arrow alone loses it", () => {
+  const { a, r } = setup();
+  const both = pasteElements(editor.page, [get(r), get(a)]);
+  const copyA = both.page.elements.find((e) => e.id === both.ids[1])!;
+  expect(copyA.kind.type === "Shape" && copyA.kind.attach?.end?.element).toBe(both.ids[0]);
+  const alone = pasteElements(editor.page, [get(a)]);
+  const copy = alone.page.elements.find((e) => e.id === alone.ids[0])!;
+  expect(copy.kind.type === "Shape" && copy.kind.attach).toBeFalsy();
+});

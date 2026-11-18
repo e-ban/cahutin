@@ -110,7 +110,7 @@ pub fn arrange(doc: &mut Document, args: &Value) -> Result<Value, String> {
                 })
                 .collect();
             let map: HashMap<Id, Id> = page.elements.iter().filter(|e| ids.contains(&e.id)).map(|e| e.id.clone()).zip(copies.iter().map(|c| c.id.clone())).collect();
-            let copies = remap_tables(copies, &map);
+            let copies = remap_attach(remap_tables(copies, &map), &map);
             let new_ids: Vec<Id> = copies.iter().map(|c| c.id.clone()).collect();
             page.elements.extend(copies);
             Ok(json!({ "element_ids": new_ids }))
@@ -154,6 +154,21 @@ pub(crate) fn remap_tables(mut copies: Vec<Element>, map: &HashMap<Id, Id>) -> V
             for cell in &mut t.cells {
                 cell.element_id = map[&cell.element_id].clone();
             }
+        }
+    }
+    copies
+}
+
+/// Une flèche copiée avec son élément s'accroche à sa copie ; copiée seule, elle n'est plus accrochée (`remapAttach`
+/// dans l'interface).
+pub(crate) fn remap_attach(mut copies: Vec<Element>, map: &HashMap<Id, Id>) -> Vec<Element> {
+    for c in &mut copies {
+        if let ElementKind::Shape(s) = &mut c.kind
+            && let Some(a) = s.attach.take()
+        {
+            let mv = |x: Option<carnet_core::model::Anchor>| x.and_then(|x| map.get(&x.element).map(|id| carnet_core::model::Anchor { element: id.clone(), at: x.at }));
+            let (start, end) = (mv(a.start), mv(a.end));
+            s.attach = (start.is_some() || end.is_some()).then_some(carnet_core::model::Attach { start, end });
         }
     }
     copies
@@ -340,6 +355,22 @@ mod tests {
         assert_eq!((copy.frame.x_mm, copy.frame.y_mm), (orig.frame.x_mm + 5.0, orig.frame.y_mm + 5.0));
         assert!(copy.group.is_some() && copy.group != orig.group);
         assert_eq!(el(&d, &copies[1]).group, copy.group);
+    }
+
+    #[test]
+    fn duplicate_remaps_attach() {
+        use carnet_core::model::{Anchor, AnchorPoint, Attach};
+        let mut d = doc();
+        let [a, b, _] = <[String; 3]>::try_from(ids(&d)).unwrap();
+        let target = a.clone();
+        if let Some(e) = d.pages[0].elements.iter_mut().find(|e| e.id == b) {
+            e.kind = ElementKind::Shape(carnet_core::ShapeProps { shape: carnet_core::ShapeKind::Arrow, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: Some(Attach { start: None, end: Some(Anchor { element: target.clone(), at: AnchorPoint::Left }) }) });
+        }
+        group(&mut d, &json!({ "element_ids": [a, b] })).unwrap();
+        let out = arrange(&mut d, &json!({ "element_id": a, "action": "duplicate" })).unwrap();
+        let copies: Vec<String> = out["element_ids"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_string()).collect();
+        let ElementKind::Shape(s) = &el(&d, &copies[1]).kind else { panic!() };
+        assert_eq!(s.attach.as_ref().and_then(|a| a.end.as_ref()).map(|a| a.element.clone()), Some(copies[0].clone()));
     }
 
     #[test]

@@ -22,8 +22,6 @@ export function anchorPoint(f: Frame, at: AnchorPoint): Pt {
 const isLine = (e: Element) => e.kind.type === "Shape" && (e.kind.shape === "Line" || e.kind.shape === "Arrow");
 const attachOf = (e: Element): Attach | undefined => (e.kind.type === "Shape" && isLine(e) ? (e.kind.attach ?? undefined) : undefined);
 const sameFrame = (a: Frame, b: Frame) => a.x_mm === b.x_mm && a.y_mm === b.y_mm && a.w_mm === b.w_mm && a.h_mm === b.h_mm && a.rotation_deg === b.rotation_deg;
-const samePoints = (a: [number, number][] | null | undefined, b: [number, number][] | null | undefined) =>
-  a === b || (!!a && !!b && a.length === b.length && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1]));
 
 /** Le trait sans son accroche (d'un bout, ou des deux). */
 export function withoutAttach(e: Element, which?: "start" | "end"): Element {
@@ -41,8 +39,8 @@ function clean<T extends object>(o: T): T {
 
 /**
  * La règle des connecteurs, après une modification de la page (`before` : la page d'avant, ou `null`).
- * 1. Décrocher : un bout accroché dont le trait a bougé (cadre, points, miroir) alors que son élément n'a pas bougé
- *    perd son accroche (on a déplacé la flèche seule).
+ * 1. Décrocher : un bout accroché qui a bougé alors que son élément n'a pas bougé perd son accroche (on a déplacé
+ *    la flèche seule, ou tiré ce bout) ; un chemin fermé n'a pas d'accroche.
  * 2. Suivre : chaque bout encore accroché va sur le point de son élément ; un élément absent le décroche. Les coudes
  *    d'un chemin restent ; le cadre est recalculé (`fromPagePoints`).
  * `live` : cadres en cours d'un geste (affichage seul) ; ils remplacent ceux de la page, sans rien décrocher.
@@ -57,18 +55,22 @@ export function followConnectors(before: Page | null, after: Page, live?: Map<st
   const out = elements.map((e) => {
     const attach = attachOf(e);
     if (!attach || e.kind.type !== "Shape") return e;
+    const pts = pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v);
     const o = live ? undefined : old.get(e.id);
-    const lineMoved = !!o && o.kind.type === "Shape" && (!sameFrame(o.frame, e.frame) || !samePoints(o.kind.points, e.kind.points) || !!o.flip_h !== !!e.flip_h || !!o.flip_v !== !!e.flip_v);
-    const keep = (a: Anchor | null | undefined): Anchor | undefined => {
-      if (!a) return undefined;
+    const wasPts = o && o.kind.type === "Shape" ? pagePoints(o.frame, o.kind, !!o.flip_h, !!o.flip_v) : null;
+    const closed = !!e.kind.closed;
+    // Un bout a bougé seul : il n'est plus où il était, alors que son élément est à la même place qu'avant.
+    const keep = (a: Anchor | null | undefined, k: number): Anchor | undefined => {
+      if (!a || closed) return undefined;
       const now = frames.get(a.element);
       if (!now) return undefined;
+      const w = wasPts ? wasPts[k === 0 ? 0 : wasPts.length - 1] : null;
+      const tipMoved = !!w && (Math.abs(w.x - pts[k].x) > 1e-9 || Math.abs(w.y - pts[k].y) > 1e-9);
       const was = old.get(a.element);
-      return lineMoved && was && sameFrame(was.frame, now) ? undefined : a;
+      return tipMoved && was && sameFrame(was.frame, now) ? undefined : a;
     };
-    const start = keep(attach.start);
-    const end = keep(attach.end);
-    const pts = pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v);
+    const start = keep(attach.start, 0);
+    const end = keep(attach.end, pts.length - 1);
     let moved = false;
     for (const [a, k] of [[start, 0], [end, pts.length - 1]] as const) {
       if (!a) continue;

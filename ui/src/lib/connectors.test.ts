@@ -128,3 +128,19 @@ test("lines are never targets, a table cell gives its table", () => {
   const q = { ...p, elements: [...p.elements, table, cell] };
   expect(attachTarget(q, { x: 5, y: 105 }, "a", 2)!.element.id).toBe("t");
 });
+
+test("moving an elbow keeps the attachment; a closed path has none", () => {
+  const base = page();
+  const withPts = (p: Page, pts: Pt[], closed = false) =>
+    moved(p, "a", (e) => {
+      if (e.kind.type !== "Shape") return e;
+      const k = { ...e.kind, closed: closed || undefined };
+      const fp = fromPagePoints(pts, k);
+      return { ...e, frame: fp.frame, kind: { ...k, ...fp.patch } };
+    });
+  const before = withPts(base, [{ x: 10, y: 50 }, { x: 30, y: 80 }, { x: 60, y: 50 }]);
+  const after = followConnectors(before, withPts(before, [{ x: 10, y: 50 }, { x: 35, y: 95 }, { x: 60, y: 50 }]));
+  expect(attachOf(after, "a")).toBeDefined();
+  const closed = followConnectors(before, withPts(before, [{ x: 10, y: 50 }, { x: 35, y: 95 }, { x: 60, y: 50 }], true));
+  expect(attachOf(closed, "a")).toBeUndefined();
+});

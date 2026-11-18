@@ -4,7 +4,7 @@
 import { newId } from "./factory";
 import { dissolveSmallGroups, expandSelection, pathOf, withPath } from "./groups";
 import { remapTables } from "./table";
-import type { Element, Page } from "./types";
+import type { Anchor, Element, Page } from "./types";
 
 export const PASTE_OFFSET_MM = 5;
 
@@ -35,8 +35,8 @@ export function pasteElements(page: Page, copied: Element[], offsetMm = PASTE_OF
       pathOf(e).map((g) => regroup(g)!),
     ),
   );
-  // Un tableau collé désigne ses cases collées.
-  const elements = remapTables(pasted, ids);
+  // Un tableau collé désigne ses cases collées ; une flèche collée avec son élément s'accroche à sa copie.
+  const elements = remapAttach(remapTables(pasted, ids), ids);
   return { page: { ...page, elements: [...page.elements, ...elements] }, ids: elements.map((e) => e.id) };
 }
 
@@ -95,5 +95,20 @@ export function removeElements(page: Page, ids: string[], withLocked = false): P
     ...page,
     elements: page.elements.filter((e) => !gone.has(e.id)),
     grid: page.grid && cells && cells.length > 0 ? { ...page.grid, cells } : null,
+  });
+}
+
+/** Les accroches des flèches collées : vers la copie de leur élément s'il est collé en même temps, sinon retirées
+ *  (la copie d'une flèche seule n'est pas accrochée à l'original). */
+function remapAttach(elements: Element[], ids: Map<string, string>): Element[] {
+  return elements.map((e) => {
+    if (e.kind.type !== "Shape" || !e.kind.attach) return e;
+    const move = (a: Anchor | null | undefined) => (a && ids.has(a.element) ? { ...a, element: ids.get(a.element)! } : undefined);
+    const start = move(e.kind.attach.start);
+    const end = move(e.kind.attach.end);
+    const { attach: _drop, ...kind } = e.kind;
+    void _drop;
+    const attach = Object.fromEntries(Object.entries({ start, end }).filter(([, v]) => v));
+    return { ...e, kind: start || end ? { ...kind, attach } : kind };
   });
 }

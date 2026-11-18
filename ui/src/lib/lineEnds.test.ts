@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { dragEnd, endsOf, frameFromEndpoints, headWidthMm, lineEndpoints, normalizeEnds, withHitHeight } from "./lineEnds";
+import { dragEnd, endsOf, isLineTarget, frameFromEndpoints, headWidthMm, lineEndpoints, normalizeEnds, withHitHeight } from "./lineEnds";
 import type { Frame, LineEnds, ShapeProps } from "./types";
 
 const shape = (kind: "Line" | "Arrow", width_mm: number, ends: LineEnds | null = null): ShapeProps => ({
@@ -109,4 +109,14 @@ test("headWidthMm matches the Rust sizes", () => {
   expect(headWidthMm(shape("Arrow", 2))).toBe(8);
   expect(headWidthMm(shape("Arrow", 1, { start: "None", end: "Arrow", size: "Small" }))).toBeCloseTo(2.8, 9);
   expect(headWidthMm(shape("Arrow", 2, { start: "None", end: "Arrow", size: "Large" }))).toBeCloseTo(12, 9);
+});
+
+test("isLineTarget: lines and arrows, never a graphisme base line", () => {
+  const el = (kind: ShapeProps) => ({ id: "a", frame: frame(0), locked: false, zone: false, kind: { type: "Shape" as const, ...kind }, subgroups: [], flip_h: false, flip_v: false });
+  expect(isLineTarget(el(shape("Arrow", 1)))).toBe(true);
+  expect(isLineTarget(el(shape("Line", 1)))).toBe(true);
+  expect(isLineTarget(el({ ...shape("Line", 1), shape: "Rect" }))).toBe(false);
+  const recipe = { motif: "ponts", level: "MS", cells: [], guides: "Base", arrow: true } as unknown as NonNullable<ShapeProps["graphisme"]>;
+  expect(isLineTarget(el({ ...shape("Line", 1), graphisme: recipe }))).toBe(false);
+  expect(isLineTarget(undefined)).toBe(false);
 });

@@ -45,6 +45,7 @@
   import { readPref, writePref } from "./lib/prefs";
   import UpdateBanner from "./components/layout/UpdateBanner.svelte";
   import { updates } from "./lib/updates.svelte";
+  import LineHandles from "./components/LineHandles.svelte";
   import Transformer from "./components/Transformer.svelte";
   import GroupTransformer from "./components/GroupTransformer.svelte";
   import BottomBar from "./components/layout/BottomBar.svelte";
@@ -418,6 +419,7 @@
     <!-- Pendant une proposition de l'assistant, la page ne se modifie pas : ni poignées ni barre d'outils. -->
     {#if !editor.proposing}
       <Transformer {pageEl} zoom={editor.effectiveZoom} />
+      <LineHandles {pageEl} zoom={editor.effectiveZoom} />
       <GroupTransformer {pageEl} zoom={editor.effectiveZoom} onpick={select} />
       <ContextBar {pageEl} {stageEl} />
     {/if}
@@ -510,6 +512,10 @@
   /* Poignée de rotation à 28 px de l'élément (40 chez Moveable) : la barre d'outils au-dessus ne la couvre pas. */
   :global(.moveable-rotation) {
     height: calc(28px * var(--zoom, 1)) !important;
+  }
+  /* Un trait : ni cadre ni poignées de taille, ses bouts ont leurs propres poignées (LineHandles). */
+  :global(.cahutin-line .moveable-line) {
+    display: none !important;
   }
   /* Grandes poignées : deux fois plus grosses, pour le doigt ou une souris difficile. */
   :global(:root[data-big-handles] .moveable-control) {

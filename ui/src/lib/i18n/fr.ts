@@ -343,6 +343,7 @@ export const fr = {
   roundedRect: "Rectangle arrondi",
   line: "Trait",
   arrow: "Flèche",
+  lineHandleHint: "Tirer pour déplacer ce bout (Maj : angles de 45°)",
   star: "Étoile",
   heart: "Cœur",
   bubble: "Bulle de parole",

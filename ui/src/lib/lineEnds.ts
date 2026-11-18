@@ -3,7 +3,7 @@
 // (crates/carnet-core/src/odg/content.rs, `line_ends`).
 import { SNAP_MM } from "./geometry";
 import { HEAD_FACTORS } from "./shapePaths";
-import type { Frame, LineEnds, ShapeKind, ShapeProps } from "./types";
+import type { Element, Frame, LineEnds, ShapeKind, ShapeProps } from "./types";
 
 /** Un point de la page, en mm. */
 export type Pt = { x: number; y: number };
@@ -103,4 +103,9 @@ export function withHitHeight(f: Frame, s: ShapeProps): Frame {
   if (f.h_mm >= h) return f;
   const cy = f.y_mm + f.h_mm / 2;
   return { ...f, y_mm: cy - h / 2, h_mm: h };
+}
+
+/** Un trait ou une flèche qui se règle par ses bouts : jamais la ligne de base d'un graphisme (sa recette la place). */
+export function isLineTarget(e: Element | undefined): boolean {
+  return e?.kind.type === "Shape" && (e.kind.shape === "Line" || e.kind.shape === "Arrow") && !e.kind.graphisme;
 }

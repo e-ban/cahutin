@@ -9,7 +9,8 @@
   import { DRAG_DEAD_ZONE_PX, GUIDE_MARGIN_MM, handlePadding, keepsRatio, shiftHeld, ROTATE_STEP_DEG, SNAP_MM, rectPxToFrame, settleMove, settleResize, snapLines, type RectPx } from "../lib/geometry";
   import { boundsOf } from "../lib/groups";
   import { settings } from "../lib/settings.svelte";
-  import { isPlacedCell } from "../lib/table";
+  import { handleTarget } from "../lib/handleTarget";
+  import { isLineTarget } from "../lib/lineEnds";
   import { PX_PER_MM, mmToPx } from "../lib/units";
   import { IS_LINUX, moveableCursorCss } from "../lib/cursors";
   import { pixelRatio } from "../lib/pixelRatio.svelte";
@@ -21,12 +22,9 @@
   let movedId: string | null = null;
   let live: RectPx | null = null;
 
-  const target = $derived.by(() => {
-    const e = editor.selected;
-    if (!e || (e.locked && !editor.templateMode) || editor.cropping === e.id || editor.editingText === e.id) return null;
-    // Une case de grille ou de tableau reste à sa place : la grille la place.
-    return isPlacedCell(editor.page, e.id) ? null : e;
-  });
+  const target = $derived(handleTarget());
+  // Un trait se règle par ses bouts (LineHandles) : ici, on le déplace seulement, sans cadre ni poignées.
+  const line = $derived(isLineTarget(target ?? undefined));
 
   function start() {
     const e = target;
@@ -64,10 +62,10 @@
   function create(el: HTMLElement): Moveable {
     const m = new Moveable(pageEl!, {
       target: el,
-      className: "cahutin-single",
+      className: line ? "cahutin-single cahutin-line" : "cahutin-single",
       draggable: true,
-      resizable: true,
-      rotatable: true,
+      resizable: !line,
+      rotatable: !line,
       snappable: true,
       origin: false,
       throttleDrag: 0,
@@ -145,7 +143,8 @@
         movedId = null;
         return;
       }
-      if (!moveable || movedId !== t!.id) {
+      // Un trait devenu rectangle (ou l'inverse) change de poignées : nouvelle instance.
+      if (!moveable || movedId !== t!.id || moveable.resizable === line) {
         moveable?.destroy();
         moveable = create(el);
         movedId = t!.id;

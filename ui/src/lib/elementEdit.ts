@@ -103,14 +103,8 @@ const lineEnds = (patch: (ends: LineEnds) => LineEnds) => (e: Element): Element 
 
 export const setLineEnd = (which: "start" | "end", end: LineEnd) => updateLines(lineEnds((x) => ({ ...x, [which]: end })));
 export const setHeadSize = (size: HeadSize) => updateLines(lineEnds((x) => ({ ...x, size })));
-/** Les terminaisons changent de bout ; le trait ne bouge pas. */
-export const swapLineEnds = () =>
-  updateLines((e) => {
-    const swapped = lineEnds((x) => ({ ...x, start: x.end, end: x.start }))(e);
-    // Un chemin se parcourt à l'envers : son premier point devient le dernier.
-    if (swapped.kind.type !== "Shape" || !isPath(swapped.kind)) return swapped;
-    return throughPoints(swapped, swapped.kind, pagePoints(swapped.frame, swapped.kind, !!swapped.flip_h, !!swapped.flip_v).reverse());
-  });
+/** Les terminaisons changent de bout ; le trait (ou le chemin) ne bouge pas. */
+export const swapLineEnds = () => updateLines(lineEnds((x) => ({ ...x, start: x.end, end: x.start })));
 
 /** Le trait `id` passe désormais par `pts` (mm de page), en un pas d'annulation : deux points, un trait droit. */
 export function setPathPoints(id: string, pts: Pt[]) {

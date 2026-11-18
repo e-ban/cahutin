@@ -1727,8 +1727,10 @@ impl<R: Read + Seek> PageReader<'_, R> {
                     _ => None,
                 });
                 match drawing {
-                    // Ouvert et sans fond, de 3 à 200 points : un chemin de Cahutin, avec ses terminaisons.
-                    Some(d) if let Some((pts, curve)) = d.editable_points() => self.path_from(n, &pts, curve),
+                    // Dans un vrai dessin LibreOffice (pas un Word, PDF ou Publisher passé par `draw_pdf_import`, dont
+                    // les traits d'un coloriage ou d'un graphique resteraient des centaines d'éléments) : ouvert et sans
+                    // fond, de 3 à 200 points, un chemin de Cahutin, avec ses terminaisons.
+                    Some(d) if self.whole_frames && let Some((pts, curve)) = d.editable_points() => self.path_from(n, &pts, curve),
                     Some(d) => self.drawings.push(d.with_dash(g.dash)),
                     None => self.skipped += 1,
                 }

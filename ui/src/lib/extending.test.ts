@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { editor } from "./docStore.svelte";
 import { setPathPoints } from "./elementEdit";
-import { extending } from "./extending.svelte";
+import { extendKey, extending } from "./extending.svelte";
 import { newDocument, shapeElement } from "./factory";
 import { pagePoints, type Pt } from "./linePath";
 
@@ -72,4 +72,50 @@ test("finish without any point changes nothing", () => {
   extending.finish();
   expect(editor.doc).toBe(before);
   expect(extending.active).toBe(false);
+});
+
+test("an outside change during an empty session is kept", () => {
+  const id = oneLine();
+  extending.start(id, "end");
+  editor.updatePage((p) => ({ ...p, elements: [] }));
+  const after = editor.doc;
+  extending.finish();
+  expect(editor.doc).toBe(after);
+  expect(editor.page.elements).toHaveLength(0);
+});
+
+test("opening another document ends the session first", () => {
+  const id = oneLine();
+  extending.start(id, "end");
+  extending.add({ x: 150, y: 200 }, false, noLines, 0);
+  editor.flushPending();
+  expect(extending.active).toBe(false);
+  expect(pointsOf(id)).toHaveLength(3);
+  const other = newDocument();
+  editor.reset(other, null);
+  expect(editor.doc).toBe(other);
+});
+
+test("a document opened without flush is left alone", () => {
+  const id = oneLine();
+  extending.start(id, "end");
+  extending.add({ x: 150, y: 200 }, false, noLines, 0);
+  const other = newDocument();
+  editor.reset(other, null);
+  extending.finish();
+  expect(editor.doc).toBe(other);
+  expect(editor.dirty).toBe(false);
+});
+
+test("keys during a session", () => {
+  const k = (key: string, o: { ctrl?: boolean; shift?: boolean } = {}) => extendKey({ key, ctrlKey: !!o.ctrl, metaKey: false, shiftKey: !!o.shift });
+  expect(k("Escape")).toBe("finish");
+  expect(k("Enter")).toBe("finish");
+  expect(k("z", { ctrl: true })).toBe("undo");
+  expect(k("Z", { ctrl: true, shift: true })).toBe("pass");
+  expect(k("ArrowLeft")).toBe("pass");
+  expect(k("o", { ctrl: true })).toBe("pass");
+  expect(k("Delete")).toBe("pass");
+  expect(k("Shift")).toBe("ignore");
+  expect(k("Control")).toBe("ignore");
 });

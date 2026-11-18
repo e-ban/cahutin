@@ -1993,6 +1993,15 @@ mod tests {
         assert!(s.points.is_some());
     }
 
+    /// Un document Word, PDF ou Publisher (lu après `draw_pdf_import`) garde ses polylignes en tracés : seul un vrai
+    /// dessin LibreOffice les rend modifiables point par point.
+    #[test]
+    fn office_import_keeps_polylines_as_traces() {
+        let d = doc_with(vec![path_el(ShapeKind::Arrow, &ELBOWS, false, None)]);
+        let back = crate::import::odg::read_odg(Cursor::new(edited_odg(&d, "content.xml", |x| x)), &[]).unwrap();
+        assert!(back.pages[0].elements.iter().all(|e| !matches!(&e.kind, ElementKind::Shape(s) if s.points.is_some())), "{:?}", back.pages[0].elements);
+    }
+
     /// Une courbe dessinée ailleurs (Bézier quelconque) reste un tracé libre : elle ne change pas de forme.
     #[test]
     fn foreign_bezier_stays_a_path() {

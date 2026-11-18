@@ -129,13 +129,13 @@ test("setPathPoints is one undo step", () => {
   expect(shapeOf(a.id).e).toEqual(before);
 });
 
-test("swapLineEnds reverses the points", () => {
+test("swapLineEnds on a path moves the arrowhead to the other end, points stay", () => {
   const { a } = threeShapes();
   setPathPoints(a.id, pts3);
   editor.selection = [a.id];
   swapLineEnds();
   const got = pointsOf(a.id);
-  [...pts3].reverse().forEach((p, i) => {
+  pts3.forEach((p, i) => {
     expect(got[i].x).toBeCloseTo(p.x, 9);
     expect(got[i].y).toBeCloseTo(p.y, 9);
   });

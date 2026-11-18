@@ -17,6 +17,11 @@ class Extending {
   id = "";
   from: "start" | "end" = "end";
   #base: Document | null = null;
+  /** Le dernier aperçu montré par cette séance, et le document ouvert à son début : `finish` ne touche au document
+   *  que s'il est encore là (une autre action, un autre document, ne sont jamais défaits). */
+  #shown: Document | null = null;
+  #generation = 0;
+  #unflush: (() => void) | null = null;
   #pts = $state.raw<Pt[]>([]);
   #added = 0;
 
@@ -41,6 +46,10 @@ class Extending {
     this.#added = 0;
     this.full = false;
     this.preview = null;
+    this.#shown = null;
+    this.#generation = editor.generation;
+    // Enregistrer, ouvrir un autre document, fermer : la séance se termine d'abord (un pas d'annulation).
+    this.#unflush = editor.onFlush(() => this.finish());
     this.active = true;
   }
 
@@ -76,11 +85,17 @@ class Extending {
   /** Fin du prolongement : un seul pas d'annulation s'il a ajouté des points, rien sinon. */
   finish() {
     if (!this.active) return;
-    if (this.#added === 0 && this.#base) editor.preview(this.#base);
-    editor.endPreview();
+    this.#unflush?.();
+    this.#unflush = null;
+    // Le document montre encore notre aperçu : il devient un pas d'annulation (ou rien, sans point ajouté).
+    if (this.#shown && editor.doc === this.#shown && editor.generation === this.#generation) {
+      if (this.#added === 0 && this.#base) editor.preview(this.#base);
+      editor.endPreview();
+    }
     this.active = false;
     this.preview = null;
     this.#base = null;
+    this.#shown = null;
   }
 
   #show() {
@@ -89,8 +104,18 @@ class Extending {
     const e = page?.elements.find((o) => o.id === this.id);
     if (!e || e.kind.type !== "Shape") return;
     const moved = throughPoints(e, e.kind, this.#pts);
-    editor.preview({ ...base, pages: base.pages.map((p, k) => (k === editor.pageIndex ? { ...p, elements: p.elements.map((o) => (o.id === e.id ? moved : o)) } : p)) });
+    this.#shown = { ...base, pages: base.pages.map((p, k) => (k === editor.pageIndex ? { ...p, elements: p.elements.map((o) => (o.id === e.id ? moved : o)) } : p)) };
+    editor.preview(this.#shown);
   }
+}
+
+/** Une touche pendant un prolongement : Échap et Entrée le terminent, Ctrl+Z retire le dernier point, une touche de
+ *  modification seule ne fait rien ; toute autre touche (raccourci, flèche, Suppr) le termine puis fait son effet. */
+export function extendKey(ev: { key: string; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }): "finish" | "undo" | "pass" | "ignore" {
+  if (ev.key === "Escape" || ev.key === "Enter") return "finish";
+  if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && ev.key.toLowerCase() === "z") return "undo";
+  if (["Shift", "Control", "Alt", "Meta", "AltGraph"].includes(ev.key)) return "ignore";
+  return "pass";
 }
 
 export const extending = new Extending();

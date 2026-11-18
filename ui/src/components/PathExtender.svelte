@@ -4,7 +4,7 @@
   // menu, une autre page, un clic droit, Échap, Entrée ou un clic sur le dernier point posé le terminent.
   // Ctrl+Z retire le dernier point posé. Un trait fin pointillé va du bout à la souris.
   import { editor } from "../lib/docStore.svelte";
-  import { extending } from "../lib/extending.svelte";
+  import { extendKey, extending } from "../lib/extending.svelte";
   import { snapLines } from "../lib/geometry";
   import { boundsOf } from "../lib/groups";
   import { fr } from "../lib/i18n/fr";
@@ -101,15 +101,13 @@
       if (hint) hint = { x: ev.clientX, y: ev.clientY };
     };
     const key = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape" || ev.key === "Enter") {
-        ev.preventDefault();
-        ev.stopPropagation();
-        finish();
-      } else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z" && !ev.shiftKey) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        extending.undoLast();
-      }
+      const what = extendKey(ev);
+      if (what === "ignore") return;
+      if (what === "pass") return finish();
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (what === "finish") finish();
+      else extending.undoLast();
     };
     window.addEventListener("pointerdown", down, true);
     window.addEventListener("pointermove", moveAt, true);

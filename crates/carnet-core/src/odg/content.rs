@@ -674,12 +674,14 @@ impl Writer<'_> {
 
     fn shape(&mut self, e: &Element, s: &ShapeProps) {
         let stroke_only = shapes::is_stroke_only(s.shape);
+        // Un chemin fermé : rempli comme une forme, sans terminaisons (il n'a pas de bouts).
+        let closed_path = stroke_only && s.closed && shapes::path_page_points(&e.frame, s, e.flip_h, e.flip_v).is_some();
         let mut props = match &s.fill {
-            Some(c) if !stroke_only => vec![("draw:fill", "solid".into()), ("draw:fill-color", c.clone())],
+            Some(c) if !stroke_only || closed_path => vec![("draw:fill", "solid".into()), ("draw:fill-color", c.clone())],
             _ => vec![("draw:fill", "none".into())],
         };
         props.extend(stroke(self.reg, s.stroke.as_ref()));
-        if stroke_only {
+        if stroke_only && !closed_path {
             // Terminaisons : la première au bout x1, la seconde au bout x2 ; le miroir échange les deux bouts et leurs
             // terminaisons ensemble. Rond et carré, centrés sur le bout, sont plus petits qu'une pointe.
             let ends = shapes::ends_of(s);
@@ -716,16 +718,20 @@ impl Writer<'_> {
             a.push(("svg:viewBox", format!("0 0 {} {}", um(w), um(h))));
             if s.curve {
                 let mut d = { let (x, y) = at(pts[0]); format!("M {x} {y}") };
-                for [c1, c2, p] in shapes::curve_beziers(&pts) {
+                let curve = if s.closed { shapes::closed_curve_beziers(&pts) } else { shapes::curve_beziers(&pts) };
+                for [c1, c2, p] in curve {
                     let ((ax, ay), (bx, by), (px, py)) = (at(c1), at(c2), at(p));
                     d.push_str(&format!(" C {ax} {ay} {bx} {by} {px} {py}"));
+                }
+                if s.closed {
+                    d.push_str(" Z");
                 }
                 a.push(("svg:d", d));
                 self.body.empty("draw:path", &attrs(&a));
             } else {
                 let points = pts.iter().map(|&p| { let (x, y) = at(p); format!("{x},{y}") }).collect::<Vec<_>>().join(" ");
                 a.push(("draw:points", points));
-                self.body.empty("draw:polyline", &attrs(&a));
+                self.body.empty(if s.closed { "draw:polygon" } else { "draw:polyline" }, &attrs(&a));
             }
             return;
         }

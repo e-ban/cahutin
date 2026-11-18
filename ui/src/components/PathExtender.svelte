@@ -84,6 +84,13 @@
       const p = toPage(ev);
       const tip = extending.tip;
       if (!p) return;
+      // Clic sur l'autre bout, à partir de trois points : le chemin se ferme.
+      const other = extending.otherEnd;
+      if (extending.canClose && other && Math.hypot(p.x - other.x, p.y - other.y) * PX_PER_MM * zoom < DONE_PX) {
+        extending.close();
+        hint = null;
+        return;
+      }
       // Second clic d'un double-clic (même endroit, aussitôt), ou clic sur le dernier point posé : fin.
       const now = performance.now();
       const again = lastClick && now - lastClick.t < 500 && Math.hypot(ev.clientX - lastClick.x, ev.clientY - lastClick.y) < DONE_PX;

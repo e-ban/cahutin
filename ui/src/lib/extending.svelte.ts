@@ -24,6 +24,8 @@ class Extending {
   #unflush: (() => void) | null = null;
   #pts = $state.raw<Pt[]>([]);
   #added = 0;
+  /** La séance se termine en fermant le chemin. */
+  #closing = false;
 
   /** Points du chemin en cours, dans l'ordre du trait. */
   get points(): Pt[] {
@@ -44,6 +46,7 @@ class Extending {
     this.#base = editor.doc;
     this.#pts = pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v);
     this.#added = 0;
+    this.#closing = false;
     this.full = false;
     this.preview = null;
     this.#shown = null;
@@ -72,6 +75,25 @@ class Extending {
     this.#pts = extend(this.#pts, this.from, this.snap(p, shift, lines, tolMm));
     this.#added++;
     this.#show();
+  }
+
+  /** Le chemin a assez de points pour se fermer (un clic sur l'autre bout le ferme). */
+  get canClose(): boolean {
+    return this.active && this.#pts.length >= 3;
+  }
+
+  /** L'autre bout du chemin, celui qu'un clic ferme. */
+  get otherEnd(): Pt | null {
+    return this.#pts.length ? this.#pts[this.from === "end" ? 0 : this.#pts.length - 1] : null;
+  }
+
+  /** Ferme le chemin et termine la séance (un seul pas d'annulation avec les points posés). */
+  close() {
+    if (!this.canClose) return;
+    this.#closing = true;
+    this.#show();
+    this.#added++;
+    this.finish();
   }
 
   /** Retire le dernier point ajouté pendant cette séance. */
@@ -103,7 +125,7 @@ class Extending {
     const page = base.pages[editor.pageIndex];
     const e = page?.elements.find((o) => o.id === this.id);
     if (!e || e.kind.type !== "Shape") return;
-    const moved = throughPoints(e, e.kind, this.#pts);
+    const moved = throughPoints(e, this.#closing ? { ...e.kind, closed: true } : e.kind, this.#pts);
     this.#shown = { ...base, pages: base.pages.map((p, k) => (k === editor.pageIndex ? { ...p, elements: p.elements.map((o) => (o.id === e.id ? moved : o)) } : p)) };
     editor.preview(this.#shown);
   }

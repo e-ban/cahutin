@@ -15,6 +15,14 @@ const DPI: f64 = 200.0;
 /// Plus grand côté de l'image, en pixels (comme les photos).
 const MAX_PX: f64 = 3000.0;
 
+/// Un tracé importé qui devient un chemin de Cahutin (voir `Drawing::editable_points`).
+pub(super) struct EditablePath {
+    pub pts: Vec<(f64, f64)>,
+    pub curve: bool,
+    pub closed: bool,
+    pub fill: Option<String>,
+}
+
 pub(super) struct Drawing {
     /// Tracé en mm, dans le repère de la page.
     path: Path,
@@ -132,18 +140,22 @@ impl Drawing {
         Some((frame, ShapeProps { shape: ShapeKind::Path, fill: self.fill_hex.clone(), stroke, corner_radius_mm: 0.0, path: Some(path), graphisme: None, ends: None, points: None, curve: false, closed: false }))
     }
 
-    /// Un tracé ouvert, sans fond, fait d'un seul morceau : ses points (mm de page) s'il se règle point par point
-    /// comme un chemin de Cahutin. Segments droits : un chemin à coudes ; cubiques qui sont exactement la courbe de
-    /// Cahutin passant par leurs extrémités (à 0,5 % de la taille du tracé près) : un chemin courbe. 3 à 200 points.
-    pub(super) fn editable_points(&self) -> Option<(Vec<(f64, f64)>, bool)> {
-        if self.fill.is_some() || self.stroke.is_none() {
+    /// Un tracé fait d'un seul morceau qui se règle point par point comme un chemin de Cahutin : ses points (mm de
+    /// page), s'il est en courbe, s'il est fermé, et son fond (seulement fermé). Segments droits : un chemin à coudes ;
+    /// cubiques qui sont exactement la courbe de Cahutin passant par leurs extrémités (à 0,5 % de la taille du tracé
+    /// près) : un chemin courbe. 3 à 200 points. Ouvert, il n'a pas de fond.
+    pub(super) fn editable_points(&self) -> Option<EditablePath> {
+        if self.stroke.is_none() {
             return None;
         }
         let mut segs = self.path.segments();
         let PathSegment::MoveTo(first) = segs.next()? else { return None };
         let mut pts = vec![(first.x as f64, first.y as f64)];
-        let (mut lines, mut cubics) = (0, Vec::new());
+        let (mut lines, mut cubics, mut closed) = (0, Vec::new(), false);
         for seg in segs {
+            if closed {
+                return None;
+            }
             match seg {
                 PathSegment::LineTo(p) => {
                     lines += 1;
@@ -153,20 +165,29 @@ impl Drawing {
                     cubics.push([(c1.x as f64, c1.y as f64), (c2.x as f64, c2.y as f64)]);
                     pts.push((p.x as f64, p.y as f64));
                 }
+                PathSegment::Close => closed = true,
                 _ => return None,
             }
         }
-        if !(3..=crate::shapes::MAX_PATH_POINTS).contains(&pts.len()) || (lines > 0 && !cubics.is_empty()) {
+        if (self.fill.is_some() && !closed) || (lines > 0 && !cubics.is_empty()) {
             return None;
-        }
-        if cubics.is_empty() {
-            return Some((pts, false));
         }
         let b = self.path.bounds();
         let tol = 0.005 * (b.width() as f64).hypot(b.height() as f64);
         let close = |a: (f64, f64), b: (f64, f64)| (a.0 - b.0).hypot(a.1 - b.1) <= tol;
-        let ours = crate::shapes::curve_beziers(&pts);
-        ours.iter().zip(&cubics).all(|(o, c)| close(o[0], c[0]) && close(o[1], c[1])).then_some((pts, true))
+        // Fermé : un dernier point revenu sur le premier n'en est pas un de plus.
+        if closed && pts.len() > 1 && close(pts[0], pts[pts.len() - 1]) {
+            pts.pop();
+        }
+        if !(3..=crate::shapes::MAX_PATH_POINTS).contains(&pts.len()) {
+            return None;
+        }
+        let fill = if closed { self.fill_hex.clone() } else { None };
+        if cubics.is_empty() {
+            return Some(EditablePath { pts, curve: false, closed, fill });
+        }
+        let ours = if closed { crate::shapes::closed_curve_beziers(&pts) } else { crate::shapes::curve_beziers(&pts) };
+        (ours.len() == cubics.len() && ours.iter().zip(&cubics).all(|(o, c)| close(o[0], c[0]) && close(o[1], c[1]))).then_some(EditablePath { pts, curve: true, closed, fill })
     }
 
     /// Le motif de pointillé du document (trait, espace, en mm).

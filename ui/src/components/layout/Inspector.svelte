@@ -13,7 +13,7 @@
   import { hasTemplateRole, templateRole, withTemplateRole } from "../../lib/templateRole";
   import { isStrokeOnly } from "../../lib/shapePaths";
   import { editLine, endsOf, isLineTarget, lineEndpoints } from "../../lib/lineEnds";
-  import { setCurve, setHeadSize, setLineEnd, setPathPoints, swapLineEnds } from "../../lib/elementEdit";
+  import { setClosed, setCurve, setHeadSize, setLineEnd, setPathPoints, swapLineEnds } from "../../lib/elementEdit";
   import { isPath, pagePoints } from "../../lib/linePath";
   import LineEndPicker from "../LineEndPicker.svelte";
   import { fonts } from "../../lib/fonts.svelte";
@@ -391,7 +391,7 @@
     {#if selected.kind.type === "Shape"}
       {@const s = selected.kind}
       <Section id="look" title={fr.sectionLook}>
-      {#if !isStrokeOnly(s.shape)}
+      {#if !isStrokeOnly(s.shape) || (asPath && s.closed)}
       <div class="field">
         <span>Remplissage</span>
         <ColorPicker value={s.fill} allowNone onchange={(c) => updateShape({ fill: c })} />
@@ -418,13 +418,19 @@
       </div>
       {#if asLine}
         {@const ends = endsOf(s)}
-        {#each [["start", fr.lineStart], ["end", fr.lineEnd]] as const as [which, label] (which)}
-          <div class="field">
-            <span>{label}</span>
-            <LineEndPicker {which} value={ends[which]} size={ends.size} onpick={(e) => setLineEnd(which, e)} onsize={setHeadSize} />
-          </div>
-        {/each}
-        <button title={fr.lineSwapHint} onclick={swapLineEnds}><Icon name="swapEnds" /> {fr.lineSwap}</button>
+        {#if !(asPath && s.closed)}
+          {#each [["start", fr.lineStart], ["end", fr.lineEnd]] as const as [which, label] (which)}
+            <div class="field">
+              <span>{label}</span>
+              <LineEndPicker {which} value={ends[which]} size={ends.size} onpick={(e) => setLineEnd(which, e)} onsize={setHeadSize} />
+            </div>
+          {/each}
+          <button title={fr.lineSwapHint} onclick={swapLineEnds}><Icon name="swapEnds" /> {fr.lineSwap}</button>
+        {/if}
+        <label class="check" title={asPath ? (s.closed ? fr.openPathHint : fr.closePathHint) : fr.curveNeedsElbow}>
+          <input type="checkbox" disabled={!asPath} checked={!!s.closed} onchange={(e) => setClosed(e.currentTarget.checked)} />
+          {fr.closePath}
+        </label>
         <label class="check" title={asPath ? fr.curveHint : fr.curveNeedsElbow}>
           <input type="checkbox" disabled={!asPath} checked={!!s.curve} onchange={(e) => setCurve(e.currentTarget.checked)} />
           {fr.curve}

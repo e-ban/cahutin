@@ -34,7 +34,7 @@
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
   import { endsOf, isLineTarget } from "../lib/lineEnds";
-  import { setCurve, setHeadSize, setLineEnd, swapLineEnds } from "../lib/elementEdit";
+  import { setClosed, setCurve, setHeadSize, setLineEnd, swapLineEnds } from "../lib/elementEdit";
   import LineEndPicker from "./LineEndPicker.svelte";
   import { inTableGroup, isTableCell, selectedTable } from "../lib/table";
   import { alignUnits, arrangeUnits, expandSelection, groupOf, isLockedSelection } from "../lib/groups";
@@ -364,20 +364,25 @@
 
 <!-- Un bloc seul : sa place sur la page ; plusieurs : leur place entre eux. -->
 {#snippet lineTools(ends: NonNullable<typeof lineEndsNow>)}
-  {#each [["lineStart", "start"], ["lineEnd", "end"]] as const as [key, which] (key)}
-    <div class="wrap">
-      <button class:on={pop === key} onclick={() => toggle(key)}>{which === "start" ? fr.lineStart : fr.lineEnd}<span class="lbl"> <Icon name="chevronDown" size={14} /></span></button>
-      {#if pop === key}
-        <div use:fitInWindow class="pop"><LineEndPicker {which} value={ends[which]} size={ends.size} onpick={(e) => setLineEnd(which, e)} onsize={setHeadSize} /></div>
-      {/if}
-    </div>
-  {/each}
-  <button title={fr.lineSwapHint} onclick={swapLineEnds}><Icon name="swapEnds" /><span class="lbl"> {fr.lineSwap}</span></button>
   {@const paths = editor.page.elements.filter((e) => editor.selection.includes(e.id) && e.kind.type === "Shape" && isPath(e.kind))}
   {@const curved = paths.length > 0 && paths.every((e) => e.kind.type === "Shape" && !!e.kind.curve)}
+  {@const closed = paths.length > 0 && paths.every((e) => e.kind.type === "Shape" && !!e.kind.closed)}
+  <!-- Un chemin fermé n'a pas de bouts : ni terminaisons, ni Inverser, ni Prolonger. -->
+  {#if !closed}
+    {#each [["lineStart", "start"], ["lineEnd", "end"]] as const as [key, which] (key)}
+      <div class="wrap">
+        <button class:on={pop === key} onclick={() => toggle(key)}>{which === "start" ? fr.lineStart : fr.lineEnd}<span class="lbl"> <Icon name="chevronDown" size={14} /></span></button>
+        {#if pop === key}
+          <div use:fitInWindow class="pop"><LineEndPicker {which} value={ends[which]} size={ends.size} onpick={(e) => setLineEnd(which, e)} onsize={setHeadSize} /></div>
+        {/if}
+      </div>
+    {/each}
+    <button title={fr.lineSwapHint} onclick={swapLineEnds}><Icon name="swapEnds" /><span class="lbl"> {fr.lineSwap}</span></button>
+  {/if}
   <!-- Pas « disabled » : un bouton désactivé ne montre pas sa bulle, qui dit quoi faire d'abord. -->
   <button class:on={curved} class:off={!paths.length} aria-disabled={!paths.length} title={paths.length ? fr.curveHint : fr.curveNeedsElbow} onclick={() => paths.length && setCurve(!curved)}><Icon name="curve" /><span class="lbl"> {fr.curve}</span></button>
-  {#if editor.selection.length === 1 && editor.selected}
+  <button class:on={closed} class:off={!paths.length} aria-disabled={!paths.length} title={paths.length ? (closed ? fr.openPathHint : fr.closePathHint) : fr.curveNeedsElbow} onclick={() => paths.length && setClosed(!closed)}><Icon name="closePath" /><span class="lbl"> {closed ? fr.openPath : fr.closePath}</span></button>
+  {#if editor.selection.length === 1 && editor.selected && !closed}
     {@const id = editor.selected.id}
     <button data-extend-toggle class:on={extending.active} title={fr.extendButtonHint} onclick={() => extending.start(id, "end")}><Icon name="extendPath" /><span class="lbl"> {fr.extend}</span></button>
   {/if}
@@ -679,7 +684,8 @@
       <button class:on={colourIn} aria-pressed={colourIn} title={fr.pictoOutlineHint} onclick={() => editor.updatePage((p) => setPictosOutline(p, editor.selection, !colourIn))}><Icon name="paint" /><span class="lbl"> {fr.pictoOutlineShort}</span></button>
     {:else if selected?.kind.type === "Shape"}
       {@const s = selected.kind}
-      {#if !isStrokeOnly(s.shape) && s.shape !== "Path"}
+      <!-- Un chemin fermé se remplit comme un rectangle. -->
+      {#if (!isStrokeOnly(s.shape) && s.shape !== "Path") || (s.closed && isPath(s))}
       <div class="wrap">
         <button onclick={() => toggle("fill")}><span class="dot" style:background={s.fill ?? "transparent"}></span><span class="lbl"> {fr.fill}</span></button>
         {#if pop === "fill"}<div use:fitInWindow class="pop"><ColorPicker value={s.fill} allowNone onchange={(c) => updateShape({ fill: c })} /></div>{/if}

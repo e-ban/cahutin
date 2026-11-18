@@ -118,6 +118,14 @@ export function removePathPoint(id: string, i: number) {
   setPathPoints(id, removePoint(pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v), i));
 }
 
+/** Ferme (ou rouvre) les chemins sélectionnés : un segment revient du dernier point au premier ; fermé, un chemin
+ *  n'a plus de terminaisons et `fill` le remplit. Sans effet ni pas d'annulation sur des traits droits. */
+export function setClosed(on: boolean) {
+  const ids = new Set(editor.selection);
+  if (!editor.page.elements.some((e) => ids.has(e.id) && e.kind.type === "Shape" && isPath(e.kind) && !!e.kind.closed !== on)) return;
+  updateLines((e) => (e.kind.type === "Shape" && isPath(e.kind) ? { ...e, kind: clean({ ...e.kind, closed: on || undefined }) } : e));
+}
+
 /** Adoucit (ou redonne leurs angles à) les chemins sélectionnés ; sans effet ni pas d'annulation sur des traits droits. */
 export function setCurve(on: boolean) {
   const ids = new Set(editor.selection);

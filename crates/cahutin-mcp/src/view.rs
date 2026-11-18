@@ -137,6 +137,9 @@ fn element_view(doc: &Document, page: &Page, e: &Element, selected: bool) -> Val
                 if s.curve {
                     v["curve"] = json!(true);
                 }
+                if s.closed {
+                    v["closed"] = json!(true);
+                }
             }
             v
         }

@@ -1730,7 +1730,7 @@ impl<R: Read + Seek> PageReader<'_, R> {
                     // Dans un vrai dessin LibreOffice (pas un Word, PDF ou Publisher passé par `draw_pdf_import`, dont
                     // les traits d'un coloriage ou d'un graphique resteraient des centaines d'éléments) : ouvert et sans
                     // fond, de 3 à 200 points, un chemin de Cahutin, avec ses terminaisons.
-                    Some(d) if self.whole_frames && let Some((pts, curve)) = d.editable_points() => self.path_from(n, &pts, curve),
+                    Some(d) if self.whole_frames && let Some(p) = d.editable_points() => self.path_from(n, p),
                     Some(d) => self.drawings.push(d.with_dash(g.dash)),
                     None => self.skipped += 1,
                 }
@@ -1805,15 +1805,18 @@ impl<R: Read + Seek> PageReader<'_, R> {
     }
 
     /// Un chemin de Cahutin passant par `pts` (mm de page), avec les terminaisons du style de `n`.
-    fn path_from(&mut self, n: roxmltree::Node, pts: &[(f64, f64)], curve: bool) {
-        let (kind, ends, _) = self.line_ends_of(n);
+    fn path_from(&mut self, n: roxmltree::Node, p: vector::EditablePath) {
+        let (pts, curve) = (&p.pts[..], p.curve);
+        // Fermé : pas de bouts, donc pas de terminaisons.
+        let (kind, ends, _) = if p.closed { (ShapeKind::Line, None, 0.0) } else { self.line_ends_of(n) };
         self.shape(n, Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 1.0, h_mm: 1.0, rotation_deg: 0.0 }, kind);
         if let Some(Item::Element(e)) = self.items.last_mut()
             && let ElementKind::Shape(s) = &mut e.kind
         {
             s.ends = ends;
             s.curve = curve;
-            s.fill = None;
+            s.closed = p.closed;
+            s.fill = p.fill;
             let (frame, points) = crate::shapes::path_frame(pts, s);
             s.points = Some(points);
             e.frame = frame;

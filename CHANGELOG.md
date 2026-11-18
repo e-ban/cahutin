@@ -11,7 +11,9 @@
 - Chemins : un trait se plie. Un « + » à chaque bout, ou le bouton « Prolonger », le prolonge clic après clic : chaque clic sur la page ajoute un coude, un trait fin montre le prochain segment ; Échap, Entrée, un double-clic ou un clic sur le dernier point terminent, et un seul Ctrl+Z défait tout le tracé. Tirer la petite poignée au milieu d'un segment ajoute un coude ; chaque coude se tire comme un bout (même accroche, aussi sur les autres points du chemin) ; un double-clic sur un point le retire. Pratique pour un parcours, un chemin à suivre ou le bon chemin d'un labyrinthe.
 - Chemins : « Courbe », dans la barre et dans Réglages, adoucit les angles : la courbe passe par les points posés. Les pointes suivent la direction du dernier segment ou de la courbe.
 - LibreOffice Draw : un chemin à coudes ou courbe voyage dans le fichier exporté avec ses pointes, et revient modifiable point par point ; une polyligne ouverte dessinée dans LibreOffice devient elle aussi un chemin. Un document qui contient un chemin ne s'ouvre pas dans une version plus ancienne de Cahutin, qui demande alors la mise à jour.
-- Assistant : il peut tracer un chemin en donnant ses points, droit ou en courbe.
+- Chemins fermés : pendant qu'on prolonge un chemin, un clic sur son premier point le ferme ; « Fermer » (barre et Réglages) le ferme aussi, « Ouvrir » le rouvre. Fermé, il n'a plus de pointes et se remplit d'une couleur comme un rectangle ; « Courbe » adoucit aussi le raccord. Il voyage dans LibreOffice Draw en polygone et revient modifiable ; un polygone dessiné dans LibreOffice devient lui aussi un chemin fermé.
+- Assistant : il peut tracer un chemin en donnant ses points, droit, en courbe ou fermé.
+- Un chemin ne se sélectionne plus par le vide qui l'entoure : un clic à côté de son tracé atteint l'élément en dessous.
 
 ## 0.18.2
 

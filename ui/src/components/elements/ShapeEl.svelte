@@ -28,10 +28,12 @@
   <!-- Chemin à coudes ou courbe : dessiné en mm de son cadre (rien ne s'étire), cliquable sur son tracé seul. -->
   <svg class="shape hollow" width={w} height={h} viewBox="0 0 {frame.w_mm} {frame.h_mm}" aria-hidden="true">
     {#if props.stroke}
-      {@const p = pathSvg(pathPointsMm(frame, props), !!props.curve, endsOf(props), headWidthMm(props))}
+      {@const p = pathSvg(pathPointsMm(frame, props), !!props.curve, endsOf(props), headWidthMm(props), !!props.closed)}
       {@const c = props.stroke.color}
-      <path class="hit" d={p.d} stroke-width={hitMm(props)} />
-      <path d={p.d} fill="none" stroke={c} stroke-width={props.stroke.width_mm} stroke-dasharray={dashArray(props.stroke, props.stroke.width_mm)} stroke-linejoin="round" />
+      <!-- Fermé : tout l'intérieur se clique, comme une forme vide ; ouvert, le tracé seul. -->
+      {@const filled = !!props.closed && !!props.fill}
+      <path class="hit" class:solid={!!props.closed && (filled || solid)} d={p.d} stroke-width={hitMm(props)} />
+      <path d={p.d} fill={filled ? props.fill : "none"} stroke={c} stroke-width={props.stroke.width_mm} stroke-dasharray={dashArray(props.stroke, props.stroke.width_mm)} stroke-linejoin="round" />
       {#each p.parts as part, i (i)}
         {#if part.kind === "polygon"}<polygon class="hit-all" {...part.attrs} fill={c} />
         {:else if part.kind === "polyline"}<polyline class="hit-all" {...part.attrs} fill="none" stroke={c} stroke-linejoin="round" stroke-linecap="round" />

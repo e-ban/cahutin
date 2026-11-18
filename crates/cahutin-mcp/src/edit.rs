@@ -348,7 +348,13 @@ pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
     let ends = line_ends(args, shape)?;
     let pts = path_points(args, shape)?;
     let curve = args.get("curve").and_then(Value::as_bool).unwrap_or(false) && pts.as_ref().is_some_and(|p| p.len() >= 3);
-    let mut props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve, closed: false };
+    // Fermé (3 points au moins) : rempli par `fill`, sans terminaisons.
+    let closed = args.get("closed").and_then(Value::as_bool).unwrap_or(false);
+    if closed && !pts.as_ref().is_some_and(|p| p.len() >= 3) {
+        return Err("closed demande au moins 3 points".into());
+    }
+    let ends = if closed { None } else { ends };
+    let mut props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve, closed };
     // Un chemin : son cadre vient de ses points ; deux points, un trait droit de l'un à l'autre.
     let frame = pts.as_ref().map(|p| match p[..] {
         [a, b] => carnet_core::shapes::line_frame(a, b, &props),
@@ -624,6 +630,15 @@ mod tests {
             assert!((p.0 - q.0).abs() < 1e-9 && (p.1 - q.1).abs() < 1e-9, "{pts:?}");
         }
         assert!((e.frame.x_mm - 8.0).abs() < 1e-9 && (e.frame.w_mm - 44.0).abs() < 1e-9, "{:?}", e.frame);
+    }
+
+    #[test]
+    fn a_closed_path_is_filled_and_has_no_ends() {
+        let mut d = doc();
+        let out = add_shape(&mut d, &with(json!({ "shape": "arrow", "points": [[10, 10], [40, 10], [25, 40]], "closed": true, "fill": "#ffcc00", "end": "circle" }))).unwrap();
+        let ElementKind::Shape(s) = &created(&d, &out).kind else { panic!() };
+        assert_eq!((s.closed, s.fill.as_deref(), s.ends), (true, Some("#ffcc00"), None));
+        assert!(add_shape(&mut d, &with(json!({ "shape": "line", "points": [[10, 10], [40, 10]], "closed": true }))).is_err());
     }
 
     #[test]

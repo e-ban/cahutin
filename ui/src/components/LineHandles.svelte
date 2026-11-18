@@ -30,12 +30,14 @@
   const path = $derived(target?.kind.type === "Shape" && isPath(target.kind));
   const pts = $derived(target && target.kind.type === "Shape" ? pagePoints(target.frame, target.kind, !!target.flip_h, !!target.flip_v) : []);
   // À 200 points, plus de coude à ajouter : pas de poignée de milieu.
-  const mids = $derived(target && target.kind.type === "Shape" && pts.length < MAX_PATH_POINTS ? segmentMids(pts, path && !!target.kind.curve) : []);
+  const closed = $derived(path && target?.kind.type === "Shape" && !!target.kind.closed);
+  const mids = $derived(target && target.kind.type === "Shape" && pts.length < MAX_PATH_POINTS ? segmentMids(pts, path && !!target.kind.curve, closed) : []);
 
   /** Le « + » de prolongement, à 22 px de chaque bout (à côté de sa poignée), dans le prolongement du chemin. */
   const PLUS_PX = 22;
   const pluses = $derived.by(() => {
-    if (!target || target.kind.type !== "Shape" || pts.length < 2) return [];
+    // Un chemin fermé n'a pas de bouts à prolonger.
+    if (!target || target.kind.type !== "Shape" || pts.length < 2 || closed) return [];
     const d = endDirections(pts, path && !!target.kind.curve);
     const mm = (settings.bigHandles ? PLUS_PX + 8 : PLUS_PX) / (PX_PER_MM * zoom);
     const at = (p: Pt, deg: number): Pt => ({ x: p.x + mm * Math.cos((deg * Math.PI) / 180), y: p.y + mm * Math.sin((deg * Math.PI) / 180) });

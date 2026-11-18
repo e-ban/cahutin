@@ -21,6 +21,7 @@ import BringToFront from "@lucide/svelte/icons/bring-to-front";
 import CircleHelp from "@lucide/svelte/icons/circle-help";
 import Group from "@lucide/svelte/icons/group";
 import Info from "@lucide/svelte/icons/info";
+import Pentagon from "@lucide/svelte/icons/pentagon";
 import SendToBack from "@lucide/svelte/icons/send-to-back";
 import Spline from "@lucide/svelte/icons/spline";
 import TableCellsSplit from "@lucide/svelte/icons/table-cells-split";
@@ -116,6 +117,7 @@ export const ICONS = {
   swapEnds: ArrowLeftRight,
   extendPath: Waypoints,
   curve: Spline,
+  closePath: Pentagon,
   assistant: Sparkles,
   back: ArrowLeft,
   ban: Ban,

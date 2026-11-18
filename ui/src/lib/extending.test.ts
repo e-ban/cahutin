@@ -119,3 +119,24 @@ test("keys during a session", () => {
   expect(k("Shift")).toBe("ignore");
   expect(k("Control")).toBe("ignore");
 });
+
+test("clicking the first point closes the path and ends the session", () => {
+  const id = oneLine();
+  extending.start(id, "end");
+  extending.add({ x: 150, y: 220 }, false, noLines, 0);
+  expect(extending.canClose).toBe(true);
+  extending.close();
+  expect(extending.active).toBe(false);
+  const e = editor.page.elements.find((o) => o.id === id)!;
+  expect(e.kind.type === "Shape" && e.kind.closed).toBe(true);
+  expect(pointsOf(id)).toHaveLength(3);
+  editor.undo();
+  expect(pointsOf(id)).toHaveLength(2);
+});
+
+test("a straight line cannot be closed before a third point", () => {
+  const id = oneLine();
+  extending.start(id, "end");
+  expect(extending.canClose).toBe(false);
+  extending.finish();
+});

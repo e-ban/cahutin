@@ -2024,15 +2024,39 @@ mod tests {
         assert!(s.points.is_none());
     }
 
-    /// Un polygone (fermé) garde le traitement d'aujourd'hui (tracé libre), même sans fond.
+    /// Un polygone de LibreOffice (fermé, rempli ou non) devient un chemin fermé qu'on règle point par point.
     #[test]
-    fn closed_polygon_stays_as_today() {
+    fn closed_polygon_becomes_closed_path() {
         let d = doc_with(vec![path_el(ShapeKind::Line, &ELBOWS, false, None)]);
-        let odg = edited_odg(&d, "content.xml", |x| x.replace("<draw:polyline ", "<draw:polygon "));
+        let odg = edited_odg(&d, "content.xml", |x| x.replace("<draw:polyline ", "<draw:polygon ").replace(r#"draw:fill="none""#, r##"draw:fill="solid" draw:fill-color="#ffcc00""##));
         let back = crate::import::odg::read_drawing(Cursor::new(odg), &[]).unwrap();
-        let ElementKind::Shape(s) = &only(&back).kind else { panic!() };
-        assert_eq!(s.shape, ShapeKind::Path);
-        assert!(s.points.is_none());
+        let b = only(&back);
+        let ElementKind::Shape(s) = &b.kind else { panic!() };
+        assert_eq!((s.shape, s.closed, s.fill.as_deref()), (ShapeKind::Line, true, Some("#ffcc00")), "{s:?}");
+        assert_points(&page_points(b), &ELBOWS, 0.01);
+    }
+
+    /// Un chemin fermé et rempli s'exporte en polygone (ou tracé fermé, en courbe), sans terminaisons, et revient tel quel.
+    #[test]
+    fn closed_path_round_trips() {
+        use crate::model::{HeadSize, LineEnd, LineEnds};
+        for curve in [false, true] {
+            let mut el = path_el(ShapeKind::Arrow, &ELBOWS, curve, Some(LineEnds { start: LineEnd::Circle, end: LineEnd::Arrow, size: HeadSize::Medium }));
+            if let ElementKind::Shape(s) = &mut el.kind {
+                s.closed = true;
+                s.fill = Some("#88ccee".into());
+            }
+            let mut e = export(&doc_with(vec![el.clone()]), &AssetStore::default());
+            let c = e.xml("content.xml");
+            assert!(!c.contains("marker"), "{c}");
+            assert!(c.contains(r##"draw:fill-color="#88ccee""##), "{c}");
+            assert!(if curve { c.contains(" Z") || c.contains("Z\"") } else { c.contains("<draw:polygon ") }, "{c}");
+            let back = round_trip(&doc_with(vec![el]), &AssetStore::default());
+            let b = only(&back);
+            let ElementKind::Shape(s) = &b.kind else { panic!() };
+            assert_eq!((s.closed, s.curve, s.fill.as_deref()), (true, curve, Some("#88ccee")), "{s:?}");
+            assert_points(&page_points(b), &ELBOWS, 0.01);
+        }
     }
 
     /// Tirets et pointillés reviennent tels quels sur une forme, le cadre d'un texte et la bordure d'une photo.

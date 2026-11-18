@@ -107,7 +107,7 @@ test("a thicker stroke grows the hit area of a line with a large head", () => {
 });
 
 // Chemins : points, courbe, inversion.
-import { removePathPoint, setCurve, setPathPoints } from "./elementEdit";
+import { removePathPoint, setClosed, setCurve, setPathPoints } from "./elementEdit";
 import { pagePoints } from "./linePath";
 
 const pts3 = [{ x: 20, y: 20 }, { x: 60, y: 20 }, { x: 60, y: 60 }];
@@ -180,4 +180,18 @@ test("a thicker path keeps its points in place", () => {
     expect(p.x).toBeCloseTo(pts3[i].x, 9);
     expect(p.y).toBeCloseTo(pts3[i].y, 9);
   });
+});
+
+test("setClosed closes paths only, in one undo step, and opens them back", () => {
+  const { a, b } = threeShapes();
+  setPathPoints(a.id, pts3);
+  editor.selection = [a.id, b.id];
+  setClosed(true);
+  expect(shapeOf(a.id).s.closed).toBe(true);
+  expect(shapeOf(b.id).s.closed).toBeFalsy();
+  editor.undo();
+  expect(shapeOf(a.id).s.closed).toBeFalsy();
+  editor.redo();
+  setClosed(false);
+  expect("closed" in shapeOf(a.id).s).toBe(false);
 });

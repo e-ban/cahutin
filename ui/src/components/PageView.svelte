@@ -25,6 +25,7 @@
   import { SAFE_MARGIN_MM, atRisk } from "../lib/printSafety";
   import { handleTarget } from "../lib/handleTarget";
   import { isLineTarget } from "../lib/lineEnds";
+  import { isPath } from "../lib/linePath";
   import type { Crop, Document, Element, Frame, Page, RichText } from "../lib/types";
 
   let {
@@ -125,7 +126,8 @@
 
   // Forme vide (sans remplissage) : sa boîte laisse passer les clics, ShapeEl dessine la surface qui les reçoit.
   // Un tableau laisse passer tous les clics vers ses cases.
-  const isHollow = (e: Element) => e.kind.type === "Table" || (e.kind.type === "Shape" && e.kind.fill === null && e.kind.shape !== "Line" && e.kind.shape !== "Arrow");
+  // Un chemin (trait à coudes) : seul son tracé se clique, pas le rectangle qui l'entoure (fermé : son intérieur aussi).
+  const isHollow = (e: Element) => e.kind.type === "Table" || (e.kind.type === "Shape" && (isPath(e.kind) || (e.kind.fill === null && e.kind.shape !== "Line" && e.kind.shape !== "Arrow")));
 
   /** Une forme vide se clique dans tout son intérieur, comme une pleine : l'absence de fond n'est qu'une
    *  apparence. Sauf ce qui entoure d'autres éléments (cadre de page, repères de découpe) et les tracés de

@@ -133,8 +133,8 @@ pub fn definitions() -> Value {
         },
         {
             "name": "add_shape",
-            "description": "Ajoute une forme ; line, arrow : start, end parmi none, arrow, open_arrow, circle, square ; points [[x,y]…] en mm (chemin), curve.",
-            "inputSchema": frame(json!({ "shape": one_of(&["rect", "ellipse", "line", "arrow", "star", "heart", "bubble", "cloud"]), "fill": text, "border_color": text, "border_width_mm": num, "start": text, "end": text, "points": { "type": "array" }, "curve": boolean }), &["shape"]),
+            "description": "Ajoute une forme ; line, arrow : start, end parmi none, arrow, open_arrow, circle, square ; points [[x,y]…] en mm (chemin), curve, closed.",
+            "inputSchema": frame(json!({ "shape": one_of(&["rect", "ellipse", "line", "arrow", "star", "heart", "bubble", "cloud"]), "fill": text, "border_color": text, "border_width_mm": num, "start": text, "end": text, "points": { "type": "array" }, "curve": boolean, "closed": boolean }), &["shape"]),
         },
         {
             "name": "add_image",
@@ -275,6 +275,6 @@ mod size {
     #[test]
     fn the_tool_descriptions_stay_small() {
         let n = serde_json::to_string(&super::definitions()).unwrap().len();
-        assert!(n <= 10_650, "{n} octets");
+        assert!(n <= 10_670, "{n} octets");
     }
 }

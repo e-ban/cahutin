@@ -391,6 +391,47 @@ fn arrow_has_its_head() {
     assert!(head > 1.5, "pointe de {head:.2} mm seulement");
 }
 
+/// Chaque terminaison, au début comme à la fin, se dessine dans LibreOffice plus large que le trait.
+#[test]
+#[ignore]
+fn every_line_end_renders_in_libreoffice() {
+    use carnet_core::model::{HeadSize, LineEnd, LineEnds};
+    const DPI: u32 = 144;
+    for end in [LineEnd::Arrow, LineEnd::OpenArrow, LineEnd::Circle, LineEnd::Square] {
+        let mut doc = Document::new("bouts");
+        doc.pages[0].elements.push(Element {
+            id: new_id(),
+            frame: Frame { x_mm: ORIGIN_MM, y_mm: ORIGIN_MM, w_mm: 100.0, h_mm: 10.0, rotation_deg: 0.0 },
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Shape(ShapeProps {
+                shape: ShapeKind::Line,
+                fill: None,
+                stroke: Some(Stroke { width_mm: 1.0, color: "#000000".into(), style: None }),
+                corner_radius_mm: 0.0,
+                path: None,
+                graphisme: None,
+                ends: Some(LineEnds { start: end, end, size: HeadSize::Large }),
+            }),
+            subgroups: Vec::new(),
+            flip_h: false, flip_v: false,
+        });
+        let (_dir, pdf) = render(&doc, &AssetStore::default());
+        let (w, _, px) = gray_page(&pdf, 1, DPI);
+        let px_per_mm = DPI as f64 / 25.4;
+        let dark_rows = |x_mm: f64| {
+            let x = (x_mm * px_per_mm) as usize;
+            px.chunks(w).filter(|row| row[x] < 128).count() as f64 / px_per_mm
+        };
+        let shaft = dark_rows(ORIGIN_MM + 50.0);
+        let inset = if matches!(end, LineEnd::Circle | LineEnd::Square) { 0.4 } else { 4.0 };
+        let (start_w, end_w) = (dark_rows(ORIGIN_MM + inset), dark_rows(ORIGIN_MM + 100.0 - inset));
+        assert!((0.6..1.6).contains(&shaft), "{end:?} : trait de {shaft:.2} mm");
+        assert!(start_w > 2.0 && end_w > 2.0, "{end:?} : début {start_w:.2} mm, fin {end_w:.2} mm");
+    }
+}
+
 fn picture_element(code: &str, x: f64, group: Option<&str>) -> Element {
     Element {
         id: new_id(),

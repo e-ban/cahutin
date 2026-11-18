@@ -1,6 +1,6 @@
 //! `content.xml` : une `draw:page` par page, un objet ODG par élément.
 
-use super::styles::{ARROW_MARKER, Props, Registry, dash_name, mm};
+use super::styles::{Props, Registry, dash_name, marker_name, mm};
 use super::xml::Xml;
 use super::{NS, OPENMOJI_CREDIT_PAGE, OdgError, odf_transform};
 use crate::crop::source_rect;
@@ -679,10 +679,26 @@ impl Writer<'_> {
             _ => vec![("draw:fill", "none".into())],
         };
         props.extend(stroke(self.reg, s.stroke.as_ref()));
-        if s.shape == ShapeKind::Arrow {
-            self.reg.arrow_marker = true;
-            props.push(("draw:marker-end", ARROW_MARKER.into()));
-            props.push(("draw:marker-end-width", mm(shapes::head_width_mm(s))));
+        if stroke_only {
+            // Terminaisons : la première au bout x1, la seconde au bout x2 ; le miroir échange les deux bouts et leurs
+            // terminaisons ensemble. Rond et carré, centrés sur le bout, sont plus petits qu'une pointe.
+            let ends = shapes::ends_of(s);
+            let head = shapes::head_width_mm(s);
+            for (end, (key, width, center)) in [
+                (ends.start, ("draw:marker-start", "draw:marker-start-width", "draw:marker-start-center")),
+                (ends.end, ("draw:marker-end", "draw:marker-end-width", "draw:marker-end-center")),
+            ] {
+                let Some(name) = marker_name(end) else { continue };
+                if !self.reg.markers.contains(&end) {
+                    self.reg.markers.push(end);
+                }
+                let round = matches!(end, LineEnd::Circle | LineEnd::Square);
+                props.push((key, name.into()));
+                props.push((width, mm(if round { head * shapes::DOT_FACTOR } else { head })));
+                if round {
+                    props.push((center, "true".into()));
+                }
+            }
         }
         let style = self.reg.style("graphic", "gr", vec![("style:graphic-properties", props)]);
         let mut a = vec![("draw:style-name", style)];

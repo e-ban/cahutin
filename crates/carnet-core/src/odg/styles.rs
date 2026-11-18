@@ -4,7 +4,7 @@ use super::NS;
 use super::xml::Xml;
 use crate::fonts::{self, FontFace, FontSet};
 use crate::background::{self, Mark};
-use crate::model::{Background, PageSize, StrokeStyle};
+use crate::model::{Background, LineEnd, PageSize, StrokeStyle};
 
 pub(crate) type Props = Vec<(&'static str, Vec<(&'static str, String)>)>;
 
@@ -23,8 +23,8 @@ pub(crate) struct Registry {
     pub fill_images: Vec<(String, String)>,
     /// Pages maîtresses : une par couple (taille, fond).
     pub masters: Vec<(PageSize, Option<Background>)>,
-    /// Une flèche est présente : la pointe (`draw:marker`) est déclarée dans `styles.xml`.
-    pub arrow_marker: bool,
+    /// Terminaisons de traits présentes : chacune est déclarée une fois dans `styles.xml` (`draw:marker`).
+    pub markers: Vec<LineEnd>,
     /// Styles de tirets utilisés, déclarés dans `styles.xml` (`draw:stroke-dash`).
     pub dashes: Vec<StrokeStyle>,
     /// Styles de liste à puces (`text:list-style`), dédupliqués : propriétés de l'étiquette, puis de la puce.
@@ -50,7 +50,29 @@ pub(crate) fn dash_name(style: StrokeStyle) -> Option<&'static str> {
 }
 
 /// Nom de la pointe de flèche, celui de LibreOffice.
-pub(crate) const ARROW_MARKER: &str = "Arrow";
+/// Nom ODG du marqueur d'une terminaison (`None` pour un bout sans terminaison). Flèche pleine, rond et carré
+/// portent le nom du marqueur de LibreOffice ; la flèche ouverte, celui de Cahutin (`Line Arrow`, encodé comme
+/// LibreOffice encode les espaces).
+pub(crate) fn marker_name(e: LineEnd) -> Option<&'static str> {
+    match e {
+        LineEnd::None => None,
+        LineEnd::Arrow => Some("Arrow"),
+        LineEnd::OpenArrow => Some("Line_20_Arrow"),
+        LineEnd::Circle => Some("Circle"),
+        LineEnd::Square => Some("Square"),
+    }
+}
+
+/// Tracé du marqueur : la pointe pleine et le chevron dans le même rectangle de 20 × 30 (base 20, longueur 30,
+/// comme à l'écran), le rond et le carré de LibreOffice.
+fn marker_shape(e: LineEnd) -> (&'static str, &'static str) {
+    match e {
+        LineEnd::OpenArrow => ("0 0 20 30", "M10 0l10 27l-4 3l-6-21l-6 21l-4-3z"),
+        LineEnd::Circle => ("0 0 20 20", "M10 0a10 10 0 1 1 0 20a10 10 0 1 1 0-20z"),
+        LineEnd::Square => ("0 0 10 10", "M0 0h10v10h-10z"),
+        _ => ("0 0 20 30", "M10 0l-10 30h20z"),
+    }
+}
 
 pub(crate) fn mm(v: f64) -> String {
     format!("{v:.3}mm")
@@ -58,7 +80,7 @@ pub(crate) fn mm(v: f64) -> String {
 
 impl Registry {
     pub fn new(fonts: &FontSet) -> Registry {
-        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], masters: vec![], arrow_marker: false, dashes: vec![], lists: vec![], protect: false }
+        Registry { fonts: fonts.clone(), styles: vec![], faces: vec![], fill_images: vec![], masters: vec![], markers: vec![], dashes: vec![], lists: vec![], protect: false }
     }
 
     /// Style automatique dédupliqué ; renvoie son nom. Pendant l'écriture d'un objet verrouillé (`protect`), un style
@@ -196,9 +218,15 @@ impl Registry {
         x.open("office:document-styles", &root);
         self.write_font_decls(&mut x);
         x.open("office:styles", &[]);
-        if self.arrow_marker {
-            // Pointe triangulaire standard de LibreOffice.
-            x.empty("draw:marker", &[("draw:name", ARROW_MARKER), ("svg:viewBox", "0 0 20 30"), ("svg:d", "M10 0l-10 30h20z")]);
+        for &end in &self.markers {
+            let Some(name) = marker_name(end) else { continue };
+            let (viewbox, d) = marker_shape(end);
+            // Seule la flèche ouverte a un nom encodé : la pointe pleine reste déclarée exactement comme avant.
+            if end == LineEnd::OpenArrow {
+                x.empty("draw:marker", &[("draw:name", name), ("draw:display-name", "Line Arrow"), ("svg:viewBox", viewbox), ("svg:d", d)]);
+            } else {
+                x.empty("draw:marker", &[("draw:name", name), ("svg:viewBox", viewbox), ("svg:d", d)]);
+            }
         }
         // Longueurs relatives à l'épaisseur du trait, comme le `stroke-dasharray` de l'écran.
         for &style in &self.dashes {

@@ -1147,6 +1147,59 @@ mod tests {
         assert!(content.contains(&format!(r#"draw:enhanced-path="{path} N""#)), "{content}");
     }
 
+    /// La flèche de l'exemple « La météo de la semaine » s'exporte exactement comme avant les terminaisons.
+    #[test]
+    fn old_arrow_exports_unchanged() {
+        let mut e = export(&crate::examples::document("meteo").unwrap(), &AssetStore::default());
+        let c = e.xml("content.xml");
+        assert!(c.contains(r#"<draw:line draw:style-name="gr4" svg:x1="28.000mm" svg:y1="49.000mm" svg:x2="28.000mm" svg:y2="61.000mm"/>"#), "{c}");
+        assert!(c.contains(r##"<style:style style:name="gr4" style:family="graphic"><style:graphic-properties draw:fill="none" draw:stroke="solid" svg:stroke-width="1.000mm" svg:stroke-color="#c0392b" draw:marker-end="Arrow" draw:marker-end-width="4.000mm"/></style:style>"##), "{c}");
+        let styles = e.xml("styles.xml");
+        assert_eq!(styles.matches("<draw:marker ").count(), 1, "{styles}");
+    }
+
+    fn with_ends(kind: ShapeKind, ends: Option<crate::model::LineEnds>) -> Element {
+        let mut el = shape_el(kind, frame(10.0, 20.0, 60.0, 8.0));
+        if let ElementKind::Shape(s) = &mut el.kind {
+            s.ends = ends;
+        }
+        el
+    }
+
+    #[test]
+    fn both_ends_export_markers() {
+        use crate::model::{HeadSize, LineEnd, LineEnds};
+        let ends = LineEnds { start: LineEnd::Circle, end: LineEnd::OpenArrow, size: HeadSize::Large };
+        let mut e = export(&doc_with(vec![with_ends(ShapeKind::Line, Some(ends))]), &AssetStore::default());
+        let c = e.xml("content.xml");
+        assert!(c.contains(r#"draw:marker-start="Circle""#), "{c}");
+        assert!(c.contains(r#"draw:marker-start-width="3.600mm""#), "{c}");
+        assert!(c.contains(r#"draw:marker-start-center="true""#), "{c}");
+        assert!(c.contains(r#"draw:marker-end="Line_20_Arrow""#), "{c}");
+        assert!(c.contains(r#"draw:marker-end-width="6.000mm""#), "{c}");
+        assert!(!c.contains("draw:marker-end-center"), "{c}");
+        let styles = e.xml("styles.xml");
+        assert_eq!(styles.matches("<draw:marker ").count(), 2, "{styles}");
+        assert!(styles.contains(r#"draw:name="Circle""#) && styles.contains(r#"draw:name="Line_20_Arrow""#), "{styles}");
+    }
+
+    #[test]
+    fn same_marker_declared_once() {
+        use crate::model::{HeadSize, LineEnd, LineEnds};
+        let ends = LineEnds { start: LineEnd::Arrow, end: LineEnd::Arrow, size: HeadSize::Medium };
+        let mut e = export(&doc_with(vec![with_ends(ShapeKind::Arrow, Some(ends)), with_ends(ShapeKind::Arrow, None)]), &AssetStore::default());
+        let c = e.xml("content.xml");
+        assert!(c.contains(r#"draw:marker-start="Arrow""#), "{c}");
+        assert_eq!(e.xml("styles.xml").matches("<draw:marker ").count(), 1);
+    }
+
+    #[test]
+    fn line_without_ends_has_no_marker() {
+        let mut e = export(&doc_with(vec![with_ends(ShapeKind::Line, None)]), &AssetStore::default());
+        assert!(!e.xml("content.xml").contains("marker"));
+        assert!(!e.xml("styles.xml").contains("<draw:marker "));
+    }
+
     #[test]
     fn arrow_is_a_line_with_an_end_marker() {
         let mut e = export(&doc_with(vec![shape_el(ShapeKind::Arrow, frame(10.0, 20.0, 60.0, 8.0))]), &AssetStore::default());

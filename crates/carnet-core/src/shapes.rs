@@ -79,6 +79,9 @@ pub fn ends_of(s: &ShapeProps) -> LineEnds {
 /// Facteur de chaque taille de terminaison ; les mêmes à l'écran (`ui/src/lib/shapePaths.ts`, un test le vérifie).
 pub const HEAD_FACTORS: [(HeadSize, f64); 3] = [(HeadSize::Small, 0.7), (HeadSize::Medium, 1.0), (HeadSize::Large, 1.5)];
 
+/// Diamètre d'un rond, côté d'un carré : cette part de la largeur d'une pointe.
+pub const DOT_FACTOR: f64 = 0.6;
+
 /// Largeur d'une pointe de flèche, en mm : quatre fois le trait, 4 mm au moins (la taille moyenne), multipliée par
 /// le facteur de la taille choisie.
 pub fn head_width_mm(s: &ShapeProps) -> f64 {

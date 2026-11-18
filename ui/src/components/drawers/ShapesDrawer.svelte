@@ -27,8 +27,13 @@
     { shape: "Cloud", radius: 0, label: fr.cloud },
   ];
 
-  // Aperçu dessiné par le même composant que la page.
-  const previews: Element[] = shapes.map((s) => shapeElement(editor.page, s.shape, s.radius, undefined, s.ends));
+  // Aperçu dessiné par le même composant que la page. Un trait ou une flèche y prend la couleur du texte (son gris
+  // foncé ne se verrait pas sur un thème sombre) ; posé sur la page, il garde son gris.
+  const previews: Element[] = shapes.map((s) => {
+    const e = shapeElement(editor.page, s.shape, s.radius, undefined, s.ends);
+    const line = e.kind.type === "Shape" && (e.kind.shape === "Line" || e.kind.shape === "Arrow") && e.kind.stroke;
+    return line && e.kind.type === "Shape" ? { ...e, kind: { ...e.kind, stroke: { ...e.kind.stroke!, color: "currentColor" } } } : e;
+  });
 
   // Lignes de graphisme : la section (taille des motifs, aussi réglée dans les Préférences) et le nombre de
   // lignes, gardés d'une fois sur l'autre.

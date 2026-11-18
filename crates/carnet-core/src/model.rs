@@ -16,7 +16,7 @@ pub fn is_safe_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
-/// Nouveaux identifiants partout : page, éléments (et leurs cases de grille), groupes.
+/// Nouveaux identifiants partout : page, éléments (et leurs cases de grille, leurs accroches), groupes.
 pub fn renew_ids(page: &mut Page) {
     page.id = new_id();
     let mut groups = std::collections::HashMap::new();
@@ -40,6 +40,14 @@ pub fn renew_ids(page: &mut Page) {
                     c.element_id = id.clone();
                 }
             }
+        }
+        // Une flèche accrochée désigne la copie de son élément ; un élément absent de la page la décroche.
+        if let ElementKind::Shape(s) = &mut e.kind
+            && let Some(a) = s.attach.take()
+        {
+            let mv = |x: Option<Anchor>| x.and_then(|x| renamed.get(&x.element).map(|id| Anchor { element: id.clone(), at: x.at }));
+            let (start, end) = (mv(a.start), mv(a.end));
+            s.attach = (start.is_some() || end.is_some()).then_some(Attach { start, end });
         }
     }
 }
@@ -870,6 +878,28 @@ mod tests {
         assert!(e[0].group != page.elements[0].group && e[0].subgroups != page.elements[0].subgroups);
         assert_eq!((&e[0].group, &e[0].subgroups), (&e[1].group, &e[1].subgroups));
         assert_eq!(e[2].group, e[0].group);
+    }
+
+    #[test]
+    fn renew_ids_remaps_attachments() {
+        let mut page = Page::new(A4_PORTRAIT);
+        let frame = Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 10.0, h_mm: 10.0, rotation_deg: 0.0 };
+        let shape = |id: &str, shape, attach| Element {
+            id: id.into(),
+            frame,
+            locked: false,
+            zone: false,
+            group: None,
+            kind: ElementKind::Shape(ShapeProps { shape, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach }),
+            subgroups: Vec::new(),
+            flip_h: false,
+            flip_v: false,
+        };
+        let attach = Attach { start: None, end: Some(Anchor { element: "r".into(), at: AnchorPoint::Left }) };
+        page.elements = vec![shape("r", ShapeKind::Rect, None), shape("a", ShapeKind::Arrow, Some(attach))];
+        renew_ids(&mut page);
+        let ElementKind::Shape(s) = &page.elements[1].kind else { panic!() };
+        assert_eq!(s.attach.as_ref().unwrap().end.as_ref().unwrap().element, page.elements[0].id);
     }
 
     #[test]

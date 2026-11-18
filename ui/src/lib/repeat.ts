@@ -4,6 +4,7 @@
 import { newId } from "./factory";
 import { boundsOf, expandSelection, pathOf, withPath } from "./groups";
 import { remapTables } from "./table";
+import { remapAttach } from "./connectors";
 import type { Element, Page } from "./types";
 
 export const REPEAT_GAP_MM = 5;
@@ -50,7 +51,7 @@ export function repeatBlock(page: Page, selected: string[], cols: number, rows: 
           pathOf(e).map((g) => regroup(g)!),
         ),
       );
-      copies.push(...remapTables(one, newIds));
+      copies.push(...remapAttach(remapTables(one, newIds), newIds));
     }
   }
   const elements = [...page.elements.map((e) => original.find((o) => o.id === e.id) ?? e), ...copies];

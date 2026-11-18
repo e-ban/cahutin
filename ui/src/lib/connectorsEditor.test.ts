@@ -108,12 +108,22 @@ test("removing an attached end drops it", () => {
   expect(attach(a)).toBeUndefined();
 });
 
-test("extending from an attached end detaches it", () => {
+test("extending from an attached end detaches it, and the session is one committed step", () => {
   const { a } = pathSetup();
+  const before = editor.doc;
   extending.start(a, "end");
   extending.add({ x: 120, y: 90 }, false, { xs: [], ys: [] }, 0);
+  extending.add({ x: 140, y: 120 }, false, { xs: [], ys: [] }, 0);
   extending.finish();
+  expect(editor.previewing).toBe(false);
   expect(attach(a)).toBeUndefined();
+  const e = get(a);
+  if (e.kind.type !== "Shape") throw new Error();
+  const pts = pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v);
+  expect(pts).toHaveLength(5);
+  expect(pts[4].x).toBeCloseTo(140, 9);
+  editor.undo();
+  expect(editor.doc).toBe(before);
 });
 
 test("pasting arrow and label together reattaches to the copy; the arrow alone loses it", () => {
@@ -124,4 +134,25 @@ test("pasting arrow and label together reattaches to the copy; the arrow alone l
   const alone = pasteElements(editor.page, [get(a)]);
   const copy = alone.page.elements.find((e) => e.id === alone.ids[0])!;
   expect(copy.kind.type === "Shape" && copy.kind.attach).toBeFalsy();
+});
+
+import { repeatBlock } from "./repeat";
+import { duplicatePage } from "./pageOrder";
+
+test("repeating a label with its arrow attaches each arrow to its own label", () => {
+  const { a, r } = setup();
+  const out = repeatBlock(editor.page, [r, a], 2, 1);
+  const copyA = out.page.elements.find((e) => e.id !== a && e.kind.type === "Shape" && e.kind.shape === "Arrow")!;
+  const copyR = out.page.elements.find((e) => e.id !== r && e.kind.type === "Shape" && e.kind.shape === "Rect")!;
+  expect(copyA.kind.type === "Shape" && copyA.kind.attach?.end?.element).toBe(copyR.id);
+});
+
+test("a duplicated page keeps its connectors", () => {
+  const { a, r } = setup();
+  const copy = duplicatePage(editor.page);
+  const copyA = copy.elements.find((e) => e.kind.type === "Shape" && e.kind.shape === "Arrow")!;
+  const copyR = copy.elements.find((e) => e.kind.type === "Shape" && e.kind.shape === "Rect")!;
+  expect([copyA.id, copyR.id]).not.toContain(a);
+  expect(copyA.kind.type === "Shape" && copyA.kind.attach?.end?.element).toBe(copyR.id);
+  void r;
 });

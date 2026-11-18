@@ -6,13 +6,12 @@
   import { newPage } from "../../lib/factory";
   import { pageSetSize } from "../../lib/api";
   import { changeFormat, formatOf, type Format } from "../../lib/pageFormat";
-  import { remapTables } from "../../lib/table";
   import { deletePage } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
   import { settings } from "../../lib/settings.svelte";
   import { classes } from "../../lib/classStore.svelte";
   import { childOfPage, findChildPage } from "../../lib/classFill";
-  import { dropSlot, slotTarget } from "../../lib/pageOrder";
+  import { dropSlot, duplicatePage, slotTarget } from "../../lib/pageOrder";
   import { DRAG_DEAD_ZONE_PX } from "../../lib/geometry";
   import type { Page } from "../../lib/types";
 
@@ -63,14 +62,7 @@
   }
 
   function duplicate() {
-    const p = editor.page;
-    const ids = new Map(p.elements.map((e) => [e.id, crypto.randomUUID()]));
-    insert({
-      ...structuredClone(p),
-      id: crypto.randomUUID(),
-      elements: remapTables(p.elements.map((e) => ({ ...structuredClone(e), id: ids.get(e.id)! })), ids),
-      grid: p.grid ? { ...p.grid, cells: p.grid.cells.map((c) => ({ ...c, element_id: ids.get(c.element_id)! })) } : null,
-    });
+    insert(duplicatePage(editor.page));
   }
 
   // Le moteur recalcule la grille éventuelle, pour que les zones restent sur la page.

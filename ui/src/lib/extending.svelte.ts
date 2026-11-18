@@ -2,6 +2,7 @@
 // qui devient un seul pas d'annulation à la fin (`finish`). `undoLast` retire le dernier point ajouté.
 import { editor } from "./docStore.svelte";
 import { throughPoints } from "./elementEdit";
+import { withoutAttach } from "./connectors";
 import { dragPoint, extend, MAX_PATH_POINTS, pagePoints, type Pt } from "./linePath";
 import type { Document } from "./types";
 
@@ -125,9 +126,13 @@ class Extending {
     const page = base.pages[editor.pageIndex];
     const e = page?.elements.find((o) => o.id === this.id);
     if (!e || e.kind.type !== "Shape") return;
-    const moved = throughPoints(e, this.#closing ? { ...e.kind, closed: true } : e.kind, this.#pts);
-    this.#shown = { ...base, pages: base.pages.map((p, k) => (k === editor.pageIndex ? { ...p, elements: p.elements.map((o) => (o.id === e.id ? moved : o)) } : p)) };
-    editor.preview(this.#shown);
+    // Le bout prolongé devient un coude : il se décroche (fermer décroche les deux bouts).
+    const kind = this.#closing ? withoutAttach(e, undefined).kind : withoutAttach(e, this.from).kind;
+    if (kind.type !== "Shape") return;
+    const moved = throughPoints(e, this.#closing ? { ...kind, closed: true } : kind, this.#pts);
+    editor.preview({ ...base, pages: base.pages.map((p, k) => (k === editor.pageIndex ? { ...p, elements: p.elements.map((o) => (o.id === e.id ? moved : o)) } : p)) });
+    // Ce que l'éditeur montre vraiment (il y applique la règle des connecteurs) : `finish` le compare.
+    this.#shown = editor.doc;
   }
 }
 

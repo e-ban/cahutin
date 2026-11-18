@@ -1,3 +1,5 @@
+import { remapTables } from "./table";
+import { remapAttach } from "./connectors";
 // Ordre des pages : déplacer une page, et la place où tombe une miniature glissée dans la bande des pages.
 import type { Document, Page } from "./types";
 
@@ -32,4 +34,16 @@ export function movedPage(before: Page[], after: Page[], prefer?: string): strin
   const without = (list: string[], id: string) => list.filter((x) => x !== id);
   const fits = a.filter((id) => without(a, id).every((x, i) => x === without(b, id)[i]));
   return prefer && fits.includes(prefer) ? prefer : (fits[0] ?? null);
+}
+
+/** La copie d'une page : nouveaux identifiants partout ; ses tableaux, sa grille et ses flèches accrochées désignent
+ *  les copies. */
+export function duplicatePage(p: Page): Page {
+  const ids = new Map(p.elements.map((e) => [e.id, crypto.randomUUID()]));
+  return {
+    ...structuredClone(p),
+    id: crypto.randomUUID(),
+    elements: remapAttach(remapTables(p.elements.map((e) => ({ ...structuredClone(e), id: ids.get(e.id)! })), ids), ids),
+    grid: p.grid ? { ...p.grid, cells: p.grid.cells.map((c) => ({ ...c, element_id: ids.get(c.element_id)! })) } : null,
+  };
 }

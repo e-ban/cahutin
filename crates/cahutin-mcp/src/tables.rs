@@ -143,7 +143,7 @@ pub fn repeat(doc: &mut Document, args: &Value) -> Result<Value, String> {
                     k
                 })
                 .collect();
-            let copies = remap_tables(copies, &map);
+            let copies = crate::arrange::remap_attach(remap_tables(copies, &map), &map);
             all.extend(copies.iter().map(|k| k.id.clone()));
             page.elements.extend(copies);
         }
@@ -229,6 +229,27 @@ mod tests {
         assert_eq!(groups.len(), 6);
         assert!(d.pages[0].elements.iter().any(|e| e.frame.x_mm == 75.0 && e.frame.y_mm == 10.0));
         assert!(d.pages[0].elements.iter().any(|e| e.frame.x_mm == 10.0 && e.frame.y_mm == 80.0));
+    }
+
+    #[test]
+    fn repeat_attaches_each_arrow_to_its_own_label() {
+        let mut d = Document::new("x");
+        let a = edit::add_shape(&mut d, &json!({ "page": 0, "x_mm": 10, "y_mm": 10, "w_mm": 30, "h_mm": 15, "shape": "rect" })).unwrap()["element_id"].as_str().unwrap().to_string();
+        let b = edit::add_shape(&mut d, &json!({ "page": 0, "x_mm": 10, "y_mm": 40, "w_mm": 30, "h_mm": 15, "shape": "rect" })).unwrap()["element_id"].as_str().unwrap().to_string();
+        let arrow = edit::add_shape(&mut d, &json!({ "page": 0, "x_mm": 0, "y_mm": 0, "w_mm": 1, "h_mm": 1, "shape": "arrow", "from": a, "to": b })).unwrap()["element_id"].as_str().unwrap().to_string();
+        repeat(&mut d, &json!({ "element_ids": [a, b, arrow], "cols": 2, "rows": 1 })).unwrap();
+        for e in &d.pages[0].elements {
+            if let ElementKind::Shape(s) = &e.kind
+                && let Some(at) = &s.attach
+            {
+                let start = el(&d, &at.start.as_ref().unwrap().element);
+                // Chaque flèche part de l'étiquette de sa colonne.
+                assert!((start.frame.x_mm - e.frame.x_mm).abs() < 40.0, "{:?} {:?}", start.frame, e.frame);
+                if e.id != arrow {
+                    assert_ne!(at.start.as_ref().unwrap().element, a);
+                }
+            }
+        }
     }
 
     #[test]

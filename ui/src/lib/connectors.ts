@@ -165,3 +165,17 @@ export function liveFollow(page: Page, live: Map<string, Frame>): Page {
 
 /** La page a au moins une flèche accrochée (sinon rien à suivre). */
 export const hasAttach = (page: Page): boolean => page.elements.some((e) => !!attachOf(e));
+
+/** Les accroches d'éléments copiés (coller, dupliquer, répéter, page dupliquée) : vers la copie de leur élément si
+ *  elle est faite en même temps (`ids` : ancien identifiant vers nouveau), sinon retirées. */
+export function remapAttach(elements: Element[], ids: Map<string, string>): Element[] {
+  return elements.map((e) => {
+    if (e.kind.type !== "Shape" || !e.kind.attach) return e;
+    const move = (a: Anchor | null | undefined) => (a && ids.has(a.element) ? { ...a, element: ids.get(a.element)! } : undefined);
+    const start = move(e.kind.attach.start);
+    const end = move(e.kind.attach.end);
+    const { attach: _drop, ...kind } = e.kind;
+    void _drop;
+    return { ...e, kind: start || end ? { ...kind, attach: clean({ start, end }) } : kind };
+  });
+}

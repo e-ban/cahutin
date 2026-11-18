@@ -8,6 +8,10 @@
 - Tiroir Formes : une tuile « Double flèche ». Chaque forme se pose au centre d'un clic, ou se glisse jusqu'à l'endroit voulu de la page.
 - LibreOffice Draw : les pointes choisies voyagent dans le fichier exporté et reviennent à leur bout quand on le rouvre, aussi après l'avoir enregistré dans LibreOffice. Une pointe dessinée au début d'un trait dans LibreOffice reste au début (le trait n'est plus retourné). Les flèches des documents existants ne changent pas. Un document où l'on a choisi des pointes ne s'ouvre pas dans une version plus ancienne de Cahutin (qui les perdrait), qui demande alors la mise à jour.
 - Assistant : il peut choisir les pointes d'un trait, et un trait qu'il pose sans épaisseur n'est plus invisible.
+- Chemins : un trait se plie. Un « + » à chaque bout, ou le bouton « Prolonger », le prolonge clic après clic : chaque clic sur la page ajoute un coude, un trait fin montre le prochain segment ; Échap, Entrée, un double-clic ou un clic sur le dernier point terminent, et un seul Ctrl+Z défait tout le tracé. Tirer la petite poignée au milieu d'un segment ajoute un coude ; chaque coude se tire comme un bout (même accroche, aussi sur les autres points du chemin) ; un double-clic sur un point le retire. Pratique pour un parcours, un chemin à suivre ou le bon chemin d'un labyrinthe.
+- Chemins : « Courbe », dans la barre et dans Réglages, adoucit les angles : la courbe passe par les points posés. Les pointes suivent la direction du dernier segment ou de la courbe.
+- LibreOffice Draw : un chemin à coudes ou courbe voyage dans le fichier exporté avec ses pointes, et revient modifiable point par point ; une polyligne ouverte dessinée dans LibreOffice devient elle aussi un chemin. Un document qui contient un chemin ne s'ouvre pas dans une version plus ancienne de Cahutin, qui demande alors la mise à jour.
+- Assistant : il peut tracer un chemin en donnant ses points, droit ou en courbe.
 
 ## 0.18.2
 

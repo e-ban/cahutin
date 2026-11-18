@@ -156,3 +156,56 @@ test("a duplicated page keeps its connectors", () => {
   expect(copyA.kind.type === "Shape" && copyA.kind.attach?.end?.element).toBe(copyR.id);
   void r;
 });
+
+// Tirer le bout libre (comme LineHandles) ne décroche pas l'autre.
+import { withAttachEnd } from "./connectors";
+import { dragPoint } from "./linePath";
+import { throughPoints } from "./elementEdit";
+
+test("dragging the free end keeps the attached end", () => {
+  const { a } = setup();
+  const base = editor.doc;
+  const e = get(a);
+  if (e.kind.type !== "Shape") throw new Error();
+  const pts0 = pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v);
+  for (const to of [{ x: 15, y: 70 }, { x: 25, y: 90 }]) {
+    const next = dragPoint({ pts: pts0, i: 0, to, shift: false, lines: { xs: [], ys: [] }, tolMm: 0 });
+    const moved = throughPoints(e, withAttachEnd(e.kind, "start", undefined), next);
+    editor.preview({ ...base, pages: base.pages.map((p) => ({ ...p, elements: p.elements.map((o) => (o.id === a ? moved : o)) })) });
+  }
+  editor.endPreview();
+  expect(attach(a)?.end?.at).toBe("Left");
+});
+
+test("dragging the free end of an attached path keeps the attached end", () => {
+  const { a } = pathSetup();
+  const base = editor.doc;
+  const e = get(a);
+  if (e.kind.type !== "Shape") throw new Error();
+  const pts0 = pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v);
+  for (const to of [{ x: 15, y: 70 }, { x: 5, y: 20 }]) {
+    const next = dragPoint({ pts: pts0, i: 0, to, shift: false, lines: { xs: [], ys: [] }, tolMm: 0 });
+    const moved = throughPoints(e, withAttachEnd(e.kind, "start", undefined), next);
+    editor.preview({ ...base, pages: base.pages.map((p) => ({ ...p, elements: p.elements.map((o) => (o.id === a ? moved : o)) })) });
+  }
+  editor.endPreview();
+  expect(attach(a)?.end?.at).toBe("Left");
+});
+
+test("start attached, dragging the end keeps the start", () => {
+  const { a, r } = setup();
+  // Le début accroché au milieu gauche de « r », la fin libre.
+  editor.updateElement(a, (e) => (e.kind.type === "Shape" ? { ...e, kind: { ...e.kind, attach: { start: { element: r, at: "Left" } } } } : e));
+  const base = editor.doc;
+  const e = get(a);
+  if (e.kind.type !== "Shape") throw new Error();
+  expect(e.kind.attach?.start?.element).toBe(r);
+  const pts0 = pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v);
+  for (const to of [{ x: 15, y: 70 }, { x: 5, y: 20 }]) {
+    const next = dragPoint({ pts: pts0, i: 1, to, shift: false, lines: { xs: [], ys: [] }, tolMm: 0 });
+    const moved = throughPoints(e, withAttachEnd(e.kind, "end", undefined), next);
+    editor.preview({ ...base, pages: base.pages.map((p) => ({ ...p, elements: p.elements.map((o) => (o.id === a ? moved : o)) })) });
+  }
+  editor.endPreview();
+  expect(attach(a)?.start?.at).toBe("Left");
+});

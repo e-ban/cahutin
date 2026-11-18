@@ -144,3 +144,11 @@ test("moving an elbow keeps the attachment; a closed path has none", () => {
   const closed = followConnectors(before, withPts(before, [{ x: 10, y: 50 }, { x: 35, y: 95 }, { x: 60, y: 50 }], true));
   expect(attachOf(closed, "a")).toBeUndefined();
 });
+
+test("a fresh attachment is kept", () => {
+  const before = page();
+  // Le bout a été tiré jusqu'au milieu du haut de « r », et s'y accroche.
+  const after = followConnectors(before, moved(before, "a", (e) => (e.kind.type === "Shape" ? { ...e, frame: frameFromEndpoints({ x: 10, y: 50 }, { x: 80.2, y: 40.1 }, 4, false), kind: { ...e.kind, attach: { end: { element: "r", at: "Top" } } } } : e)));
+  expect(attachOf(after, "a")).toBeDefined();
+  close(ptsOf(after, "a")[1], { x: 80, y: 40 });
+});

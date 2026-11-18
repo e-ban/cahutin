@@ -373,7 +373,7 @@ export const fr = {
   lineLength: "Longueur (mm)",
   angle: "Angle (°)",
   doubleArrow: "Double flèche",
-  lineHandleHint: "Tirer pour déplacer ce bout (Maj : angles de 45°)",
+  lineHandleHint: "Tirer pour déplacer ce bout ; près d'un élément, il s'y accroche (Maj : angles de 45°)",
   pointHandleHint: "Tirer pour déplacer ce point. Double-clic pour le retirer.",
   midHandleHint: "Tirer pour ajouter un coude.",
   star: "Étoile",

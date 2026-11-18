@@ -11,15 +11,18 @@
   import { isLineTarget } from "../lib/lineEnds";
   import { MAX_PATH_POINTS, dragPoint, endDirections, insertPoint, isPath, pagePoints, segmentMids, type Pt } from "../lib/linePath";
   import { extending } from "../lib/extending.svelte";
+  import { ANCHORS, anchorPoint, attachTarget, withAttachEnd } from "../lib/connectors";
   import { fr } from "../lib/i18n/fr";
   import { settings } from "../lib/settings.svelte";
   import { PX_PER_MM, mmToPx } from "../lib/units";
-  import type { Document } from "../lib/types";
+  import type { AnchorPoint, Document, Frame } from "../lib/types";
 
   let { pageEl, zoom }: { pageEl: HTMLElement | undefined; zoom: number } = $props();
 
   /** Lignes d'accroche à cette distance du point, à l'écran (comme Moveable). */
   const SNAP_PX = 6;
+  /** Un bout tiré s'accroche au point d'un élément à cette distance, à l'écran. */
+  const ATTACH_PX = 12;
   /** Une poignée de milieu n'ajoute un coude qu'au-delà de ce geste (un simple clic ne change rien). */
   const MID_DEAD_PX = 3;
 
@@ -49,6 +52,8 @@
 
   type Drag = { id: string; mode: "point" | "mid"; i: number; base: Document; pts0: Pt[]; pointer: number; from: { x: number; y: number }; live: boolean };
   let drag = $state<Drag | null>(null);
+  /** L'élément près du bout tiré (ses points d'accroche s'allument) et le point où il s'accroche. */
+  let hover = $state<{ frame: Frame; at: AnchorPoint | null } | null>(null);
   /** Lignes où le point s'est accroché pendant le geste, montrées sur la page. */
   let guides = $state<{ x: number | null; y: number | null }>({ x: null, y: null });
 
@@ -79,12 +84,17 @@
     const tolMm = SNAP_PX / (PX_PER_MM * zoom);
     // Milieu : un coude inséré après le point `i`, qui suit la souris.
     const [base, i] = drag.mode === "mid" ? [insertPoint(drag.pts0, drag.i, to), drag.i + 1] : [drag.pts0, drag.i];
-    const next = dragPoint({ pts: base, i, to, shift: ev.shiftKey, lines, tolMm });
+    // Un bout (pas un coude) d'un trait ouvert : près d'un élément, ses points s'allument et le bout s'y accroche.
+    const end = drag.mode === "point" && !e.kind.closed && (i === 0 || i === base.length - 1) ? (i === 0 ? "start" : "end") : null;
+    const hit = end ? attachTarget(page, to, e.id, ATTACH_PX / (PX_PER_MM * zoom)) : null;
+    hover = hit ? { frame: hit.element.frame, at: hit.snap?.at ?? null } : null;
+    const next = hit?.snap ? base.map((p, j) => (j === i ? hit.snap!.point : p)) : dragPoint({ pts: base, i, to, shift: ev.shiftKey, lines, tolMm });
+    const kind = end ? withAttachEnd(e.kind, end, hit?.snap ? { element: hit.element.id, at: hit.snap.at } : undefined) : e.kind;
     const tip = next[i];
     const others = next.filter((_, j) => j !== i);
     const on = (v: number, ls: number[]) => (ls.some((l) => Math.abs(l - v) < 1e-6) ? v : null);
-    guides = ev.shiftKey ? { x: null, y: null } : { x: on(tip.x, [...lines.xs, ...others.map((p) => p.x)]), y: on(tip.y, [...lines.ys, ...others.map((p) => p.y)]) };
-    const moved = throughPoints(e, e.kind, next);
+    guides = ev.shiftKey || hit?.snap ? { x: null, y: null } : { x: on(tip.x, [...lines.xs, ...others.map((p) => p.x)]), y: on(tip.y, [...lines.ys, ...others.map((p) => p.y)]) };
+    const moved = throughPoints(e, kind, next);
     editor.preview({ ...drag.base, pages: drag.base.pages.map((p, k) => (k === editor.pageIndex ? { ...p, elements: p.elements.map((o) => (o.id === e.id ? moved : o)) } : p)) });
   }
 
@@ -94,6 +104,7 @@
     editor.endPreview();
     drag = null;
     guides = { x: null, y: null };
+    hover = null;
     editor.gesture = false;
   }
 
@@ -169,6 +180,21 @@
         >
       {/each}
     {/if}
+    {#if hover}
+      {@const f = hover.frame}
+      <span
+        class="attach-outline"
+        style:left="{mmToPx(f.x_mm, zoom)}px"
+        style:top="{mmToPx(f.y_mm, zoom)}px"
+        style:width="{mmToPx(f.w_mm, zoom)}px"
+        style:height="{mmToPx(f.h_mm, zoom)}px"
+        style:transform="rotate({f.rotation_deg}deg)"
+      ></span>
+      {#each ANCHORS as at (at)}
+        {@const p = anchorPoint(f, at)}
+        <span class="anchor" class:on={hover.at === at} style:left="{mmToPx(p.x, zoom)}px" style:top="{mmToPx(p.y, zoom)}px"></span>
+      {/each}
+    {/if}
     {#if guides.x !== null}<span class="guide v" style:left="{mmToPx(guides.x, zoom)}px"></span>{/if}
     {#if guides.y !== null}<span class="guide h" style:top="{mmToPx(guides.y, zoom)}px"></span>{/if}
   </div>
@@ -238,6 +264,32 @@
   .plus.hidden,
   .handle.hidden {
     visibility: hidden;
+  }
+  /* Accroche : liseré autour de l'élément visé et ses 5 points (le point choisi plein). */
+  .attach-outline {
+    position: absolute;
+    box-sizing: border-box;
+    border: 2px solid #2ecc71;
+    border-radius: 2px;
+    transform-origin: center;
+    pointer-events: none;
+  }
+  .anchor {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #2ecc71;
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+  .anchor.on {
+    background: #2ecc71;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
   }
   .guide {
     position: absolute;

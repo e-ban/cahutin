@@ -66,8 +66,11 @@ export function followConnectors(before: Page | null, after: Page, live?: Map<st
       if (!now) return undefined;
       const w = wasPts ? wasPts[k === 0 ? 0 : wasPts.length - 1] : null;
       const tipMoved = !!w && (Math.abs(w.x - pts[k].x) > 1e-9 || Math.abs(w.y - pts[k].y) > 1e-9);
+      // Une accroche toute neuve (on vient de tirer le bout dessus) n'est jamais défaite.
+      const oldA = o && o.kind.type === "Shape" ? (k === 0 ? o.kind.attach?.start : o.kind.attach?.end) : undefined;
+      const sameBefore = !!oldA && oldA.element === a.element && oldA.at === a.at;
       const was = old.get(a.element);
-      return tipMoved && was && sameFrame(was.frame, now) ? undefined : a;
+      return tipMoved && sameBefore && was && sameFrame(was.frame, now) ? undefined : a;
     };
     const start = keep(attach.start, 0);
     const end = keep(attach.end, pts.length - 1);
@@ -140,4 +143,12 @@ export function followDoc<D extends { pages: Page[] }>(before: D | null, after: 
     return q;
   });
   return changed ? { ...after, pages } : after;
+}
+
+/** Les réglages d'un trait dont un bout s'accroche à `a` (ou se décroche, sans `a`). */
+export function withAttachEnd<K extends { attach?: Attach | null }>(kind: K, which: "start" | "end", a?: Anchor): K {
+  const next = clean({ ...(kind.attach ?? {}), [which]: a });
+  const { attach: _drop, ...rest } = kind;
+  void _drop;
+  return (next.start || next.end ? { ...rest, attach: next } : rest) as K;
 }

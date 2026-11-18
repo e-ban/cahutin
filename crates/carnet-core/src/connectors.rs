@@ -72,6 +72,10 @@ pub fn follow_connectors(before: Option<&Page>, after: &mut Page) {
         let Some(mut pts) = line_points(e) else { continue };
         let n = pts.len();
         let was = old(&e.id).and_then(line_points);
+        let was_attach = old(&e.id).and_then(|o| match &o.kind {
+            ElementKind::Shape(os) => os.attach.clone(),
+            _ => None,
+        });
         // Un bout a bougé seul : il n'est plus où il était, alors que son élément est à la même place qu'avant.
         let keep = |a: &Option<crate::model::Anchor>, k: usize| {
             a.clone().filter(|a| {
@@ -80,7 +84,9 @@ pub fn follow_connectors(before: Option<&Page>, after: &mut Page) {
                     let j = if k == 0 { 0 } else { w.len() - 1 };
                     (w[j].0 - pts[k].0).abs() > 1e-9 || (w[j].1 - pts[k].1).abs() > 1e-9
                 });
-                !(tip_moved && old(&a.element).is_some_and(|o| o.frame == *now)) && !s.closed
+                // Une accroche toute neuve (on vient de tirer le bout dessus) n'est jamais défaite.
+                let same_before = was_attach.as_ref().and_then(|w| if k == 0 { w.start.as_ref() } else { w.end.as_ref() }) == Some(a);
+                !(tip_moved && same_before && old(&a.element).is_some_and(|o| o.frame == *now)) && !s.closed
             })
         };
         let (start, end) = (keep(&attach.start, 0), keep(&attach.end, n - 1));
@@ -290,6 +296,22 @@ mod tests {
         }
         follow_connectors(Some(&before), &mut after);
         assert_eq!(props_of(get(&after, "a")).attach, None);
+    }
+
+    /// Un bout qu'on vient d'accrocher (son accroche est nouvelle) reste accroché, même s'il a bougé.
+    #[test]
+    fn a_fresh_attachment_is_kept() {
+        let before = page();
+        // Le bout a été tiré jusqu'au milieu du haut de « r », et s'y accroche.
+        let mut after = moved(&before, "a", |e| {
+            if let ElementKind::Shape(s) = &mut e.kind {
+                s.attach = Some(Attach { start: None, end: anchor("r", AnchorPoint::Top) });
+                e.frame = crate::shapes::line_frame((10.0, 50.0), (80.2, 40.1), s);
+            }
+        });
+        follow_connectors(Some(&before), &mut after);
+        assert!(props_of(get(&after, "a")).attach.is_some());
+        assert!(close(ends(&after, "a")[1], (80.0, 40.0)));
     }
 
     #[test]

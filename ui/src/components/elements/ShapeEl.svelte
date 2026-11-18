@@ -1,7 +1,8 @@
 <script lang="ts">
   // Rectangle et ellipse en CSS ; les formes dessinées, les tracés libres et les traits en SVG, avec le tracé de
   // l'export.
-  import { SHAPE_PATHS, SHAPE_VIEWBOX, arrowHeadMm } from "../../lib/shapePaths";
+  import { SHAPE_PATHS, SHAPE_VIEWBOX } from "../../lib/shapePaths";
+  import { headWidthMm } from "../../lib/lineEnds";
   import { dashArray, isSolid } from "../../lib/strokes";
   import { mmToPx } from "../../lib/units";
   import type { Frame, ShapeProps } from "../../lib/types";
@@ -15,7 +16,7 @@
   const w = $derived(mmToPx(frame.w_mm, zoom));
   const h = $derived(mmToPx(frame.h_mm, zoom));
   // Pointe de flèche : même proportion que celle de LibreOffice (base 20, longueur 30).
-  const headW = $derived(mmToPx(arrowHeadMm(props.stroke?.width_mm ?? 1), zoom));
+  const headW = $derived(mmToPx(headWidthMm(props), zoom));
   const headL = $derived(headW * 1.5);
   const dash = $derived(dashArray(props.stroke, strokePx));
   /** Épaisseur cliquable autour du contour d'une forme vide. */

@@ -1,6 +1,6 @@
 // Tracés des formes dessinées : copie exacte de crates/carnet-core/src/shapes.rs (un test Rust le vérifie).
 // Le même tracé est dessiné à l'écran et écrit dans l'ODG.
-import type { ShapeKind } from "./types";
+import type { HeadSize, ShapeKind } from "./types";
 
 export const SHAPE_VIEWBOX = 1000;
 
@@ -14,5 +14,12 @@ export const SHAPE_PATHS: Partial<Record<ShapeKind, string>> = {
 /** Trait ou flèche : un segment au milieu du cadre, sans remplissage. */
 export const isStrokeOnly = (kind: ShapeKind) => kind === "Line" || kind === "Arrow";
 
-/** Largeur de la pointe d'une flèche, comme à l'export : quatre fois le trait, 4 mm au moins. */
-export const arrowHeadMm = (strokeMm: number) => Math.max(4, strokeMm * 4);
+/** Facteur de chaque taille de terminaison : les mêmes que `shapes::HEAD_FACTORS` (un test Rust le vérifie). */
+export const HEAD_FACTORS: Record<HeadSize, number> = {
+  Small: 0.7,
+  Medium: 1,
+  Large: 1.5,
+};
+
+/** Diamètre d'un rond, côté d'un carré : cette part de la largeur d'une pointe (`shapes::DOT_FACTOR`). */
+export const DOT_FACTOR = 0.6;

@@ -179,6 +179,16 @@ mod tests {
     }
 
     #[test]
+    fn screen_uses_the_same_head_factors() {
+        let ts = include_str!("../../../ui/src/lib/shapePaths.ts");
+        for (size, factor) in HEAD_FACTORS {
+            let line = format!("  {size:?}: {factor},");
+            assert!(ts.contains(&line), "taille {size:?} différente à l'écran : {line}");
+        }
+        assert!(ts.contains(&format!("export const DOT_FACTOR = {DOT_FACTOR};")), "rond et carré différents à l'écran");
+    }
+
+    #[test]
     fn screen_uses_the_same_paths() {
         let ts = include_str!("../../../ui/src/lib/shapePaths.ts");
         for kind in [ShapeKind::Star, ShapeKind::Heart, ShapeKind::Bubble, ShapeKind::Cloud] {

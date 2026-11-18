@@ -44,3 +44,12 @@ test("strokeElement: a click or a tiny stroke draws nothing; a straight stroke i
   expect(isPath(line.kind)).toBe(false);
   expect(line.frame.w_mm).toBeCloseTo(29, 6);
 });
+
+test("strokeElement keeps the stroke on the page", () => {
+  const page = newDocument().pages[0];
+  const pts: Pt[] = Array.from({ length: 40 }, (_, i) => ({ x: -10 + i * 2, y: 20 }));
+  const e = strokeElement(page, pts)!;
+  if (e.kind.type !== "Shape") throw new Error();
+  const back = pagePoints(e.frame, e.kind, false, false);
+  expect(Math.min(...back.map((p) => p.x))).toBeGreaterThanOrEqual(0);
+});

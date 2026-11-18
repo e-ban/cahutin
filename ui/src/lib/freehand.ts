@@ -52,8 +52,11 @@ export function simplifyStroke(pts: Pt[], tol = STROKE_TOLERANCE_MM): Pt[] {
 
 /** Le chemin d'un tracé à main levée (trait de 1 mm, comme le tiroir Formes), ou `null` pour un clic ou un tracé de
  *  moins de 2 mm. Deux points gardés : un trait droit ; plus : un chemin en courbe. */
-export function strokeElement(page: Page, pts: Pt[]): Element | null {
-  if (pts.length < 2) return null;
+export function strokeElement(page: Page, raw: Pt[]): Element | null {
+  if (raw.length < 2) return null;
+  // Un tracé qui déborde dans la marge grise reste sur la page.
+  const { width_mm: w, height_mm: h } = page.size;
+  const pts = raw.map((p) => ({ x: Math.min(w, Math.max(0, p.x)), y: Math.min(h, Math.max(0, p.y)) }));
   const xs = pts.map((p) => p.x);
   const ys = pts.map((p) => p.y);
   if (Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) < MIN_STROKE_MM) return null;

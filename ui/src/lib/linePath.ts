@@ -209,3 +209,13 @@ export function fromShapePath(frame: Frame, path: string, flipH: boolean, flipV:
   if (ours.length !== ctrls.length || !ours.every(([c1, c2], k) => near(c1, ctrls[k][0]) && near(c2, ctrls[k][1]))) return null;
   return { pts, curve: true, closed };
 }
+
+/** Le bout d'un trait ou d'un chemin ouvert à moins de `tolMm` du point appuyé, s'il y en a un (le plus proche). */
+export function endNear(frame: Frame, s: ShapeProps, flipH: boolean, flipV: boolean, p: Pt, tolMm: number): "start" | "end" | null {
+  if (s.closed && isPath(s)) return null;
+  const pts = pagePoints(frame, s, flipH, flipV);
+  const d = (q: Pt) => Math.hypot(q.x - p.x, q.y - p.y);
+  const [ds, de] = [d(pts[0]), d(pts[pts.length - 1])];
+  if (Math.min(ds, de) > tolMm) return null;
+  return ds <= de ? "start" : "end";
+}

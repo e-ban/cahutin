@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { closedCurveBeziers, curveBeziers, dragPoint, fromShapePath, toShapePath, endDirections, extend, fromPagePoints, insertPoint, isPath, pagePoints, removePoint, segmentMids, type Pt } from "./linePath";
+import { closedCurveBeziers, curveBeziers, dragPoint, endNear, fromShapePath, toShapePath, endDirections, extend, fromPagePoints, insertPoint, isPath, pagePoints, removePoint, segmentMids, type Pt } from "./linePath";
 import { lineEndpoints } from "./lineEnds";
 import type { Frame, ShapeProps } from "./types";
 
@@ -200,4 +200,17 @@ test("fromShapePath refuses what it cannot rebuild", () => {
   expect(fromShapePath(f, "M 0 0 C 900 0 0 900 500 500 C 0 0 0 0 1000 1000", false, false)).toBeNull();
   expect(fromShapePath(f, "M 0 0 L 500 0 C 600 0 600 100 1000 1000", false, false)).toBeNull();
   expect(fromShapePath(f, "M 0 0 L 1000 1000", false, false)?.pts).toHaveLength(2);
+});
+
+test("endNear finds the end under the press, if any", () => {
+  const s = line();
+  const frame: Frame = { x_mm: 40, y_mm: 60, w_mm: 80, h_mm: 4, rotation_deg: 0 };
+  expect(endNear(frame, s, false, false, { x: 41, y: 62.5 }, 3)).toBe("start");
+  expect(endNear(frame, s, false, false, { x: 119, y: 62 }, 3)).toBe("end");
+  expect(endNear(frame, s, false, false, { x: 80, y: 62 }, 3)).toBeNull();
+  // Miroir : le début est à droite.
+  expect(endNear(frame, s, true, false, { x: 119, y: 62 }, 3)).toBe("start");
+  // Un chemin fermé n'a pas de bouts.
+  const closed = line({ closed: true, points: [[0, 0.5], [0.5, 0], [1, 0.5]] });
+  expect(endNear(frame, closed, false, false, { x: 40, y: 62 }, 3)).toBeNull();
 });

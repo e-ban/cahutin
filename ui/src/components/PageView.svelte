@@ -17,7 +17,7 @@
   import { PX_PER_MM, mmToPx, ptToPx } from "../lib/units";
   import { settings } from "../lib/settings.svelte";
   import { isPlacedCell } from "../lib/table";
-  import { blockBelow } from "../lib/groups";
+  import { blockBelow, groupOf } from "../lib/groups";
   import { DRAG_DEAD_ZONE_PX } from "../lib/geometry";
   import { textEditing } from "../lib/textEditing.svelte";
   import { IS_LINUX, resizeCursor } from "../lib/cursors";
@@ -25,7 +25,7 @@
   import { SAFE_MARGIN_MM, atRisk } from "../lib/printSafety";
   import { handleTarget } from "../lib/handleTarget";
   import { isLineTarget } from "../lib/lineEnds";
-  import { isPath } from "../lib/linePath";
+  import { endNear, isPath } from "../lib/linePath";
   import { liveFollow } from "../lib/connectors";
   import type { Crop, Document, Element, Frame, Page, RichText } from "../lib/types";
 
@@ -127,6 +127,15 @@
 
   // Forme vide (sans remplissage) : sa boîte laisse passer les clics, ShapeEl dessine la surface qui les reçoit.
   // Un tableau laisse passer tous les clics vers ses cases.
+  /** Le bout d'un trait seul que l'appui vise (à moins de 12 px), s'il y en a un. */
+  function grabbedEnd(e: Element, ev: PointerEvent): "start" | "end" | null {
+    if (!isLineTarget(e) || e.kind.type !== "Shape" || (e.locked && !templateMode) || !pageEl) return null;
+    if (groupOf(page, e.id, editor.insideGroup).length !== 1) return null;
+    const r = pageEl.getBoundingClientRect();
+    const k = PX_PER_MM * zoom;
+    return endNear(e.frame, e.kind, !!e.flip_h, !!e.flip_v, { x: (ev.clientX - r.left) / k, y: (ev.clientY - r.top) / k }, 12 / k);
+  }
+
   // Un chemin (trait à coudes) : seul son tracé se clique, pas le rectangle qui l'entoure (fermé : son intérieur aussi).
   const isHollow = (e: Element) => e.kind.type === "Table" || (e.kind.type === "Shape" && (isPath(e.kind) || (e.kind.fill === null && e.kind.shape !== "Line" && e.kind.shape !== "Arrow")));
 
@@ -392,6 +401,16 @@
         }
         // Alt+clic : la page choisit l'élément dessous, au clic.
         if (ev.altKey) return;
+        // Appui près d'un bout d'un trait seul (hors groupe, déverrouillé) : on tire ce bout, pas tout le trait
+        // (sinon le trait bougerait en entier et se décrocherait de ce qu'il relie).
+        const which = onselect && ev.button === 0 && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey ? grabbedEnd(e, ev) : null;
+        if (which) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          onselect?.(e.id, false);
+          editor.endGrab = { id: e.id, which, pointer: ev.pointerId };
+          return;
+        }
         // Ctrl+clic, comme Maj+clic : ajoute à la sélection ou en retire.
         onselect?.(e.id, ev.shiftKey || ev.ctrlKey || ev.metaKey);
       }}

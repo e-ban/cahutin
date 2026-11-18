@@ -209,3 +209,22 @@ test("start attached, dragging the end keeps the start", () => {
   editor.endPreview();
   expect(attach(a)?.start?.at).toBe("Left");
 });
+
+test("a plain line attached by dragging its end follows its element", () => {
+  editor.reset(newDocument(), null);
+  const r = { ...shapeElement(editor.page, "Rect"), frame: { x_mm: 60, y_mm: 40, w_mm: 40, h_mm: 20, rotation_deg: 0 } };
+  const l = shapeElement(editor.page, "Line");
+  editor.updatePage((p) => ({ ...p, elements: [r, l] }));
+  // Comme LineHandles : la fin tirée sur le milieu gauche de « r », qui s'y accroche.
+  const base = editor.doc;
+  const e = get(l.id);
+  if (e.kind.type !== "Shape") throw new Error();
+  const pts0 = pagePoints(e.frame, e.kind, !!e.flip_h, !!e.flip_v);
+  const next = [pts0[0], { x: 60, y: 50 }];
+  const moved = throughPoints(e, withAttachEnd(e.kind, "end", { element: r.id, at: "Left" }), next);
+  editor.preview({ ...base, pages: base.pages.map((p) => ({ ...p, elements: p.elements.map((o) => (o.id === l.id ? moved : o)) })) });
+  editor.endPreview();
+  expect(attach(l.id)?.end?.at).toBe("Left");
+  editor.updateElement(r.id, (o) => ({ ...o, frame: { ...o.frame, x_mm: 90 } }));
+  expect(tip(l.id).x).toBeCloseTo(90, 9);
+});

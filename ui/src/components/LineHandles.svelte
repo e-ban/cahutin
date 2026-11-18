@@ -50,7 +50,7 @@
     ];
   });
 
-  type Drag = { id: string; mode: "point" | "mid"; i: number; base: Document; pts0: Pt[]; pointer: number; from: { x: number; y: number }; live: boolean };
+  type Drag = { id: string; mode: "point" | "mid"; i: number; base: Document; pts0: Pt[]; pointer: number; from: { x: number; y: number }; live: boolean; viaWindow?: boolean };
   let drag = $state<Drag | null>(null);
   /** L'élément près du bout tiré (ses points d'accroche s'allument) et le point où il s'accroche. */
   let hover = $state<{ frame: Frame; at: AnchorPoint | null } | null>(null);
@@ -107,6 +107,29 @@
     hover = null;
     editor.gesture = false;
   }
+
+  // Un appui près d'un bout (la page vient de sélectionner le trait) : on tire ce bout, suivi par la fenêtre.
+  $effect(() => {
+    const g = editor.endGrab;
+    if (!g || !target || target.id !== g.id || drag) return;
+    editor.endGrab = null;
+    const i = g.which === "start" ? 0 : pts.length - 1;
+    drag = { id: target.id, mode: "point", i, base: editor.doc, pts0: pts, pointer: g.pointer, from: { x: 0, y: 0 }, live: true, viaWindow: true };
+    editor.gesture = true;
+  });
+  $effect(() => {
+    if (!drag?.viaWindow) return;
+    const up = (ev: PointerEvent) => ev.pointerId === drag?.pointer && finish(true);
+    const cancel = (ev: PointerEvent) => ev.pointerId === drag?.pointer && finish(false);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+    };
+  });
 
   $effect(() => {
     const onKey = (ev: KeyboardEvent) => {

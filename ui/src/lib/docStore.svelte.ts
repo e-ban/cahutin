@@ -367,6 +367,10 @@ class Editor {
    *  eux, en direct. Affichage seul : ni document ni historique. */
   liveFrames = $state<Map<string, Frame> | null>(null);
 
+  /** Un appui près d'un bout d'un trait (même non sélectionné) : la page le sélectionne et confie le geste aux
+   *  poignées (LineHandles), qui tirent ce bout au lieu de déplacer tout le trait. */
+  endGrab = $state<{ id: string; which: "start" | "end"; pointer: number } | null>(null);
+
   endPreview() {
     const base = this.#previewBase;
     if (!base) return;

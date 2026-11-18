@@ -435,8 +435,8 @@ mod tests {
     #[test]
     fn the_fixed_part_of_a_request_stays_small() {
         let (tools, system) = (openai_tools().to_string().len(), system_prompt().len());
-        assert!(tools <= 11_570, "outils : {tools} octets");
-        assert!(tools + system <= 14_345, "outils et consigne : {} octets", tools + system);
+        assert!(tools <= 11_630, "outils : {tools} octets");
+        assert!(tools + system <= 14_410, "outils et consigne : {} octets", tools + system);
     }
 
     #[test]

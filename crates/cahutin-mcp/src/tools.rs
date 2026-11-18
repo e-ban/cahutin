@@ -37,6 +37,19 @@ pub const MUTATING: &[&str] = &[
 pub const SAVE_AS_TEMPLATE: &str = "save_as_template";
 
 pub fn apply(doc: &mut Document, name: &str, args: &Value, selection: &[Id]) -> Result<Value, String> {
+    // Après chaque modification, les flèches accrochées suivent leurs éléments (ou se décrochent si on les a
+    // déplacées seules), comme dans l'éditeur.
+    let before = (name != "get_layout").then(|| doc.pages.clone());
+    let out = run(doc, name, args, selection);
+    if let (Some(before), Ok(_)) = (before, &out) {
+        for p in &mut doc.pages {
+            carnet_core::connectors::follow_connectors(before.iter().find(|b| b.id == p.id), p);
+        }
+    }
+    out
+}
+
+fn run(doc: &mut Document, name: &str, args: &Value, selection: &[Id]) -> Result<Value, String> {
     match name {
         "get_layout" => Ok(view::layout(doc, args.get("page").and_then(Value::as_u64).map(|p| p as usize), selection)),
         "set_frame" => edit::set_frame(doc, args),
@@ -133,8 +146,8 @@ pub fn definitions() -> Value {
         },
         {
             "name": "add_shape",
-            "description": "Ajoute une forme ; line, arrow : start, end parmi none, arrow, open_arrow, circle, square ; points [[x,y]…] en mm (chemin), curve, closed.",
-            "inputSchema": frame(json!({ "shape": one_of(&["rect", "ellipse", "line", "arrow", "star", "heart", "bubble", "cloud"]), "fill": text, "border_color": text, "border_width_mm": num, "start": text, "end": text, "points": { "type": "array" }, "curve": boolean, "closed": boolean }), &["shape"]),
+            "description": "Ajoute une forme ; line, arrow : start, end parmi none, arrow, open_arrow, circle, square ; points [[x,y]…] en mm (chemin), curve, closed ; from, to : ids.",
+            "inputSchema": frame(json!({ "shape": one_of(&["rect", "ellipse", "line", "arrow", "star", "heart", "bubble", "cloud"]), "fill": text, "border_color": text, "border_width_mm": num, "start": text, "end": text, "points": { "type": "array" }, "curve": boolean, "closed": boolean, "from": id, "to": id }), &["shape"]),
         },
         {
             "name": "add_image",
@@ -252,6 +265,34 @@ pub fn definitions() -> Value {
 mod tests {
     use super::*;
 
+    fn arrow_between(d: &mut Document) -> (String, String) {
+        let a = apply(d, "add_shape", &json!({ "page": 0, "x_mm": 10, "y_mm": 10, "w_mm": 40, "h_mm": 20, "shape": "rect" }), &[]).unwrap()["element_id"].as_str().unwrap().to_string();
+        let b = apply(d, "add_shape", &json!({ "page": 0, "x_mm": 100, "y_mm": 10, "w_mm": 40, "h_mm": 20, "shape": "rect" }), &[]).unwrap()["element_id"].as_str().unwrap().to_string();
+        let arrow = apply(d, "add_shape", &json!({ "page": 0, "x_mm": 0, "y_mm": 0, "w_mm": 1, "h_mm": 1, "shape": "arrow", "from": a, "to": b }), &[]).unwrap()["element_id"].as_str().unwrap().to_string();
+        (b, arrow)
+    }
+    fn element<'a>(d: &'a Document, id: &str) -> &'a carnet_core::Element {
+        d.pages[0].elements.iter().find(|e| e.id == id).unwrap()
+    }
+
+    #[test]
+    fn moving_a_label_moves_its_arrow() {
+        let mut d = Document::new("schéma");
+        let (b, arrow) = arrow_between(&mut d);
+        apply(&mut d, "set_frame", &json!({ "element_id": b, "x_mm": 120, "y_mm": 60 }), &[]).unwrap();
+        let end = carnet_core::connectors::line_points(element(&d, &arrow)).unwrap()[1];
+        assert!((end.0 - 120.0).abs() < 1e-9 && (end.1 - 70.0).abs() < 1e-9, "{end:?}");
+    }
+
+    #[test]
+    fn set_frame_on_the_arrow_detaches_it() {
+        let mut d = Document::new("schéma");
+        let (_, arrow) = arrow_between(&mut d);
+        apply(&mut d, "set_frame", &json!({ "element_id": arrow, "y_mm": 80 }), &[]).unwrap();
+        let carnet_core::ElementKind::Shape(s) = &element(&d, &arrow).kind else { panic!() };
+        assert!(s.attach.is_none());
+    }
+
     /// Un outil décrit mais oublié dans `MUTATING` ne ferait aucune étape, et le serveur n'écrirait pas le fichier.
     #[test]
     fn every_described_tool_is_wired() {
@@ -275,6 +316,6 @@ mod size {
     #[test]
     fn the_tool_descriptions_stay_small() {
         let n = serde_json::to_string(&super::definitions()).unwrap().len();
-        assert!(n <= 10_670, "{n} octets");
+        assert!(n <= 10_735, "{n} octets");
     }
 }

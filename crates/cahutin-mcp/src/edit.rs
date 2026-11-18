@@ -356,14 +356,22 @@ pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
     let ends = if closed { None } else { ends };
     let mut props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve, closed, attach: None };
     // Un chemin : son cadre vient de ses points ; deux points, un trait droit de l'un à l'autre.
-    let frame = pts.as_ref().map(|p| match p[..] {
+    // Une flèche entre deux éléments (`from`, `to`) : ses bouts s'accrochent aux milieux des côtés qui se font face.
+    let link = link_ends(doc, args, shape)?;
+    if link.is_some() && pts.is_some() {
+        return Err("points ou from et to, pas les deux".into());
+    }
+    if let Some((a, b)) = &link {
+        props.attach = Some(carnet_core::model::Attach { start: Some(a.0.clone()), end: Some(b.0.clone()) });
+    }
+    let frame = link.as_ref().map(|(a, b)| carnet_core::shapes::line_frame(a.1, b.1, &props)).or_else(|| pts.as_ref().map(|p| match p[..] {
         [a, b] => carnet_core::shapes::line_frame(a, b, &props),
         _ => {
             let (f, fr) = carnet_core::shapes::path_frame(p, &props);
             props.points = Some(fr);
             f
         }
-    });
+    }));
     let out = push(doc, args, false, ElementKind::Shape(props.clone()))?;
     if let Some(e) = doc.pages.iter_mut().flat_map(|p| &mut p.elements).find(|e| json!(e.id) == out["element_id"]) {
         match frame {
@@ -373,6 +381,31 @@ pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
         }
     }
     Ok(out)
+}
+
+/// Les deux éléments à relier (`from`, `to`, sur la page du trait) : pour chacun, son accroche et son point (mm).
+fn link_ends(doc: &Document, args: &Value, shape: ShapeKind) -> Result<Option<((carnet_core::model::Anchor, (f64, f64)), (carnet_core::model::Anchor, (f64, f64)))>, String> {
+    let (from, to) = match (text(args, "from")?, text(args, "to")?) {
+        (None, None) => return Ok(None),
+        (Some(f), Some(t)) => (f, t),
+        _ => return Err("from et to vont ensemble".into()),
+    };
+    if !carnet_core::shapes::is_stroke_only(shape) {
+        return Err("from et to ne vont qu'à une forme line ou arrow".into());
+    }
+    let index = number(args, "page")?.ok_or("« page » manque")? as usize;
+    let page = doc.pages.get(index).ok_or(format!("aucune page {index}"))?;
+    let frame_of = |id: &str| {
+        let e = page.elements.iter().find(|e| e.id == id).ok_or(format!("aucun élément {id} sur la page {index}"))?;
+        if matches!(&e.kind, ElementKind::Shape(s) if carnet_core::shapes::is_stroke_only(s.shape)) {
+            return Err(format!("{id} est un trait : on ne relie que des éléments"));
+        }
+        Ok(e.frame)
+    };
+    let (fa, fb) = (frame_of(from)?, frame_of(to)?);
+    let (aa, ab) = carnet_core::connectors::facing_anchors(&fa, &fb);
+    let end = |id: &str, f: &Frame, at| (carnet_core::model::Anchor { element: id.to_string(), at }, carnet_core::connectors::anchor_point(f, at));
+    Ok(Some((end(from, &fa, aa), end(to, &fb, ab))))
 }
 
 /// Les points d'un chemin demandés (`points`, mm de page) : 2 à 200, sur un trait ou une flèche seulement.
@@ -639,6 +672,30 @@ mod tests {
         let ElementKind::Shape(s) = &created(&d, &out).kind else { panic!() };
         assert_eq!((s.closed, s.fill.as_deref(), s.ends), (true, Some("#ffcc00"), None));
         assert!(add_shape(&mut d, &with(json!({ "shape": "line", "points": [[10, 10], [40, 10]], "closed": true }))).is_err());
+    }
+
+    #[test]
+    fn add_shape_from_to_attaches_facing_sides() {
+        use carnet_core::model::AnchorPoint;
+        let mut d = doc();
+        let r2 = add_shape(&mut d, &json!({ "page": 0, "x_mm": 100, "y_mm": 100, "w_mm": 40, "h_mm": 20, "shape": "rect" })).unwrap()["element_id"].as_str().unwrap().to_string();
+        let out = add_shape(&mut d, &with(json!({ "shape": "arrow", "from": "t1", "to": r2 }))).unwrap();
+        let e = created(&d, &out);
+        let ElementKind::Shape(s) = &e.kind else { panic!() };
+        let a = s.attach.clone().unwrap();
+        assert_eq!((a.start.as_ref().unwrap().element.as_str(), a.start.as_ref().unwrap().at), ("t1", AnchorPoint::Right));
+        assert_eq!((a.end.as_ref().unwrap().element.clone(), a.end.as_ref().unwrap().at), (r2, AnchorPoint::Left));
+        let pts = carnet_core::connectors::line_points(e).unwrap();
+        assert!((pts[0].0 - 60.0).abs() < 1e-9 && (pts[0].1 - 20.0).abs() < 1e-9, "{pts:?}");
+        assert!((pts[1].0 - 100.0).abs() < 1e-9 && (pts[1].1 - 110.0).abs() < 1e-9, "{pts:?}");
+    }
+
+    #[test]
+    fn unknown_from_is_refused() {
+        let mut d = doc();
+        assert!(add_shape(&mut d, &with(json!({ "shape": "arrow", "from": "nope", "to": "t1" }))).is_err());
+        assert!(add_shape(&mut d, &with(json!({ "shape": "arrow", "from": "t1" }))).is_err());
+        assert!(add_shape(&mut d, &with(json!({ "shape": "rect", "from": "t1", "to": "verrou" }))).is_err());
     }
 
     #[test]

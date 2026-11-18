@@ -141,6 +141,16 @@ fn element_view(doc: &Document, page: &Page, e: &Element, selected: bool) -> Val
                     v["closed"] = json!(true);
                 }
             }
+            // Bouts accrochés à des éléments (connecteur).
+            if let Some(a) = &s.attach {
+                let at = |p: carnet_core::model::AnchorPoint| format!("{p:?}").to_lowercase();
+                if let Some(x) = &a.start {
+                    v["from"] = json!({ "element": x.element, "at": at(x.at) });
+                }
+                if let Some(x) = &a.end {
+                    v["to"] = json!({ "element": x.element, "at": at(x.at) });
+                }
+            }
             v
         }
         // Code OpenMoji d'une image décorative de la banque : public, pas une donnée de l'utilisateur.
@@ -409,6 +419,18 @@ mod tests {
         let shape = &v["pages"][0]["elements"][0];
         assert_eq!(shape["points"], json!([[10.0, 50.0], [30.0, 50.0], [50.0, 70.0]]), "{v}");
         assert_eq!(shape["curve"], json!(true), "{v}");
+    }
+
+    #[test]
+    fn layout_reports_from_to() {
+        let mut d = Document::new("schéma");
+        let a = crate::edit::add_shape(&mut d, &json!({ "page": 0, "x_mm": 10, "y_mm": 10, "w_mm": 40, "h_mm": 20, "shape": "rect" })).unwrap()["element_id"].clone();
+        let b = crate::edit::add_shape(&mut d, &json!({ "page": 0, "x_mm": 100, "y_mm": 10, "w_mm": 40, "h_mm": 20, "shape": "rect" })).unwrap()["element_id"].clone();
+        crate::edit::add_shape(&mut d, &json!({ "page": 0, "x_mm": 0, "y_mm": 0, "w_mm": 1, "h_mm": 1, "shape": "arrow", "from": a, "to": b })).unwrap();
+        let v = layout(&d, Some(0), &[]);
+        let arrow = &v["pages"][0]["elements"][2];
+        assert_eq!(arrow["from"], json!({ "element": a, "at": "right" }), "{v}");
+        assert_eq!(arrow["to"], json!({ "element": b, "at": "left" }), "{v}");
     }
 
     /// La vue ne garde que ce qui n'est pas la valeur par défaut, avec des millimètres courts.

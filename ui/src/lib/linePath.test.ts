@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { closedCurveBeziers, curveBeziers, dragPoint, toShapePath, endDirections, extend, fromPagePoints, insertPoint, isPath, pagePoints, removePoint, segmentMids, type Pt } from "./linePath";
+import { closedCurveBeziers, curveBeziers, dragPoint, fromShapePath, toShapePath, endDirections, extend, fromPagePoints, insertPoint, isPath, pagePoints, removePoint, segmentMids, type Pt } from "./linePath";
 import { lineEndpoints } from "./lineEnds";
 import type { Frame, ShapeProps } from "./types";
 
@@ -168,4 +168,36 @@ test("toShapePath: an open curve uses C and a flat path keeps a height", () => {
   expect(out.path).toMatch(/^M [\d.]+ [\d.]+( C( [-\d.]+){6}){2}$/);
   const flat = fromPagePoints([{ x: 0, y: 5 }, { x: 20, y: 5 }, { x: 40, y: 5 }], line());
   expect(toShapePath(flat.frame, { ...line(), ...flat.patch }, false, false).frame.h_mm).toBeGreaterThan(0);
+});
+
+test("fromShapePath reads back what toShapePath wrote: straight, closed, curved", () => {
+  const pts = [{ x: 10, y: 20 }, { x: 50, y: 25 }, { x: 40, y: 60 }, { x: 15, y: 50 }];
+  for (const extra of [{}, { closed: true }, { curve: true }, { curve: true, closed: true }]) {
+    const s = line(extra);
+    const r = fromPagePoints(pts, s);
+    const shape = toShapePath(r.frame, { ...s, ...r.patch }, false, false);
+    const back = fromShapePath(shape.frame, shape.path, false, false)!;
+    expect(back.closed).toBe(!!(extra as { closed?: boolean }).closed);
+    expect(back.curve).toBe(!!(extra as { curve?: boolean }).curve);
+    back.pts.forEach((p, i) => {
+      expect(p.x).toBeCloseTo(pts[i].x, 1);
+      expect(p.y).toBeCloseTo(pts[i].y, 1);
+    });
+  }
+});
+
+test("fromShapePath follows rotation and mirror of the shape", () => {
+  const frame: Frame = { x_mm: 0, y_mm: 0, w_mm: 100, h_mm: 50, rotation_deg: 90 };
+  const back = fromShapePath(frame, "M 0 0 L 1000 0 L 1000 1000", true, false)!;
+  // Miroir : x -> 1000 - x ; puis un quart de tour autour du centre (50, 25).
+  expect(back.pts.map((p) => [Math.round(p.x), Math.round(p.y)])).toEqual([[75, 75], [75, -25], [25, -25]]);
+});
+
+test("fromShapePath refuses what it cannot rebuild", () => {
+  const f: Frame = { x_mm: 0, y_mm: 0, w_mm: 10, h_mm: 10, rotation_deg: 0 };
+  expect(fromShapePath(f, "M 0 0 L 10 10 M 20 20 L 30 30", false, false)).toBeNull();
+  expect(fromShapePath(f, "M 0 100 C 450 100 550 900 1000 900", false, false)).toBeNull();
+  expect(fromShapePath(f, "M 0 0 C 900 0 0 900 500 500 C 0 0 0 0 1000 1000", false, false)).toBeNull();
+  expect(fromShapePath(f, "M 0 0 L 500 0 C 600 0 600 100 1000 1000", false, false)).toBeNull();
+  expect(fromShapePath(f, "M 0 0 L 1000 1000", false, false)?.pts).toHaveLength(2);
 });

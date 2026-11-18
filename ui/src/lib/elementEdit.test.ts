@@ -107,7 +107,7 @@ test("a thicker stroke grows the hit area of a line with a large head", () => {
 });
 
 // Chemins : points, courbe, inversion.
-import { convertToShape, removePathPoint, setClosed, setCurve, setPathPoints } from "./elementEdit";
+import { convertToPath, convertToShape, removePathPoint, setClosed, setCurve, setPathPoints } from "./elementEdit";
 import { pagePoints } from "./linePath";
 
 const pts3 = [{ x: 20, y: 20 }, { x: 60, y: 20 }, { x: 60, y: 60 }];
@@ -212,4 +212,23 @@ test("convertToShape turns paths into resizable shapes, in one undo step", () =>
   expect(shapeOf(b.id).s.shape).toBe("Line");
   editor.undo();
   expect(shapeOf(a.id).s.shape).toBe("Arrow");
+});
+
+test("convertToPath gives the points back, in one undo step", () => {
+  const { a } = threeShapes();
+  setPathPoints(a.id, pts3);
+  editor.selection = [a.id];
+  setClosed(true);
+  updateShape({ fill: "#ffcc00" });
+  convertToShape();
+  convertToPath();
+  const { s } = shapeOf(a.id);
+  expect(s.shape).toBe("Line");
+  expect([s.closed, s.fill]).toEqual([true, "#ffcc00"]);
+  pointsOf(a.id).forEach((p, i) => {
+    expect(p.x).toBeCloseTo(pts3[i].x, 1);
+    expect(p.y).toBeCloseTo(pts3[i].y, 1);
+  });
+  editor.undo();
+  expect(shapeOf(a.id).s.shape).toBe("Path");
 });

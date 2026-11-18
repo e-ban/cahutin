@@ -361,6 +361,8 @@ export const fr = {
   openPathHint: "Rouvrir le chemin : il retrouve ses deux bouts",
   extendCloseHint: "Cliquez sur le premier point pour fermer le chemin.",
   toShape: "En forme",
+  toPath: "En chemin",
+  toPathHint: "Faire de la forme un chemin dont on tire les points, qu'on prolonge et qu'on plie (Ctrl+Z pour revenir)",
   toShapeHint: "Faire du chemin une forme qu'on agrandit et tourne comme un rectangle ; ses points ne se tirent plus (Ctrl+Z pour revenir)",
   toShapeOpenHint: "Faire du chemin une forme qu'on agrandit et tourne comme un rectangle ; ses points ne se tirent plus et ses pointes disparaissent (Ctrl+Z pour revenir)",
   lineThickness: "Épaisseur",

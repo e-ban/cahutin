@@ -13,7 +13,7 @@
   import { hasTemplateRole, templateRole, withTemplateRole } from "../../lib/templateRole";
   import { isStrokeOnly } from "../../lib/shapePaths";
   import { editLine, endsOf, isLineTarget, lineEndpoints } from "../../lib/lineEnds";
-  import { convertToShape, setClosed, setCurve, setHeadSize, setLineEnd, setPathPoints, swapLineEnds } from "../../lib/elementEdit";
+  import { canConvertToPath, convertToPath, convertToShape, setClosed, setCurve, setHeadSize, setLineEnd, setPathPoints, swapLineEnds } from "../../lib/elementEdit";
   import { isPath, pagePoints } from "../../lib/linePath";
   import LineEndPicker from "../LineEndPicker.svelte";
   import { fonts } from "../../lib/fonts.svelte";
@@ -438,6 +438,9 @@
           <input type="checkbox" disabled={!asPath} checked={!!s.curve} onchange={(e) => setCurve(e.currentTarget.checked)} />
           {fr.curve}
         </label>
+      {/if}
+      {#if canConvertToPath(selected)}
+        <button title={fr.toPathHint} onclick={convertToPath}><Icon name="extendPath" /> {fr.toPath}</button>
       {/if}
       {#if s.shape === "Rect"}
         <div class="field">

@@ -2,7 +2,7 @@
 import { editor } from "./docStore.svelte";
 import { TEXT_PADDING_MM } from "./richtext";
 import { endsOf, isLineTarget, normalizeEnds, withHitHeight } from "./lineEnds";
-import { fromPagePoints, isPath, pagePoints, removePoint, toShapePath, type Pt } from "./linePath";
+import { fromPagePoints, fromShapePath, isPath, pagePoints, removePoint, toShapePath, type Pt } from "./linePath";
 import type { Element, HeadSize, LineEnd, LineEnds, PhotoProps, ShapeProps, TableProps, TextFrame, TextStyle } from "./types";
 
 export function updateSelected(fn: (e: Element) => Element) {
@@ -129,6 +129,34 @@ export function convertToShape() {
     return { ...e, frame: out.frame, flip_h: false, flip_v: false, kind: { type: "Shape", shape: "Path", fill: k.closed ? k.fill : null, stroke: k.stroke, corner_radius_mm: 0, path: out.path } };
   });
 }
+
+/** Une forme tracée (sélectionnée) redevient un chemin dont on tire les points : un trait, ou un chemin fermé qui
+ *  garde son fond. Seulement si `fromShapePath` la relit (sinon rien). Un pas d'annulation. */
+export function convertToPath() {
+  const ids = new Set(editor.selection);
+  editor.updatePage((p) => ({
+    ...p,
+    elements: p.elements.map((e) => {
+      if (!ids.has(e.id) || e.kind.type !== "Shape" || e.kind.shape !== "Path" || e.kind.graphisme || !e.kind.path) return e;
+      const r = fromShapePath(e.frame, e.kind.path, !!e.flip_h, !!e.flip_v);
+      if (!r) return e;
+      const kind: ShapeProps = {
+        shape: "Line",
+        fill: r.closed ? e.kind.fill : null,
+        stroke: e.kind.stroke ?? { width_mm: 1, color: "#333333", style: null },
+        corner_radius_mm: 0,
+        path: null,
+        curve: r.curve || undefined,
+        closed: r.closed || undefined,
+      };
+      return throughPoints(e, kind, r.pts);
+    }),
+  }));
+}
+
+/** La forme tracée se relit en chemin (le bouton « En chemin » est proposé). */
+export const canConvertToPath = (e: Element | undefined | null): boolean =>
+  !!e && e.kind.type === "Shape" && e.kind.shape === "Path" && !e.kind.graphisme && !!e.kind.path && !!fromShapePath(e.frame, e.kind.path, !!e.flip_h, !!e.flip_v);
 
 /** Ferme (ou rouvre) les chemins sélectionnés : un segment revient du dernier point au premier ; fermé, un chemin
  *  n'a plus de terminaisons et `fill` le remplit. Sans effet ni pas d'annulation sur des traits droits. */

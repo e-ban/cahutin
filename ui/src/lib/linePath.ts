@@ -159,3 +159,53 @@ export function toShapePath(frame: Frame, s: ShapeProps, flipH: boolean, flipV: 
   const body = curve ? curve.map(([c1, c2, p]) => ` C ${at(c1)} ${at(c2)} ${at(p)}`).join("") : pts.slice(1).map((p) => ` L ${at(p)}`).join("");
   return { frame: { x_mm: x0, y_mm: y0, w_mm: w, h_mm: h, rotation_deg: 0 }, path: `M ${at(pts[0])}${body}${s.closed ? " Z" : ""}` };
 }
+
+/** Une forme tracée (`Path`) relue en chemin : ses points en mm de page (rotation et miroir compris), si elle est
+ *  faite d'un seul morceau de segments droits (2 à 200 points), ou de cubiques qui sont, à 2 % de sa taille près, la
+ *  courbe de Cahutin passant par leurs extrémités (3 points au moins). Sinon `null` : la forme ne se règle pas point
+ *  par point sans changer d'allure. */
+export function fromShapePath(frame: Frame, path: string, flipH: boolean, flipV: boolean): { pts: Pt[]; curve: boolean; closed: boolean } | null {
+  const tokens = path.trim().split(/\s+/);
+  const num = (i: number) => Number(tokens[i]);
+  const cx = frame.x_mm + frame.w_mm / 2;
+  const cy = frame.y_mm + frame.h_mm / 2;
+  const a = (frame.rotation_deg * Math.PI) / 180;
+  const page = (bx: number, by: number): Pt => {
+    const dx = ((flipH ? 1000 - bx : bx) / 1000) * frame.w_mm - frame.w_mm / 2;
+    const dy = ((flipV ? 1000 - by : by) / 1000) * frame.h_mm - frame.h_mm / 2;
+    return { x: cx + dx * Math.cos(a) - dy * Math.sin(a), y: cy + dx * Math.sin(a) + dy * Math.cos(a) };
+  };
+  if (tokens[0] !== "M") return null;
+  const pts: Pt[] = [page(num(1), num(2))];
+  const ctrls: [Pt, Pt][] = [];
+  let lines = 0;
+  let closed = false;
+  for (let i = 3; i < tokens.length; ) {
+    if (closed) return null;
+    const c = tokens[i];
+    if (c === "L") {
+      pts.push(page(num(i + 1), num(i + 2)));
+      lines++;
+      i += 3;
+    } else if (c === "C") {
+      ctrls.push([page(num(i + 1), num(i + 2)), page(num(i + 3), num(i + 4))]);
+      pts.push(page(num(i + 5), num(i + 6)));
+      i += 7;
+    } else if (c === "Z") {
+      closed = true;
+      i += 1;
+    } else return null;
+  }
+  if (pts.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y)) || (lines && ctrls.length)) return null;
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  const tol = 0.02 * Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  const near = (p: Pt, q: Pt) => Math.hypot(p.x - q.x, p.y - q.y) <= Math.max(tol, 1e-6);
+  // Fermé : un dernier point revenu sur le premier n'en est pas un de plus.
+  if (closed && pts.length > 1 && near(pts[0], pts[pts.length - 1])) pts.pop();
+  if (pts.length > MAX_PATH_POINTS || pts.length < (closed || ctrls.length ? 3 : 2)) return null;
+  if (!ctrls.length) return { pts, curve: false, closed };
+  const ours = closed ? closedCurveBeziers(pts) : curveBeziers(pts);
+  if (ours.length !== ctrls.length || !ours.every(([c1, c2], k) => near(c1, ctrls[k][0]) && near(c2, ctrls[k][1]))) return null;
+  return { pts, curve: true, closed };
+}

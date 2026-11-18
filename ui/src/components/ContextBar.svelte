@@ -34,7 +34,7 @@
   import { myImages } from "../lib/myImages.svelte";
   import { isStrokeOnly } from "../lib/shapePaths";
   import { endsOf, isLineTarget } from "../lib/lineEnds";
-  import { convertToShape, setClosed, setCurve, setHeadSize, setLineEnd, swapLineEnds } from "../lib/elementEdit";
+  import { canConvertToPath, convertToPath, convertToShape, setClosed, setCurve, setHeadSize, setLineEnd, swapLineEnds } from "../lib/elementEdit";
   import LineEndPicker from "./LineEndPicker.svelte";
   import { inTableGroup, isTableCell, selectedTable } from "../lib/table";
   import { alignUnits, arrangeUnits, expandSelection, groupOf, isLockedSelection } from "../lib/groups";
@@ -720,6 +720,9 @@
       </div>
       {#if lineEndsNow && !many}
         {@render lineTools(lineEndsNow)}
+      {/if}
+      {#if canConvertToPath(selected)}
+        <button title={fr.toPathHint} onclick={convertToPath}><Icon name="extendPath" /><span class="lbl"> {fr.toPath}</span></button>
       {/if}
       {#if s.shape === "Rect"}
         <div class="wrap">

@@ -819,6 +819,9 @@ fn custom_shape_kind(n: Node) -> Option<ShapeKind> {
     if ours.is_some() {
         return ours;
     }
+    if let Some((k, _)) = crate::shapes::LEGACY_PATHS.iter().find(|(_, p)| Some(*p) == path.as_deref()) {
+        return Some(*k);
+    }
     match g.attribute((DRAW, "type"))? {
         "rectangle" | "round-rectangle" => Some(ShapeKind::Rect),
         "ellipse" | "circle" => Some(ShapeKind::Ellipse),
@@ -2702,6 +2705,19 @@ mod tests {
         assert_eq!(read_with(Some("LibreOffice/26.8.2.2$Linux_X86_64 LibreOffice_project/c377f90")), 330.0);
         assert_eq!(read_with(Some(&format!("cahutin/0.18.0 {}", crate::odg::MIRROR_AFTER_ROTATION))), 330.0);
         assert_eq!(read_with(Some("cahutin/0.17.0")), 30.0);
+    }
+
+    /// Une bulle et un nuage exportés avant leur nouveau dessin (ancien tracé) reviennent comme bulle et nuage, et
+    /// prennent le nouveau dessin.
+    #[test]
+    fn old_bubble_and_cloud_outlines_still_import_as_bubble_and_cloud() {
+        let body: String = crate::shapes::LEGACY_PATHS
+            .iter()
+            .enumerate()
+            .map(|(i, (_, p))| format!(r#"<draw:custom-shape draw:style-name="gr1" svg:width="4cm" svg:height="3cm" svg:x="{}cm" svg:y="2cm"><draw:enhanced-geometry svg:viewBox="0 0 1000 1000" draw:enhanced-path="{p} N"/></draw:custom-shape>"#, 1 + 5 * i))
+            .collect();
+        let kinds: Vec<ShapeKind> = read(&body).pages[0].elements.iter().filter_map(|e| match &e.kind { ElementKind::Shape(s) => Some(s.shape), _ => None }).collect();
+        assert_eq!(kinds, [ShapeKind::Bubble, ShapeKind::Cloud]);
     }
 
     /// Beaucoup de tracés (une illustration) : redessinés ensemble dans une image fixe, au fond de la page.

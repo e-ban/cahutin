@@ -67,11 +67,11 @@ test("dragEnd keeps 3 mm when ends meet", () => {
   expect(e.x).toBeCloseTo(43, 9);
 });
 
-test("dragEnd snaps to a line, and the angle magnet then stays out", () => {
-  const g = dragEnd({ frame: frame(0), flipH: false, which: "end", to: { x: 100.8, y: 66.3 }, shift: false, lines: { xs: [100], ys: [] }, tolMm: 1 });
+test("dragEnd snaps to a line, and a slanted line keeps its slant", () => {
+  const g = dragEnd({ frame: frame(0), flipH: false, which: "end", to: { x: 100.8, y: 70 }, shift: false, lines: { xs: [100], ys: [] }, tolMm: 1 });
   const [, e] = lineEndpoints(g, false);
   expect(e.x).toBeCloseTo(100, 9);
-  expect(e.y).toBeCloseTo(66.3, 9);
+  expect(e.y).toBeCloseTo(70, 9);
 });
 
 test("dragEnd: the angle magnet beats the 5 mm grid", () => {
@@ -142,4 +142,20 @@ test("editLine: length and angle keep the start in place; the start moves the wh
     expect(e3.x - s3.x).toBeCloseTo(e.x - s.x, 9);
     expect(editLine(f, flip, { length: 1 }).w_mm).toBe(3);
   }
+});
+
+test("x snapped to a line and the line still levels", () => {
+  // Le bout s'accroche au bord vertical d'une image ; le trait, presque horizontal, se met quand même à plat.
+  const g = dragEnd({ frame: frame(0), flipH: false, which: "end", to: { x: 100.8, y: 65.5 }, shift: false, lines: { xs: [100], ys: [] }, tolMm: 1 });
+  const [, e] = lineEndpoints(g, false);
+  expect(e.x).toBeCloseTo(100, 9);
+  expect(e.y).toBeCloseTo(64, 9);
+  // De même à la verticale quand seul y s'est accroché.
+  const v = dragEnd({ frame: frame(0), flipH: false, which: "end", to: { x: 41.5, y: 140.7 }, shift: false, lines: { xs: [], ys: [140] }, tolMm: 1 });
+  const [, ev] = lineEndpoints(v, false);
+  expect([ev.x, ev.y]).toEqual([expect.closeTo(40, 9), expect.closeTo(140, 9)]);
+});
+
+test("a size alone on a bare line stores nothing", () => {
+  expect(normalizeEnds("Line", { start: "None", end: "None", size: "Large" })).toBeNull();
 });

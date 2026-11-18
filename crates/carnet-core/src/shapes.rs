@@ -79,6 +79,20 @@ pub fn ends_of(s: &ShapeProps) -> LineEnds {
 /// Facteur de chaque taille de terminaison ; les mêmes à l'écran (`ui/src/lib/shapePaths.ts`, un test le vérifie).
 pub const HEAD_FACTORS: [(HeadSize, f64); 3] = [(HeadSize::Small, 0.7), (HeadSize::Medium, 1.0), (HeadSize::Large, 1.5)];
 
+/// Cadre d'un trait assez haut pour sa plus grande terminaison, autour du même centre (comme `withHitHeight` à
+/// l'écran) : la zone cliquable la couvre.
+pub fn grow_to_hit_height(f: &mut crate::model::Frame, s: &ShapeProps) {
+    let ends = ends_of(s);
+    if !is_stroke_only(s.shape) || (ends.start == LineEnd::None && ends.end == LineEnd::None) {
+        return;
+    }
+    let h = head_width_mm(s);
+    if f.h_mm < h {
+        f.y_mm += (f.h_mm - h) / 2.0;
+        f.h_mm = h;
+    }
+}
+
 /// Diamètre d'un rond, côté d'un carré : cette part de la largeur d'une pointe.
 pub const DOT_FACTOR: f64 = 0.6;
 
@@ -158,6 +172,17 @@ mod tests {
         assert_eq!(ends_of(&line(ShapeKind::Arrow, 1.0, None)), LineEnds { start: LineEnd::None, end: LineEnd::Arrow, size: medium });
         let set = LineEnds { start: LineEnd::Circle, end: LineEnd::OpenArrow, size: HeadSize::Large };
         assert_eq!(ends_of(&line(ShapeKind::Line, 1.0, Some(set))), set);
+    }
+
+    #[test]
+    fn hit_height_covers_the_largest_end() {
+        let large = Some(LineEnds { start: LineEnd::None, end: LineEnd::Arrow, size: HeadSize::Large });
+        let mut f = crate::model::Frame { x_mm: 10.0, y_mm: 20.0, w_mm: 60.0, h_mm: 8.0, rotation_deg: 30.0 };
+        grow_to_hit_height(&mut f, &line(ShapeKind::Arrow, 3.0, large));
+        assert_eq!((f.h_mm, f.y_mm + f.h_mm / 2.0), (18.0, 24.0));
+        let mut g = crate::model::Frame { x_mm: 10.0, y_mm: 20.0, w_mm: 60.0, h_mm: 8.0, rotation_deg: 0.0 };
+        grow_to_hit_height(&mut g, &line(ShapeKind::Line, 3.0, None));
+        assert_eq!(g.h_mm, 8.0);
     }
 
     #[test]

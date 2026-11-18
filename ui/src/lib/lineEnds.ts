@@ -23,6 +23,8 @@ export const endsOf = (s: ShapeProps): LineEnds => s.ends ?? defaultEnds(s.shape
 /** Les terminaisons à enregistrer : aucune si ce sont celles du genre (le fichier ne change pas sans raison). */
 export function normalizeEnds(kind: ShapeKind, ends: LineEnds): LineEnds | null {
   const d = defaultEnds(kind);
+  // Une taille sans aucune terminaison ne se voit pas : rien à enregistrer (le fichier ne change pas de format).
+  if (ends.start === "None" && ends.end === "None" && kind === "Line") return null;
   return ends.start === d.start && ends.end === d.end && ends.size === d.size ? null : ends;
 }
 
@@ -79,6 +81,13 @@ export function dragEnd(o: { frame: Frame; flipH: boolean; which: "start" | "end
     const y = nearest(p.y, o.lines.ys, o.tolMm);
     if (x !== null || y !== null) {
       p = { x: x ?? p.x, y: y ?? p.y };
+      // Un seul axe accroché : le trait presque horizontal (ou vertical) se met quand même à plat, le long de
+      // l'axe resté libre (le repère garde le bout).
+      const deg = dirDeg(p);
+      const flat = Math.abs(deg - Math.round(deg / 180) * 180) <= ANGLE_MAGNET_DEG;
+      const upright = Math.abs(deg - (Math.round((deg - 90) / 180) * 180 + 90)) <= ANGLE_MAGNET_DEG;
+      if (x !== null && y === null && flat) p = { ...p, y: fixed.y };
+      else if (y !== null && x === null && upright) p = { ...p, x: fixed.x };
     } else {
       const deg = dirDeg(p);
       const square = Math.round(deg / 90) * 90;
@@ -95,7 +104,7 @@ export function dragEnd(o: { frame: Frame; flipH: boolean; which: "start" | "end
   return frameFromEndpoints(start, end, o.frame.h_mm, o.flipH);
 }
 
-/** Cadre assez haut pour la plus grande terminaison : la zone cliquable et l'avis « près du bord » la couvrent. */
+/** Cadre assez haut pour la plus grande terminaison : la zone cliquable la couvre. */
 export function withHitHeight(f: Frame, s: ShapeProps): Frame {
   const ends = endsOf(s);
   if (ends.start === "None" && ends.end === "None") return f;

@@ -346,7 +346,13 @@ pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
         (c, w) => Some(Stroke { width_mm: w.unwrap_or(0.5).clamp(0.1, 20.0), color: c.unwrap_or("#222222".into()), style: None }),
     };
     let ends = line_ends(args, shape)?;
-    push(doc, args, false, ElementKind::Shape(ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends }))
+    let props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends };
+    let out = push(doc, args, false, ElementKind::Shape(props.clone()))?;
+    // Un trait aux grandes pointes : son cadre les couvre.
+    if let Some(e) = doc.pages.iter_mut().flat_map(|p| &mut p.elements).find(|e| json!(e.id) == out["element_id"]) {
+        carnet_core::shapes::grow_to_hit_height(&mut e.frame, &props);
+    }
+    Ok(out)
 }
 
 /// Terminaisons demandées pour un trait (`start`, `end` ; `head_size`, hors du schéma pour le garder court), sinon
@@ -592,6 +598,13 @@ mod tests {
         assert_eq!(s.ends, None);
         assert!(add_shape(&mut d, &with(json!({ "shape": "line", "start": "banana" }))).is_err());
         assert!(add_shape(&mut d, &with(json!({ "shape": "star", "start": "arrow" }))).is_err());
+    }
+
+    #[test]
+    fn a_thick_arrow_frame_covers_its_head() {
+        let mut d = doc();
+        let out = add_shape(&mut d, &with(json!({ "shape": "arrow", "border_width_mm": 3, "h_mm": 4 }))).unwrap();
+        assert!((created(&d, &out).frame.h_mm - 12.0).abs() < 1e-9, "{:?}", created(&d, &out).frame);
     }
 
     #[test]

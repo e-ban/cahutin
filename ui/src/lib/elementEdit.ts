@@ -26,7 +26,12 @@ function previewElement(id: string, fn: (e: Element) => Element) {
 export const endPreview = () => editor.endPreview();
 
 const photo = (patch: Partial<PhotoProps>) => (e: Element): Element => (e.kind.type === "Photo" ? { ...e, kind: { ...e.kind, ...patch } } : e);
-const shape = (patch: Partial<ShapeProps>) => (e: Element): Element => (e.kind.type === "Shape" ? { ...e, kind: { ...e.kind, ...patch } } : e);
+const shape = (patch: Partial<ShapeProps>) => (e: Element): Element => {
+  if (e.kind.type !== "Shape") return e;
+  const kind = { ...e.kind, ...patch };
+  // Un trait plus épais a des pointes plus grandes : sa zone cliquable les suit.
+  return { ...e, frame: isLineTarget(e) ? withHitHeight(e.frame, kind) : e.frame, kind };
+};
 
 const table = (patch: Partial<TableProps>) => (e: Element): Element => (e.kind.type === "Table" ? { ...e, kind: { ...e.kind, ...patch } } : e);
 

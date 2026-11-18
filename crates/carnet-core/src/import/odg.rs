@@ -1782,6 +1782,8 @@ impl<R: Read + Seek> PageReader<'_, R> {
                     && let ElementKind::Shape(s) = &mut e.kind
                 {
                     s.ends = ends;
+                    // Un rond ou un carré est plus petit que la pointe que la taille donne : le cadre couvre la pointe.
+                    crate::shapes::grow_to_hit_height(&mut e.frame, s);
                 }
             }
             // Une flèche de liaison (`draw:connector`), une cote, une légende... : des objets de LibreOffice que Cahutin

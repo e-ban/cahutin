@@ -95,3 +95,13 @@ test("a large head grows the hit area of a thick line", () => {
   setHeadSize("Large");
   expect(shapeOf(a.id).e.frame.h_mm).toBeCloseTo(18, 9);
 });
+
+import { updateShape } from "./elementEdit";
+
+test("a thicker stroke grows the hit area of a line with a large head", () => {
+  const { a } = threeShapes();
+  editor.selection = [a.id];
+  setHeadSize("Large");
+  updateShape({ stroke: { width_mm: 3, color: "#333333", style: null } });
+  expect(shapeOf(a.id).e.frame.h_mm).toBeCloseTo(18, 9);
+});

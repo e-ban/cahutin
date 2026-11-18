@@ -130,3 +130,8 @@ test("dragPoint snaps to another point of the same path, and Shift gives 45°", 
   const first = dragPoint({ pts, i: 0, to: { x: 0.4, y: 9.7 }, shift: false, lines: noLines, tolMm: 0 });
   expect(first[0].y).toBeCloseTo(10, 9);
 });
+
+test("insertPoint refuses the 201st point", () => {
+  const full = Array.from({ length: 200 }, (_, i) => ({ x: i, y: 0 }));
+  expect(insertPoint(full, 3, { x: 3.5, y: 5 })).toBe(full);
+});

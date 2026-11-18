@@ -55,11 +55,43 @@ export function pathSvg(pts: Pt[], curve: boolean, ends: LineEnds, head: number)
   const n = pts.length;
   place(start.parts, pts[0], dir.start - 180);
   place(end.parts, pts[n - 1], dir.end);
-  const back = (p: Pt, deg: number, by: number): Pt => (by ? { x: p.x - by * Math.cos((deg * Math.PI) / 180), y: p.y - by * Math.sin((deg * Math.PI) / 180) } : p);
-  const drawn = pts.map((p, i) => (i === 0 ? back(p, dir.start, start.x1) : i === n - 1 ? back(p, dir.end, -end.x2) : p));
   const at = (p: Pt) => `${fmt(p.x)} ${fmt(p.y)}`;
-  const d = curve
-    ? `M ${at(drawn[0])}` + curveBeziers(drawn).map(([c1, c2, p]) => ` C ${at(c1)} ${at(c2)} ${at(p)}`).join("")
-    : `M ${at(drawn[0])}` + drawn.slice(1).map((p) => ` L ${at(p)}`).join("");
-  return { d, parts };
+  // Recul d'une flèche pleine : jamais plus de 90 % du segment du bout (il ne dépasse pas le point voisin).
+  const share = (by: number, a: Pt, b: Pt) => {
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    return len > 1e-9 ? Math.min(0.9, by / len) : 0;
+  };
+  const ts = start.x1 ? share(start.x1, pts[0], pts[1]) : 0;
+  const te = -end.x2 ? share(-end.x2, pts[n - 1], pts[n - 2]) : 0;
+  if (!curve) {
+    const lerp = (a: Pt, b: Pt, t: number): Pt => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    const drawn = pts.map((p, i) => (i === 0 ? lerp(p, pts[1], ts) : i === n - 1 ? lerp(p, pts[n - 2], te) : p));
+    return { d: `M ${at(drawn[0])}` + drawn.slice(1).map((p) => ` L ${at(p)}`).join(""), parts };
+  }
+  // Courbe : celle des vrais points (comme à l'export), raccourcie au bout par une coupe de sa première ou dernière
+  // cubique.
+  const bz = curveBeziers(pts);
+  let first = pts[0];
+  if (ts) [first, ...bz[0]] = splitAfter([pts[0], ...bz[0]], ts);
+  if (te) {
+    const k = bz.length - 1;
+    const from = k === 0 ? first : bz[k - 1][2];
+    const [, c1, c2, p] = splitBefore([from, ...bz[k]], 1 - te);
+    bz[k] = [c1, c2, p];
+  }
+  return { d: `M ${at(first)}` + bz.map(([c1, c2, p]) => ` C ${at(c1)} ${at(c2)} ${at(p)}`).join(""), parts };
 }
+
+type Cubic = [Pt, Pt, Pt, Pt];
+const mix = (a: Pt, b: Pt, t: number): Pt => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+/** De Casteljau : les deux moitiés d'une cubique coupée en `t`. */
+function split([p0, p1, p2, p3]: Cubic, t: number): [Cubic, Cubic] {
+  const [a, b, c] = [mix(p0, p1, t), mix(p1, p2, t), mix(p2, p3, t)];
+  const [d, e] = [mix(a, b, t), mix(b, c, t)];
+  const f = mix(d, e, t);
+  return [[p0, a, d, f], [f, e, c, p3]];
+}
+/** La part de la cubique après `t`. */
+const splitAfter = (c: Cubic, t: number): Cubic => split(c, t)[1];
+/** La part de la cubique avant `t`. */
+const splitBefore = (c: Cubic, t: number): Cubic => split(c, t)[0];

@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { lineSvg, pathSvg } from "./lineSvg";
-import { pathPointsMm } from "./linePath";
+import { curveBeziers, pathPointsMm } from "./linePath";
 
 test("default arrow matches today", () => {
   const svg = lineSvg(200, 30, { start: "None", end: "Arrow", size: "Medium" }, 16);
@@ -67,4 +67,25 @@ test("path parts in mm do not stretch", () => {
 test("curve d uses C", () => {
   const svg = pathSvg([{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 20, y: 0 }], true, { start: "None", end: "None", size: "Medium" }, 4);
   expect(svg.d).toMatch(/^M [-\d.]+ [-\d.]+( C( [-\d.]+){6})+$/);
+});
+
+test("a filled arrow on a curve keeps the curve of the real points", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 20, y: 20 }, { x: 40, y: 0 }, { x: 60, y: 20 }];
+  const svg = pathSvg(pts, true, { start: "None", end: "Arrow", size: "Medium" }, 4);
+  const real = curveBeziers(pts);
+  const nums = svg.d.replace(/[MC]/g, " ").trim().split(/\s+/).map(Number);
+  // M x y, puis 6 nombres par cubique : les deux premières sont celles de la courbe des vrais points.
+  const r = (v: number) => Math.round(v * 1e4) / 1e4;
+  expect(nums.slice(2, 14)).toEqual(real.slice(0, 2).flatMap((b) => b.flatMap((p) => [r(p.x), r(p.y)])));
+  // La dernière s'arrête avant la pointe, sur la courbe.
+  const [ex, ey] = nums.slice(-2);
+  expect(Math.hypot(ex - 60, ey - 20)).toBeGreaterThan(2);
+  expect(Math.hypot(ex - 60, ey - 20)).toBeLessThan(4);
+});
+
+test("the recoil never goes past the neighbouring point", () => {
+  const svg = pathSvg([{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 30 }], false, { start: "Arrow", end: "None", size: "Large" }, 6);
+  const [x] = svg.d.replace("M", "").trim().split(/\s+/).map(Number);
+  expect(x).toBeGreaterThan(0);
+  expect(x).toBeLessThan(1);
 });

@@ -9,7 +9,7 @@
   import { boundsOf } from "../lib/groups";
   import { handleTarget } from "../lib/handleTarget";
   import { isLineTarget } from "../lib/lineEnds";
-  import { dragPoint, endDirections, insertPoint, isPath, pagePoints, segmentMids, type Pt } from "../lib/linePath";
+  import { MAX_PATH_POINTS, dragPoint, endDirections, insertPoint, isPath, pagePoints, segmentMids, type Pt } from "../lib/linePath";
   import { extending } from "../lib/extending.svelte";
   import { fr } from "../lib/i18n/fr";
   import { settings } from "../lib/settings.svelte";
@@ -29,7 +29,8 @@
   });
   const path = $derived(target?.kind.type === "Shape" && isPath(target.kind));
   const pts = $derived(target && target.kind.type === "Shape" ? pagePoints(target.frame, target.kind, !!target.flip_h, !!target.flip_v) : []);
-  const mids = $derived(target && target.kind.type === "Shape" ? segmentMids(pts, path && !!target.kind.curve) : []);
+  // À 200 points, plus de coude à ajouter : pas de poignée de milieu.
+  const mids = $derived(target && target.kind.type === "Shape" && pts.length < MAX_PATH_POINTS ? segmentMids(pts, path && !!target.kind.curve) : []);
 
   /** Le « + » de prolongement, à 22 px de chaque bout (à côté de sa poignée), dans le prolongement du chemin. */
   const PLUS_PX = 22;

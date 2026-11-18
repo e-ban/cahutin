@@ -387,6 +387,9 @@ fn path_points(args: &Value, shape: ShapeKind) -> Result<Option<Vec<(f64, f64)>>
             _ => Err(bad()),
         })
         .collect::<Result<Vec<_>, _>>()?;
+    if pts.iter().all(|p| (p.0 - pts[0].0).hypot(p.1 - pts[0].1) < 0.1) {
+        return Err("points : tous au même endroit, le trait n'aurait pas de longueur".into());
+    }
     Ok(Some(pts))
 }
 
@@ -643,6 +646,9 @@ mod tests {
             assert!(add_shape(&mut d, &with(json!({ "shape": "line", "points": bad }))).is_err(), "{bad}");
         }
         assert!(add_shape(&mut d, &with(json!({ "shape": "rect", "points": [[0, 0], [1, 1], [2, 0]] }))).is_err());
+        // Tous les points au même endroit : un trait sans longueur.
+        assert!(add_shape(&mut d, &with(json!({ "shape": "line", "points": [[5, 5], [5, 5]] }))).is_err());
+        assert!(add_shape(&mut d, &with(json!({ "shape": "line", "points": [[5, 5], [5, 5], [5, 5]] }))).is_err());
     }
 
     #[test]

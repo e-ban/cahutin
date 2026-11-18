@@ -24,7 +24,6 @@ pub fn path(kind: ShapeKind) -> Option<&'static str> {
     })
 }
 
-/// Le tracé d'une forme : celui de sa sorte, ou pour un tracé libre le sien, s'il est valide.
 /// Plus grand nombre de points d'un chemin.
 pub const MAX_PATH_POINTS: usize = 200;
 
@@ -112,6 +111,7 @@ pub fn curve_beziers(pts: &[(f64, f64)]) -> Vec<[(f64, f64); 3]> {
     out
 }
 
+/// Le tracé d'une forme : celui de sa sorte, ou pour un tracé libre le sien, s'il est valide.
 pub fn path_of(s: &crate::model::ShapeProps) -> Option<&str> {
     match s.shape {
         ShapeKind::Path => s.path.as_deref().filter(|p| valid_path(p)),

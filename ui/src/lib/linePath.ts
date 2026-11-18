@@ -59,8 +59,8 @@ export function fromPagePoints(pts: Pt[], s: ShapeProps): { frame: Frame; patch:
   };
 }
 
-/** Un point ajouté après l'indice `after`. */
-export const insertPoint = (pts: Pt[], after: number, p: Pt): Pt[] => [...pts.slice(0, after + 1), p, ...pts.slice(after + 1)];
+/** Un point ajouté après l'indice `after` ; inchangé à 200 points. */
+export const insertPoint = (pts: Pt[], after: number, p: Pt): Pt[] => (pts.length >= MAX_PATH_POINTS ? pts : [...pts.slice(0, after + 1), p, ...pts.slice(after + 1)]);
 
 /** Le point `i` retiré ; jamais moins de deux points. */
 export const removePoint = (pts: Pt[], i: number): Pt[] => (pts.length <= 2 ? pts : pts.filter((_, j) => j !== i));

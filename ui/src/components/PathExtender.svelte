@@ -57,6 +57,8 @@
       hint = { x: 0, y: 0 };
     }
     const down = (ev: PointerEvent) => {
+      // Clic du milieu (ou autre bouton) : rien, il garde son usage.
+      if (ev.button !== 0 && ev.button !== 2) return;
       if (ev.button === 2) {
         ev.preventDefault();
         ev.stopPropagation();

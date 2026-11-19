@@ -1,7 +1,7 @@
 # Journal des versions
 
 
-## Non publié
+## 0.19.0
 
 - Premier lancement : la visite guidée ne s'impose plus à la fermeture de l'accueil. Des bulles d'aide viennent au bon moment : à la première sélection (la barre et Réglages), au premier tiroir ouvert (cliquer pour ajouter), et pour dire où retrouver la visite (menu Aide). La question « Être prévenu quand une nouvelle version sort ? » attend le lancement suivant.
 - Barre de l'élément : Échap ferme le menu ouvert (« Plus », couleur, police…) ; la sélection reste.

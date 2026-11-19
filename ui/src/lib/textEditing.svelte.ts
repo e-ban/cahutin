@@ -7,6 +7,8 @@ class TextEditing {
   tick = $state(0);
   /** Point du double-clic qui ouvre un texte (son id), pour y poser le curseur ; pris une seule fois. */
   click: { id: string; x: number; y: number } | null = null;
+  /** Caractère tapé sur un texte sélectionné, à écrire dès son ouverture (vide : Entrée, rien à écrire). */
+  insert = "";
 }
 
 export const textEditing = new TextEditing();

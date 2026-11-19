@@ -3,6 +3,7 @@
 
 ## Non publié
 
+- Texte : sur un texte sélectionné, on tape directement, sans double-clic : la première lettre ouvre l'écriture et s'y écrit. Entrée (ou F2) ouvre l'écriture sans rien écrire. Sur une bulle de parole (bulle et texte groupés), la frappe va dans le texte de la bulle.
 - Traits et flèches : un trait ou une flèche sélectionné montre une poignée ronde à chaque bout ; on tire un bout pour l'amener où l'on veut, l'autre reste en place. Le bout s'accroche aux bords et aux centres des autres éléments ; près de l'horizontale ou de la verticale, le trait s'y cale ; avec Maj, il ne prend que des angles de 45°. Échap pendant le geste le défait, Ctrl+Z après.
 - Traits et flèches : « Début » et « Fin », dans la barre de l'élément et dans Réglages, choisissent ce qui termine chaque bout : rien, une flèche pleine, une flèche ouverte, un rond ou un carré, en trois tailles (petite, moyenne, grande). « Inverser » échange les deux bouts. Plusieurs traits sélectionnés se règlent ensemble. Dans Réglages, un trait se règle par son début, sa longueur et son angle, et son contour s'appelle « Épaisseur ».
 - Tiroir Formes : une tuile « Double flèche ». Chaque forme se pose au centre d'un clic, ou se glisse jusqu'à l'endroit voulu de la page.

@@ -3,15 +3,42 @@ import { editor } from "./docStore.svelte";
 import { copySelection, cutSelection, deleteSelection, duplicateSelection, groupSelection, ungroupSelection } from "./editActions";
 import { armPaste } from "./incoming";
 import { newDoc, openDoc, print, save } from "./fileActions";
-import { boundsOf, groupOf, isLockedSelection, selectAllIds } from "./groups";
+import { boundsOf, groupOf, isLockedSelection, pathOf, selectAllIds } from "./groups";
 import { modal } from "./modal.svelte";
 import { nudgeOnPage, type ArrowKey } from "./geometry";
+import { textEditing } from "./textEditing.svelte";
 import { tour } from "./tour.svelte";
+import { startsWriting, textToWrite } from "./typeToWrite";
 import { nextZoom } from "./units";
 
 function typing(ev: KeyboardEvent): boolean {
   const t = ev.target as HTMLElement | null;
   return !!t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
+}
+
+/** Un bouton ou un lien a le focus : Entrée et Espace sont les siens. */
+function onControl(ev: KeyboardEvent): boolean {
+  const t = ev.target as HTMLElement | null;
+  return !!t?.closest?.("button, a, [role=button], [role=menuitem], [role=option], [role=tab]");
+}
+
+/** Taper sur un texte sélectionné l'ouvre : la lettre s'y écrit (voir typeToWrite.ts). */
+function writeIntoSelection(ev: KeyboardEvent): boolean {
+  if (editor.editingText || editor.proposing || editor.cropping) return false;
+  const start = startsWriting(ev);
+  if (!start || (start.insert.trim() === "" && onControl(ev))) return false;
+  const id = textToWrite(editor.page, editor.selection);
+  if (!id) return false;
+  ev.preventDefault();
+  const el = editor.page.elements.find((e) => e.id === id)!;
+  if (editor.selection.length > 1) {
+    editor.insideGroup = pathOf(el);
+    editor.focusedMember = id;
+  }
+  editor.selection = [id];
+  textEditing.insert = start.insert;
+  editor.editingText = id;
+  return true;
 }
 
 export type ShortcutAction = "new" | "open" | "save" | "print" | "duplicate" | "undo" | "redo" | "copy" | "cut" | "paste" | "group" | "ungroup" | "selectAll" | "zoomIn" | "zoomOut" | "zoomFit" | "movePageBefore" | "movePageAfter";
@@ -148,6 +175,8 @@ export function handleShortcut(ev: KeyboardEvent) {
   if (action && editActions[action]) {
     ev.preventDefault();
     editActions[action]!();
+  } else if (writeIntoSelection(ev)) {
+    // Le texte s'ouvre, la lettre tapée y est écrite.
   } else if ((ev.key === "PageDown" || ev.key === "PageUp") && !ev.ctrlKey && !ev.metaKey) {
     ev.preventDefault();
     const next = editor.pageIndex + (ev.key === "PageDown" ? 1 : -1);

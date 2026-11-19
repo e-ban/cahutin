@@ -161,6 +161,9 @@
     if (doc.selectTextOnEdit) editor.chain().focus().selectAll().run();
     else editor.commands.focus((click && editor.view.posAtCoords({ left: click.x, top: click.y })?.pos) ?? "end");
     doc.selectTextOnEdit = false;
+    // Ouvert en tapant sur le texte sélectionné : la lettre tapée s'écrit (elle remplace un texte modèle).
+    if (textEditing.insert) editor.commands.insertContent(textEditing.insert);
+    textEditing.insert = "";
   });
 
   onDestroy(() => {

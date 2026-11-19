@@ -65,6 +65,7 @@
   <svg
     class="shape"
     class:hollow={!props.fill}
+    class:tailed={box.x0 < 0 || box.y0 < 0 || box.x1 > 1 || box.y1 > 1}
     viewBox="{box.x0 * SHAPE_VIEWBOX} {box.y0 * SHAPE_VIEWBOX} {(box.x1 - box.x0) * SHAPE_VIEWBOX} {(box.y1 - box.y0) * SHAPE_VIEWBOX}"
     preserveAspectRatio="none"
     style:left="{box.x0 * 100}%"
@@ -128,6 +129,14 @@
     fill: none;
     stroke: transparent;
     pointer-events: stroke;
+  }
+  /* Bulle à pointe : son dessin déborde du cadre jusqu'à la pointe ; seul ce qui est peint reçoit les clics (le vide
+     autour de la pointe laisse cliquer ce qui est dessous : le personnage qui parle). */
+  svg.tailed {
+    pointer-events: none;
+  }
+  svg.tailed path:not(.hit) {
+    pointer-events: visiblePainted;
   }
   .hit.solid {
     pointer-events: all;

@@ -11,10 +11,11 @@ type Pt = { x: number; y: number };
 const KAPPA = 0.5522847498;
 /** Pointe hors de ces bornes (fractions du cadre) : document abîmé, pas de pointe. */
 const TAIL_LIMIT = 20;
-/** Corps d'une ancienne bulle sans pointe réglable : le haut de son cadre (le reste est la pointe fixe). */
-export const LEGACY_BODY = 0.78;
-/** Pointe fixe d'une ancienne bulle, en fractions de son cadre. */
-export const LEGACY_TIP: [number, number] = [0.18, 1];
+/** Corps d'une bulle sans pointe réglable (dessin fixe de `SHAPE_PATHS.Bubble`, fait pour 70 × 45 mm) : le haut de
+ *  son cadre, 35 mm sur 45 (le reste est la pointe fixe). */
+export const LEGACY_BODY = 35 / 45;
+/** Pointe fixe de ce dessin, en fractions de son cadre. */
+export const LEGACY_TIP: [number, number] = [9 / 70, 1];
 
 /** Bulle du tiroir : corps de 70 × 35 mm, pointe en bas à gauche. */
 export const BUBBLE_TAIL: [number, number] = [9 / 70, 45 / 35];

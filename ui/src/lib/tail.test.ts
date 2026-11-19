@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { BUBBLE_TAIL, bubblePath, hasTail, legacyBubbleToTailed, shapePath, tailOf, tailPagePoint, thoughtPath, tipFraction } from "./tail";
+import { BUBBLE_TAIL, LEGACY_BODY, LEGACY_TIP, bubblePath, hasTail, legacyBubbleToTailed, shapePath, tailOf, tailPagePoint, thoughtPath, tipFraction } from "./tail";
 import { SHAPE_PATHS } from "./shapePaths";
 import type { Element, Frame, ShapeProps } from "./types";
 
@@ -80,9 +80,9 @@ test("turning an old bubble into a tailed one keeps its body and its tip in plac
     const t = legacyBubbleToTailed(e);
     if (t.kind.type !== "Shape") throw new Error();
     // Les quatre coins du corps (78 % du haut de l'ancien cadre) ne bougent pas.
-    for (const [x, y] of [[0, 0], [1, 0], [0, 1], [1, 1]]) near(tailPagePoint(e.frame, [x, y * 0.78], fh, fv), tailPagePoint(t.frame, [x, y], fh, fv));
+    for (const [x, y] of [[0, 0], [1, 0], [0, 1], [1, 1]]) near(tailPagePoint(e.frame, [x, y * LEGACY_BODY], fh, fv), tailPagePoint(t.frame, [x, y], fh, fv));
     // Et la pointe non plus.
-    near(tailPagePoint(e.frame, [0.18, 1], fh, fv), tailPagePoint(t.frame, t.kind.tail!, fh, fv));
+    near(tailPagePoint(e.frame, LEGACY_TIP, fh, fv), tailPagePoint(t.frame, t.kind.tail!, fh, fv));
     expect(hasTail(t)).toBe(true);
   }
 });
@@ -107,4 +107,18 @@ test("a thought tile dragged onto the page keeps its tail; a broken tail is drop
   if (e.kind.type !== "Shape") throw new Error();
   expect(e.kind.tail).toEqual([0.15, 1.45]);
   expect(e.frame.h_mm).toBe(40);
+});
+
+test("an old bubble's tip and body match its fixed drawing", () => {
+  const v = nums(SHAPE_PATHS.Bubble!);
+  const pts = v.filter((_, i) => i % 2 === 0).map((x, i) => ({ x, y: v[2 * i + 1] }));
+  // La pointe : le point le plus bas ; le corps : le bas des coins arrondis, juste au-dessus.
+  const tip = pts.reduce((a, b) => (b.y > a.y ? b : a));
+  expect(LEGACY_TIP[0]).toBeCloseTo(tip.x / 1000, 3);
+  expect(LEGACY_TIP[1]).toBeCloseTo(tip.y / 1000, 3);
+  // Le bas du corps : les segments droits (L) du bord du bas, de part et d'autre de la pointe.
+  const t = SHAPE_PATHS.Bubble!.split(" ");
+  const ls = t.flatMap((tok, i) => (tok === "L" ? [Number(t[i + 2])] : []));
+  const body = Math.max(...ls.filter((y) => y < tip.y - 50));
+  expect(LEGACY_BODY).toBeCloseTo(body / 1000, 3);
 });

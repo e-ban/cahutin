@@ -2720,6 +2720,25 @@ mod tests {
         assert_eq!(kinds, [ShapeKind::Bubble, ShapeKind::Cloud]);
     }
 
+    /// Une bulle à pointe exportée puis relue : son tracé déborde du carré de 1000 (la pointe est hors du cadre). Elle
+    /// revient en tracé libre, au même cadre, avec ce même tracé (pointe comprise) : rien ne se perd.
+    #[test]
+    fn a_tailed_bubble_comes_back_as_a_free_path_with_its_tail() {
+        use crate::model::{Element, Frame, ShapeProps};
+        let mut doc = crate::model::Document::new("bulle");
+        let frame = Frame { x_mm: 40.0, y_mm: 50.0, w_mm: 70.0, h_mm: 35.0, rotation_deg: 0.0 };
+        let props = ShapeProps { shape: ShapeKind::Bubble, fill: Some("#ffffff".into()), stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None, tail: Some([1.4, 1.6]) };
+        let drawn = crate::shapes::path_of(&frame, &props).unwrap().into_owned();
+        doc.pages[0].elements.push(Element { id: crate::model::new_id(), frame, locked: false, zone: false, group: None, kind: ElementKind::Shape(props), subgroups: Vec::new(), flip_h: false, flip_v: false });
+        let mut buf = Cursor::new(Vec::new());
+        crate::odg::export_odg(&doc, &crate::photo::AssetStore::default(), &crate::fonts::FontSet::builtin(), &mut buf).unwrap();
+        let back = read_drawing(Cursor::new(buf.into_inner()), &known()).unwrap();
+        let e = &back.pages[0].elements[0];
+        let ElementKind::Shape(s) = &e.kind else { panic!("{e:?}") };
+        assert_eq!((s.shape, s.path.as_deref()), (ShapeKind::Path, Some(drawn.as_str())));
+        assert!((e.frame.w_mm - 70.0).abs() < 0.01 && (e.frame.h_mm - 35.0).abs() < 0.01, "{:?}", e.frame);
+    }
+
     /// Beaucoup de tracés (une illustration) : redessinés ensemble dans une image fixe, au fond de la page.
     #[test]
     fn many_curves_become_one_fixed_picture() {

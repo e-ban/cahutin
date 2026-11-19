@@ -3,6 +3,7 @@
 
 ## Non publié
 
+- Barre de l'élément : elle se place sous la sélection quand, au-dessus, elle cacherait un autre élément (les légendes des photos au-dessus d'une bulle, par exemple). Un fond ou un cadre de page autour de la sélection ne compte pas.
 - Modèles : un modèle choisi dans le tiroir alors que la page affichée est vide prend sa place, au lieu de laisser une page blanche en trop au début du document. Sur une page déjà commencée, il s'ajoute après, comme avant. Ctrl+Z revient en arrière.
 - Texte : sur un texte sélectionné, on tape directement, sans double-clic : la première lettre ouvre l'écriture et s'y écrit. Entrée (ou F2) ouvre l'écriture sans rien écrire. Sur une bulle de parole (bulle et texte groupés), la frappe va dans le texte de la bulle.
 - Traits et flèches : un trait ou une flèche sélectionné montre une poignée ronde à chaque bout ; on tire un bout pour l'amener où l'on veut, l'autre reste en place. Le bout s'accroche aux bords et aux centres des autres éléments ; près de l'horizontale ou de la verticale, le trait s'y cale ; avec Maj, il ne prend que des angles de 45°. Échap pendant le geste le défait, Ctrl+Z après.

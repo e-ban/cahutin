@@ -11,7 +11,7 @@
   import FontPicker from "./FontPicker.svelte";
   import FontSizeField from "./FontSizeField.svelte";
   import { alignFrames, distributeFrames, pageArea, type AlignMode } from "../lib/align";
-  import { placeContextBar, selectionBox } from "../lib/contextBar";
+  import { otherBoxes, placeContextBar, selectionBox } from "../lib/contextBar";
   import { editor } from "../lib/docStore.svelte";
   import { addCaption, deleteSelection, groupSelection, mirrorSelection, rotateSelection, selectionLocked, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
   import { assetUrl } from "../lib/api";
@@ -115,6 +115,8 @@
       { left: s.left, top: s.top, width: s.width, height: s.height },
       // Un petit élément a ses poignées écartées : la poignée de rotation monte d'autant.
       handles ? ROTATION_HANDLE_GAP + (many || !e ? 0 : handlePadding(mmToPx(e.frame.h_mm, editor.effectiveZoom), settings.bigHandles)) : undefined,
+      undefined,
+      otherBoxes(pageEl, editor.selection),
     );
   }
 

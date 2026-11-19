@@ -755,6 +755,12 @@ impl Writer<'_> {
             let viewbox = format!("0 0 {0} {0}", shapes::VIEWBOX);
             let enhanced = format!("{path} N");
             let mut g = vec![("svg:viewBox", viewbox.as_str()), ("draw:enhanced-path", enhanced.as_str())];
+            // Pointe d'une bulle : ses deux fractions, dans les réglages de la forme (LibreOffice les garde), pour
+            // qu'elle revienne bulle à l'import (`import::odg`, `tailed_shape`).
+            let modifiers = shapes::tail_of(s).map(|t| format!("{:.6} {:.6}", t[0], t[1]));
+            if let Some(m) = &modifiers {
+                g.push(("draw:modifiers", m.as_str()));
+            }
             if e.flip_h {
                 g.push(("draw:mirror-horizontal", "true"));
             }

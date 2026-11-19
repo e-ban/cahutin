@@ -140,14 +140,6 @@ pub(crate) fn photo_with_caption(x: f64, y: f64, w: f64, h: f64) -> Vec<Element>
     grouped(vec![photo_zone(frame(x, y, w, h)), caption])
 }
 
-/// Frise d'images en haut (ou en bas) de la page, codes en alternance, groupée.
-fn frieze(codes: &[&str], y: f64, size: f64) -> Vec<Element> {
-    let (start, len) = (8.0, 194.0);
-    let n = ((len + 3.0) / (size + 3.0)).floor() as usize;
-    let step = (len - size) / (n as f64 - 1.0);
-    grouped((0..n).map(|i| picto(codes[i % codes.len()], ((start + i as f64 * step) * 10.0).round() / 10.0, y, size)).collect())
-}
-
 fn page(color: &str, pattern: Option<Pattern>, elements: Vec<Element>) -> Page {
     Page { elements, background: Some(Background { color: color.into(), pattern }), ..Page::new(A4_PORTRAIT) }
 }
@@ -220,106 +212,204 @@ fn farm() -> Page {
     page("#fffaf0", None, els)
 }
 
-/// Anniversaire : frise de ballons, gâteau et étoiles groupés avec le prénom à compléter.
-fn birthday() -> Page {
-    let mut els = frieze(&["1F388", "1F389", "1F381"], 8.0, 16.0);
-    els.extend(frieze(&["1F381", "1F388", "1F389"], 273.0, 16.0));
-    els.push(title("Joyeux anniversaire", 30.0, 30.0, "#c0392b"));
-    els.extend(grouped(vec![
-        picto("1F382", 70.0, 66.0, 70.0),
-        picto("2B50", 40.0, 70.0, 22.0),
-        picto("2B50", 148.0, 70.0, 22.0),
-        picto("2B50", 52.0, 118.0, 14.0),
-        picto("2B50", 144.0, 118.0, 14.0),
-        {
-            let mut name = field_text(frame(35.0, 142.0, 140.0, 20.0), "prenom", "Atkinson Hyperlegible", 28.0);
-            if let ElementKind::Text(t) = &mut name.kind {
-                t.style.align = Align::Center;
-            }
-            name
-        },
-    ]));
-    // {age} : rempli avec la classe (« a fêté ses 4 ans »), comme le prénom.
-    els.push(text(frame(35.0, 166.0, 140.0, 14.0), "a fêté ses {age} en classe !", "Atkinson Hyperlegible", 16.0, "#444444", Align::Center));
-    els.push(shape(ShapeKind::Heart, frame(92.0, 190.0, 26.0, 26.0), Some("#e74c3c"), None, 0.0));
-    els.push(text_zone(frame(25.0, 222.0, 160.0, 40.0), "Ce que nous avons partagé…", "Atkinson Hyperlegible", 14.0));
-    page("#fff6d6", None, els)
+/// Les réglages d'un texte, modifiés sur place.
+fn styled(mut e: Element, f: impl FnOnce(&mut TextProps)) -> Element {
+    if let ElementKind::Text(t) = &mut e.kind {
+        f(t);
+    }
+    e
 }
 
-/// Météo : petits carreaux, cinq jours (nom, image, légende groupés), une flèche « aujourd'hui ».
+/// Les réglages d'une forme, modifiés sur place.
+fn reshaped(mut e: Element, f: impl FnOnce(&mut ShapeProps)) -> Element {
+    if let ElementKind::Shape(sp) = &mut e.kind {
+        f(sp);
+    }
+    e
+}
+
+/// Un cadre de texte coloré (fond, bord, coins).
+fn boxed(fill: &str, stroke: Option<(f64, &str)>, radius: f64) -> TextFrame {
+    TextFrame { fill: Some(fill.into()), stroke: stroke.map(|(w, c)| Stroke { width_mm: w, color: c.into(), style: None }), corner_radius_mm: radius, image: None, pattern: None, write_on_lines: None }
+}
+
+/// Un texte centré dans son cadre, de haut en bas aussi.
+fn centred(f: Frame, content: &str, font: &str, size_pt: f64, color: &str) -> Element {
+    styled(text(f, content, font, size_pt, color, Align::Center), |t| t.style.valign = Some(VAlign::Middle))
+}
+
+/// Un chemin courbe qui passe par `pts` (mm de page), avec ses terminaisons.
+fn curve(pts: &[(f64, f64)], width_mm: f64, color: &str, ends: Option<LineEnds>) -> Element {
+    // Avec une pointe, c'est une flèche (comme une flèche du tiroir prolongée en chemin).
+    let kind = if ends.is_some_and(|e| e.end != LineEnd::None || e.start != LineEnd::None) { ShapeKind::Arrow } else { ShapeKind::Line };
+    let mut s = match shape(kind, frame(0.0, 0.0, 1.0, 1.0), None, Some((width_mm, color)), 0.0).kind {
+        ElementKind::Shape(s) => s,
+        _ => unreachable!(),
+    };
+    s.curve = true;
+    s.ends = ends;
+    let (f, points) = crate::shapes::path_frame(pts, &s);
+    s.points = Some(points);
+    el(f, ElementKind::Shape(s))
+}
+
+const ARROW_END: LineEnds = LineEnds { start: LineEnd::None, end: LineEnd::Arrow, size: HeadSize::Medium };
+
+/// Une flèche accrochée d'un point d'un élément à un point d'un autre : elle les suit quand on les déplace.
+fn link(from: &Element, from_at: AnchorPoint, to: &Element, to_at: AnchorPoint, color: &str) -> Element {
+    let mut e = shape(ShapeKind::Arrow, frame(0.0, 0.0, 1.0, 1.0), None, Some((0.8, color)), 0.0);
+    if let ElementKind::Shape(sp) = &mut e.kind {
+        sp.ends = Some(ARROW_END);
+        sp.attach = Some(Attach { start: Some(Anchor { element: from.id.clone(), at: from_at }), end: Some(Anchor { element: to.id.clone(), at: to_at }) });
+        e.frame = crate::shapes::line_frame(crate::connectors::anchor_point(&from.frame, from_at), crate::connectors::anchor_point(&to.frame, to_at), sp);
+    }
+    e
+}
+
+/// Bulle (de parole, ou nuage de pensée) dont la pointe vise `tip` (mm de page).
+fn bubble(kind: ShapeKind, f: Frame, fill: &str, stroke: (f64, &str), tip: (f64, f64)) -> Element {
+    reshaped(shape(kind, f, Some(fill), Some(stroke), 0.0), |sp| sp.tail = Some([(tip.0 - f.x_mm) / f.w_mm, (tip.1 - f.y_mm) / f.h_mm]))
+}
+
+/// Photo à déposer dans un rond, avec un liseré de couleur.
+fn round_photo(f: Frame, ring: &str) -> Element {
+    let mut z = photo_zone(f);
+    if let ElementKind::Photo(ph) = &mut z.kind {
+        ph.corner_radius_mm = f.w_mm.min(f.h_mm) / 2.0;
+        ph.border = Some(Stroke { width_mm: 1.2, color: ring.into(), style: None });
+    }
+    z
+}
+
+/// Fanion triangulaire (tracé libre), pointe en bas.
+fn pennant(x: f64, y: f64, w: f64, h: f64, color: &str) -> Element {
+    reshaped(shape(ShapeKind::Path, frame(x, y, w, h), Some(color), None, 0.0), |sp| sp.path = Some("M 0 0 L 1000 0 L 500 1000 Z".into()))
+}
+
+/// Anniversaire : guirlande de fanions sur une ficelle courbe, ballons et leurs ficelles, gâteau à colorier, le
+/// prénom de l'enfant en grandes lettres creuses, une photo et ce que nous avons partagé.
+fn birthday() -> Page {
+    const PINK: &str = "#d6336c";
+    let sag = |x: f64| 14.0 + 16.0 * (1.0 - ((x - 105.0) / 97.0).powi(2));
+    let mut garland = vec![curve(&[(8.0, sag(8.0)), (56.0, sag(56.0)), (105.0, sag(105.0)), (154.0, sag(154.0)), (202.0, sag(202.0))], 0.5, "#8d6e63", None)];
+    let colors = ["#ff6b6b", "#ffd43b", "#69db7c", "#4dabf7", "#b197fc"];
+    for k in 0..10 {
+        let x = 16.0 + k as f64 * 18.6;
+        garland.push(pennant(x, sag(x + 5.0) - 0.5, 10.0, 12.0, colors[k % 5]));
+    }
+    let mut els = grouped(garland);
+    els.push(title("Joyeux anniversaire", 38.0, 32.0, PINK));
+    // Deux ballons, leurs ficelles en courbe.
+    els.extend(grouped(vec![picto("1F388", 12.0, 70.0, 30.0), curve(&[(25.0, 99.0), (31.0, 112.0), (23.0, 126.0), (29.0, 140.0)], 0.4, "#6b6b6b", None)]));
+    els.extend(grouped(vec![picto("1F388", 168.0, 66.0, 30.0), curve(&[(181.0, 95.0), (176.0, 108.0), (184.0, 122.0), (178.0, 136.0)], 0.4, "#6b6b6b", None)]));
+    // Le gâteau, à colorier, et sa consigne.
+    let mut cake = picto("1F382", 70.0, 70.0, 70.0);
+    if let ElementKind::Image(im) = &mut cake.kind {
+        im.outline = Some(true);
+    }
+    els.extend(grouped(vec![cake, text(frame(55.0, 140.0, 100.0, 10.5), "Je colorie le gâteau", "Andika", 12.0, "#8a8a8a", Align::Center)]));
+    for (x, y, sz) in [(48.0, 80.0, 12.0), (150.0, 104.0, 10.0), (40.0, 128.0, 9.0), (160.0, 140.0, 12.0)] {
+        els.push(picto("2B50", x, y, sz));
+    }
+    // Le prénom de l'enfant, rempli avec la classe, en lettres creuses.
+    els.push(styled(field_text(frame(15.0, 152.0, 180.0, cursive_height(44.0)), "prenom", TITLE_FONT, 44.0), |t| {
+        t.style.align = Align::Center;
+        t.style.color = PINK.into();
+        t.style.outline = Some(true);
+    }));
+    els.push(text(frame(25.0, 196.0, 160.0, 14.0), "a fêté ses {age} en classe !", "Andika", 18.0, "#444444", Align::Center));
+    // Une photo de la fête et ce que nous avons partagé, côte à côte.
+    let mut photo = photo_zone(frame(18.0, 216.0, 82.0, 60.0));
+    if let ElementKind::Photo(ph) = &mut photo.kind {
+        ph.shadow = true;
+        ph.corner_radius_mm = 5.0;
+    }
+    els.push(photo);
+    els.push(styled(text_zone(frame(108.0, 216.0, 84.0, 60.0), "Ce que nous avons partagé…", "Andika", 14.0), |t| {
+        t.frame = Some(TextFrame { pattern: Some(Pattern::Lines), ..boxed("#ffffff", Some((0.6, "#f3a6c0")), 5.0) });
+        t.style.padding_mm = Some(4.0);
+    }));
+    page("#fff4e6", None, els)
+}
+
+/// Météo : petits carreaux, une carte par jour (bandeau de couleur, image, lignes pour écrire), une flèche courbe
+/// « Aujourd'hui », et la pensée d'un enfant sur le temps de la semaine.
 fn weather() -> Page {
-    let mut els = vec![title("La météo de la semaine", 10.0, 26.0, "#1f5fa8")];
-    let days = [("Lundi", "2600"), ("Mardi", "2601"), ("Mercredi", "1F327"), ("Jeudi", "2744"), ("Vendredi", "1F308")];
-    for (i, (day, code)) in days.iter().enumerate() {
+    const BLUE: &str = "#1f5fa8";
+    let mut els = vec![title("La météo de la semaine", 10.0, 26.0, BLUE)];
+    let days = [("Lundi", "2600", "#ffe8a3"), ("Mardi", "2601", "#dfe7ef"), ("Mercredi", "1F327", "#cfe3f7"), ("Jeudi", "2744", "#e3f2fd"), ("Vendredi", "1F308", "#f3e1fa")];
+    for (i, (day, code, color)) in days.iter().enumerate() {
         let x = 10.0 + i as f64 * 38.5;
         els.extend(grouped(vec![
-            shape(ShapeKind::Rect, frame(x, 62.0, 36.0, 92.0), Some("#ffffff"), Some((0.5, "#1f5fa8")), 4.0),
-            text(frame(x, 66.0, 36.0, 10.0), day, "Andika", 13.0, "#1f5fa8", Align::Center),
-            picto(code, x + 4.0, 80.0, 28.0),
-            text_zone(frame(x + 2.0, 114.0, 32.0, 36.0), "Il fait…", "Andika", 11.0),
+            shape(ShapeKind::Rect, frame(x, 62.0, 36.0, 98.0), Some("#ffffff"), Some((0.5, BLUE)), 5.0),
+            styled(centred(frame(x, 62.0, 36.0, 12.0), day, "Andika", 13.0, BLUE), |t| t.frame = Some(boxed(color, None, 5.0))),
+            picto(code, x + 5.0, 80.0, 26.0),
+            styled(text_zone(frame(x + 2.0, 112.0, 32.0, 44.0), "Il fait…", "Andika", 11.0), |t| t.frame = Some(TextFrame { pattern: Some(Pattern::Lines), ..TextFrame::default() })),
         ]));
     }
     els.extend(grouped(vec![
-        text(frame(8.0, 38.0, 40.0, 10.0), "Aujourd'hui", "Andika", 12.0, "#c0392b", Align::Center),
-        shape(ShapeKind::Arrow, Frame { rotation_deg: 90.0, ..frame(22.0, 52.0, 12.0, 6.0) }, None, Some((1.0, "#c0392b")), 0.0),
+        text(frame(34.0, 35.0, 40.0, 10.0), "Aujourd'hui", "Andika", 12.0, "#c0392b", Align::Left),
+        curve(&[(32.0, 40.0), (24.0, 49.0), (27.0, 60.0)], 0.9, "#c0392b", Some(ARROW_END)),
     ]));
-    els.push(picto("2614", 150.0, 170.0, 40.0));
-    els.push(text_zone(frame(15.0, 170.0, 130.0, 60.0), "Le temps qu'il a fait cette semaine…", "Andika", 14.0));
+    // La pensée d'un enfant : le temps qu'il a fait cette semaine.
+    let child = picto("1F9D2", 158.0, 222.0, 36.0);
+    els.extend(grouped(vec![
+        bubble(ShapeKind::Cloud, frame(16.0, 172.0, 136.0, 76.0), "#ffffff", (0.7, BLUE), (162.0, 226.0)),
+        styled(text_zone(frame(34.0, 188.0, 100.0, 44.0), "Cette semaine, il a fait…", "Andika", 14.0), |t| t.style.valign = Some(VAlign::Middle)),
+    ]));
+    els.push(child);
+    els.push(picto("2614", 166.0, 176.0, 26.0));
     page("#ffffff", Some(Pattern::SmallSquares), els)
 }
 
-/// Écriture : Seyès, modèle de prénom en cursive à repasser, lignes pour écrire.
+/// Écriture : la photo de l'enfant dans un rond, son prénom en lettres creuses, une ligne Seyès à repasser,
+/// d'autres pour écrire, et une étoile « Bravo ».
 fn first_name() -> Page {
+    const PURPLE: &str = "#7b3fa0";
     let mut els = grouped(vec![
-        picto("1F9D2", 18.0, 10.0, 30.0),
-        text(frame(52.0, 12.0, 140.0, cursive_height(26.0)), "J'écris mon prénom", TITLE_FONT, 26.0, "#8e44ad", Align::Left),
-        picto("270F", 176.0, 14.0, 20.0),
+        round_photo(frame(16.0, 10.0, 34.0, 34.0), PURPLE),
+        text(frame(56.0, 14.0, 120.0, cursive_height(26.0)), "J'écris mon prénom", TITLE_FONT, 26.0, PURPLE, Align::Left),
+        picto("270F", 178.0, 16.0, 18.0),
     ]);
-    // Le modèle en lettres creuses, puis des lignes Seyès : la première à repasser, les autres pour écrire.
-    let mut model = text(frame(15.0, 46.0, 180.0, cursive_height(60.0)), "Léa", TITLE_FONT, 60.0, "#8e44ad", Align::Center);
-    if let ElementKind::Text(t) = &mut model.kind {
-        t.style.outline = Some(true);
-    }
-    els.push(model);
+    els.push(styled(text(frame(15.0, 50.0, 180.0, cursive_height(60.0)), "Léa", TITLE_FONT, 60.0, PURPLE, Align::Center), |t| t.style.outline = Some(true)));
     for i in 0..4 {
-        let mut lines = text_lines(frame(15.0, 112.0 + i as f64 * 42.0, 180.0, 36.0), Pattern::Seyes);
+        let mut lines = text_lines(frame(15.0, 114.0 + i as f64 * 40.0, 180.0, 34.0), Pattern::Seyes);
         if i == 0 && let ElementKind::Text(t) = &mut lines.kind {
-            t.content = RichText::plain("Léa  Léa  Léa");
-            t.style.size_pt = 36.0;
+            t.content = RichText::plain("Léa   Léa   Léa");
+            t.style.size_pt = 34.0;
             t.style.color = "#c4c4c4".into();
             t.style.valign = Some(VAlign::Middle);
             t.style.padding_mm = Some(4.0);
         }
         els.push(lines);
     }
-    els.push(picto("2B50", 178.0, 278.0, 14.0));
+    els.extend(grouped(vec![
+        shape(ShapeKind::Star, frame(160.0, 268.0, 22.0, 21.0), Some("#ffd43b"), Some((0.5, "#e8a400")), 0.0),
+        text(frame(118.0, 270.0, 40.0, cursive_height(14.0)), "Bravo !", TITLE_FONT, 14.0, PURPLE, Align::Right),
+    ]));
     page("#fbf7ff", None, els)
 }
 
-/// Saisons : cadre double, quatre images titrées groupées, formes nuage et cœur.
+/// Saisons : quatre panneaux de couleur dans l'ordre de l'année, autour d'un arbre dans un rond ; un nom, une image
+/// et des lignes par saison.
 fn seasons() -> Page {
-    let mut els = grouped(vec![
-        shape(ShapeKind::Rect, frame(8.0, 8.0, 194.0, 281.0), None, Some((0.5, "#2e7d32")), 0.0),
-        shape(ShapeKind::Rect, frame(11.0, 11.0, 188.0, 275.0), None, Some((1.5, "#2e7d32")), 0.0),
-    ]);
-    els.push(title("Les saisons", 16.0, 28.0, "#2e7d32"));
-    let seasons = [("Printemps", "1F337", 22.0, 50.0), ("Été", "1F3D6", 112.0, 50.0), ("Automne", "1F341", 22.0, 150.0), ("Hiver", "2603", 112.0, 150.0)];
-    for (name, code, x, y) in seasons {
+    let mut els = vec![title("Les saisons", 12.0, 30.0, "#2e7d32")];
+    let seasons = [
+        ("Printemps", "1F337", 14.0, 44.0, "#eaf6e1", "#4c9a2a"),
+        ("Été", "1F3D6", 108.0, 44.0, "#fff3c9", "#d98e04"),
+        ("Hiver", "2603", 14.0, 164.0, "#e3f0fb", "#2f6fb0"),
+        ("Automne", "1F341", 108.0, 164.0, "#fde6d2", "#c0571b"),
+    ];
+    for (name, code, x, y, fill, ink) in seasons {
         els.extend(grouped(vec![
-            picto(code, x + 18.0, y, 40.0),
-            text(frame(x, y + 42.0, 76.0, cursive_height(18.0)), name, TITLE_FONT, 18.0, "#2e7d32", Align::Center),
-            {
-                // Des lignes pour écrire ce qu'on aime, ou la dictée à l'adulte.
-                let mut z = text_zone(frame(x, y + 64.0, 76.0, 26.0), "Ce que j'aime…", "Andika", 12.0);
-                if let ElementKind::Text(t) = &mut z.kind {
-                    t.frame = Some(TextFrame { fill: None, stroke: None, corner_radius_mm: 0.0, image: None, pattern: Some(Pattern::Lines), write_on_lines: None });
-                }
-                z
-            },
+            shape(ShapeKind::Rect, frame(x, y, 88.0, 112.0), Some(fill), Some((0.8, ink)), 10.0),
+            picto(code, x + 8.0, y + 8.0, 30.0),
+            text(frame(x + 40.0, y + 12.0, 44.0, cursive_height(18.0)), name, TITLE_FONT, 18.0, ink, Align::Left),
+            styled(text_zone(frame(x + 8.0, y + 58.0, 72.0, 46.0), "Ce que j'aime…", "Andika", 12.0), |t| t.frame = Some(TextFrame { pattern: Some(Pattern::Lines), ..TextFrame::default() })),
         ]));
     }
-    els.push(shape(ShapeKind::Cloud, frame(150.0, 252.0, 40.0, 24.0), Some("#e3f2fd"), Some((0.4, "#90a4ae")), 0.0));
-    els.push(shape(ShapeKind::Heart, frame(24.0, 254.0, 20.0, 20.0), Some("#f48fb1"), None, 0.0));
+    // Au milieu, l'arbre qui change avec les saisons.
+    els.extend(grouped(vec![shape(ShapeKind::Ellipse, frame(80.0, 130.0, 50.0, 50.0), Some("#ffffff"), Some((1.0, "#2e7d32")), 0.0), picto("1F333", 89.0, 138.0, 32.0)]));
     page("#f6fbf4", None, els)
 }
 
@@ -406,22 +496,24 @@ mod tests {
     }
 
     /// Boîte englobante d'un cadre tourné.
-    fn bounds(f: &Frame) -> (f64, f64, f64, f64) {
-        let (s, c) = f.rotation_deg.to_radians().sin_cos();
-        let (cx, cy) = (f.x_mm + f.w_mm / 2.0, f.y_mm + f.h_mm / 2.0);
-        let (hw, hh) = ((f.w_mm / 2.0 * c).abs() + (f.h_mm / 2.0 * s).abs(), (f.w_mm / 2.0 * s).abs() + (f.h_mm / 2.0 * c).abs());
-        (cx - hw, cy - hh, cx + hw, cy + hh)
+    #[test]
+    fn weather_arrow_goes_from_its_label_to_monday() {
+        let d = document("meteo").unwrap();
+        let label = elements(&d).find(|e| matches!(&e.kind, ElementKind::Text(t) if t.content.paragraphs.iter().flat_map(|p| &p.runs).any(|r| r.text == "Aujourd'hui"))).unwrap().frame;
+        let arrow = elements(&d).find(|e| matches!(&e.kind, ElementKind::Shape(s) if s.ends.is_some() && s.points.is_some())).unwrap();
+        let ElementKind::Shape(s) = &arrow.kind else { unreachable!() };
+        let pts = crate::shapes::path_page_points(&arrow.frame, s, false, false).unwrap();
+        let (start, end) = (pts[0], pts[pts.len() - 1]);
+        assert!(start.0 < label.x_mm, "la flèche part sur le mot ({start:?})");
+        assert!(end.1 <= 62.0 && (10.0..46.0).contains(&end.0), "la flèche ne finit pas au-dessus de lundi ({end:?})");
     }
 
+    /// La carte mentale des cinq sens : chaque carte a sa flèche, accrochée à l'enfant et à la carte.
     #[test]
-    fn weather_arrow_does_not_cross_its_label() {
-        let d = document("meteo").unwrap();
-        let find = |pred: &dyn Fn(&Element) -> bool| elements(&d).find(|e| pred(e)).unwrap().frame;
-        let label = find(&|e| matches!(&e.kind, ElementKind::Text(t) if t.content.paragraphs.iter().flat_map(|p| &p.runs).any(|r| r.text == "Aujourd'hui")));
-        let arrow = find(&|e| matches!(&e.kind, ElementKind::Shape(s) if s.shape == ShapeKind::Arrow));
-        let (_, top, _, bottom) = bounds(&arrow);
-        assert!(top >= label.y_mm + label.h_mm, "la flèche commence à {top} mm, sous le texte qui finit à {} mm", label.y_mm + label.h_mm);
-        assert!(bottom <= 62.0, "la flèche dépasse sur la case du lundi ({bottom} mm)");
+    fn five_senses_arrows_are_attached() {
+        let d = document("sens").unwrap();
+        let attached = elements(&d).filter(|e| matches!(&e.kind, ElementKind::Shape(s) if s.attach.as_ref().is_some_and(|a| a.start.is_some() && a.end.is_some()))).count();
+        assert_eq!(attached, 5);
     }
 }
 
@@ -451,7 +543,11 @@ fn cell(page: &Page, table: &str, col: u8, row: u8) -> String {
 /// activité.
 fn week() -> Page {
     let mut page = Page { background: Some(Background { color: "#fffaf0".into(), pattern: None }), ..Page::new(PageSize { width_mm: 297.0, height_mm: 210.0 }) };
-    page.elements.push(text(frame(15.0, 8.0, 267.0, cursive_height(28.0)), "Notre semaine", TITLE_FONT, 28.0, "#8a4b16", Align::Center));
+    page.elements.extend(grouped(vec![
+        picto("1F4C5", 80.0, 9.0, 18.0),
+        text(frame(100.0, 8.0, 97.0, cursive_height(28.0)), "Notre semaine", TITLE_FONT, 28.0, "#8a4b16", Align::Center),
+        picto("23F0", 199.0, 9.0, 18.0),
+    ]));
     let table = crate::table::add_table(&mut page, frame(15.0, 36.0, 267.0, 162.0), 5, 7);
     if let Some(ElementKind::Table(t)) = page.elements.iter_mut().find(|e| e.id == table).map(|e| &mut e.kind) {
         t.cols = vec![1.3, 1.0, 1.0, 1.0, 1.0];
@@ -491,46 +587,59 @@ fn week() -> Page {
     page
 }
 
-/// Loto des émotions : douze cartes à découper, une émotion et son mot.
+/// Loto des émotions : douze cartes de couleur à découper (contour en tirets, ciseaux), une émotion et son mot.
 fn emotions() -> Page {
     let cards = [
         ("1F600", "joyeux"), ("1F622", "triste"), ("1F620", "en colère"), ("1F628", "effrayé"),
         ("1F632", "surpris"), ("1F971", "fatigué"), ("1F970", "amoureux"), ("1F914", "pensif"),
         ("1F60C", "calme"), ("1F62D", "chagrin"), ("1F97A", "timide"), ("1F642", "content"),
     ];
-    let (w, h, gap) = (58.0, 57.0, 5.0);
+    let tints = ["#fff3bf", "#d0ebff", "#ffe3e3", "#e5dbff", "#d3f9d8", "#ffe8cc"];
+    let (w, h, gap) = (58.0, 56.0, 5.0);
     let x0 = (210.0 - (3.0 * w + 2.0 * gap)) / 2.0;
-    let mut els = vec![title("Le loto des émotions", 10.0, 26.0, "#6a3d9a")];
+    let mut els = vec![title("Le loto des émotions", 8.0, 26.0, "#6a3d9a")];
+    els.extend(grouped(vec![
+        picto("2702", 52.0, 33.0, 9.0),
+        text(frame(63.0, 32.0, 100.0, 10.0), "Je découpe les cartes, puis je joue !", "Andika", 13.0, "#6a3d9a", Align::Left),
+    ]));
     for (i, (code, word)) in cards.iter().enumerate() {
-        let (x, y) = (x0 + (i % 3) as f64 * (w + gap), 34.0 + (i / 3) as f64 * (h + gap));
-        let mut card = shape(ShapeKind::Rect, frame(x, y, w, h), Some("#ffffff"), Some((0.5, "#9b7be0")), 6.0);
-        if let ElementKind::Shape(s) = &mut card.kind {
-            s.stroke = Some(Stroke { width_mm: 0.5, color: "#9b7be0".into(), style: Some(StrokeStyle::Dashed) });
-        }
-        els.extend(grouped(vec![card, picto(code, x + 14.0, y + 5.0, 30.0), text(frame(x + 3.0, y + 38.0, w - 6.0, 14.0), word, "Andika", 18.0, INK, Align::Center)]));
+        let (x, y) = (x0 + (i % 3) as f64 * (w + gap), 46.0 + (i / 3) as f64 * (h + gap));
+        let card = reshaped(shape(ShapeKind::Rect, frame(x, y, w, h), Some(tints[i % tints.len()]), Some((0.5, "#9b7be0")), 6.0), |sp| {
+            sp.stroke = Some(Stroke { width_mm: 0.5, color: "#9b7be0".into(), style: Some(StrokeStyle::Dashed) });
+        });
+        els.extend(grouped(vec![card, picto(code, x + 15.0, y + 5.0, 28.0), centred(frame(x + 3.0, y + 37.0, w - 6.0, 14.0), word, "Andika", 17.0, INK)]));
     }
     page("#f6f0fd", None, els)
 }
 
-/// J'écris les jours : chaque jour en cursive gris clair, à repasser sur des lignes Seyès, puis à écrire.
+/// J'écris les jours : chaque jour sur une étiquette de sa couleur, puis en cursive à lettres creuses à repasser sur
+/// des lignes Seyès.
 fn week_days() -> Page {
     let mut els = grouped(vec![picto("1F4C5", 22.0, 10.0, 22.0), title("J'écris les jours", 10.0, 26.0, "#c0392b"), picto("270F", 166.0, 10.0, 22.0)]);
-    for (i, day) in ["lundi", "mardi", "mercredi", "jeudi", "vendredi"].iter().enumerate() {
-        let mut lines = text_lines(frame(15.0, 38.0 + i as f64 * 50.0, 180.0, 40.0), Pattern::Seyes);
-        if let ElementKind::Text(t) = &mut lines.kind {
+    let days = [("lundi", "#ffd6d6"), ("mardi", "#d6e8ff"), ("mercredi", "#d8f5d0"), ("jeudi", "#fff1bf"), ("vendredi", "#ead9ff")];
+    for (i, (day, color)) in days.iter().enumerate() {
+        let y = 38.0 + i as f64 * 50.0;
+        let tag = styled(centred(frame(15.0, y, 34.0, 11.0), day, "Andika", 13.0, INK), |t| {
+            t.frame = Some(boxed(color, None, 4.5));
+            t.style.padding_mm = Some(1.0);
+        });
+        let lines = styled(text_lines(frame(15.0, y + 12.0, 180.0, 37.0), Pattern::Seyes), |t| {
             t.content = RichText::plain(day);
-            t.style.size_pt = 40.0;
-            t.style.color = "#c4c4c4".into();
+            t.style.size_pt = 38.0;
+            t.style.color = "#9a9a9a".into();
+            t.style.outline = Some(true);
             t.style.valign = Some(VAlign::Middle);
             t.style.padding_mm = Some(4.0);
-        }
-        els.push(lines);
+        });
+        els.extend(grouped(vec![tag, lines]));
     }
     page("#ffffff", None, els)
 }
 
-/// Les règles de la classe : une affiche A3, un picto et une phrase par règle.
+/// Les règles de la classe : une affiche A3, un bandeau pour le titre, une règle numérotée par carte, et la place
+/// pour les signatures de la classe.
 fn class_rules() -> Page {
+    const BLUE: &str = "#2e86de";
     let rules = [
         ("270B", "Je lève la main pour parler."),
         ("1F92B", "Je chuchote dans la classe."),
@@ -539,59 +648,75 @@ fn class_rules() -> Page {
         ("1F9F9", "Je range le matériel."),
         ("2764", "Je prends soin de mes camarades."),
     ];
+    let tints = ["#eaf2fb", "#fff6e6", "#eaf7ee", "#fdeef4", "#f1ecfb", "#fff9db"];
     let mut els = vec![
-        shape(ShapeKind::Rect, frame(10.0, 10.0, 277.0, 400.0), None, Some((2.0, "#2e86de")), 12.0),
-        text(frame(20.0, 22.0, 257.0, cursive_height(44.0)), "Les règles de la classe", TITLE_FONT, 44.0, "#2e86de", Align::Center),
+        shape(ShapeKind::Rect, frame(10.0, 10.0, 277.0, 400.0), None, Some((2.0, BLUE)), 12.0),
+        styled(centred(frame(30.0, 20.0, 237.0, 44.0), "Les règles de la classe", TITLE_FONT, 40.0, "#ffffff"), |t| t.frame = Some(boxed(BLUE, None, 22.0))),
     ];
     for (i, (code, rule)) in rules.iter().enumerate() {
-        let y = 82.0 + i as f64 * 52.0;
+        let y = 78.0 + i as f64 * 48.0;
         els.extend(grouped(vec![
-            shape(ShapeKind::Rect, frame(24.0, y, 249.0, 44.0), Some(if i % 2 == 0 { "#eaf2fb" } else { "#fff6e6" }), None, 10.0),
-            picto(code, 32.0, y + 4.0, 36.0),
-            text(frame(80.0, y + 8.0, 185.0, 28.0), rule, "Andika", 28.0, INK, Align::Left),
+            shape(ShapeKind::Rect, frame(24.0, y, 249.0, 40.0), Some(tints[i]), None, 10.0),
+            shape(ShapeKind::Ellipse, frame(30.0, y + 6.0, 28.0, 28.0), Some(BLUE), None, 0.0),
+            centred(frame(30.0, y + 6.0, 28.0, 28.0), &(i + 1).to_string(), "Andika", 24.0, "#ffffff"),
+            picto(code, 66.0, y + 4.0, 32.0),
+            styled(text(frame(106.0, y + 6.0, 162.0, 28.0), rule, "Andika", 26.0, INK, Align::Left), |t| t.style.valign = Some(VAlign::Middle)),
         ]));
     }
+    // Les signatures de la classe.
+    els.push(text(frame(24.0, 370.0, 249.0, 14.0), "Nous avons choisi ces règles ensemble :", "Andika", 18.0, BLUE, Align::Left));
+    els.push(styled(text_zone(frame(24.0, 386.0, 249.0, 18.0), "Signatures…", "Andika", 14.0), |t| t.frame = Some(TextFrame { pattern: Some(Pattern::Lines), ..TextFrame::default() })));
     Page { elements: els, background: Some(Background { color: "#ffffff".into(), pattern: None }), ..Page::new(PageSize { width_mm: 297.0, height_mm: 420.0 }) }
 }
 
-/// Mes cinq sens : un picto, le verbe, et des lignes pour écrire ce qu'on a découvert.
+/// Mes cinq sens : une carte mentale. L'enfant dans un rond, cinq cartes (image, verbe, lignes pour écrire) et des
+/// flèches accrochées : on peut déplacer une carte, sa flèche suit.
 fn five_senses() -> Page {
-    let senses = [("1F441", "Je vois"), ("1F442", "J'entends"), ("1F443", "Je sens"), ("1F444", "Je goûte"), ("270B", "Je touche")];
-    let mut els = vec![title("Mes cinq sens", 10.0, 28.0, "#27ae60")];
-    for (i, (code, verb)) in senses.iter().enumerate() {
-        let y = 38.0 + i as f64 * 51.0;
+    const GREEN: &str = "#27ae60";
+    let senses = [("1F441", "Je vois", "#e7f5ff"), ("1F442", "J'entends", "#fff4e6"), ("1F443", "Je sens", "#f3f0ff"), ("1F444", "Je goûte", "#ffeef3"), ("270B", "Je touche", "#ebfbee")];
+    let mut els = vec![title("Mes cinq sens", 10.0, 28.0, GREEN)];
+    let me = shape(ShapeKind::Ellipse, frame(12.0, 128.0, 62.0, 62.0), Some("#ffffff"), Some((1.2, GREEN)), 0.0);
+    els.extend(grouped(vec![me.clone(), picto("1F9D2", 25.0, 139.0, 36.0), text(frame(12.0, 191.0, 62.0, cursive_height(16.0)), "Moi", TITLE_FONT, 16.0, GREEN, Align::Center)]));
+    for (i, (code, verb, tint)) in senses.iter().enumerate() {
+        let y = 44.0 + i as f64 * 49.0;
+        let card = shape(ShapeKind::Rect, frame(96.0, y, 102.0, 42.0), Some(tint), Some((0.6, GREEN)), 7.0);
+        els.push(link(&me, AnchorPoint::Right, &card, AnchorPoint::Left, GREEN));
         els.extend(grouped(vec![
-            picto(code, 15.0, y + 4.0, 34.0),
-            text(frame(55.0, y, 140.0, 14.0), verb, "Andika", 18.0, "#27ae60", Align::Left),
-            text_lines(frame(55.0, y + 16.0, 140.0, 28.0), Pattern::Lines),
+            card,
+            picto(code, 100.0, y + 4.0, 20.0),
+            text(frame(123.0, y + 3.0, 70.0, 13.0), verb, "Andika", 17.0, GREEN, Align::Left),
+            styled(text_lines(frame(100.0, y + 19.0, 94.0, 20.0), Pattern::Lines), |t| t.style.size_pt = 16.0),
         ]));
     }
     page("#f4fbf2", None, els)
 }
 
-/// Étiquettes de porte-manteau : photo (ou symbole) et prénom en capitales et en cursive, prêtes à remplir
-/// avec la classe.
+/// Étiquettes de porte-manteau : la photo de l'enfant dans un rond, son prénom en capitales et en cursive, un
+/// animal pour le reconnaître, un contour à découper.
 fn coat_pegs() -> Page {
     let (w, h, gap) = (90.0, 62.0, 6.0);
     let y0 = (297.0 - (4.0 * h + 3.0 * gap)) / 2.0;
-    let colors = ["#fde2e4", "#e2f0cb", "#d6ecfa", "#fff1c1"];
+    let colors = [("#fde2e4", "#e8899a"), ("#e2f0cb", "#7fb35a"), ("#d6ecfa", "#5a9bd5"), ("#fff1c1", "#e0b43c")];
+    let animals = ["1F431", "1F436", "1F430", "1F98A", "1F43B", "1F981", "1F438", "1F427"];
     let mut els = Vec::new();
     for row in 0..4 {
         for (k, x) in [12.0, 108.0].into_iter().enumerate() {
             let y = y0 + row as f64 * (h + gap);
+            let (fill, ring) = colors[(row + k) % 4];
             let zone = |f: Frame, field: &str, font: &str, size: f64| {
-                let mut z = field_text(f, field, font, size);
-                if let ElementKind::Text(t) = &mut z.kind {
+                styled(field_text(f, field, font, size), |t| {
                     t.style.align = Align::Center;
                     t.style.valign = Some(VAlign::Middle);
                     t.style.color = INK.into();
-                }
-                z
+                })
             };
+            let card = reshaped(shape(ShapeKind::Rect, frame(x, y, w, h), Some(fill), Some((0.6, "#7f8c8d")), 8.0), |sp| {
+                sp.stroke = Some(Stroke { width_mm: 0.6, color: "#7f8c8d".into(), style: Some(StrokeStyle::Dashed) });
+            });
             els.extend(grouped(vec![
-                shape(ShapeKind::Rect, frame(x, y, w, h), Some(colors[(row + k) % 4]), Some((0.8, "#7f8c8d")), 8.0),
-                photo_zone(frame(x + 5.0, y + 5.0, 34.0, h - 20.0)),
-                picto("1F9E5", x + 16.0, y + h - 14.0, 12.0),
+                card,
+                round_photo(frame(x + 5.0, y + 6.0, 34.0, 34.0), ring),
+                picto(animals[row * 2 + k], x + 13.0, y + 42.0, 17.0),
                 zone(frame(x + 42.0, y + 8.0, w - 46.0, 20.0), "PRENOM", "Andika", 22.0),
                 zone(frame(x + 42.0, y + 30.0, w - 46.0, 26.0), "prenom", TITLE_FONT, 24.0),
             ]));

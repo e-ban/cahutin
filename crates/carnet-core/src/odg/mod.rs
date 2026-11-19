@@ -1151,13 +1151,19 @@ mod tests {
         assert!(content.contains(&format!(r#"draw:enhanced-path="{path} N""#)), "{content}");
     }
 
-    /// La flèche de l'exemple « La météo de la semaine » s'exporte exactement comme avant les terminaisons.
+    /// Une flèche d'avant les terminaisons (celle de l'ancien exemple « La météo de la semaine » : tournée d'un quart de
+    /// tour, sans `ends`) s'exporte exactement comme avant.
     #[test]
     fn old_arrow_exports_unchanged() {
-        let mut e = export(&crate::examples::document("meteo").unwrap(), &AssetStore::default());
+        let mut arrow = shape_el(ShapeKind::Arrow, Frame { rotation_deg: 90.0, ..frame(22.0, 52.0, 12.0, 6.0) });
+        if let ElementKind::Shape(s) = &mut arrow.kind {
+            s.fill = None;
+            s.stroke = Some(Stroke { width_mm: 1.0, color: "#c0392b".into(), style: None });
+        }
+        let mut e = export(&doc_with(vec![arrow]), &AssetStore::default());
         let c = e.xml("content.xml");
-        assert!(c.contains(r#"<draw:line draw:style-name="gr4" svg:x1="28.000mm" svg:y1="49.000mm" svg:x2="28.000mm" svg:y2="61.000mm"/>"#), "{c}");
-        assert!(c.contains(r##"<style:style style:name="gr4" style:family="graphic"><style:graphic-properties draw:fill="none" draw:stroke="solid" svg:stroke-width="1.000mm" svg:stroke-color="#c0392b" draw:marker-end="Arrow" draw:marker-end-width="4.000mm"/></style:style>"##), "{c}");
+        assert!(c.contains(r#"svg:x1="28.000mm" svg:y1="49.000mm" svg:x2="28.000mm" svg:y2="61.000mm"/>"#), "{c}");
+        assert!(c.contains(r##"style:family="graphic"><style:graphic-properties draw:fill="none" draw:stroke="solid" svg:stroke-width="1.000mm" svg:stroke-color="#c0392b" draw:marker-end="Arrow" draw:marker-end-width="4.000mm"/></style:style>"##), "{c}");
         let styles = e.xml("styles.xml");
         assert_eq!(styles.matches("<draw:marker ").count(), 1, "{styles}");
     }

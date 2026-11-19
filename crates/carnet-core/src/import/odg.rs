@@ -810,6 +810,23 @@ fn free_path(n: Node) -> Option<String> {
     crate::shapes::valid_path(&path).then_some(path)
 }
 
+/// Bulle de parole ou de pensée à pointe écrite par Cahutin : la pointe est dans les réglages de la forme
+/// (`draw:modifiers`), et le tracé est bien celui de cette bulle à cette taille (à l'arrondi près des mesures).
+fn tailed_shape(n: Node, f: &Frame) -> Option<(ShapeKind, [f64; 2])> {
+    let g = n.children().find(|c| c.has_tag_name((DRAW, "enhanced-geometry")))?;
+    let m: Vec<f64> = g.attribute((DRAW, "modifiers"))?.split_whitespace().map(str::parse).collect::<Result<_, _>>().ok()?;
+    let [tx, ty] = m[..] else { return None };
+    let path = enhanced_path(g)?;
+    let near = |a: &str, b: &str| {
+        let (x, y): (Vec<&str>, Vec<&str>) = (a.split_whitespace().collect(), b.split_whitespace().collect());
+        x.len() == y.len() && x.iter().zip(&y).all(|(p, q)| p == q || matches!((p.parse::<f64>(), q.parse::<f64>()), (Ok(u), Ok(v)) if (u - v).abs() <= 3.0))
+    };
+    [(ShapeKind::Bubble, crate::shapes::bubble_path(f.w_mm, f.h_mm, [tx, ty])), (ShapeKind::Cloud, crate::shapes::thought_path(f.w_mm, f.h_mm, [tx, ty]))]
+        .into_iter()
+        .find(|(_, p)| near(p, &path))
+        .map(|(k, _)| (k, [tx, ty]))
+}
+
 /// Forme d'un `draw:custom-shape` : une forme de Cahutin reconnue à son tracé (ce qu'écrit l'export), ou une
 /// forme toute faite de LibreOffice d'après son type.
 fn custom_shape_kind(n: Node) -> Option<ShapeKind> {
@@ -1739,6 +1756,15 @@ impl<R: Read + Seek> PageReader<'_, R> {
                 }
             }
             "custom-shape" => match (frame_of(n), custom_shape_kind(n), free_path(n)) {
+                (Some(f), _, _) if let Some((kind, tail)) = tailed_shape(n, &f) => {
+                    self.shape(n, f, kind);
+                    self.mirror_last_shape(n);
+                    if let Some(Item::Element(e)) = self.items.last_mut()
+                        && let ElementKind::Shape(s) = &mut e.kind
+                    {
+                        s.tail = Some(tail);
+                    }
+                }
                 (Some(f), Some(kind), _) => {
                     self.shape(n, f, kind);
                     self.mirror_last_shape(n);
@@ -2720,10 +2746,10 @@ mod tests {
         assert_eq!(kinds, [ShapeKind::Bubble, ShapeKind::Cloud]);
     }
 
-    /// Une bulle à pointe exportée puis relue : son tracé déborde du carré de 1000 (la pointe est hors du cadre). Elle
-    /// revient en tracé libre, au même cadre, avec ce même tracé (pointe comprise) : rien ne se perd.
+    /// Une bulle à pointe exportée puis relue : son tracé déborde du carré de 1000 (la pointe est hors du cadre), sa
+    /// pointe est dans les réglages de la forme. Elle revient bulle, avec sa pointe, au même cadre.
     #[test]
-    fn a_tailed_bubble_comes_back_as_a_free_path_with_its_tail() {
+    fn a_tailed_bubble_comes_back_as_a_bubble_with_its_tail() {
         use crate::model::{Element, Frame, ShapeProps};
         let mut doc = crate::model::Document::new("bulle");
         let frame = Frame { x_mm: 40.0, y_mm: 50.0, w_mm: 70.0, h_mm: 35.0, rotation_deg: 0.0 };
@@ -2735,7 +2761,10 @@ mod tests {
         let back = read_drawing(Cursor::new(buf.into_inner()), &known()).unwrap();
         let e = &back.pages[0].elements[0];
         let ElementKind::Shape(s) = &e.kind else { panic!("{e:?}") };
-        assert_eq!((s.shape, s.path.as_deref()), (ShapeKind::Path, Some(drawn.as_str())));
+        assert_eq!(s.shape, ShapeKind::Bubble);
+        let t = s.tail.unwrap();
+        assert!((t[0] - 1.4).abs() < 1e-5 && (t[1] - 1.6).abs() < 1e-5, "{t:?}");
+        assert_eq!(crate::shapes::path_of(&e.frame, s).unwrap(), drawn);
         assert!((e.frame.w_mm - 70.0).abs() < 0.01 && (e.frame.h_mm - 35.0).abs() < 0.01, "{:?}", e.frame);
     }
 

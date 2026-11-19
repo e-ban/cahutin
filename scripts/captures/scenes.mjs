@@ -86,7 +86,8 @@ const scenes = {
     await s.size(1896, 1032);
     await open("ferme");
     await fillPhoto();
-    const frieze = await s.js("return window.__editor.page.elements.find((x) => x.kind.type === 'Image' && x.group)?.id");
+    // Les animaux du pré : la frise, un groupe d'au moins trois images.
+    const frieze = await s.js("const els = window.__editor.page.elements.filter((x) => x.kind.type === 'Image' && x.group); return els.find((x) => els.filter((y) => y.group === x.group).length >= 3)?.id");
     await clickElement(frieze, true);
     // Le réglage de la frise est dans « Plus » (réglage par défaut).
     await s.js("document.querySelector('.ctx button[aria-haspopup=\"menu\"]')?.click()");
@@ -183,6 +184,14 @@ const scenes = {
     await sleep(600);
   },
   // Une vraie proposition de l'assistant, avec Ollama sur l'ordinateur (qwen3:4b).
+  async "store-fleches"() {
+    await s.size(1896, 1032);
+    await open("sens");
+    // Une flèche accrochée de la carte mentale, choisie, et le choix de sa pointe.
+    const id = await s.js("return window.__editor.page.elements.find((x) => x.kind.type === 'Shape' && x.kind.attach)?.id");
+    await clickElement(id);
+    await clickText(".ctx button", "Fin");
+  },
   async "store-assistant"() {
     await s.size(1896, 1032);
     await open("sens");

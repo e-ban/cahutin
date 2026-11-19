@@ -152,20 +152,72 @@ fn page(color: &str, pattern: Option<Pattern>, elements: Vec<Element>) -> Page {
     Page { elements, background: Some(Background { color: color.into(), pattern }), ..Page::new(A4_PORTRAIT) }
 }
 
-/// Cahier de vie : kraft, cadre arrondi, frise d'animaux, deux photos légendées, bulle de parole.
+/// Un élément tourné de `deg` autour du point `c` (son cadre garde sa taille, son centre tourne avec le reste).
+fn turned(mut e: Element, c: (f64, f64), deg: f64) -> Element {
+    let (cx, cy) = (e.frame.x_mm + e.frame.w_mm / 2.0, e.frame.y_mm + e.frame.h_mm / 2.0);
+    let a = deg.to_radians();
+    let (dx, dy) = (cx - c.0, cy - c.1);
+    let (nx, ny) = (c.0 + dx * a.cos() - dy * a.sin(), c.1 + dx * a.sin() + dy * a.cos());
+    e.frame.x_mm = ((nx - e.frame.w_mm / 2.0) * 100.0).round() / 100.0;
+    e.frame.y_mm = ((ny - e.frame.h_mm / 2.0) * 100.0).round() / 100.0;
+    e.frame.rotation_deg = deg;
+    e
+}
+
+/// Photo façon Polaroid, un peu penchée : un carton blanc, la photo à déposer et sa légende dessous, groupés.
+fn polaroid(x: f64, y: f64, w: f64, deg: f64) -> Vec<Element> {
+    let (m, ph, cap) = (4.0, w * 0.74, 13.0);
+    let h = m + ph + cap;
+    let c = (x + w / 2.0, y + h / 2.0);
+    let card = shape(ShapeKind::Rect, frame(x, y, w, h), Some("#ffffff"), Some((0.3, "#d9d0bf")), 1.5);
+    let photo = photo_zone(frame(x + m, y + m, w - 2.0 * m, ph));
+    let mut caption = text_zone(frame(x + m, y + m + ph + 1.5, w - 2.0 * m, cap - 3.0), "Légende…", "Andika", 13.0);
+    if let ElementKind::Text(t) = &mut caption.kind {
+        t.style.align = Align::Center;
+        t.style.valign = Some(VAlign::Middle);
+    }
+    grouped([card, photo, caption].into_iter().map(|e| turned(e, c, deg)).collect())
+}
+
+/// Cahier de vie : page crème, cadre vert, titre et date, deux photos façon Polaroid, une bulle de parole qui vise la
+/// chèvre, « ce que nous avons appris » sur des lignes, et les animaux de la ferme dans le pré.
 fn farm() -> Page {
-    let mut els = vec![shape(ShapeKind::Rect, frame(6.0, 6.0, 198.0, 285.0), None, Some((1.0, "#7a5a2e")), 8.0)];
-    els.extend(frieze(&["1F404", "1F416", "1F414", "1F410", "1F411", "1F69C"], 10.0, 14.0));
-    els.push(title("Notre sortie à la ferme", 27.0, 26.0, "#5b3b12"));
-    els.extend(photo_with_caption(18.0, 56.0, 84.0, 62.0));
-    els.extend(photo_with_caption(108.0, 56.0, 84.0, 62.0));
+    const GREEN: &str = "#3f6e2a";
+    let mut els = vec![shape(ShapeKind::Rect, frame(8.0, 8.0, 194.0, 276.0), None, Some((1.2, "#7fa65a")), 10.0)];
+    // Le pré, en bas du cadre : les animaux s'y tiennent.
+    els.push(shape(ShapeKind::Rect, frame(8.0, 252.0, 194.0, 32.0), Some("#b9dc97"), None, 10.0));
+    // En-tête : tracteur, titre, soleil ; la date de la sortie dessous.
     els.extend(grouped(vec![
-        shape(ShapeKind::Bubble, frame(18.0, 142.0, 120.0, 52.0), Some("#ffffff"), Some((0.6, "#5b3b12")), 0.0),
-        text(frame(26.0, 150.0, 104.0, 26.0), "J'ai donné à manger aux chèvres !", "Andika", 16.0, "#222222", Align::Center),
+        picto("1F69C", 16.0, 15.0, 20.0),
+        text(frame(38.0, 14.0, 134.0, cursive_height(26.0)), "Notre sortie à la ferme", TITLE_FONT, 26.0, GREEN, Align::Center),
+        picto("2600", 174.0, 15.0, 20.0),
     ]));
+    let mut date = field_text(frame(38.0, 39.0, 134.0, 11.0), "date_longue", "Andika", 12.0);
+    if let ElementKind::Text(t) = &mut date.kind {
+        t.style.align = Align::Center;
+        t.style.color = "#6b6b5e".into();
+    }
+    els.push(date);
+    els.extend(polaroid(17.0, 56.0, 84.0, -3.0));
+    els.extend(polaroid(109.0, 58.0, 84.0, 2.5));
+    // La bulle de parole d'un enfant, dont la pointe vise la chèvre.
+    let mut bubble = shape(ShapeKind::Bubble, frame(16.0, 150.0, 122.0, 36.0), Some("#ffffff"), Some((0.7, GREEN)), 0.0);
+    if let ElementKind::Shape(sp) = &mut bubble.kind {
+        sp.tail = Some([(150.0 - 16.0) / 122.0, (172.0 - 150.0) / 36.0]);
+    }
+    let mut said = text(frame(22.0, 153.0, 110.0, 30.0), "J'ai donné à manger aux chèvres !", "Andika", 17.0, "#222222", Align::Center);
+    if let ElementKind::Text(t) = &mut said.kind {
+        t.style.valign = Some(VAlign::Middle);
+    }
+    els.extend(grouped(vec![bubble, said]));
     els.push(picto("1F410", 148.0, 145.0, 44.0));
-    els.push(text_zone(frame(18.0, 210.0, 174.0, 62.0), "Ce que nous avons appris…", "Andika", 14.0));
-    page(crate::background::KRAFT, None, els)
+    // Ce que nous avons appris : un titre et des lignes pour la dictée à l'adulte.
+    els.push(text(frame(18.0, 197.0, 174.0, 12.0), "Ce que nous avons appris", "Andika", 15.0, GREEN, Align::Left));
+    els.push(text_lines(frame(18.0, 209.0, 174.0, 34.0), Pattern::Lines));
+    // Les animaux dans le pré.
+    let animals = ["1F404", "1F416", "1F414", "1F411", "1F40E", "1F986"];
+    els.extend(grouped(animals.iter().enumerate().map(|(i, code)| picto(code, 22.0 + i as f64 * 29.0, 247.0, 22.0)).collect()));
+    page("#fffaf0", None, els)
 }
 
 /// Anniversaire : frise de ballons, gâteau et étoiles groupés avec le prénom à compléter.

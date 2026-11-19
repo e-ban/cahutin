@@ -237,9 +237,9 @@ pub fn definitions() -> Value {
         },
         {
             "name": "decor",
-            "description": "page_frame (style), frieze (frise des marges : side, motifs), block_frieze (autour de element_id), remove_frieze (element_id d'une de ses images). motifs : mots-clés d'images ; size_mm 15, gap_mm 3.",
+            "description": "page_frame, block_frame (autour de element_id) : style ; frieze (frise des marges : side, motifs), block_frieze (autour de element_id), remove_frieze (element_id d'une de ses images). motifs : mots-clés d'images ; size_mm 15, gap_mm 3.",
             "inputSchema": obj(&["kind"], json!({
-                "kind": one_of(&["page_frame", "frieze", "block_frieze", "remove_frieze"]), "page": int, "element_id": id,
+                "kind": one_of(&["page_frame", "block_frame", "frieze", "block_frieze", "remove_frieze"]), "page": int, "element_id": id,
                 "style": one_of(&["thin", "thick", "rounded", "double"]), "side": one_of(&["top", "bottom", "around"]),
                 "motifs": ids, "size_mm": num, "gap_mm": num,
             })),
@@ -316,10 +316,11 @@ mod tests {
 mod size {
     /// Les descriptions des outils partent à chaque demande, et chaque échange les relit : un petit modèle
     /// local (Ollama, 16 000 jetons) doit garder la place de la page et de la conversation. Les terminaisons
-    /// des traits (start, end) et les chemins (points, curve) ont demandé un peu de place.
+    /// des traits (start, end), les chemins (points, curve), puis le cadre autour d'un bloc (block_frame) ont
+    /// demandé un peu de place.
     #[test]
     fn the_tool_descriptions_stay_small() {
         let n = serde_json::to_string(&super::definitions()).unwrap().len();
-        assert!(n <= 10_735, "{n} octets");
+        assert!(n <= 10_790, "{n} octets");
     }
 }

@@ -8,7 +8,9 @@
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import InspectorSection from "../layout/InspectorSection.svelte";
-  import { frieze, pageFrame, type FrameStyle, type FriezeSide } from "../../lib/decor";
+  import { blockFrame, frieze, pageFrame, type FrameStyle, type FriezeSide } from "../../lib/decor";
+  import { expandSelection } from "../../lib/groups";
+  import { isTableCell } from "../../lib/table";
   import { friezeMotifs, motifUrl, resolveMotifs } from "../../lib/friezeMotifs.svelte";
   import { readPref, writePref } from "../../lib/prefs";
   import type { AssetMeta, Element } from "../../lib/types";
@@ -29,6 +31,26 @@
   function addDecor(els: Element[], behind: boolean, assets: AssetMeta[] = []) {
     editor.updatePage((p) => ({ ...p, elements: behind ? [...els, ...p.elements] : [...p.elements, ...els] }), assets);
     editor.selection = els.map((e) => e.id);
+  }
+
+  /** Un cadre peut entourer la sélection : des éléments libres (ni verrouillés, ni cases de grille ou de tableau). */
+  const canFrame = $derived(
+    editor.selection.length > 0 &&
+      editor.selection.every((id) => {
+        const e = editor.page.elements.find((o) => o.id === id);
+        return !!e && (!e.locked || editor.templateMode) && !isTableCell(editor.page, id) && !editor.page.grid?.cells.some((c) => c.element_id === id);
+      }),
+  );
+
+  /** Le cadre autour de la sélection, groupé avec elle ; le tout reste sélectionné. */
+  function frameSelection(style: FrameStyle) {
+    const ids = editor.selection;
+    const next = blockFrame(editor.page, ids, style);
+    if (!next) return;
+    editor.updatePage(() => next);
+    editor.focusedMember = null;
+    editor.insideGroup = [];
+    editor.selection = expandSelection(editor.page, ids);
   }
 
   async function addFrieze(side: FriezeSide) {
@@ -54,11 +76,23 @@
     </div>
   {/if}
   <InspectorSection id="decor-frames" title={fr.frames} hint={fr.sectionHints.frames} open={false}>
+    <span class="label">{fr.frameAroundPage}</span>
     <div class="frames">
       {#each frames as f (f.style)}
         <button onclick={() => addDecor(pageFrame(editor.page, f.style), true)}><i class="mini {f.style}"></i>{f.label}</button>
       {/each}
     </div>
+    <!-- Les mêmes cadres autour de ce qui est choisi sur la page (une photo, un texte, un groupe...). -->
+    <span class="label">{fr.frameAroundSelection}</span>
+    {#if canFrame}
+      <div class="frames">
+        {#each frames as f (f.style)}
+          <button title={fr.frameAroundSelectionHint} onclick={() => frameSelection(f.style)}><i class="mini {f.style}"></i>{f.label}</button>
+        {/each}
+      </div>
+    {:else}
+      <p class="hint">{fr.frameAroundSelectionEmpty}</p>
+    {/if}
   </InspectorSection>
   <InspectorSection id="decor-friezes" title={fr.friezes} hint={fr.sectionHints.friezes} open={false}>
     <div><GuideLink id="frise" /></div>

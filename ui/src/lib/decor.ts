@@ -47,6 +47,48 @@ export function pageFrame(page: Page, style: FrameStyle): Element[] {
   }
 }
 
+/** Cadre autour d'un bloc : les mêmes que ceux de la page, à cette distance du bloc (le double : 2 et 5 mm). */
+const BLOCK_FRAME_MM = 3;
+
+function blockBorder(f: Frame, margin: number, width_mm: number, corner_radius_mm: number): Element {
+  return {
+    id: newId(),
+    frame: { x_mm: f.x_mm - margin, y_mm: f.y_mm - margin, w_mm: f.w_mm + 2 * margin, h_mm: f.h_mm + 2 * margin, rotation_deg: f.rotation_deg },
+    locked: false,
+    zone: false,
+    kind: { type: "Shape", shape: "Rect", fill: null, stroke: { width_mm, color: FRAME_COLOR }, corner_radius_mm },
+  };
+}
+
+/**
+ * Cadre autour d'un bloc (les éléments `ids`, ou leur groupe) : un des cadres de la page, à 3 mm autour. Un seul
+ * élément tourné : le cadre tourne avec lui ; plusieurs : le cadre entoure leur boîte. Le cadre est derrière le bloc
+ * (un clic sur une photo ou un texte la choisit toujours), et un groupe nouveau les réunit : dissocier rend l'un et
+ * l'autre intacts. `null` sans élément, ou pour une case de grille.
+ */
+export function blockFrame(page: Page, ids: string[], style: FrameStyle): Page | null {
+  const chosen = page.elements.filter((e) => ids.includes(e.id));
+  if (chosen.length === 0 || chosen.some((e) => page.grid?.cells.some((c) => c.element_id === e.id))) return null;
+  const groups = new Set(chosen.map((e) => e.group).filter(Boolean));
+  const block = new Set(page.elements.filter((e) => ids.includes(e.id) || (e.group && groups.has(e.group))).map((e) => e.id));
+  const members = page.elements.filter((e) => block.has(e.id));
+  const f: Frame = members.length === 1 ? members[0].frame : { ...boundsOf(members.map((e) => e.frame)), rotation_deg: 0 };
+  const m = BLOCK_FRAME_MM;
+  const frames =
+    style === "thin" ? [blockBorder(f, m, 0.5, 0)]
+    : style === "thick" ? [blockBorder(f, m, 2, 0)]
+    : style === "rounded" ? [blockBorder(f, m, 1, 5)]
+    : (() => {
+        const own = newId();
+        return [blockBorder(f, m + 2, 0.5, 0), blockBorder(f, m - 1, 1.5, 0)].map((e) => ({ ...e, group: own }));
+      })();
+  const group = newId();
+  const framed = frames.map((e) => withPath(e, [group, ...pathOf(e)]));
+  const wrapped = page.elements.map((e) => (block.has(e.id) ? withPath(e, [group, ...pathOf(e)]) : e));
+  const at = wrapped.findIndex((e) => block.has(e.id));
+  return normalizeGroups({ ...page, elements: [...wrapped.slice(0, at), ...framed, ...wrapped.slice(at)] });
+}
+
 /** Rectangle vide qui entoure presque toute la page : un cadre de page, posé derrière tout. Son intérieur laisse
  *  passer les clics vers la page, sinon il serait choisi à chaque clic dans le vide. */
 export function isPageFrame(e: Element, size: PageSize): boolean {

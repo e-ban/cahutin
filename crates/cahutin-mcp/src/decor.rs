@@ -335,6 +335,49 @@ pub fn decor(doc: &mut Document, args: &Value) -> Result<Value, String> {
             groups::dissolve_small_groups(page);
             Ok(json!({ "element_ids": ids }))
         }
+        "block_frame" => {
+            // Comme `blockFrame` (ui/src/lib/decor.ts) : un cadre de page à 3 mm autour du bloc, derrière lui, groupé.
+            let id = str_arg(args, "element_id")?;
+            let (p, _) = locate(doc, id)?;
+            let page = &mut doc.pages[p];
+            if page.grid.as_ref().is_some_and(|g| g.cells.iter().any(|c| c.element_id == id)) {
+                return Err("une case de grille n'a pas de cadre".into());
+            }
+            let block = crate::arrange::block(page, id);
+            let members: Vec<&Element> = page.elements.iter().filter(|e| block.contains(&e.id)).collect();
+            let f = if members.len() == 1 {
+                members[0].frame
+            } else {
+                let (x0, y0, x1, y1) = crate::arrange::bounds(&members);
+                frame(x0, y0, x1 - x0, y1 - y0)
+            };
+            let around = |margin: f64, width_mm: f64, corner_radius_mm: f64, group: Option<Id>| {
+                let g = Frame { x_mm: f.x_mm - margin, y_mm: f.y_mm - margin, w_mm: f.w_mm + 2.0 * margin, h_mm: f.h_mm + 2.0 * margin, rotation_deg: f.rotation_deg };
+                let stroke = Some(Stroke { width_mm, color: FRAME_COLOR.into(), style: None });
+                element(new_id(), g, group, ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke, corner_radius_mm, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None, tail: None }))
+            };
+            const M: f64 = 3.0;
+            let mut frames = match str_arg(args, "style")? {
+                "thin" => vec![around(M, 0.5, 0.0, None)],
+                "thick" => vec![around(M, 2.0, 0.0, None)],
+                "rounded" => vec![around(M, 1.0, 5.0, None)],
+                "double" => {
+                    let own = new_id();
+                    vec![around(M + 2.0, 0.5, 0.0, Some(own.clone())), around(M - 1.0, 1.5, 0.0, Some(own))]
+                }
+                st => return Err(format!("cadre inconnu : {st} (thin, thick, rounded, double)")),
+            };
+            let group = new_id();
+            for e in frames.iter_mut().chain(page.elements.iter_mut().filter(|e| block.contains(&e.id))) {
+                let path = std::iter::once(group.clone()).chain(groups::path(e)).collect();
+                groups::set_path(e, path);
+            }
+            let ids: Vec<Id> = frames.iter().map(|e| e.id.clone()).collect();
+            let at = page.elements.iter().position(|e| block.contains(&e.id)).unwrap_or(0);
+            page.elements.splice(at..at, frames);
+            groups::dissolve_small_groups(page);
+            Ok(json!({ "element_ids": ids }))
+        }
         "remove_frieze" => {
             let id = str_arg(args, "element_id")?;
             let (p, i) = locate(doc, id)?;
@@ -350,7 +393,7 @@ pub fn decor(doc: &mut Document, args: &Value) -> Result<Value, String> {
             groups::dissolve_small_groups(page);
             Ok(json!({ "ok": true }))
         }
-        k => Err(format!("décor inconnu : {k} (page_frame, frieze, block_frieze, remove_frieze)")),
+        k => Err(format!("décor inconnu : {k} (page_frame, block_frame, frieze, block_frieze, remove_frieze)")),
     }
 }
 
@@ -437,6 +480,23 @@ mod tests {
 
     fn images(d: &Document) -> Vec<&Element> {
         d.pages[0].elements.iter().filter(|e| matches!(e.kind, ElementKind::Image(_))).collect()
+    }
+
+    #[test]
+    fn block_frames_surround_the_block_behind_it_in_its_group() {
+        let (mut d, r) = label();
+        let out = decor(&mut d, &json!({ "kind": "block_frame", "element_id": r, "style": "double" })).unwrap();
+        let ids: Vec<String> = out["element_ids"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_string()).collect();
+        let els = &d.pages[0].elements;
+        assert_eq!(ids.len(), 2);
+        // Derrière le bloc (posé à 20 mm), à 5 et 2 mm.
+        assert_eq!(els.iter().position(|e| e.id == r), Some(2));
+        let mut xs: Vec<f64> = els.iter().filter(|e| ids.contains(&e.id)).map(|e| e.frame.x_mm).collect();
+        xs.sort_by(f64::total_cmp);
+        assert_eq!(xs, [15.0, 18.0]);
+        // Tous dans un même groupe, le cadre double dans le sien.
+        assert!(els.iter().all(|e| groups::path(e).first() == groups::path(&els[0]).first() && !groups::path(e).is_empty()));
+        assert!(decor(&mut d, &json!({ "kind": "block_frame", "element_id": r, "style": "fleuri" })).is_err());
     }
 
     #[test]

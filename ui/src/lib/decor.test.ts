@@ -260,3 +260,47 @@ test("a block frieze's distance runs from the block edge to the line of its pict
   // Toujours groupée avec son bloc.
   expect(new Set(out.elements.map((e) => e.group)).size).toBe(1);
 });
+
+test("block frame: the page's frames, 3 mm around the block, behind it and grouped with it", async () => {
+  const { blockFrame } = await import("./decor");
+  const page = blockFrame(withBlock(block()), ["b"], "thin")!;
+  const [f, b] = page.elements;
+  expect(b.id).toBe("b");
+  expect(f.frame).toMatchObject({ x_mm: 47, y_mm: 57, w_mm: 66, h_mm: 46, rotation_deg: 0 });
+  expect(f.kind.type === "Shape" && f.kind.fill === null && f.kind.stroke?.width_mm).toBe(0.5);
+  expect(f.group).toBeTruthy();
+  expect(f.group).toBe(b.group);
+  const rounded = blockFrame(withBlock(block()), ["b"], "rounded")!.elements[0];
+  expect(rounded.kind.type === "Shape" && rounded.kind.corner_radius_mm).toBeGreaterThan(0);
+});
+
+test("block frame double: two rectangles, a frame of their own inside the block's group", async () => {
+  const { blockFrame } = await import("./decor");
+  const page = blockFrame(withBlock(block()), ["b"], "double")!;
+  const frames = page.elements.filter((e) => e.id !== "b");
+  expect(frames).toHaveLength(2);
+  expect(frames.map((e) => e.frame.x_mm).sort((a, c) => a - c)).toEqual([45, 48]);
+  // Dissocier rend le bloc seul et le cadre double entier.
+  const back = ungroup(page, ["b"]);
+  expect(back.elements.find((e) => e.id === "b")?.group ?? null).toBeNull();
+  const g = back.elements.filter((e) => e.id !== "b").map((e) => e.group);
+  expect(g[0]).toBeTruthy();
+  expect(g[0]).toBe(g[1]);
+});
+
+test("block frame turns with a rotated block, and surrounds several elements together", async () => {
+  const { blockFrame } = await import("./decor");
+  const turned = blockFrame(withBlock(block({ frame: { x_mm: 50, y_mm: 60, w_mm: 60, h_mm: 40, rotation_deg: 30 } })), ["b"], "thick")!;
+  expect(turned.elements[0].frame).toMatchObject({ x_mm: 47, y_mm: 57, w_mm: 66, h_mm: 46, rotation_deg: 30 });
+  const other = { ...block(), id: "o", frame: { x_mm: 120, y_mm: 60, w_mm: 20, h_mm: 70, rotation_deg: 0 } };
+  const both = blockFrame(withBlock(block(), [other]), ["b", "o"], "thin")!;
+  expect(both.elements[0].frame).toMatchObject({ x_mm: 47, y_mm: 57, w_mm: 96, h_mm: 76, rotation_deg: 0 });
+  expect(new Set(both.elements.map((e) => e.group)).size).toBe(1);
+});
+
+test("block frame: nothing for an empty selection or a grid cell", async () => {
+  const { blockFrame } = await import("./decor");
+  expect(blockFrame(withBlock(block()), [], "thin")).toBeNull();
+  const grid = { ...withBlock(block()), grid: { cols: 1, rows: 1, cells: [{ element_id: "b", col: 0, row: 0, col_span: 1, row_span: 1 }], gap_mm: 0, margin_mm: 0 } } as unknown as Page;
+  expect(blockFrame(grid, ["b"], "thin")).toBeNull();
+});

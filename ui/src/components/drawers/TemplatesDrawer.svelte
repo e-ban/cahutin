@@ -7,11 +7,12 @@
   import { fr } from "../../lib/i18n/fr";
   import { guideById, guides } from "../../lib/guides.svelte";
   import { templates } from "../../lib/templates.svelte";
+  import { isBlankPage } from "../../lib/pageOrder";
 </script>
 
 {#snippet tile(t: (typeof templates.infos)[number])}
   <div class="tpl">
-    <button class="mini" title={fr.newPageFrom(t.name)} onclick={() => templates.addPage(t.id).catch((e) => (editor.notice = String(e)))}>
+    <button class="mini" title={fr.newPageFrom(t.name)} onclick={() => templates.addPage(t.id, isBlankPage(editor.page)).catch((e) => (editor.notice = String(e)))}>
       {#if templates.previews[t.id]}
         <PageView page={templates.previews[t.id]} doc={editor.doc} zoom={0.13 * Math.min(1, 210 / templates.previews[t.id].size.width_mm, 297 / templates.previews[t.id].size.height_mm)} />
       {/if}

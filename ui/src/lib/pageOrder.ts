@@ -47,3 +47,9 @@ export function duplicatePage(p: Page): Page {
     grid: p.grid ? { ...p.grid, cells: p.grid.cells.map((c) => ({ ...c, element_id: ids.get(c.element_id)! })) } : null,
   };
 }
+
+/** Une page où rien n'est posé (ni élément, ni grille, ni fond) : un modèle choisi y prend sa place, plutôt que
+ *  de laisser une page blanche en trop dans le document. */
+export function isBlankPage(p: Page): boolean {
+  return p.elements.length === 0 && !p.grid && !p.background;
+}

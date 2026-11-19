@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { newDocument, newPage } from "./factory";
-import { dropSlot, movedPage, movePage, slotTarget } from "./pageOrder";
+import { dropSlot, isBlankPage, movedPage, movePage, slotTarget } from "./pageOrder";
 import type { Document } from "./types";
 
 function fourPages(): Document {
@@ -67,4 +67,12 @@ test("la page déplacée d'un ordre à l'autre", () => {
   expect(movedPage(doc.pages, doc.pages)).toBeNull();
   expect(movedPage(doc.pages, [...doc.pages, newPage()])).toBeNull();
   expect(movedPage(doc.pages, doc.pages.slice(1))).toBeNull();
+});
+
+test("a page with nothing on it is blank; an element, a grid or a background make it not blank", () => {
+  const p = newPage();
+  expect(isBlankPage(p)).toBe(true);
+  expect(isBlankPage({ ...p, background: { color: "#ffeecc", pattern: null } as never })).toBe(false);
+  expect(isBlankPage({ ...p, grid: { cols: 1, rows: 1, margin_mm: 10, gap_mm: 4, cells: [] } })).toBe(false);
+  expect(isBlankPage({ ...p, elements: [{ id: "e" } as never] })).toBe(false);
 });

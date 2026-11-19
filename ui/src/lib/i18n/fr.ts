@@ -293,6 +293,8 @@ export const fr = {
   revertedToStart: (when: string) => `Le document est revenu à la version du ${when}. Ctrl+Z (ou « Annuler ») rend vos changements.`,
   prefsSaving: "Enregistrement",
   prefsAutosave: "Enregistrer automatiquement",
+  prefsAutosaveShort: "Coché : le document s'enregistre tout seul après chaque changement. La même case, « Automatique », est en haut.",
+  prefsMore: "En savoir plus",
   prefsAutosaveHint:
     "Décoché (au départ) : enregistrez avec Ctrl+S ; Cahutin demande en partant s'il faut enregistrer. Coché : un document qui a déjà un fichier s'y enregistre tout seul, quelques secondes après chaque changement, sans question en partant, et Fichier > « Revenir à la version du début de séance » le rend tel qu'il était à l'ouverture. Après « Remplir avec ma classe » ou le choix d'une classe, rien ne s'enregistre tout seul avant que vous enregistriez vous-même. La même case, « Automatique », est en haut, à côté du bouton « Enregistrer ».",
   // Colonne d'icônes et tiroirs

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { assetUrl } from "../../lib/api";
+  import Icon from "../Icon.svelte";
   import { cropToCss } from "../../lib/crop";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
@@ -57,8 +58,9 @@
   {/if}
 {:else}
   <div class="zone-empty photo-zone" class:zone={element.zone} style:border-width="{zoom < 0.5 ? 1 : 2}px">
-    <!-- Dans les miniatures, l'invite serait illisible : seule la zone en pointillés reste. -->
-    {#if zoom >= 0.5}<span>{element.zone ? fr.dropPhotoHere : fr.photo}</span>{/if}
+    <!-- Dans les miniatures, l'invite serait illisible : un petit dessin de photo dit ce qui va dans la case. -->
+    {#if zoom >= 0.5}<span>{element.zone ? fr.dropPhotoHere : fr.photo}</span>
+    {:else}<Icon name="image" size={Math.max(8, Math.min(28, Math.round(Math.min(mmToPx(element.frame.w_mm, zoom), mmToPx(element.frame.h_mm, zoom)) * 0.45)))} />{/if}
   </div>
 {/if}
 

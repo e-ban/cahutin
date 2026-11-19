@@ -3,6 +3,7 @@
 
 ## Non publié
 
+- Miniatures (modèles, bande des pages) : une case photo vide y montre un petit dessin de photo, pour voir d'un coup d'œil où iront les photos.
 - Premier lancement : la question « Être prévenu quand une nouvelle version sort ? » n'arrive plus juste après la visite guidée, elle attend le lancement suivant.
 - Panneau Réglages : quand rien n'est sélectionné, il règle la page affichée (format A5, A4 ou A3, portrait ou paysage, fond, vis-à-vis) au lieu de rester vide. Les mêmes boutons restent dans la barre du bas.
 - Barre d'un texte : plus courte, elle tient sur une ligne même avec un tiroir et Réglages ouverts. « Puces » et « Lettres creuses » passent dans « Plus » (et restent dans Réglages) ; la case de la taille est plus étroite. Avec la préférence qui met tous les outils dans la barre, rien ne change.

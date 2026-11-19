@@ -62,6 +62,18 @@
   let pos = $state<{ left: number; top: number } | null>(null);
   /** Largeur au plus de la barre : celle de la zone de travail ; au-delà, ses outils passent à la ligne. */
   let maxWidth = $state<number | null>(null);
+  /** Écran étroit (tiroir et Réglages ouverts) : la barre passerait sur deux lignes ; elle se met alors en icônes
+   *  seules, comme avec la préférence, le nom de chaque outil s'affichant au survol. */
+  let autoCompact = $state(false);
+  /** Hauteur de l'avis « texte trop long », posé sous un texte (TextEl, bottom: -22px). */
+  const TEXT_NOTICE_GAP = 24;
+
+  /** Les outils de la barre tiennent-ils sur une seule ligne ? */
+  function oneRow(bar: HTMLElement): boolean {
+    const kids = [...bar.children] as HTMLElement[];
+    if (kids.length < 2) return true;
+    return kids[kids.length - 1].offsetTop <= kids[0].offsetTop + 4;
+  }
 
   const inGrid = (id: string) => !!editor.page.grid?.cells.some((c) => c.element_id === id);
   // Sélection qui est exactement un groupe : on propose Dissocier ; sinon Grouper (hors cases de grille).
@@ -111,19 +123,34 @@
       maxWidth = Math.floor(s.width - 16);
       await tick();
     }
+    if (!settings.compactToolbar) {
+      // Mesuré avant l'affichage (tick n'attend pas d'image) : pas de clignotement.
+      if (autoCompact) {
+        autoCompact = false;
+        await tick();
+      }
+      if (barEl && !oneRow(barEl)) {
+        autoCompact = true;
+        await tick();
+      }
+      if (!barEl) return;
+    }
     // La poignée de rotation (Moveable) dépasse au-dessus d'un élément libre sélectionné seul.
     const e = selected;
     const handles = many
       ? !editor.selection.some(inGrid) && !isLockedSelection(editor.page, editor.selection, editor.inside)
       : !!e && !e.locked && !inGrid(e.id) && editor.editingText !== e.id;
+    const pad = handles && !many && e ? handlePadding(mmToPx(e.frame.h_mm, editor.effectiveZoom), settings.bigHandles) : 0;
     pos = placeContextBar(
       box,
       { width: barEl.offsetWidth, height: barEl.offsetHeight },
       { left: s.left, top: s.top, width: s.width, height: s.height },
       // Un petit élément a ses poignées écartées : la poignée de rotation monte d'autant.
-      handles ? ROTATION_HANDLE_GAP + (many || !e ? 0 : handlePadding(mmToPx(e.frame.h_mm, editor.effectiveZoom), settings.bigHandles)) : undefined,
+      handles ? ROTATION_HANDLE_GAP + pad : undefined,
       undefined,
       otherBoxes(pageEl, editor.selection),
+      // Dessous : les poignées, et pour un texte l'avis « trop long » qui s'affiche sous lui.
+      8 + (handles ? pad : 0) + (e?.kind.type === "Text" ? TEXT_NOTICE_GAP : 0),
     );
   }
 
@@ -448,7 +475,7 @@
 {#if visible}
   <div
     class="ctx"
-    class:compact={settings.compactToolbar}
+    class:compact={settings.compactToolbar || autoCompact}
     role="toolbar"
     tabindex="-1"
     aria-label="Barre de l'élément"

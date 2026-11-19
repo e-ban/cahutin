@@ -53,10 +53,6 @@
 
   async function showExamples() {
     step = "examples";
-    await loadExamples();
-  }
-
-  async function loadExamples() {
     if (examples.length) return;
     try {
       const infos = await listExamples();
@@ -66,9 +62,18 @@
     }
   }
 
-  // Premier lancement, aucun document récent : la colonne « Reprendre » propose quelques exemples.
+  // Premier lancement, aucun document récent : la colonne « Reprendre » propose trois exemples, chargés une fois
+  // (un échec laisse la phrase habituelle, sans nouvel essai).
+  const STARTERS = 3;
+  let starters = $state<{ info: ExampleInfo; doc: Document }[]>([]);
+  let startersAsked = false;
   $effect(() => {
-    if (editor.recents.length === 0) void loadExamples();
+    if (editor.recents.length > 0 || startersAsked) return;
+    startersAsked = true;
+    listExamples()
+      .then((infos) => Promise.all(infos.slice(0, STARTERS).map(async (info) => ({ info, doc: await openExample(info.id) }))))
+      .then((list) => (starters = list))
+      .catch(() => {});
   });
 
   async function chooseLayout(id: string) {
@@ -147,10 +152,10 @@
           {#if editor.recents.length}<button class="plain" onclick={clearRecents}>{fr.recentsClear}</button>{/if}
         </div>
         {#if editor.recents.length === 0}
-          <p class="hint">{examples.length ? fr.noRecentsTryExample : fr.noRecents}</p>
-          {#if examples.length}
+          <p class="hint">{starters.length ? fr.noRecentsTryExample : fr.noRecents}</p>
+          {#if starters.length}
             <ul class="recents">
-              {#each examples.slice(0, 3) as ex (ex.info.id)}
+              {#each starters as ex (ex.info.id)}
                 <li>
                   <button class="card" onclick={() => openExampleDoc(ex.info.id)}>
                     <div class="mini small"><PageView page={ex.doc.pages[0]} doc={ex.doc} zoom={RECENT} /></div>

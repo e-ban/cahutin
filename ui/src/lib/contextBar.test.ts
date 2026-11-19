@@ -51,8 +51,8 @@ test("an element around the selection (a page frame, a background) is not someth
   expect(placeContextBar(target, bar, viewport, 8, 8, [frame]).top).toBe(252);
 });
 
-test("below, the rotation handle gap is not added", () => {
+test("below, its own gap is used (handles and notices under the element, no rotation handle)", () => {
   const target = { left: 400, top: 300, width: 200, height: 100 };
   const caption = { left: 380, top: 230, width: 240, height: 40 };
-  expect(placeContextBar(target, bar, viewport, 44, 8, [caption]).top).toBe(408);
+  expect(placeContextBar(target, bar, viewport, 44, 8, [caption], 30).top).toBe(430);
 });

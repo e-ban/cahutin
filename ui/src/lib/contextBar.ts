@@ -15,13 +15,14 @@ function overlap(a: Box, b: Box): number {
 
 /** `gap` : écart avec l'élément ; `margin` : écart minimal avec les bords de la zone visible. `others` : les
  *  autres éléments de la page, que la barre évite de cacher (une légende au-dessus d'une bulle) : elle va en
- *  dessous quand elle y cache moins. Un élément qui contient la sélection (un fond, un cadre) ne compte pas. */
-export function placeContextBar(target: Box, bar: { width: number; height: number }, viewport: Box, gap = 8, margin = 8, others: Box[] = []): { left: number; top: number } {
+ *  dessous quand elle y cache moins. Un élément qui contient la sélection (un fond, un cadre) ne compte pas.
+ *  `gapBelow` : écart sous l'élément (par défaut celui du dessus). */
+export function placeContextBar(target: Box, bar: { width: number; height: number }, viewport: Box, gap = 8, margin = 8, others: Box[] = [], gapBelow = gap): { left: number; top: number } {
   const minTop = viewport.top + margin;
   const maxTop = viewport.top + viewport.height - margin - bar.height;
   const above = target.top - gap - bar.height;
-  // En dessous, pas de poignée de rotation : l'écart ordinaire suffit.
-  const below = target.top + target.height + Math.min(gap, 8);
+  // En dessous, pas de poignée de rotation : `gapBelow` laisse la place des poignées et des avis sous l'élément.
+  const below = target.top + target.height + gapBelow;
   const centered = target.left + target.width / 2 - bar.width / 2;
   const minLeft = viewport.left + margin;
   const maxLeft = Math.max(minLeft, viewport.left + viewport.width - margin - bar.width);

@@ -19,7 +19,7 @@ function typing(ev: KeyboardEvent): boolean {
 /** Un bouton ou un lien a le focus : Entrée et Espace sont les siens. */
 function onControl(ev: KeyboardEvent): boolean {
   const t = ev.target as HTMLElement | null;
-  return !!t?.closest?.("button, a, [role=button], [role=menuitem], [role=option], [role=tab]");
+  return !!t?.closest?.("button, a, summary, [role=button], [role=menuitem], [role=option], [role=tab]");
 }
 
 /** Ouvre l'écriture du texte de la sélection (un texte seul, ou le seul texte d'un groupe), avec `insert` déjà

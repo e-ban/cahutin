@@ -22,22 +22,29 @@ function onControl(ev: KeyboardEvent): boolean {
   return !!t?.closest?.("button, a, [role=button], [role=menuitem], [role=option], [role=tab]");
 }
 
-/** Taper sur un texte sélectionné l'ouvre : la lettre s'y écrit (voir typeToWrite.ts). */
-function writeIntoSelection(ev: KeyboardEvent): boolean {
+/** Ouvre l'écriture du texte de la sélection (un texte seul, ou le seul texte d'un groupe), avec `insert` déjà
+ *  écrit ; faux s'il n'y a pas de texte où écrire. */
+export function writeInSelection(insert = ""): boolean {
   if (editor.editingText || editor.proposing || editor.cropping) return false;
-  const start = startsWriting(ev);
-  if (!start || (start.insert.trim() === "" && onControl(ev))) return false;
   const id = textToWrite(editor.page, editor.selection);
   if (!id) return false;
-  ev.preventDefault();
   const el = editor.page.elements.find((e) => e.id === id)!;
   if (editor.selection.length > 1) {
     editor.insideGroup = pathOf(el);
     editor.focusedMember = id;
   }
   editor.selection = [id];
-  textEditing.insert = start.insert;
+  textEditing.insert = insert;
   editor.editingText = id;
+  return true;
+}
+
+/** Taper sur un texte sélectionné l'ouvre : la lettre s'y écrit (voir typeToWrite.ts). */
+function writeIntoSelection(ev: KeyboardEvent): boolean {
+  const start = startsWriting(ev);
+  if (!start || (start.insert.trim() === "" && onControl(ev))) return false;
+  if (!writeInSelection(start.insert)) return false;
+  ev.preventDefault();
   return true;
 }
 

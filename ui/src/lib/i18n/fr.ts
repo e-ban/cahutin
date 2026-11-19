@@ -805,6 +805,9 @@ export const fr = {
   // Groupes
   group: "Grouper",
   ungroup: "Dissocier",
+  /** Groupe qui a un texte (une bulle de parole) : le bouton principal de sa barre ouvre l'écriture. */
+  writeInGroup: "Écrire",
+  writeInGroupHint: "Écrire dans le texte (ou tapez directement au clavier)",
   groupOf: (n: number) => `Groupe de ${n} éléments`,
   groupPosition: "Position du groupe (mm)",
   // Décors et images

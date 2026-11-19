@@ -12,6 +12,8 @@
   import FontSizeField from "./FontSizeField.svelte";
   import { alignFrames, distributeFrames, pageArea, type AlignMode } from "../lib/align";
   import { otherBoxes, placeContextBar, selectionBox } from "../lib/contextBar";
+  import { writeInSelection } from "../lib/shortcuts";
+  import { textToWrite } from "../lib/typeToWrite";
   import { editor } from "../lib/docStore.svelte";
   import { addCaption, deleteSelection, groupSelection, mirrorSelection, rotateSelection, selectionLocked, setFrameImage, toggleLockSelection, ungroupSelection } from "../lib/editActions";
   import { assetUrl } from "../lib/api";
@@ -70,6 +72,8 @@
     return block.length > 1 && block.length === editor.selection.length && block.every((id) => editor.selection.includes(id));
   });
   const canGroup = $derived(!editor.selection.some(inGrid));
+  /** Le texte où écrire dans le groupe choisi (une bulle), s'il n'y en a qu'un. */
+  const groupText = $derived(isGroup ? textToWrite(editor.page, editor.selection) : null);
   const selected = $derived(editor.selected);
   const many = $derived(editor.selection.length > 1);
   // Que des traits ou des flèches (un ou plusieurs) : leurs terminaisons se règlent ensemble, avec celles du premier.
@@ -467,7 +471,13 @@
     <!-- Les outils par famille, dans le même ordre pour tout élément : son contenu, son allure, sa place sur la
          page, sa légende, puis Supprimer. -->
     {#if many}
-      {#if isGroup}
+      {#if isGroup && groupText}
+        <!-- Un groupe qui a un texte (une bulle) : on y écrit ; Dissocier passe dans « Plus ». -->
+        <button class="main" title={fr.writeInGroupHint} onclick={() => writeInSelection()}><Icon name="text" /><span class="lbl"> {fr.writeInGroup}</span></button>
+        {#if !settings.moreMenu}
+          <button title="Ctrl+Maj+G" onclick={ungroupSelection}><Icon name="ungroup" /><span class="lbl"> {fr.ungroup}</span></button>
+        {/if}
+      {:else if isGroup}
         <button class="main" title="Ctrl+Maj+G" onclick={ungroupSelection}><Icon name="ungroup" /><span class="lbl"> {fr.ungroup}</span></button>
       {:else}
         <button class="main" title="Ctrl+G" disabled={!canGroup} onclick={groupSelection}><Icon name="group" /><span class="lbl"> {fr.group}</span></button>
@@ -866,6 +876,9 @@
             {/if}
             {#if ph}
               <button role="menuitem" title={fr.keepInMyImagesHint} onclick={() => ((pop = null), ph.asset && myImages.keep(ph.asset))}><Icon name="star" /> {fr.keepInMyImages}</button>
+            {/if}
+            {#if isGroup && groupText}
+              <button role="menuitem" title="Ctrl+Maj+G" onclick={() => ((pop = null), ungroupSelection())}><Icon name="ungroup" /> {fr.ungroup}</button>
             {/if}
             {#if !many}
               <button role="menuitem" onclick={() => ((pop = null), (editor.inspectorOpen = true))}><Icon name="settings" /> {fr.allSettings}</button>

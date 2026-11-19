@@ -3,6 +3,7 @@
 
 ## Non publié
 
+- Groupes : la barre d'un groupe qui contient un texte (une bulle de parole et son texte) propose d'abord « Écrire », qui ouvre le texte. « Dissocier » passe dans « Plus » (toujours aussi au clic droit et avec Ctrl+Maj+G).
 - Barre de l'élément : elle se place sous la sélection quand, au-dessus, elle cacherait un autre élément (les légendes des photos au-dessus d'une bulle, par exemple). Un fond ou un cadre de page autour de la sélection ne compte pas.
 - Modèles : un modèle choisi dans le tiroir alors que la page affichée est vide prend sa place, au lieu de laisser une page blanche en trop au début du document. Sur une page déjà commencée, il s'ajoute après, comme avant. Ctrl+Z revient en arrière.
 - Texte : sur un texte sélectionné, on tape directement, sans double-clic : la première lettre ouvre l'écriture et s'y écrit. Entrée (ou F2) ouvre l'écriture sans rien écrire. Sur une bulle de parole (bulle et texte groupés), la frappe va dans le texte de la bulle.

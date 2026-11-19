@@ -72,6 +72,9 @@
     return block.length > 1 && block.length === editor.selection.length && block.every((id) => editor.selection.includes(id));
   });
   const canGroup = $derived(!editor.selection.some(inGrid));
+  /** Puces : en écrivant, ou sur un texte qui a déjà des mots. */
+  const canList = (t: { content: { paragraphs: { runs: { text: string }[] }[] } }) =>
+    editor.editingText === selected?.id || t.content.paragraphs.some((p) => p.runs.some((r) => r.text.trim()));
   /** Le texte où écrire dans le groupe choisi (une bulle), s'il n'y en a qu'un. */
   const groupText = $derived(isGroup ? textToWrite(editor.page, editor.selection) : null);
   const selected = $derived(editor.selected);
@@ -608,7 +611,10 @@
         {/if}
       </div>
       <CharPalette />
+      <!-- Lettres creuses et puces : dans « Plus » avec ce choix, pour une barre sur une ligne. -->
+      {#if !settings.moreMenu}
       <button title={fr.outlineHint} class:on={!!t.style.outline} aria-pressed={!!t.style.outline} onclick={() => updateTextStyle({ outline: !t.style.outline })}><span class="hollow-a">A</span></button>
+      {/if}
       <div class="wrap">
         <button title={fr.color} aria-label={fr.color} onclick={() => toggle("color")}><span class="dot" style:background={t.style.color}></span></button>
         {#if pop === "color"}<div use:fitInWindow class="pop"><ColorPicker value={t.style.color} onchange={(c) => (setColor(c), (pop = null))} /></div>{/if}
@@ -630,7 +636,9 @@
           </div>
         {/if}
       </div>
-      <button title={fr.bulletsHint} class:on={isListActive(t)} aria-pressed={isListActive(t)} disabled={editor.editingText !== selected?.id && !t.content.paragraphs.some((p) => p.runs.some((r) => r.text.trim()))} onclick={toggleList}><Icon name="list" /><span class="lbl"> {fr.bullets}</span></button>
+      {#if !settings.moreMenu}
+      <button title={fr.bulletsHint} class:on={isListActive(t)} aria-pressed={isListActive(t)} disabled={!canList(t)} onclick={toggleList}><Icon name="list" /><span class="lbl"> {fr.bullets}</span></button>
+      {/if}
       <span class="sep"></span>
       <div class="wrap">
         <button class:on={!!t.frame} onclick={() => toggle("frame")}><Icon name="frame" /><span class="lbl"> {fr.textFrame}</span></button>
@@ -850,6 +858,11 @@
         {#if pop === "more"}
           {@const ph = selected?.kind.type === "Photo" && selected.kind.asset ? selected.kind : null}
           <div use:fitInWindow class="pop list more" role="menu">
+            {#if selected?.kind.type === "Text"}
+              {@const t = selected.kind}
+              <button role="menuitemcheckbox" title={fr.bulletsHint} class:on={isListActive(t)} aria-checked={isListActive(t)} disabled={!canList(t)} onclick={toggleList}><Icon name="list" /> {fr.bullets}</button>
+              <button role="menuitemcheckbox" title={fr.outlineHint} class:on={!!t.style.outline} aria-checked={!!t.style.outline} onclick={() => updateTextStyle({ outline: !t.style.outline })}><span class="hollow-a">A</span> {fr.outlineShort}</button>
+            {/if}
             {#if ph}
               <button role="menuitem" class:on={ph.shadow} onclick={() => updatePhoto({ shadow: !ph.shadow })}><Icon name="shadow" /> {fr.shadow}</button>
             {/if}

@@ -3,6 +3,7 @@
 
 ## Non publié
 
+- Barre d'un texte : plus courte, elle tient sur une ligne même avec un tiroir et Réglages ouverts. « Puces » et « Lettres creuses » passent dans « Plus » (et restent dans Réglages) ; la case de la taille est plus étroite. Avec la préférence qui met tous les outils dans la barre, rien ne change.
 - Groupes : la barre d'un groupe qui contient un texte (une bulle de parole et son texte) propose d'abord « Écrire », qui ouvre le texte. « Dissocier » passe dans « Plus » (toujours aussi au clic droit et avec Ctrl+Maj+G).
 - Barre de l'élément : elle se place sous la sélection quand, au-dessus, elle cacherait un autre élément (les légendes des photos au-dessus d'une bulle, par exemple). Un fond ou un cadre de page autour de la sélection ne compte pas.
 - Modèles : un modèle choisi dans le tiroir alors que la page affichée est vide prend sa place, au lieu de laisser une page blanche en trop au début du document. Sur une page déjà commencée, il s'ajoute après, comme avant. Ctrl+Z revient en arrière.

@@ -340,6 +340,7 @@ export const fr = {
   presetHollow: "Lettres creuses",
   presetTraceText: "Prénom",
   outlineHint: "Lettres creuses, à repasser",
+  outlineShort: "Lettres creuses",
   roundedRect: "Rectangle arrondi",
   line: "Trait",
   arrow: "Flèche",

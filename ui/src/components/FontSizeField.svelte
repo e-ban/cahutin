@@ -75,7 +75,7 @@
     gap: 2px;
   }
   input {
-    width: 4em;
+    width: 3.4em;
     text-align: right;
   }
   .unit {

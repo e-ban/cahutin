@@ -360,7 +360,7 @@
       {@const family = fonts.families.find((f) => f.name === currentFont(t))}
       <Section id="text" title={fr.sectionFormat}>
       {#if !tip}
-        <p class="hint">Double-cliquez pour écrire. Sans édition, les réglages s'appliquent à toute la zone.</p>
+        <p class="hint">Double-cliquez dans le texte, ou tapez au clavier, pour écrire. Sans écrire, les réglages s'appliquent à toute la zone.</p>
       {/if}
       <div class="field">
         <span>Police</span>

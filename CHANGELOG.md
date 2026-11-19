@@ -3,6 +3,8 @@
 
 ## Non publié
 
+- Barre de l'élément : Échap ferme le menu ouvert (« Plus », couleur, police…) ; la sélection reste.
+- Aides : « Pour écrire, tapez au clavier ou double-cliquez dans le texte » (bulle d'aide et panneau Réglages).
 - Accueil : au premier lancement, la colonne « Reprendre », encore vide, propose trois exemples à ouvrir. L'icône des Guides est un livre ouvert.
 - Pictogrammes : « Toutes » commence par les images de la classe (rituels, matériel, émotions, soins) au lieu d'une grille de smileys. La recherche d'images tient dans sa case (« Chercher : renard, gâteau… »).
 - Barre du haut : sans nom, le document invite à « Nommer le document… », en clair, avec une bulle qui le dit.

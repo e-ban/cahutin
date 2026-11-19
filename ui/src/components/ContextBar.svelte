@@ -70,9 +70,12 @@
 
   /** Les outils de la barre tiennent-ils sur une seule ligne ? */
   function oneRow(bar: HTMLElement): boolean {
-    const kids = [...bar.children] as HTMLElement[];
-    if (kids.length < 2) return true;
-    return kids[kids.length - 1].offsetTop <= kids[0].offsetTop + 4;
+    // Sur deux lignes, la barre est bien plus haute que son outil le plus haut. Les menus ouverts, posés par-dessus,
+    // ne changent pas sa hauteur.
+    const cs = getComputedStyle(bar);
+    const inner = bar.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const tallest = Math.max(0, ...([...bar.children] as HTMLElement[]).filter((k) => !["absolute", "fixed"].includes(getComputedStyle(k).position)).map((k) => k.offsetHeight));
+    return inner < tallest * 1.5;
   }
 
   const inGrid = (id: string) => !!editor.page.grid?.cells.some((c) => c.element_id === id);
@@ -469,6 +472,16 @@
   </label>
   <label class="check"><input type="checkbox" checked={now.arrow === true} onchange={(e) => setRows({ arrow: e.currentTarget.checked })} /> {fr.graphismeArrow}</label>
 {/snippet}
+
+<!-- Échap ferme le menu ouvert de la barre (la sélection reste) ; l'Échap suivant désélectionne. -->
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key === "Escape" && pop && !e.defaultPrevented) {
+      e.preventDefault();
+      pop = null;
+    }
+  }}
+/>
 
 {#if friezeCodes}<FriezePicker bind:codes={friezeCodes} onclose={applyFriezeMotifs} />{/if}
 
@@ -1106,6 +1119,9 @@
   }
   .ctx {
     position: fixed;
+    /* Sa largeur ne dépend que de ses outils (et de max-width), pas de la place qui reste à droite de l'endroit
+       où elle était : sinon elle passait à la ligne avant d'être replacée. */
+    width: max-content;
     display: flex;
     /* Trop d'outils pour la largeur de l'écran : ils passent à la ligne, aucun n'est caché. */
     flex-wrap: wrap;

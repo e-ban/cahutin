@@ -782,7 +782,7 @@ export const fr = {
   recentsHint: "Clic droit sur un document : le retirer de la liste, ou supprimer le fichier.",
   hintDblclickCrop: "Double-cliquez sur la photo pour la recadrer.",
   hintDropPhoto: "Glissez une photo de la photothèque sur une zone de la page.",
-  hintDblclickText: "Double-cliquez dans le texte pour écrire.",
+  hintDblclickText: "Pour écrire, tapez au clavier ou double-cliquez dans le texte.",
   hintRightclick: "Clic droit sur un élément : copier, dupliquer, mettre devant…",
   hintBlurFaces: "Des enfants sans autorisation photo ? « Flouter », dans la barre de la photo, cache leur visage.",
   hintTableCell: "Double-cliquez dans une case pour écrire ; la barre sous la case ajoute des lignes et des colonnes.",

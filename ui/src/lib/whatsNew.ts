@@ -1,5 +1,5 @@
 // Nouveautés des versions : une fenêtre montrée une fois, après la mise à jour, à qui utilisait déjà
-// Cahutin (un nouvel utilisateur a la visite guidée). Rouvrable depuis le menu Aide, où l'on retrouve aussi
+// Cahutin (un nouvel utilisateur a des bulles d'aide). Rouvrable depuis le menu Aide, où l'on retrouve aussi
 // les nouveautés des versions précédentes. Pour une nouvelle version : l'ajouter en tête de RELEASES, ses
 // captures dans `assets/nouveautes/<version>/`. Une capture n'est pas obligatoire : une nouveauté qui ne change
 // rien de visible (un fichier mieux relu, par exemple) n'en a pas, et se range après celles qui en ont.
@@ -18,6 +18,40 @@ export interface Release {
 
 /** De la plus récente à la plus ancienne. */
 export const RELEASES: Release[] = [
+  {
+    version: "0.19",
+    items: [
+      {
+        title: "Des flèches qui suivent",
+        text: "Tirez le bout d'un trait ou d'une flèche pour l'amener où vous voulez. « Début » et « Fin » choisissent ce qui termine chaque bout : une flèche, un rond, un carré, ou rien. Lâché près d'une étiquette, d'une forme ou d'une image, le bout s'y accroche : quand vous la déplacez, la flèche suit. Idéal pour un schéma ou une carte mentale.",
+        image: "/nouveautes/0.19/fleches.webp",
+      },
+      {
+        title: "Des chemins, des courbes et un crayon",
+        text: "« Prolonger » ajoute un coude à chaque clic sur la page ; tirer le milieu d'un trait le plie aussi. « Courbe » adoucit les angles, « Fermer » referme le chemin pour le remplir d'une couleur. Dans le tiroir Formes, la tuile « Crayon » dessine à main levée, à la souris ou au doigt.",
+        image: "/nouveautes/0.19/chemins.webp",
+      },
+      {
+        title: "Des bulles qui visent celui qui parle",
+        text: "Sélectionnez une bulle de parole : faites glisser le losange jaune pour diriger sa pointe. Le tiroir Formes a aussi une bulle de pensée, et le nuage est redessiné, comme à la main.",
+        image: "/nouveautes/0.19/bulles.webp",
+      },
+      {
+        title: "Des exemples refaits",
+        text: "Les onze exemples de l'accueil sont plus jolis, et chacun montre une autre façon de faire : photos façon Polaroid, guirlande de fanions, carte mentale, étiquettes de couleur. Ouvrez-en un, changez les photos et les textes, et imprimez.",
+        image: "/nouveautes/0.19/exemples.webp",
+      },
+      {
+        title: "Régler la page",
+        text: "Quand rien n'est sélectionné, le panneau Réglages, à droite, règle la page affichée : son format (A5, A4, A3), portrait ou paysage, son fond et le vis-à-vis.",
+        image: "/nouveautes/0.19/reglages.webp",
+      },
+      {
+        title: "Plus simple au quotidien",
+        text: "Sur un texte sélectionné, tapez directement au clavier : plus besoin de double-cliquer. Un modèle choisi sur une page vide la remplace, sans laisser de page blanche. Dans le tiroir Décors, les cadres s'appliquent aussi autour d'une photo, d'un texte ou d'un groupe. Au premier lancement, de petites bulles d'aide viennent au bon moment ; la visite guidée est dans le menu Aide.",
+      },
+    ],
+  },
   {
     version: "0.18",
     items: [

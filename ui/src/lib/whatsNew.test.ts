@@ -39,9 +39,9 @@ test("each novelty has a title, a text, its own screenshot on disk if any, and n
   expect(new Set(images).size).toBe(images.length);
 });
 
-test("version 0.18 opens with bulleted lists", () => {
-  expect(WHATS_NEW.version).toBe("0.18");
-  expect(WHATS_NEW.items[0].image).toBe("/nouveautes/0.18/puces.webp");
+test("version 0.19 opens with arrows that follow", () => {
+  expect(WHATS_NEW.version).toBe("0.19");
+  expect(WHATS_NEW.items[0].image).toBe("/nouveautes/0.19/fleches.webp");
 });
 
 // L'état de l'enregistrement se voit au point du bouton « Enregistrer » : plus rien ne s'affiche près du titre. La

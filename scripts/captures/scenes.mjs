@@ -1,5 +1,6 @@
 // Les captures de la release : chaque scène part d'un exemple de Cahutin, règle l'interface, puis capture.
 // Usage : node scenes.mjs <dossier de sortie> [scène…]
+import { execFileSync } from "node:child_process";
 import { session, sleep } from "./wd.mjs";
 
 const out = process.argv[2];
@@ -368,12 +369,83 @@ const scenes = {
     await sleep(400);
     await clickText(".ctx [role=menuitem]", "Régler les lignes");
   },
+  // Les nouveautés de la 0.19 : fenêtre de 1440 × 888, ramenée à 1200 × 740.
+  async "nouv-fleches"() {
+    await s.size(1440, 888);
+    await open("sens");
+    // Une flèche accrochée de la carte mentale, choisie : ses deux bouts ronds, et le choix de sa pointe.
+    const id = await run(`
+      const e = window.__editor;
+      const a = e.page.elements.find((x) => x.kind.type === "Shape" && x.kind.attach);
+      e.zoom = 1;
+      return a?.id;
+    `);
+    await clickElement(id);
+    await s.js("document.querySelector(`[data-id=\"${arguments[0]}\"]`)?.scrollIntoView({ block: 'center' })", [id]);
+    await sleep(600);
+    // Le menu « Fin » ouvert : les pointes au choix.
+    await clickText(".ctx button", "Fin");
+  },
+  async "nouv-chemins"() {
+    await s.size(1440, 888);
+    await open("meteo");
+    // La flèche courbe « Aujourd'hui », choisie : ses points se tirent un par un.
+    const id = await run(`
+      const e = window.__editor;
+      const a = e.page.elements.find((x) => x.kind.type === "Shape" && x.kind.points && x.kind.curve);
+      e.zoom = 1;
+      return a?.id;
+    `);
+    await clickElement(id);
+    await s.js("document.querySelector(`[data-id=\"${arguments[0]}\"]`)?.scrollIntoView({ block: 'center' })", [id]);
+    await sleep(600);
+  },
+  async "nouv-bulles"() {
+    await s.size(1440, 888);
+    await open("ferme");
+    // La bulle qui vise la chèvre, choisie : le losange jaune sur sa pointe.
+    const id = await run(`
+      const e = window.__editor;
+      const b = e.page.elements.find((x) => x.kind.type === "Shape" && x.kind.shape === "Bubble");
+      e.zoom = 1;
+      return b?.id;
+    `);
+    await clickElement(id);
+    await s.js("document.querySelector(`[data-id=\"${arguments[0]}\"]`)?.scrollIntoView({ block: 'center' })", [id]);
+    await sleep(600);
+  },
+  async "nouv-exemples"() {
+    await s.size(1440, 888);
+    await run(`window.__carnet.settings.set("theme", "papier"); window.__editor.showWelcome = true;`);
+    await sleep(800);
+    await clickText(".welcome button", "exemple");
+    await sleep(2500);
+  },
+  async "nouv-reglages"() {
+    await s.size(1440, 888);
+    await open("ferme");
+    // Rien de choisi, Réglages ouvert : le panneau règle la page.
+    await run(`const e = window.__editor; e.selection = []; e.inspectorOpen = true;`);
+    await sleep(800);
+  },
   async "barre-du-bas"() {
     await s.size(1440, 900);
     await open("ferme");
     await sleep(400);
   },
 };
+
+// Les pages des exemples, pour le site : la page seule, rognée autour de son bord (A4 à 640 px de large,
+// paysage à 902). La scène rend le cadre de la page, en pixels de la fenêtre.
+for (const id of ["ferme", "anniversaire", "meteo", "prenom", "saisons", "semaine", "emotions", "jours", "regles", "sens", "porte-manteaux"]) {
+  scenes[`page-${id}`] = async () => {
+    await s.size(1500, 1500);
+    await open(id);
+    await run(`const e = window.__editor; e.drawer = null; e.zoom = 297 / Math.max(e.page.size.width_mm, e.page.size.height_mm);`);
+    await sleep(1200);
+    return s.js("const r = document.querySelector('.page').getBoundingClientRect(); return { crop: [r.left, r.top, r.width, r.height].map(Math.round), width: r.width > r.height ? 902 : 640 };");
+  };
+}
 
 // Une première ouverture : pas de visite guidée, d'astuces ni de nouveautés sur les captures (le dossier personnel
 // est neuf), et une classe d'exemple aux prénoms inventés, pour que le bandeau « Remplir avec … » soit le même partout.
@@ -396,8 +468,12 @@ for (const [name, scene] of Object.entries(scenes)) {
   s = await session(APP);
   try {
     await sleep(4000);
-    await scene();
+    const r = await scene();
     await s.shot(`${out}/${name}.png`);
+    if (r?.crop) {
+      const [x, y, w, h] = r.crop;
+      execFileSync("magick", [`${out}/${name}.png`, "-crop", `${w}x${h}+${x}+${y}`, "+repage", "-resize", `${r.width}x`, `${out}/${name}.png`]);
+    }
     console.log("capture :", name);
   } finally {
     // Le thème et l'enregistrement automatique (décoché au départ) reviennent à leur réglage d'origine.

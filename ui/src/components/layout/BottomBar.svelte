@@ -4,8 +4,8 @@
   import { editor } from "../../lib/docStore.svelte";
   import { nextZoom } from "../../lib/units";
   import { newPage } from "../../lib/factory";
-  import { pageSetSize } from "../../lib/api";
-  import { changeFormat, formatOf, type Format } from "../../lib/pageFormat";
+    import { formatOf, type Format } from "../../lib/pageFormat";
+  import { rotatePage, setPageFormat } from "../../lib/pageActions";
   import { deletePage } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
   import { settings } from "../../lib/settings.svelte";
@@ -66,27 +66,6 @@
   }
 
   // Le moteur recalcule la grille éventuelle, pour que les zones restent sur la page.
-  async function rotate() {
-    const p = editor.page;
-    try {
-      const page = await pageSetSize(p, p.size.height_mm, p.size.width_mm);
-      editor.updatePageById(p.id, () => page);
-    } catch (e) {
-      editor.notice = String(e);
-    }
-  }
-
-  /** A5, A4 ou A3 : le contenu suit la taille de la page. */
-  async function setFormat(format: Format) {
-    const p = changeFormat(editor.page, format);
-    try {
-      const page = await pageSetSize(p, p.size.width_mm, p.size.height_mm);
-      editor.updatePageById(p.id, () => page);
-    } catch (e) {
-      editor.notice = String(e);
-    }
-  }
-
   // Glisser une miniature change la page de place. À la souris, le geste commence après quelques pixels (un clic
   // ouvre toujours la page) ; au doigt, après un appui d'un instant sans bouger, pour que la bande défile encore au
   // doigt. Un trait montre où la page tombera ; près des bords, la bande défile ; Échap annule.
@@ -245,11 +224,11 @@
   </span>
   <span class="sep"></span>
   <button class="ghost" class:on={editor.showBackground} aria-pressed={editor.showBackground} onclick={() => (editor.showBackground = !editor.showBackground)}><Icon name="background" /> {fr.backgroundButton}</button>
-  <select class="format" title={fr.pageFormat} aria-label={fr.pageFormat} value={formatOf(editor.page.size) ?? ""} onchange={(e) => setFormat(e.currentTarget.value as Format)}>
+  <select class="format" title={fr.pageFormat} aria-label={fr.pageFormat} value={formatOf(editor.page.size) ?? ""} onchange={(e) => setPageFormat(e.currentTarget.value as Format)}>
     {#if !formatOf(editor.page.size)}<option value="">{fr.pageFormatOther}</option>{/if}
     {#each formats as f (f)}<option value={f}>{f}</option>{/each}
   </select>
-  <button class="ghost" onclick={rotate}><Icon name={landscape ? "portrait" : "landscape"} /> {landscape ? fr.portrait : fr.landscape}</button>
+  <button class="ghost" onclick={rotatePage}><Icon name={landscape ? "portrait" : "landscape"} /> {landscape ? fr.portrait : fr.landscape}</button>
   <button class="ghost" class:on={editor.spread} aria-pressed={editor.spread} title={fr.spreadHint} onclick={() => (editor.spread = !editor.spread)}><Icon name="spread" /> {fr.spread}</button>
   {#if settings.cvdPreview}<button class="ghost" class:on={editor.cvdView} aria-pressed={editor.cvdView} title={fr.cvdViewHint} onclick={() => (editor.cvdView = !editor.cvdView)}><Icon name="cvd" /> {fr.cvdView}</button>{/if}
   <span class="spacer"></span>

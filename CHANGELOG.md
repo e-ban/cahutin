@@ -3,6 +3,7 @@
 
 ## Non publié
 
+- Panneau Réglages : quand rien n'est sélectionné, il règle la page affichée (format A5, A4 ou A3, portrait ou paysage, fond, vis-à-vis) au lieu de rester vide. Les mêmes boutons restent dans la barre du bas.
 - Barre d'un texte : plus courte, elle tient sur une ligne même avec un tiroir et Réglages ouverts. « Puces » et « Lettres creuses » passent dans « Plus » (et restent dans Réglages) ; la case de la taille est plus étroite. Avec la préférence qui met tous les outils dans la barre, rien ne change.
 - Groupes : la barre d'un groupe qui contient un texte (une bulle de parole et son texte) propose d'abord « Écrire », qui ouvre le texte. « Dissocier » passe dans « Plus » (toujours aussi au clic droit et avec Ctrl+Maj+G).
 - Barre de l'élément : elle se place sous la sélection quand, au-dessus, elle cacherait un autre élément (les légendes des photos au-dessus d'une bulle, par exemple). Un fond ou un cadre de page autour de la sélection ne compte pas.

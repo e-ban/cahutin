@@ -59,7 +59,12 @@ export const fr = {
   mixedSheets:
     "Ce document mêle des pages de tailles ou d'orientations différentes. Sur cet ordinateur, toutes les pages sortent sur le même papier, et elles risquent d'être imprimées en plus petit. Pour garder la vraie taille : imprimez à part les pages de chaque format, une impression par format (les pages se choisissent dans la fenêtre d'impression).",
   addPage: "Ajouter une page",
-  noSelection: "Sélectionnez un élément pour le régler.",
+  /** Panneau Réglages sans sélection : la page affichée. */
+  pageSettingsTitle: (n: number) => `Page ${n}`,
+  pageSettingsHint: "Cliquez un élément de la page pour le régler.",
+  pageFormatShort: "Format",
+  pageOrientation: "Orientation",
+  pageBackgroundOpen: "Couleur ou motif du fond…",
   dropPhotoHere: "Glissez une photo ici",
   locked: "Verrouillé",
   unlock: "Déverrouiller",

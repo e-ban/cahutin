@@ -25,8 +25,12 @@
   import { boundsOf, isLockedSelection } from "../../lib/groups";
   import type { AssetMeta, Crop, Element, Frame } from "../../lib/types";
   import { textPadding } from "../../lib/richtext";
+  import { formatOf, type Format } from "../../lib/pageFormat";
+  import { rotatePage, setPageFormat } from "../../lib/pageActions";
 
   const selected = $derived(editor.selected);
+  const PAGE_FORMATS: Format[] = ["A5", "A4", "A3"];
+  const pageLandscape = $derived(editor.page.size.width_mm > editor.page.size.height_mm);
 
   const update = updateSelected;
   /** Un trait ou une flèche : réglé par son début, sa longueur et son angle. */
@@ -192,7 +196,29 @@
       <button onclick={deleteSelection}><Icon name="trash" /> {fr.delete}</button>
     </div>
   {:else if !selected}
-    <p class="hint">{fr.noSelection}</p>
+    <!-- Rien de sélectionné : les réglages de la page affichée. -->
+    <h3>{fr.pageSettingsTitle(editor.pageIndex + 1)}</h3>
+    <p class="hint">{fr.pageSettingsHint}</p>
+    <div class="field">
+      <span>{fr.pageFormatShort}</span>
+      <div class="row">
+        {#each PAGE_FORMATS as f (f)}
+          <button class:on={formatOf(editor.page.size) === f} aria-pressed={formatOf(editor.page.size) === f} onclick={() => setPageFormat(f)}>{f}</button>
+        {/each}
+      </div>
+    </div>
+    <div class="field">
+      <span>{fr.pageOrientation}</span>
+      <div class="row">
+        <button class:on={!pageLandscape} aria-pressed={!pageLandscape} onclick={() => pageLandscape && rotatePage()}><Icon name="portrait" /> {fr.portrait}</button>
+        <button class:on={pageLandscape} aria-pressed={pageLandscape} onclick={() => !pageLandscape && rotatePage()}><Icon name="landscape" /> {fr.landscape}</button>
+      </div>
+    </div>
+    <div class="field">
+      <span>{fr.backgroundButton}</span>
+      <button onclick={() => (editor.showBackground = true)}><Icon name="background" /> {fr.pageBackgroundOpen}</button>
+    </div>
+    <label class="check" title={fr.spreadHint}><input type="checkbox" checked={editor.spread} onchange={(e) => (editor.spread = e.currentTarget.checked)} /> {fr.spread}</label>
   {:else}
     <h3>{selected.kind.type === "Photo" ? fr.photo : selected.kind.type === "Text" ? fr.text : selected.kind.type === "Image" ? fr.picture : fr.shape}</h3>
 

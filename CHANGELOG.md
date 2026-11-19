@@ -3,6 +3,10 @@
 
 ## Non publié
 
+- Accueil : au premier lancement, la colonne « Reprendre », encore vide, propose trois exemples à ouvrir. L'icône des Guides est un livre ouvert.
+- Pictogrammes : « Toutes » commence par les images de la classe (rituels, matériel, émotions, soins) au lieu d'une grille de smileys. La recherche d'images tient dans sa case (« Chercher : renard, gâteau… »).
+- Barre du haut : sans nom, le document invite à « Nommer le document… », en clair, avec une bulle qui le dit.
+- Fiches de graphisme : le réglage « Section » s'appelle « Niveau des fiches » (PS, MS, GS).
 - Préférences > Enregistrement : l'explication tient en une phrase ; le détail s'ouvre avec « En savoir plus ».
 - Miniatures (modèles, bande des pages) : une case photo vide y montre un petit dessin de photo, pour voir d'un coup d'œil où iront les photos.
 - Premier lancement : la question « Être prévenu quand une nouvelle version sort ? » n'arrive plus juste après la visite guidée, elle attend le lancement suivant.

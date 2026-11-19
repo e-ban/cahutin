@@ -110,7 +110,8 @@
   <input
     class="title"
     value={editor.doc.title}
-    placeholder={fr.untitled}
+    placeholder={fr.docTitlePlaceholder}
+    title={fr.docTitleHint}
     aria-label="Titre du document"
     bind:this={titleEl}
     onchange={(e) => setTitle(e.currentTarget.value)}
@@ -212,6 +213,11 @@
     flex-shrink: 1;
     border-color: transparent;
     background: transparent;
+  }
+  /* Sans nom, l'invite se lit : on voit qu'on peut écrire là. */
+  .title::placeholder {
+    color: var(--muted);
+    opacity: 1;
   }
   .title:hover,
   .title:focus {

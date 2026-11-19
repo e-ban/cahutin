@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { assignSymbols, setPictosOutline, CLASS_PICTO_GROUPS, STUDENT_SYMBOLS, toned, pageHasPictos, pictoElement, pictosOf, replacePictos, searchPictos, type PictoEntry } from "./pictos.svelte";
+import { allPictos, assignSymbols, setPictosOutline, CLASS_PICTO_GROUPS, STUDENT_SYMBOLS, toned, pageHasPictos, pictoElement, pictosOf, replacePictos, searchPictos, type PictoEntry } from "./pictos.svelte";
 import type { Page } from "./types";
 
 const index: PictoEntry[] = JSON.parse(readFileSync(fileURLToPath(new URL("../../../assets/openmoji/index.json", import.meta.url)), "utf8"));
@@ -67,4 +67,11 @@ test("pictures switch to their outline to colour in, and back, keeping it when r
   expect(replacePictos(p, [e.id], "1F431").elements[0].kind).toEqual({ type: "Image", code: "1F431", outline: true });
   expect(replacePictos(p, [e.id], "1F431", true, false).elements[0].kind).toEqual({ type: "Image", code: "1F431" });
   expect(setPictosOutline(p, [e.id], false).elements[0].kind).toEqual({ type: "Image", code: "1F98A" });
+});
+
+test("« Toutes » opens on the class pictures, then the rest, each once", () => {
+  const all = allPictos(index);
+  expect(all.length).toBe(index.length);
+  expect(new Set(all.map((p) => p.code)).size).toBe(index.length);
+  expect(all[0].code).toBe(CLASS_PICTO_GROUPS.rituels[0]);
 });

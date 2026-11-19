@@ -42,6 +42,15 @@ export function pictosOf(index: PictoEntry[], group: string): PictoEntry[] {
   return chosen.flatMap((c) => byCode.get(c) ?? []);
 }
 
+/** « Toutes » : d'abord les images de la classe (rituels, matériel, émotions, soins), puis les autres d'après
+ *  l'index, sans doublon ; la liste ne s'ouvre plus sur une grille de smileys. */
+export function allPictos(index: PictoEntry[]): PictoEntry[] {
+  const first = Object.keys(CLASS_PICTO_GROUPS).flatMap((g) => pictosOf(index, g));
+  const seen = new Set<string>();
+  const ordered = first.filter((p) => !seen.has(p.code) && seen.add(p.code));
+  return [...ordered, ...index.filter((p) => !seen.has(p.code))];
+}
+
 export const PICTO_SIZE_MM = 30;
 
 /**

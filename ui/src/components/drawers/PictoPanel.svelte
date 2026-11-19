@@ -5,7 +5,7 @@
   import { editor } from "../../lib/docStore.svelte";
   import { PICTO_MIME } from "../../lib/dnd";
   import { fr } from "../../lib/i18n/fr";
-  import { CLASS_PICTO_GROUPS, PICTO_GROUPS, SKIN_TONES, pictoElement, pictoUrl, pictos, pictosOf, replacePictos, searchPictos, toned } from "../../lib/pictos.svelte";
+  import { CLASS_PICTO_GROUPS, PICTO_GROUPS, SKIN_TONES, pictoElement, pictoUrl, pictos, allPictos, pictosOf, replacePictos, searchPictos, toned } from "../../lib/pictos.svelte";
   import { isTableCell } from "../../lib/table";
 
   let { query = "", onpick, chosen = [] }: { query?: string; onpick?: (code: string) => void; chosen?: string[] } = $props();
@@ -14,7 +14,7 @@
 
   pictos.load();
 
-  const shown = $derived(category && !query ? pictosOf(pictos.index, category) : searchPictos(pictos.index, query));
+  const shown = $derived(query ? searchPictos(pictos.index, query) : category ? pictosOf(pictos.index, category) : allPictos(pictos.index));
 
   function use(code: string) {
     if (onpick) {

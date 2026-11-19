@@ -53,6 +53,10 @@
 
   async function showExamples() {
     step = "examples";
+    await loadExamples();
+  }
+
+  async function loadExamples() {
     if (examples.length) return;
     try {
       const infos = await listExamples();
@@ -61,6 +65,11 @@
       examples = [];
     }
   }
+
+  // Premier lancement, aucun document récent : la colonne « Reprendre » propose quelques exemples.
+  $effect(() => {
+    if (editor.recents.length === 0) void loadExamples();
+  });
 
   async function chooseLayout(id: string) {
     if (!(await freshFromHome())) return;
@@ -138,7 +147,19 @@
           {#if editor.recents.length}<button class="plain" onclick={clearRecents}>{fr.recentsClear}</button>{/if}
         </div>
         {#if editor.recents.length === 0}
-          <p class="hint">{fr.noRecents}</p>
+          <p class="hint">{examples.length ? fr.noRecentsTryExample : fr.noRecents}</p>
+          {#if examples.length}
+            <ul class="recents">
+              {#each examples.slice(0, 3) as ex (ex.info.id)}
+                <li>
+                  <button class="card" onclick={() => openExampleDoc(ex.info.id)}>
+                    <div class="mini small"><PageView page={ex.doc.pages[0]} doc={ex.doc} zoom={RECENT} /></div>
+                    <span class="title">{ex.info.name}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
         {:else}
           <ul class="recents">
             {#each editor.recents as r (r.path)}
@@ -166,7 +187,7 @@
       <div class="own-row">
         <button class="choice" onclick={() => (editor.showClassPage = true)}>{@render pic("1F9D2")}<span>{fr.welcomeClass}</span><small>{fr.welcomeClassSub}</small></button>
         <button class="choice" onclick={() => (editor.showCollection = true)}>{@render pic("1F5BC")}<span>{fr.welcomeCollection}</span><small>{fr.welcomeCollectionSub}</small></button>
-        <button class="choice" onclick={() => guides.show()}>{@render pic("1F4D8")}<span>{fr.welcomeGuides}</span><small>{fr.welcomeGuidesSub}</small></button>
+        <button class="choice" onclick={() => guides.show()}>{@render pic("1F4D6")}<span>{fr.welcomeGuides}</span><small>{fr.welcomeGuidesSub}</small></button>
       </div>
     </section>
     {#if menu}

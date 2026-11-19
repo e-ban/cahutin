@@ -9,7 +9,7 @@
   import { openDownloadPage } from "../../lib/api";
 
   // Version du Microsoft Store : le Store met à jour, ni question ni avis.
-  const ask = $derived(!updates.store && shouldAskConsent(updates.consent, { tourDone: tour.done, tourRunning: tour.step !== null, welcomeOpen: editor.showWelcome }));
+  const ask = $derived(!updates.store && shouldAskConsent(updates.consent, { tourDone: tour.done, tourRunning: tour.step !== null, welcomeOpen: editor.showWelcome, tourEndedNow: tour.endedNow }));
   const version = $derived(updates.store ? null : bannerVersion(updates.consent, updates.state, updates.appVersion));
 
   function download() {

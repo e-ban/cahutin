@@ -10,6 +10,11 @@ test("the question waits for the welcome screen and the tour to be over", () => 
   expect(shouldAskConsent(null, { tourDone: true, tourRunning: false, welcomeOpen: true })).toBe(false);
 });
 
+test("the question is not chained right after the first-launch tour: it comes at the next launch", () => {
+  expect(shouldAskConsent(null, { tourDone: true, tourRunning: false, welcomeOpen: false, tourEndedNow: true })).toBe(false);
+  expect(shouldAskConsent(null, { tourDone: true, tourRunning: false, welcomeOpen: false, tourEndedNow: false })).toBe(true);
+});
+
 test("the question is asked only once", () => {
   const calm = { tourDone: true, tourRunning: false, welcomeOpen: false };
   expect(shouldAskConsent(true, calm)).toBe(false);

@@ -15,8 +15,9 @@ export interface UpdateState {
   dismissed: string | null;
 }
 
-export function shouldAskConsent(consent: boolean | null, s: { tourDone: boolean; tourRunning: boolean; welcomeOpen: boolean }): boolean {
-  return consent === null && s.tourDone && !s.tourRunning && !s.welcomeOpen;
+/** La question attend une séance calme : pas le premier lancement, où l'on découvre déjà la visite. */
+export function shouldAskConsent(consent: boolean | null, s: { tourDone: boolean; tourRunning: boolean; welcomeOpen: boolean; tourEndedNow?: boolean }): boolean {
+  return consent === null && s.tourDone && !s.tourRunning && !s.welcomeOpen && !s.tourEndedNow;
 }
 
 export function shouldCheck(consent: boolean | null, state: UpdateState, appVersion: string, today: string): boolean {

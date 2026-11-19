@@ -77,6 +77,8 @@ class Tour {
   done = $state(readPref("tourDone", false));
   /** Demandée à la fermeture de l'accueil, pas encore montrée. */
   pending = $state(false);
+  /** La visite a été faite pendant cette séance (premier lancement) : on n'enchaîne pas d'autre question. */
+  endedNow = $state(false);
 
   start() {
     this.pending = false;
@@ -97,6 +99,7 @@ class Tour {
   end() {
     this.step = null;
     this.done = true;
+    this.endedNow = true;
     writePref("tourDone", true);
     writePref("whatsNewSeen", WHATS_NEW.version);
   }

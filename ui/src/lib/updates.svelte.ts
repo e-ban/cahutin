@@ -1,4 +1,4 @@
-// Avis de nouvelle version : demandé une fois, après l'accueil et la visite ; avec l'accord de l'utilisateur,
+// Avis de nouvelle version : demandé une fois, à partir du deuxième lancement ; avec l'accord de l'utilisateur,
 // GitHub est consulté au plus une fois par jour (côté Rust) et un bandeau propose la page des téléchargements.
 import { getVersion } from "@tauri-apps/api/app";
 import { checkUpdate, isStoreBuild } from "./api";
@@ -15,7 +15,7 @@ export interface UpdateState {
   dismissed: string | null;
 }
 
-/** La question attend une séance calme : pas le premier lancement, où l'on découvre déjà la visite. */
+/** La question attend une séance calme : ni le premier lancement, où l'on découvre Cahutin, ni juste après la visite. */
 export function shouldAskConsent(consent: boolean | null, s: { tourDone: boolean; tourRunning: boolean; welcomeOpen: boolean; tourEndedNow?: boolean }): boolean {
   return consent === null && s.tourDone && !s.tourRunning && !s.welcomeOpen && !s.tourEndedNow;
 }

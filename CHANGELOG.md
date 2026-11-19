@@ -3,7 +3,7 @@
 
 ## Non publié
 
-- Premier lancement : la visite guidée ne s'impose plus à la fermeture de l'accueil. Des bulles d'aide viennent au bon moment : à la première sélection (la barre et Réglages), au premier tiroir ouvert (cliquer pour ajouter), et pour dire où retrouver la visite (menu Aide). La question des mises à jour vient au lancement suivant.
+- Premier lancement : la visite guidée ne s'impose plus à la fermeture de l'accueil. Des bulles d'aide viennent au bon moment : à la première sélection (la barre et Réglages), au premier tiroir ouvert (cliquer pour ajouter), et pour dire où retrouver la visite (menu Aide). La question « Être prévenu quand une nouvelle version sort ? » attend le lancement suivant.
 - Barre de l'élément : Échap ferme le menu ouvert (« Plus », couleur, police…) ; la sélection reste.
 - Aides : « Pour écrire, tapez au clavier ou double-cliquez dans le texte » (bulle d'aide et panneau Réglages).
 - Accueil : au premier lancement, la colonne « Reprendre », encore vide, propose trois exemples à ouvrir. L'icône des Guides est un livre ouvert.
@@ -12,7 +12,6 @@
 - Fiches de graphisme : le réglage « Section » s'appelle « Niveau des fiches » (PS, MS, GS).
 - Préférences > Enregistrement : l'explication tient en une phrase ; le détail s'ouvre avec « En savoir plus ».
 - Miniatures (modèles, bande des pages) : une case photo vide y montre un petit dessin de photo, pour voir d'un coup d'œil où iront les photos.
-- Premier lancement : la question « Être prévenu quand une nouvelle version sort ? » n'arrive plus juste après la visite guidée, elle attend le lancement suivant.
 - Panneau Réglages : quand rien n'est sélectionné, il règle la page affichée (format A5, A4 ou A3, portrait ou paysage, fond, vis-à-vis) au lieu de rester vide. Les mêmes boutons restent dans la barre du bas.
 - Barre d'un texte : plus courte. « Puces » et « Lettres creuses » passent dans « Plus » (et restent dans Réglages) ; la case de la taille est plus étroite. Avec la préférence qui met tous les outils dans la barre, rien ne change.
 - Barre de l'élément : quand elle passerait sur deux lignes (écran étroit, tiroir et Réglages ouverts), elle se met d'elle-même en icônes seules ; le nom de chaque outil s'affiche au survol, comme avec la préférence « icônes seules ».

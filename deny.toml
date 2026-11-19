@@ -22,4 +22,7 @@ ignore = [
   # proc-macro-error n'est plus maintenu (RUSTSEC-2024-0370) : tiré par GTK via Tauri, sans
   # vulnérabilité connue ni remplacement côté Cahutin.
   { id = "RUSTSEC-2024-0370", reason = "dépendance de Tauri/GTK, pas de CVE" },
+  # chrono n'est plus maintenu (RUSTSEC-2026-0543) : tiré par trash, qui s'en sert pour dater un fichier mis
+  # à la corbeille sous Linux ; sans vulnérabilité connue, et trash n'a pas encore d'autre choix.
+  { id = "RUSTSEC-2026-0543", reason = "dépendance de trash (date de la corbeille), pas de CVE" },
 ]

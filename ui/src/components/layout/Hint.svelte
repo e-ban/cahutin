@@ -6,6 +6,7 @@
   import { firstHint, hints, type HintId } from "../../lib/hints.svelte";
   import { selectedTable } from "../../lib/table";
   import { fr } from "../../lib/i18n/fr";
+  import { tour } from "../../lib/tour.svelte";
 
   const TEXTS: Record<HintId, string> = {
     "dblclick-crop": fr.hintDblclickCrop,
@@ -14,6 +15,9 @@
     rightclick: fr.hintRightclick,
     "blur-faces": fr.hintBlurFaces,
     "table-cell": fr.hintTableCell,
+    "first-select": fr.hintFirstSelect,
+    "first-drawer": fr.hintFirstDrawer,
+    "tour-in-help": fr.hintTourInHelp,
   };
 
   // Nombre d'éléments différents sélectionnés depuis le lancement.
@@ -31,13 +35,22 @@
   const wanted = $derived.by((): HintId[] => {
     if (editor.templateMode || editor.cropping || editor.editingText || editor.showWelcome || editor.printing) return [];
     if (selectedTable(editor.page, editor.selection)) return ["table-cell"];
+    // Première séance, à la place de la visite : la barre à la première sélection, l'ajout au premier tiroir ; en
+    // dernier, quand rien n'est choisi, où retrouver la visite.
+    const first = tour.firstSession;
+    const drawerAdds = editor.drawer === "images" || editor.drawer === "text" || editor.drawer === "shapes";
+    const intro: HintId[] = !first ? [] : editor.selection.length > 0 ? ["first-select"] : drawerAdds ? ["first-drawer"] : [];
     const e = editor.selected;
-    if (e && selectedCount === 3) return ["rightclick"];
-    if (e?.kind.type === "Photo" && e.kind.asset) return ["dblclick-crop", "blur-faces"];
-    if (e?.kind.type === "Text" && e.zone) return ["dblclick-text"];
-    const emptyZone = editor.page.elements.some((x) => x.zone && x.kind.type === "Photo" && !x.kind.asset);
-    if (!e && editor.photos.length > 0 && emptyZone) return ["drop-photo"];
-    return [];
+    const usual = ((): HintId[] => {
+      if (e && selectedCount === 3) return ["rightclick"];
+      if (e?.kind.type === "Photo" && e.kind.asset) return ["dblclick-crop", "blur-faces"];
+      if (e?.kind.type === "Text" && e.zone) return ["dblclick-text"];
+      const emptyZone = editor.page.elements.some((x) => x.zone && x.kind.type === "Photo" && !x.kind.asset);
+      if (!e && editor.photos.length > 0 && emptyZone) return ["drop-photo"];
+      return [];
+    })();
+    const outro: HintId[] = first && editor.selection.length === 0 ? ["tour-in-help"] : [];
+    return [...intro, ...usual, ...outro];
   });
 
   let current = $state<HintId | null>(null);
@@ -45,8 +58,10 @@
     const w = wanted;
     const enabled = hints.enabled;
     untrack(() => {
-      if (current && w.includes(current)) return;
-      current = firstHint(enabled, hints.counts, w);
+      const next = firstHint(enabled, hints.counts, w);
+      // L'astuce montrée reste tant qu'elle vaut encore, sauf si une plus utile arrive avant elle (un tiroir ouvert).
+      if (current && w.includes(current) && (next === null || w.indexOf(next) >= w.indexOf(current))) return;
+      current = next;
       if (current) hints.shown(current);
     });
   });

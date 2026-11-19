@@ -2,7 +2,7 @@
 import { readPref, writePref } from "./prefs";
 
 export const HINT_MAX_SHOWS = 3;
-export type HintId = "dblclick-crop" | "drop-photo" | "dblclick-text" | "rightclick" | "blur-faces" | "table-cell";
+export type HintId = "dblclick-crop" | "drop-photo" | "dblclick-text" | "rightclick" | "blur-faces" | "table-cell" | "first-select" | "first-drawer" | "tour-in-help";
 
 export function nextHint(counts: Record<string, number>, wanted: HintId): HintId | null {
   return (counts[wanted] ?? 0) < HINT_MAX_SHOWS ? wanted : null;

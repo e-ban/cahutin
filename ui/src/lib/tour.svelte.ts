@@ -1,5 +1,5 @@
-// Visite guidée : 8 étapes, une zone de l'écran mise en lumière et une bulle d'explication. Montrée au
-// premier lancement, à la fermeture de l'écran d'accueil ; relançable depuis le menu Aide.
+// Visite guidée : 8 étapes, une zone de l'écran mise en lumière et une bulle d'explication. Lancée depuis le menu
+// Aide ou les guides ; au premier lancement, elle ne s'impose plus : des bulles d'aide viennent au bon moment.
 import { readPref, writePref } from "./prefs";
 import { WHATS_NEW } from "./whatsNew";
 
@@ -13,11 +13,11 @@ export interface TourStep {
 export const TOUR_STEPS: TourStep[] = [
   { target: null, title: "Bienvenue dans Cahutin", text: "En une minute, voici où trouver chaque chose. Vous pourrez revoir cette visite depuis le menu Aide." },
   { target: ".rail", title: "Les outils", text: "Modèles, images, textes, formes, polices et décors : tout ce que l'on ajoute à la page se trouve dans cette colonne." },
-  { target: "main.stage .page", title: "La page", text: "Glissez une photo sur une zone pour la placer. Double-cliquez sur un texte pour écrire." },
+  { target: "main.stage .page", title: "La page", text: "Glissez une photo sur une zone pour la placer. Pour écrire, cliquez sur un texte et tapez au clavier." },
   {
     target: "main.stage .page",
     title: "Modifier un élément",
-    text: "Cliquez sur un élément : une barre apparaît au-dessus pour changer sa police, sa couleur ou son cadre. Le clic droit propose copier, dupliquer, mettre devant.",
+    text: "Cliquez sur un élément : une barre apparaît près de lui pour changer sa police, sa couleur ou son cadre. Le clic droit propose copier, dupliquer, mettre devant.",
   },
   { target: ".right, button.tab", title: "Les réglages", text: "Ce panneau, à ouvrir ou fermer, règle l'élément choisi au millimètre près : position, taille, rotation, miroir, devant ou derrière, et ses couleurs." },
   { target: ".pagebar", title: "Les pages", text: "Ajoutez, dupliquez, déplacez ou supprimez une page, changez son fond ou passez-la en paysage." },
@@ -60,29 +60,24 @@ export function placeBubble(target: Box | null, bubble: { width: number; height:
   return { left: clampX(target.left + GAP), top: clampY(target.top + GAP) };
 }
 
-/** La visite démarre quand l'écran d'accueil se ferme, si elle n'a encore jamais été faite ni passée. */
-export function shouldStartTour(done: boolean, welcomeWasOpen: boolean, welcomeOpen: boolean): boolean {
+/** Premier lancement : l'écran d'accueil vient de se fermer et la visite n'a jamais été faite ni passée. */
+export function firstWelcomeClosed(done: boolean, welcomeWasOpen: boolean, welcomeOpen: boolean): boolean {
   return !done && welcomeWasOpen && !welcomeOpen;
-}
-
-/** Visite demandée : elle attend qu'aucune boîte de dialogue ni aucun avis ne soit ouvert (polices d'un
- * document ouvert depuis l'accueil, compte rendu d'import), pour ne jamais s'y superposer. */
-export function tourMayStart(pending: boolean, dialogOpen: boolean, noticeOpen: boolean): boolean {
-  return pending && !dialogOpen && !noticeOpen;
 }
 
 class Tour {
   /** Étape affichée ; null : pas de visite en cours. */
   step = $state<number | null>(null);
   done = $state(readPref("tourDone", false));
-  /** Demandée à la fermeture de l'accueil, pas encore montrée. */
-  pending = $state(false);
-  /** La visite a été faite pendant cette séance (premier lancement) : on n'enchaîne pas d'autre question. */
+  /** La visite a été faite pendant cette séance, ou c'est la première séance : on n'enchaîne pas d'autre question. */
   endedNow = $state(false);
+  /** Première séance : les bulles d'aide pour débuter remplacent la visite. */
+  firstSession = $state(false);
 
+  /** La visite lancée depuis le menu Aide remplace les bulles pour débuter. */
   start() {
-    this.pending = false;
     this.step = 0;
+    this.firstSession = false;
   }
 
   next() {
@@ -102,6 +97,13 @@ class Tour {
     this.endedNow = true;
     writePref("tourDone", true);
     writePref("whatsNewSeen", WHATS_NEW.version);
+  }
+
+  /** Premier lancement, à la fermeture de l'accueil : pas de visite imposée, des bulles d'aide à la place ; la
+   * séance vaut découverte, comme une visite faite. */
+  firstLaunchOver() {
+    this.end();
+    this.firstSession = true;
   }
 }
 

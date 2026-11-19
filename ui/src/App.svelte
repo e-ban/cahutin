@@ -36,8 +36,7 @@
   import Hint from "./components/layout/Hint.svelte";
   import Tour from "./components/Tour.svelte";
   import TipsPanel from "./components/TipsPanel.svelte";
-  import { shouldStartTour, tour, tourMayStart } from "./lib/tour.svelte";
-  import { modal } from "./lib/modal.svelte";
+  import { firstWelcomeClosed, tour } from "./lib/tour.svelte";
   import Welcome from "./components/layout/Welcome.svelte";
   import ClassPage from "./components/layout/ClassPage.svelte";
   import WhatsNew from "./components/layout/WhatsNew.svelte";
@@ -141,15 +140,13 @@
     getCurrentWebview().setZoom(scale).catch(() => {});
   });
 
-  // Visite guidée : au premier lancement, quand l'écran d'accueil se ferme.
+  // Premier lancement : la visite ne s'impose plus à la fermeture de l'accueil (elle reste dans le menu Aide) ;
+  // des bulles d'aide viennent au bon moment, et la question des mises à jour attend le lancement suivant.
   let welcomeWasOpen = editor.showWelcome;
   $effect(() => {
     const open = editor.showWelcome;
-    if (shouldStartTour(tour.done, welcomeWasOpen, open) && tour.step === null) tour.pending = true;
+    if (firstWelcomeClosed(tour.done, welcomeWasOpen, open) && tour.step === null) untrack(() => tour.firstLaunchOver());
     welcomeWasOpen = open;
-  });
-  $effect(() => {
-    if (tourMayStart(tour.pending, modal.message !== null, !!editor.notice)) tour.start();
   });
 
   // Fermeture de la fenêtre : demander d'enregistrer s'il y a des modifications (un document qui s'enregistre tout

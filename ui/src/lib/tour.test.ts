@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { placeBubble, shouldStartTour, tour, tourMayStart, TOUR_STEPS } from "./tour.svelte";
+import { firstWelcomeClosed, placeBubble, tour, TOUR_STEPS } from "./tour.svelte";
 
 const bubble = { width: 300, height: 150 };
 const viewport = { width: 1000, height: 700 };
@@ -39,11 +39,11 @@ test("bubble stays inside the viewport", () => {
   }
 });
 
-test("tour starts only once", () => {
-  expect(shouldStartTour(false, true, false)).toBe(true);
-  expect(shouldStartTour(true, true, false)).toBe(false);
-  expect(shouldStartTour(false, false, false)).toBe(false);
-  expect(shouldStartTour(false, true, true)).toBe(false);
+test("the first launch ends when the welcome screen closes, once", () => {
+  expect(firstWelcomeClosed(false, true, false)).toBe(true);
+  expect(firstWelcomeClosed(true, true, false)).toBe(false);
+  expect(firstWelcomeClosed(false, false, false)).toBe(false);
+  expect(firstWelcomeClosed(false, true, true)).toBe(false);
 });
 
 test("end marks the tour done and next ends it at the last step", () => {
@@ -58,9 +58,10 @@ test("end marks the tour done and next ends it at the last step", () => {
   expect(tour.done).toBe(true);
 });
 
-test("a pending tour waits for open dialogs and notices", () => {
-  expect(tourMayStart(true, false, false)).toBe(true);
-  expect(tourMayStart(true, true, false)).toBe(false);
-  expect(tourMayStart(true, false, true)).toBe(false);
-  expect(tourMayStart(false, false, false)).toBe(false);
+test("the first launch ends without a tour, with hints for beginners until the tour is taken", () => {
+  tour.firstLaunchOver();
+  expect(tour.step).toBeNull();
+  expect(tour.done && tour.endedNow && tour.firstSession).toBe(true);
+  tour.start();
+  expect(tour.firstSession).toBe(false);
 });

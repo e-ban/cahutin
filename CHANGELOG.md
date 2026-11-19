@@ -3,6 +3,7 @@
 
 ## Non publié
 
+- Premier lancement : la visite guidée ne s'impose plus à la fermeture de l'accueil. Des bulles d'aide viennent au bon moment : à la première sélection (la barre et Réglages), au premier tiroir ouvert (cliquer pour ajouter), et pour dire où retrouver la visite (menu Aide). La question des mises à jour vient au lancement suivant.
 - Barre de l'élément : Échap ferme le menu ouvert (« Plus », couleur, police…) ; la sélection reste.
 - Aides : « Pour écrire, tapez au clavier ou double-cliquez dans le texte » (bulle d'aide et panneau Réglages).
 - Accueil : au premier lancement, la colonne « Reprendre », encore vide, propose trois exemples à ouvrir. L'icône des Guides est un livre ouvert.

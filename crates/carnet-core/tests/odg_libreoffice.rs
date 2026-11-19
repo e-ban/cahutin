@@ -338,7 +338,7 @@ fn drawn_shapes_keep_their_geometry() {
             locked: false,
             zone: false,
             group: None,
-            kind: ElementKind::Shape(ShapeProps { shape: kind, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None }),
+            kind: ElementKind::Shape(ShapeProps { shape: kind, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None, tail: None }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
         });
@@ -377,7 +377,7 @@ fn arrow_has_its_head() {
             points: None,
             curve: false,
             closed: false,
-            attach: None,
+            attach: None, tail: None,
         }),
         subgroups: Vec::new(),
         flip_h: false, flip_v: false,
@@ -420,7 +420,7 @@ fn every_line_end_renders_in_libreoffice() {
                 points: None,
                 curve: false,
                 closed: false,
-                attach: None,
+                attach: None, tail: None,
             }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
@@ -502,7 +502,7 @@ fn libreoffice_round_trip() -> &'static RoundTrip {
         let mut star = element(frame_at(150.0, 20.0, 20.0, 20.0, 0.0), filled_shape(ShapeKind::Star, None));
         star.group = Some("g".into());
         let arrow = |y: f64, flip_h: bool| {
-            let k = ElementKind::Shape(ShapeProps { shape: ShapeKind::Arrow, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#c0392b".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None });
+            let k = ElementKind::Shape(ShapeProps { shape: ShapeKind::Arrow, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#c0392b".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None, tail: None });
             Element { flip_h, ..element(frame_at(20.0, y, 60.0, 8.0, 0.0), k) }
         };
         let mut framed = element(frame_at(90.0, 150.0, 100.0, 40.0, 0.0), text_kind("Léa", 14.0));
@@ -583,7 +583,7 @@ const ROUND_TRIP_CURVE: [(f64, f64); 4] = [(150.0, 80.0), (165.0, 105.0), (180.0
 
 /// Un chemin passant par `pts` (mm de page).
 fn path_element(pts: &[(f64, f64)], curve: bool, shape: ShapeKind, ends: Option<carnet_core::model::LineEnds>) -> Element {
-    let mut s = ShapeProps { shape, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#2e86c1".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve, closed: false, attach: None };
+    let mut s = ShapeProps { shape, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#2e86c1".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve, closed: false, attach: None, tail: None };
     let (frame, points) = carnet_core::shapes::path_frame(pts, &s);
     s.points = Some(points);
     Element { id: new_id(), frame, locked: false, zone: false, group: None, kind: ElementKind::Shape(s), subgroups: Vec::new(), flip_h: false, flip_v: false }
@@ -921,7 +921,7 @@ fn dashes_have_the_screen_lengths() {
                 points: None,
                 curve: false,
                 closed: false,
-                attach: None,
+                attach: None, tail: None,
             }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
@@ -1291,7 +1291,7 @@ fn frame_at(x_mm: f64, y_mm: f64, w_mm: f64, h_mm: f64, rotation_deg: f64) -> Fr
 }
 
 fn filled_shape(shape: ShapeKind, path: Option<&str>) -> ElementKind {
-    ElementKind::Shape(ShapeProps { shape, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0, path: path.map(String::from), graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None })
+    ElementKind::Shape(ShapeProps { shape, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0, path: path.map(String::from), graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None, tail: None })
 }
 
 fn photo_kind(asset: &Id) -> ElementKind {
@@ -1445,7 +1445,7 @@ fn rotated_elements_fill_their_turned_box() {
     let line = frame_at(20.0, 200.0, 60.0, 4.0, 30.0);
     doc.pages[0].elements.push(element(
         line,
-        ElementKind::Shape(ShapeProps { shape: ShapeKind::Line, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#000000".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None }),
+        ElementKind::Shape(ShapeProps { shape: ShapeKind::Line, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#000000".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None, tail: None }),
     ));
     let text = frame_at(10.0, 90.0, 100.0, 20.0, 90.0);
     doc.pages[1].elements.push(element(text, text_kind("Tourné", 14.0)));
@@ -2419,4 +2419,34 @@ fn a_real_table_comes_back_through_libreoffice() {
         "3 2 1 1 [] None",
     ];
     assert_eq!(got, want);
+}
+
+/// Une forme dessinée peut déborder de son cadre (la pointe d'une bulle, les ronds d'une pensée) : LibreOffice la
+/// dessine en entier, sans la couper au cadre, et un rond à part reste plein.
+#[test]
+#[ignore]
+fn a_drawn_shape_may_overflow_its_frame() {
+    const DPI: u32 = 72;
+    let mut doc = Document::new("débord");
+    // Cadre de 40 × 40 mm ; un triangle descend jusqu'à 1,5 fois sa hauteur, un rond à part est sous le cadre.
+    let path = "M 0 0 L 1000 0 L 1000 1000 L 600 1000 L 300 1500 L 400 1000 L 0 1000 Z M 800 1700 C 855 1700 900 1745 900 1800 C 900 1855 855 1900 800 1900 C 745 1900 700 1855 700 1800 C 700 1745 745 1700 800 1700 Z";
+    doc.pages[0].elements.push(Element {
+        id: new_id(),
+        frame: Frame { x_mm: ORIGIN_MM, y_mm: ORIGIN_MM, w_mm: 40.0, h_mm: 40.0, rotation_deg: 0.0 },
+        locked: false,
+        zone: false,
+        group: None,
+        kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Path, fill: Some("#000000".into()), stroke: None, corner_radius_mm: 0.0, path: Some(path.into()), graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None, tail: None }),
+        subgroups: Vec::new(),
+        flip_h: false,
+        flip_v: false,
+    });
+    let (_dir, pdf) = render(&doc, &AssetStore::default());
+    let (w, _h, px) = gray_page(&pdf, 1, DPI);
+    let px_per_mm = DPI as f64 / 25.4;
+    let dark_at = |x_mm: f64, y_mm: f64| px[((y_mm * px_per_mm) as usize) * w + (x_mm * px_per_mm) as usize] < 128;
+    // Dans la pointe, sous le cadre (y = 1,25 × 40 mm), et au centre du rond (1,8 × 40 mm).
+    assert!(dark_at(ORIGIN_MM + 0.39 * 40.0, ORIGIN_MM + 1.2 * 40.0), "pointe coupée");
+    assert!(dark_at(ORIGIN_MM + 0.8 * 40.0, ORIGIN_MM + 1.8 * 40.0), "rond coupé ou vide");
+    assert!(!dark_at(ORIGIN_MM + 0.8 * 40.0, ORIGIN_MM + 1.6 * 40.0), "le rond n'est pas à part");
 }

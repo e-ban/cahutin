@@ -137,7 +137,7 @@ impl Drawing {
             s
         });
         let frame = Frame { x_mm: x0, y_mm: y0, w_mm: w, h_mm: h, rotation_deg: 0.0 };
-        Some((frame, ShapeProps { shape: ShapeKind::Path, fill: self.fill_hex.clone(), stroke, corner_radius_mm: 0.0, path: Some(path), graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None }))
+        Some((frame, ShapeProps { shape: ShapeKind::Path, fill: self.fill_hex.clone(), stroke, corner_radius_mm: 0.0, path: Some(path), graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None, tail: None }))
     }
 
     /// Un tracé fait d'un seul morceau qui se règle point par point comme un chemin de Cahutin : ses points (mm de

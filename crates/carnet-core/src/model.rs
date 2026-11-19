@@ -60,7 +60,7 @@ pub fn renew_ids(page: &mut Page) {
 /// lignes ordinaires ; 11 : interligne d'un texte ; 12 : texte écrit sur les lignes de son cadre ; 13 : puce devant un
 /// paragraphe ; 14 : terminaisons choisies sur un trait ; 15 : chemin à coudes ; 16 : bout accroché à un élément ;
 /// 11 à 16, les seules versions que `native::written_version` écrit au-delà de 8).
-pub const FORMAT_VERSION: u32 = 16;
+pub const FORMAT_VERSION: u32 = 17;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -528,6 +528,11 @@ pub struct ShapeProps {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub attach: Option<Attach>,
+    /// Pointe d'une bulle de parole ou d'une bulle de pensée (nuage) : le point visé, en fractions du cadre (avant
+    /// rotation et miroir), souvent hors du cadre. Le cadre est alors le corps de la bulle (`shapes::tailed_path`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub tail: Option<[f64; 2]>,
 }
 
 /// Les accroches des deux bouts d'un trait.
@@ -742,7 +747,7 @@ mod tests {
                 points: None,
                 curve: false,
                 closed: false,
-                attach: None,
+                attach: None, tail: None,
             }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
@@ -796,7 +801,7 @@ mod tests {
             points: None,
             curve: false,
             closed: false,
-            attach: None,
+            attach: None, tail: None,
         }
     }
 
@@ -890,7 +895,7 @@ mod tests {
             locked: false,
             zone: false,
             group: None,
-            kind: ElementKind::Shape(ShapeProps { shape, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach }),
+            kind: ElementKind::Shape(ShapeProps { shape, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach, tail: None }),
             subgroups: Vec::new(),
             flip_h: false,
             flip_v: false,

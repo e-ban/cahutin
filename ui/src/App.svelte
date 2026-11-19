@@ -46,6 +46,7 @@
   import UpdateBanner from "./components/layout/UpdateBanner.svelte";
   import { updates } from "./lib/updates.svelte";
   import LineHandles from "./components/LineHandles.svelte";
+  import TailHandle from "./components/TailHandle.svelte";
   import PathExtender from "./components/PathExtender.svelte";
   import FreehandLayer from "./components/FreehandLayer.svelte";
   import Transformer from "./components/Transformer.svelte";
@@ -413,7 +414,7 @@
       ondropshape={(tile, x, y) => {
         const t = parseShapeTile(tile);
         if (!t) return;
-        const el = { ...shapeElement(editor.page, t.shape, t.radius, { x_mm: x, y_mm: y }, t.ends), locked: editor.templateMode };
+        const el = { ...shapeElement(editor.page, t.shape, t.radius, { x_mm: x, y_mm: y }, t.ends, t.tail), locked: editor.templateMode };
         editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
         editor.selection = [el.id];
       }}
@@ -430,6 +431,7 @@
     {#if !editor.proposing}
       <Transformer {pageEl} zoom={editor.effectiveZoom} />
       <LineHandles {pageEl} zoom={editor.effectiveZoom} />
+      <TailHandle {pageEl} zoom={editor.effectiveZoom} />
       <PathExtender {pageEl} {stageEl} zoom={editor.effectiveZoom} />
       <FreehandLayer {pageEl} {stageEl} zoom={editor.effectiveZoom} />
       <GroupTransformer {pageEl} zoom={editor.effectiveZoom} onpick={select} />

@@ -12,8 +12,8 @@ export const SHAPE_MIME = "application/x-carnet-shape";
 
 import type { LineEnds, ShapeKind } from "./types";
 
-/** Une tuile du tiroir Formes : la forme, ses coins, et pour un trait ses terminaisons. */
-export type ShapeTile = { shape: ShapeKind; radius: number; ends?: LineEnds };
+/** Une tuile du tiroir Formes : la forme, ses coins, pour un trait ses terminaisons, pour une bulle sa pointe. */
+export type ShapeTile = { shape: ShapeKind; radius: number; ends?: LineEnds; tail?: [number, number] };
 
 const KINDS: ShapeKind[] = ["Rect", "Ellipse", "Line", "Arrow", "Star", "Heart", "Bubble", "Cloud"];
 
@@ -24,7 +24,8 @@ export function parseShapeTile(raw: string): ShapeTile | null {
   try {
     const t = JSON.parse(raw) as Partial<ShapeTile>;
     if (!t || !KINDS.includes(t.shape as ShapeKind) || typeof t.radius !== "number") return null;
-    return { shape: t.shape as ShapeKind, radius: t.radius, ...(t.ends ? { ends: t.ends } : {}) };
+    const tail = Array.isArray(t.tail) && t.tail.length === 2 && t.tail.every((v) => typeof v === "number" && Number.isFinite(v)) ? (t.tail as [number, number]) : undefined;
+    return { shape: t.shape as ShapeKind, radius: t.radius, ...(t.ends ? { ends: t.ends } : {}), ...(tail ? { tail } : {}) };
   } catch {
     return null;
   }

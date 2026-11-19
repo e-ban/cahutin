@@ -38,4 +38,9 @@ closed?: boolean,
 /**
  * Bouts accrochés à des éléments de la page (connecteur) : chacun suit son point (`connectors::follow_connectors`).
  */
-attach?: Attach, };
+attach?: Attach, 
+/**
+ * Pointe d'une bulle de parole ou d'une bulle de pensée (nuage) : le point visé, en fractions du cadre (avant
+ * rotation et miroir), souvent hors du cadre. Le cadre est alors le corps de la bulle (`shapes::tailed_path`).
+ */
+tail?: [number, number], };

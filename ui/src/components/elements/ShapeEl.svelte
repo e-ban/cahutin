@@ -1,7 +1,8 @@
 <script lang="ts">
   // Rectangle et ellipse en CSS ; les formes dessinées, les tracés libres et les traits en SVG, avec le tracé de
   // l'export.
-  import { SHAPE_PATHS, SHAPE_VIEWBOX } from "../../lib/shapePaths";
+  import { SHAPE_VIEWBOX } from "../../lib/shapePaths";
+  import { shapePath, tailBox } from "../../lib/tail";
   import { endsOf, headWidthMm } from "../../lib/lineEnds";
   import { lineSvg, pathSvg } from "../../lib/lineSvg";
   import { hitMm, isPath, pathPointsMm } from "../../lib/linePath";
@@ -12,8 +13,11 @@
   // `solid` : l'intérieur d'une forme vide se clique comme celui d'une forme pleine (sinon, le contour seul).
   let { props, frame, zoom, solid = false }: { props: ShapeProps; frame: Frame; zoom: number; solid?: boolean } = $props();
 
-  // Tracé libre (graphisme, chemin) : le sien ; sinon celui de la sorte de forme.
-  const path = $derived(props.shape === "Path" ? (props.path ?? undefined) : SHAPE_PATHS[props.shape]);
+  // Tracé libre (graphisme, chemin) : le sien ; une bulle à pointe : calculé pour son cadre ; sinon celui de la sorte
+  // de forme.
+  const path = $derived(props.shape === "Path" ? (props.path ?? undefined) : shapePath(frame, props));
+  // Une bulle à pointe : le dessin s'étend jusqu'à la pointe (sinon le clic sur la pointe, hors du cadre, se perd).
+  const box = $derived(tailBox(props));
   const strokePx = $derived(props.stroke ? mmToPx(props.stroke.width_mm, zoom) : 0);
   const w = $derived(mmToPx(frame.w_mm, zoom));
   const h = $derived(mmToPx(frame.h_mm, zoom));
@@ -58,7 +62,17 @@
     {/if}
   </svg>
 {:else if path}
-  <svg class="shape" class:hollow={!props.fill} viewBox="0 0 {SHAPE_VIEWBOX} {SHAPE_VIEWBOX}" preserveAspectRatio="none" aria-hidden="true">
+  <svg
+    class="shape"
+    class:hollow={!props.fill}
+    viewBox="{box.x0 * SHAPE_VIEWBOX} {box.y0 * SHAPE_VIEWBOX} {(box.x1 - box.x0) * SHAPE_VIEWBOX} {(box.y1 - box.y0) * SHAPE_VIEWBOX}"
+    preserveAspectRatio="none"
+    style:left="{box.x0 * 100}%"
+    style:top="{box.y0 * 100}%"
+    style:width="{(box.x1 - box.x0) * 100}%"
+    style:height="{(box.y1 - box.y0) * 100}%"
+    aria-hidden="true"
+  >
     {#if !props.fill}<path class="hit" class:solid d={path} stroke-width={Math.max(strokePx, HIT_PX)} vector-effect="non-scaling-stroke" />{/if}
     <path
       d={path}

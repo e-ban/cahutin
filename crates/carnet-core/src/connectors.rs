@@ -150,7 +150,7 @@ mod tests {
             subgroups: Vec::new(),
             flip_h: false,
             flip_v: false,
-            kind: ElementKind::Shape(ShapeProps { shape: kind, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#333333".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None }),
+            kind: ElementKind::Shape(ShapeProps { shape: kind, fill: None, stroke: Some(Stroke { width_mm: 1.0, color: "#333333".into(), style: None }), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None, tail: None }),
         }
     }
     fn anchor(element: &str, at: AnchorPoint) -> Option<Anchor> {
@@ -365,6 +365,6 @@ mod tests {
         let mut d = crate::model::Document::new("v");
         d.pages[0] = page();
         assert_eq!(crate::native::written_version(&d), 16);
-        assert_eq!(crate::model::FORMAT_VERSION, 16);
+        assert!(crate::model::FORMAT_VERSION >= 16);
     }
 }

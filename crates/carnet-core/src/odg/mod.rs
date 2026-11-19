@@ -579,7 +579,7 @@ mod tests {
             locked: false,
             zone: false,
             group: None,
-            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Path, fill: None, stroke: Some(Stroke { width_mm: 0.8, color: "#9e9e9e".into(), style: Some(StrokeStyle::Dotted) }), corner_radius_mm: 0.0, path: Some(path.into()), graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None }),
+            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Path, fill: None, stroke: Some(Stroke { width_mm: 0.8, color: "#9e9e9e".into(), style: Some(StrokeStyle::Dotted) }), corner_radius_mm: 0.0, path: Some(path.into()), graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None, tail: None }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
         };
@@ -887,7 +887,7 @@ mod tests {
             locked: false,
             zone: false,
             group: None,
-            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: stroke(style), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None }),
+            kind: ElementKind::Shape(ShapeProps { shape: ShapeKind::Rect, fill: None, stroke: stroke(style), corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: None, tail: None }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,
         };
@@ -1134,7 +1134,7 @@ mod tests {
                 points: None,
                 curve: false,
                 closed: false,
-                attach: None,
+                attach: None, tail: None,
             }),
             subgroups: Vec::new(),
             flip_h: false, flip_v: false,

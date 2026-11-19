@@ -364,7 +364,7 @@ mod tests {
         let [a, b, _] = <[String; 3]>::try_from(ids(&d)).unwrap();
         let target = a.clone();
         if let Some(e) = d.pages[0].elements.iter_mut().find(|e| e.id == b) {
-            e.kind = ElementKind::Shape(carnet_core::ShapeProps { shape: carnet_core::ShapeKind::Arrow, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: Some(Attach { start: None, end: Some(Anchor { element: target.clone(), at: AnchorPoint::Left }) }) });
+            e.kind = ElementKind::Shape(carnet_core::ShapeProps { shape: carnet_core::ShapeKind::Arrow, fill: None, stroke: None, corner_radius_mm: 0.0, path: None, graphisme: None, ends: None, points: None, curve: false, closed: false, attach: Some(Attach { start: None, end: Some(Anchor { element: target.clone(), at: AnchorPoint::Left }) }), tail: None });
         }
         group(&mut d, &json!({ "element_ids": [a, b] })).unwrap();
         let out = arrange(&mut d, &json!({ "element_id": a, "action": "duplicate" })).unwrap();

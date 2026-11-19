@@ -18,9 +18,9 @@ pub fn path(kind: ShapeKind) -> Option<&'static str> {
         ShapeKind::Bubble => {
             "M 129 0 L 871 0 C 942 0 1000 90 1000 200 L 1000 578 C 1000 688 942 778 871 778 L 386 778 C 343 889 243 967 129 1000 C 186 922 229 856 229 778 L 129 778 C 58 778 0 688 0 578 L 0 200 C 0 90 58 0 129 0 Z"
         }
-        // Nuage : neuf bosses rondes (plus grosses en haut) dans le cadre par défaut.
+        // Nuage : neuf bosses rondes de tailles inégales, comme dessiné à la main, pour le cadre par défaut.
         ShapeKind::Cloud => {
-            "M 357 101 C 393 37 445 0 500 0 C 555 0 607 37 643 101 C 692 66 747 66 796 100 C 844 134 881 200 897 280 C 952 315 991 394 999 488 C 1006 581 981 673 933 729 C 925 799 897 860 856 890 C 816 921 768 919 729 884 C 708 959 660 1005 609 1000 C 557 994 514 937 500 858 C 486 937 443 994 391 1000 C 340 1005 292 959 271 884 C 232 919 184 921 144 890 C 103 860 75 799 67 729 C 19 673 -6 581 1 488 C 9 394 48 315 103 280 C 119 200 156 134 204 100 C 253 66 308 66 357 101 Z"
+            "M 349 122 C 387 47 448 2 512 0 C 576 -2 638 40 678 113 C 770 87 859 174 877 308 C 937 326 983 393 996 480 C 1009 566 987 656 938 709 C 927 766 899 813 861 836 C 824 859 781 855 746 825 C 735 910 690 977 632 995 C 574 1013 514 979 480 908 C 450 957 404 978 360 963 C 315 947 281 898 269 834 C 219 893 149 901 93 853 C 37 805 8 712 19 620 C 0 571 -5 512 6 458 C 17 404 43 359 78 334 C 84 245 120 166 175 123 C 229 81 294 80 349 122 Z"
         }
         ShapeKind::Rect | ShapeKind::Ellipse | ShapeKind::Line | ShapeKind::Arrow | ShapeKind::Path => return None,
     })
@@ -120,11 +120,166 @@ fn cr_segment(p0: (f64, f64), p1: (f64, f64), p2: (f64, f64), p3: (f64, f64)) ->
 }
 
 /// Le tracé d'une forme : celui de sa sorte, ou pour un tracé libre le sien, s'il est valide.
-pub fn path_of(s: &crate::model::ShapeProps) -> Option<&str> {
-    match s.shape {
-        ShapeKind::Path => s.path.as_deref().filter(|p| valid_path(p)),
-        kind => path(kind),
+pub fn path_of<'a>(frame: &crate::model::Frame, s: &'a crate::model::ShapeProps) -> Option<std::borrow::Cow<'a, str>> {
+    use std::borrow::Cow;
+    match (s.shape, tail_of(s)) {
+        (ShapeKind::Path, _) => s.path.as_deref().filter(|p| valid_path(p)).map(Cow::Borrowed),
+        (ShapeKind::Bubble, Some(t)) => Some(Cow::Owned(bubble_path(frame.w_mm, frame.h_mm, t))),
+        (ShapeKind::Cloud, Some(t)) => Some(Cow::Owned(thought_path(frame.w_mm, frame.h_mm, t))),
+        (kind, _) => path(kind).map(Cow::Borrowed),
     }
+}
+
+/// Quart de cercle en courbe de Bézier.
+const KAPPA: f64 = 0.5522847498;
+/// Pointe hors de ces bornes (fractions du cadre) : document abîmé, pas de pointe.
+const TAIL_LIMIT: f64 = 20.0;
+
+/// La pointe d'une bulle ou d'un nuage (`ShapeProps::tail`), si elle est lisible.
+pub fn tail_of(s: &ShapeProps) -> Option<[f64; 2]> {
+    if !matches!(s.shape, ShapeKind::Bubble | ShapeKind::Cloud) {
+        return None;
+    }
+    s.tail.filter(|t| t.iter().all(|v| v.is_finite() && v.abs() <= TAIL_LIMIT))
+}
+
+/// Tracé en mm du cadre, écrit dans le carré de 1000 étiré au cadre. Même écriture que `ui/src/lib/tail.ts`.
+struct PathOut {
+    w: f64,
+    h: f64,
+    parts: Vec<String>,
+}
+
+type P = (f64, f64);
+
+impl PathOut {
+    fn p(&self, q: P) -> String {
+        let n = |v: f64| (v + 0.5).floor() as i64;
+        format!("{} {}", n(q.0 * VIEWBOX / self.w), n(q.1 * VIEWBOX / self.h))
+    }
+    fn m(&mut self, q: P) {
+        let s = format!("M {}", self.p(q));
+        self.parts.push(s);
+    }
+    fn l(&mut self, q: P) {
+        let s = format!("L {}", self.p(q));
+        self.parts.push(s);
+    }
+    fn c(&mut self, a: P, b: P, q: P) {
+        let s = format!("C {} {} {}", self.p(a), self.p(b), self.p(q));
+        self.parts.push(s);
+    }
+    fn z(&mut self) {
+        self.parts.push("Z".into());
+    }
+}
+
+fn add(a: P, b: P, k: f64) -> P {
+    (a.0 + b.0 * k, a.1 + b.1 * k)
+}
+
+/// Bulle de parole de `w` × `h` mm à pointe réglable : voir `bubblePath` (`ui/src/lib/tail.ts`), même calcul.
+pub fn bubble_path(w: f64, h: f64, tail: [f64; 2]) -> String {
+    let r = 9f64.min(w * 0.25).min(h * 0.25);
+    let k = r * KAPPA;
+    let t = (tail[0] * w, tail[1] * h);
+    let d = (t.0 - w / 2.0, t.1 - h / 2.0);
+    let inside = t.0 >= 0.0 && t.0 <= w && t.1 >= 0.0 && t.1 <= h;
+    let side: i32 = if inside {
+        -1
+    } else if d.1.abs() * w >= d.0.abs() * h {
+        if d.1 > 0.0 { 2 } else { 0 }
+    } else if d.0 > 0.0 {
+        1
+    } else {
+        3
+    };
+    // Début et fin de la partie droite de chaque côté, sens de parcours, normale vers l'extérieur.
+    let sides: [(P, P, P, P); 4] = [
+        ((r, 0.0), (w - r, 0.0), (1.0, 0.0), (0.0, -1.0)),
+        ((w, r), (w, h - r), (0.0, 1.0), (1.0, 0.0)),
+        ((w - r, h), (r, h), (-1.0, 0.0), (0.0, 1.0)),
+        ((0.0, h - r), (0.0, r), (0.0, -1.0), (-1.0, 0.0)),
+    ];
+    let corners: [[P; 3]; 4] = [
+        [(w - r + k, 0.0), (w, r - k), (w, r)],
+        [(w, h - r + k), (w - r + k, h), (w - r, h)],
+        [(r - k, h), (0.0, h - r + k), (0.0, h - r)],
+        [(0.0, r - k), (r - k, 0.0), (r, 0.0)],
+    ];
+    let mut out = PathOut { w, h, parts: Vec::new() };
+    out.m(sides[0].0);
+    for (i, s) in sides.iter().enumerate() {
+        if i as i32 == side {
+            tail_on(&mut out, s.2, s.3, side, w, h, r, t, d);
+        }
+        out.l(s.1);
+        let [a, b, q] = corners[i];
+        out.c(a, b, q);
+    }
+    out.z();
+    out.parts.join(" ")
+}
+
+#[allow(clippy::too_many_arguments)]
+fn tail_on(out: &mut PathOut, e: P, nrm: P, side: i32, w: f64, h: f64, r: f64, t: P, d: P) {
+    let vertical = side == 0 || side == 2;
+    let len = if vertical { w } else { h };
+    let depth = match side {
+        0 => -t.1,
+        1 => t.0 - w,
+        2 => t.1 - h,
+        _ => -t.0,
+    };
+    let bw = 11f64.max(depth * 0.5).min(len * 0.35).min(len - 2.0 * r);
+    if bw <= 0.5 {
+        return;
+    }
+    let cross = if vertical { w / 2.0 + (d.0 * (h / 2.0)) / d.1.abs() } else { h / 2.0 + (d.1 * (w / 2.0)) / d.0.abs() };
+    let m0 = cross + (len / 2.0 - cross) * 0.25;
+    let m = (len - r - bw / 2.0).min((r + bw / 2.0).max(m0));
+    let mid = if vertical { (m, if side == 0 { 0.0 } else { h }) } else { (if side == 3 { 0.0 } else { w }, m) };
+    let b1 = add(mid, e, -bw / 2.0);
+    let b2 = add(mid, e, bw / 2.0);
+    let a = add(b1, nrm, depth * 0.5);
+    let b = add(b2, nrm, depth * 0.35);
+    out.l(b1);
+    out.c(a, add(t, (a.0 - t.0, a.1 - t.1), 0.5), t);
+    out.c(add(t, (b.0 - t.0, b.1 - t.1), 0.4), b, b2);
+}
+
+/// Bulle de pensée : le nuage et trois ronds vers le point visé ; voir `thoughtPath` (`ui/src/lib/tail.ts`).
+pub fn thought_path(w: f64, h: f64, tail: [f64; 2]) -> String {
+    let cloud = path(ShapeKind::Cloud).unwrap_or_default();
+    let t = (tail[0] * w, tail[1] * h);
+    if t.0 >= 0.0 && t.0 <= w && t.1 >= 0.0 && t.1 <= h {
+        return cloud.to_string();
+    }
+    let d = (t.0 - w / 2.0, t.1 - h / 2.0);
+    let (ax, ay) = (d.0.abs(), d.1.abs());
+    let f = if ax * h >= ay * w { w / 2.0 / ax } else { h / 2.0 / ay };
+    let e = add((w / 2.0, h / 2.0), d, f);
+    let full = (d.0 * d.0 + d.1 * d.1).sqrt();
+    let len = full * (1.0 - f);
+    let u = (d.0 / full, d.1 / full);
+    let big = (0.12 * w.min(h)).min(len / 5.25);
+    if big < 0.4 {
+        return cloud.to_string();
+    }
+    let s1 = 1.6 * big;
+    let s2 = (2.6 * big + len - 0.45 * big) / 2.0;
+    let mut out = PathOut { w, h, parts: Vec::new() };
+    for (s, rad) in [(s1, big), (s2, 0.7 * big), (len, 0.45 * big)] {
+        let c = add(e, u, s);
+        let kk = rad * KAPPA;
+        out.m((c.0, c.1 - rad));
+        out.c((c.0 + kk, c.1 - rad), (c.0 + rad, c.1 - kk), (c.0 + rad, c.1));
+        out.c((c.0 + rad, c.1 + kk), (c.0 + kk, c.1 + rad), (c.0, c.1 + rad));
+        out.c((c.0 - kk, c.1 + rad), (c.0 - rad, c.1 + kk), (c.0 - rad, c.1));
+        out.c((c.0 - rad, c.1 - kk), (c.0 - kk, c.1 - rad), (c.0, c.1 - rad));
+        out.z();
+    }
+    format!("{cloud} {}", out.parts.join(" "))
 }
 
 /// Plus long tracé libre accepté (une ligne de graphisme en fait quelques milliers de caractères).
@@ -342,7 +497,7 @@ mod tests {
             points: None,
             curve: false,
             closed: false,
-            attach: None,
+            attach: None, tail: None,
         }
     }
 
@@ -392,6 +547,34 @@ mod tests {
             assert!(ts.contains(&line), "taille {size:?} différente à l'écran : {line}");
         }
         assert!(ts.contains(&format!("export const DOT_FACTOR = {DOT_FACTOR};")), "rond et carré différents à l'écran");
+    }
+
+    /// Mêmes valeurs que `same tails as the export` (`ui/src/lib/tail.test.ts`) : l'écran et l'export dessinent la même
+    /// bulle, au caractère près.
+    #[test]
+    fn screen_and_export_draw_the_same_tails() {
+        assert_eq!(bubble_path(70.0, 35.0, [9.0 / 70.0, 45.0 / 35.0]), "M 125 0 L 875 0 C 944 0 1000 112 1000 250 L 1000 750 C 1000 888 944 1000 875 1000 L 401 1000 C 401 1143 265 1214 129 1286 C 175 1211 244 1100 244 1000 L 125 1000 C 56 1000 0 888 0 750 L 0 250 C 0 112 56 0 125 0 Z");
+        assert_eq!(bubble_path(52.3, 41.7, [1.37, 0.21]), "M 172 0 L 828 0 C 923 0 1000 97 1000 216 L 1000 243 C 1185 243 1278 227 1370 210 C 1274 329 1130 507 1000 507 L 1000 784 C 1000 903 923 1000 828 1000 L 172 1000 C 77 1000 0 903 0 784 L 0 216 C 0 97 77 0 172 0 Z");
+        assert_eq!(bubble_path(30.0, 60.0, [0.4, -0.8]), "M 250 0 L 296 0 C 296 -400 348 -600 400 -800 C 498 -592 646 -280 646 0 L 750 0 C 888 0 1000 56 1000 125 L 1000 875 C 1000 944 888 1000 750 1000 L 250 1000 C 112 1000 0 944 0 875 L 0 125 C 0 56 112 0 250 0 Z");
+        let cloud = path(ShapeKind::Cloud).unwrap();
+        assert_eq!(thought_path(70.0, 40.0, [0.15, 1.45]), format!("{cloud} M 265 1035 C 297 1035 324 1081 324 1137 C 324 1193 297 1239 265 1239 C 233 1239 207 1193 207 1137 C 207 1081 233 1035 265 1035 Z M 199 1246 C 221 1246 240 1278 240 1317 C 240 1357 221 1389 199 1389 C 176 1389 158 1357 158 1317 C 158 1278 176 1246 199 1246 Z M 150 1404 C 164 1404 176 1425 176 1450 C 176 1475 164 1496 150 1496 C 136 1496 124 1475 124 1450 C 124 1425 136 1404 150 1404 Z"));
+        assert_eq!(thought_path(55.5, 33.3, [-0.7, 0.3]), format!("{cloud} M -115 278 C -75 278 -43 331 -43 398 C -43 464 -75 518 -115 518 C -154 518 -187 464 -187 398 C -187 331 -154 278 -115 278 Z M -427 261 C -399 261 -377 299 -377 345 C -377 392 -399 429 -427 429 C -455 429 -477 392 -477 345 C -477 299 -455 261 -427 261 Z M -700 246 C -682 246 -668 270 -668 300 C -668 330 -682 354 -700 354 C -718 354 -732 330 -732 300 C -732 270 -718 246 -700 246 Z"));
+    }
+
+    #[test]
+    fn a_tail_is_read_only_on_a_bubble_or_a_cloud_and_when_sane() {
+        let mut s = line(ShapeKind::Arrow, 1.0, None);
+        s.tail = Some([0.2, 1.3]);
+        assert_eq!(tail_of(&s), None);
+        s.shape = ShapeKind::Bubble;
+        assert_eq!(tail_of(&s), Some([0.2, 1.3]));
+        s.tail = Some([f64::NAN, 1.0]);
+        assert_eq!(tail_of(&s), None);
+        s.tail = Some([0.0, 1e6]);
+        assert_eq!(tail_of(&s), None);
+        let f = crate::model::Frame { x_mm: 0.0, y_mm: 0.0, w_mm: 70.0, h_mm: 45.0, rotation_deg: 0.0 };
+        s.tail = None;
+        assert_eq!(path_of(&f, &s).as_deref(), path(ShapeKind::Bubble));
     }
 
     #[test]

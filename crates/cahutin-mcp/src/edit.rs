@@ -354,7 +354,7 @@ pub fn add_shape(doc: &mut Document, args: &Value) -> Result<Value, String> {
         return Err("closed demande au moins 3 points".into());
     }
     let ends = if closed { None } else { ends };
-    let mut props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve, closed, attach: None };
+    let mut props = ShapeProps { shape, fill, stroke, corner_radius_mm: 0.0, path: None, graphisme: None, ends, points: None, curve, closed, attach: None, tail: None };
     // Un chemin : son cadre vient de ses points ; deux points, un trait droit de l'un à l'autre.
     // Une flèche entre deux éléments (`from`, `to`) : ses bouts s'accrochent aux milieux des côtés qui se font face.
     let link = link_ends(doc, args, shape)?;

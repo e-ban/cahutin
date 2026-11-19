@@ -4,6 +4,7 @@
   import ShapeEl from "../elements/ShapeEl.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { pen } from "../../lib/pen.svelte";
+  import { BUBBLE_TAIL, THOUGHT_TAIL } from "../../lib/tail";
   import { centeredFrame, shapeElement } from "../../lib/factory";
   import { settings } from "../../lib/settings.svelte";
   import { MOTIFS, PATHS, dottedPath, graphismeRows, motifPreview, PRESETS, type Level, type Motif, type Preset } from "../../lib/graphisme";
@@ -23,14 +24,15 @@
     { shape: "Arrow", radius: 0, label: fr.doubleArrow, ends: { start: "Arrow", end: "Arrow", size: "Medium" } },
     { shape: "Star", radius: 0, label: fr.star },
     { shape: "Heart", radius: 0, label: fr.heart },
-    { shape: "Bubble", radius: 0, label: fr.bubble },
+    { shape: "Bubble", radius: 0, label: fr.bubble, tail: BUBBLE_TAIL },
     { shape: "Cloud", radius: 0, label: fr.cloud },
+    { shape: "Cloud", radius: 0, label: fr.thought, tail: THOUGHT_TAIL },
   ];
 
   // Aperçu dessiné par le même composant que la page. Un trait ou une flèche y prend la couleur du texte (son gris
   // foncé ne se verrait pas sur un thème sombre) ; posé sur la page, il garde son gris.
   const previews: Element[] = shapes.map((s) => {
-    const e = shapeElement(editor.page, s.shape, s.radius, undefined, s.ends);
+    const e = shapeElement(editor.page, s.shape, s.radius, undefined, s.ends, s.tail);
     const line = e.kind.type === "Shape" && (e.kind.shape === "Line" || e.kind.shape === "Arrow") && e.kind.stroke;
     return line && e.kind.type === "Shape" ? { ...e, kind: { ...e.kind, stroke: { ...e.kind.stroke!, color: "currentColor" } } } : e;
   });
@@ -94,7 +96,7 @@
   }
 
   function add(t: ShapeTile) {
-    const el = shapeElement(editor.page, t.shape, t.radius, undefined, t.ends);
+    const el = shapeElement(editor.page, t.shape, t.radius, undefined, t.ends, t.tail);
     editor.updatePage((p) => ({ ...p, elements: [...p.elements, el] }));
     editor.selection = [el.id];
   }
@@ -109,11 +111,12 @@
         draggable="true"
         onclick={() => add(s)}
         ondragstart={(e) => {
-          e.dataTransfer?.setData(SHAPE_MIME, shapeTile({ shape: s.shape, radius: s.radius, ends: s.ends }));
+          e.dataTransfer?.setData(SHAPE_MIME, shapeTile({ shape: s.shape, radius: s.radius, ends: s.ends, tail: s.tail }));
           if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
         }}
       >
-        <span class="preview" style:width="{el.frame.w_mm * 0.75}px" style:height="{el.frame.h_mm * 0.75}px">
+        <!-- La pointe d'une bulle sort de son cadre : sa place est gardée sous l'aperçu, avant le nom. -->
+        <span class="preview" style:width="{el.frame.w_mm * 0.75}px" style:height="{el.frame.h_mm * 0.75}px" style:margin-bottom="{s.tail ? Math.max(0, s.tail[1] - 1) * el.frame.h_mm * 0.75 + 2 : 0}px">
           {#if el.kind.type === "Shape"}<ShapeEl props={el.kind} frame={el.frame} zoom={0.75 / 3.7795} />{/if}
         </span>
         {s.label}

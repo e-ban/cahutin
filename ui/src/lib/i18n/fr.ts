@@ -363,6 +363,8 @@ export const fr = {
   toShape: "En forme",
   toPath: "En chemin",
   pen: "Crayon",
+  thought: "Bulle de pensée",
+  tailHandleHint: "Tirer pour diriger la pointe de la bulle",
   penHintButton: "Dessiner à main levée : chaque tracé sur la page devient un chemin. Recliquer, ou Échap, pour ranger le crayon",
   penHint: "Dessinez sur la page. Échap pour ranger le crayon.",
   toPathHint: "Faire de la forme un chemin dont on tire les points, qu'on prolonge et qu'on plie (Ctrl+Z pour revenir)",

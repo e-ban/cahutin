@@ -745,7 +745,7 @@ impl Writer<'_> {
             self.body.empty("draw:line", &attrs(&a));
             return;
         }
-        if let Some(path) = shapes::path_of(s) {
+        if let Some(path) = shapes::path_of(&e.frame, s) {
             // L'écran retourne la forme dans son cadre puis la tourne ; LibreOffice la retourne après l'avoir tournée.
             // Retournée d'un seul sens, elle reçoit donc l'angle opposé (dans les deux sens, c'est un demi-tour qui
             // ne change rien à l'angle). L'import fait l'inverse (`import::odg`, `mirror_last_shape`).

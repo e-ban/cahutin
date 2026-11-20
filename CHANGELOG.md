@@ -3,6 +3,7 @@
 
 ## Non publié
 
+- Molette : dans la vue de la page, elle tourne les pages. Une page zoomée défile d'abord ; arrivé en bas, un nouveau coup de molette passe à la page suivante (en haut, à la précédente). Une page A3 n'agrandit plus la bande des pages.
 - Toutes les pages : en bas de la colonne de gauche, le carnet en grande grille, rangé par chapitre, avec la liste des chapitres pour s'y rendre. On choisit des pages d'un clic, puis on les met dans un chapitre, on les duplique ou on les supprime d'un coup (Ctrl+Z annule) ; « Ouvrir » mène à la page.
 - Chapitres : un autre carnet importé avec ses chapitres arrive à la fin du chapitre en cours, sans le couper en deux.
 - Chapitres : un long carnet (cahier de vie) se range en chapitres. Réglages de la page > Chapitre : « Commencer un chapitre à cette page », avec un nom et une couleur. Dans la bande des pages, un onglet de couleur devant chaque chapitre : seul le chapitre de la page affichée montre ses pages, les autres sont repliés sur leur onglet, qui y mène d'un clic. Le chapitre change de place avec toutes ses pages (« Avant le chapitre précédent », « Après le chapitre suivant »). Le champ du numéro de page mène aussi à un chapitre par son nom. Un carnet avec des chapitres s'ouvre seulement dans cette version de Cahutin ou une plus récente.

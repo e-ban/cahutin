@@ -307,3 +307,40 @@ test("Ctrl+Maj+Pg.Préc. et Pg.Suiv. déplacent la page ; Pg.Préc. et Ctrl+Pg.P
   expect(editor.doc.pages.map((p) => p.id)).toEqual([b.id, a.id, c.id]);
   expect(editor.pageIndex).toBe(1);
 });
+
+test("la molette sur la vue tourne la page au bord, pas pendant un recadrage, ni au-delà de la dernière page", async () => {
+  const { handleWheelPages } = await import("./shortcuts");
+  const { editor } = await import("./docStore.svelte");
+  const { newDocument, newPage } = await import("./factory");
+  class FakeNode {}
+  (globalThis as Record<string, unknown>).Node ??= FakeNode;
+  const NodeCtor = (globalThis as unknown as { Node: new () => object }).Node;
+  const doc = newDocument();
+  doc.pages.push(newPage(), newPage());
+  editor.reset(doc, null);
+  editor.showWelcome = false;
+  const stage = { contains: () => true, scrollTop: 0, clientHeight: 600, scrollHeight: 600 } as unknown as HTMLElement;
+  let t = 10_000;
+  const wheel = (deltaY: number) => {
+    let prevented = false;
+    const ev = { deltaY, deltaX: 0, deltaMode: 0, ctrlKey: false, metaKey: false, shiftKey: false, defaultPrevented: false, target: new NodeCtor(), preventDefault: () => (prevented = true) } as unknown as WheelEvent;
+    const realNow = performance.now;
+    performance.now = () => t;
+    const dir = handleWheelPages(ev, stage);
+    performance.now = realNow;
+    t += 1000;
+    return { dir, prevented };
+  };
+  expect(wheel(100)).toEqual({ dir: 1, prevented: true });
+  expect(editor.pageIndex).toBe(1);
+  editor.cropping = "photo";
+  expect(wheel(100).dir).toBe(0);
+  editor.cropping = null;
+  expect(wheel(100).dir).toBe(1);
+  expect(wheel(100).dir).toBe(0);
+  expect(editor.pageIndex).toBe(2);
+  // La vue peut défiler : la molette la laisse faire.
+  (stage as unknown as { scrollHeight: number }).scrollHeight = 1200;
+  expect(wheel(100)).toEqual({ dir: 0, prevented: false });
+  expect(wheel(-100).dir).toBe(-1);
+});

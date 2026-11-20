@@ -72,7 +72,7 @@
   import { dropFiles, guardWindowDrop, handlePasteEvent } from "./lib/incoming";
   import { blockBelow, expandSelection, groupOf, pathOf } from "./lib/groups";
   import { pictoElement, pictos } from "./lib/pictos.svelte";
-  import { endNudge, handleKeyUp, handleShortcut, handleWheelZoom } from "./lib/shortcuts";
+  import { endNudge, handleKeyUp, handleShortcut, handleWheelPages, handleWheelZoom } from "./lib/shortcuts";
   import { roundedFrame } from "./lib/crop";
   import { newDocument, newId, shapeElement } from "./lib/factory";
   import { parseShapeTile } from "./lib/dnd";
@@ -217,6 +217,14 @@
     const stage = stageEl;
     const onWheel = async (ev: WheelEvent) => {
       const before = editor.effectiveZoom;
+      // Sans Ctrl : la molette fait défiler la page, puis la tourne ; la nouvelle page se montre par le haut en
+      // descendant, par le bas en remontant.
+      const turned = stage ? handleWheelPages(ev, stage) : 0;
+      if (turned && stage) {
+        await tick();
+        stage.scrollTop = turned > 0 ? 0 : stage.scrollHeight;
+        return;
+      }
       if (handleWheelZoom(ev) === null || !stage) return;
       const r = stage.getBoundingClientRect();
       if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) return;

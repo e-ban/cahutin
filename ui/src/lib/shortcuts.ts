@@ -8,6 +8,7 @@ import { modal } from "./modal.svelte";
 import { nudgeOnPage, type ArrowKey } from "./geometry";
 import { textEditing } from "./textEditing.svelte";
 import { tour } from "./tour.svelte";
+import { wheelPages, wheelPagesStart } from "./wheelPages";
 import { startsWriting, textToWrite } from "./typeToWrite";
 import { nextZoom } from "./units";
 
@@ -72,10 +73,10 @@ export function shortcutAction(ev: KeyInfo): ShortcutAction | null {
   return actions[k] ?? null;
 }
 
-// Sous l'écran d'accueil, le panneau Astuces, la classe, la photothèque ou la vue agrandie du tiroir Images, la
-// page n'est pas visible : rien ne doit la modifier.
+// Sous l'écran d'accueil, le panneau Astuces, la classe, la photothèque, « Toutes les pages » ou la vue agrandie du
+// tiroir Images, la page n'est pas visible : rien ne doit la modifier.
 function pageHidden(): boolean {
-  return editor.showWelcome || editor.showTips || editor.showClassPage || editor.showPhototheque || editor.showCollection || editor.showPreferences || editor.imagesWide;
+  return editor.showWelcome || editor.showTips || editor.showClassPage || editor.showPhototheque || editor.showCollection || editor.showAllPages || editor.showPreferences || editor.imagesWide;
 }
 
 // Une fenêtre, un menu ou une liste ouverts (ils se ferment eux-mêmes à Échap), ou un recadrage en cours.
@@ -122,6 +123,29 @@ export function handleWheelZoom(ev: WheelEvent): number | null {
   if (step.dir === 0) return null;
   editor.zoom = nextZoom(editor.effectiveZoom, step.dir);
   return editor.zoom;
+}
+
+let pageWheel = wheelPagesStart();
+
+/**
+ * Molette sans Ctrl sur la vue de la page : elle la fait défiler, puis, au bord, tourne la page (voir `wheelPages`).
+ * Rend le sens de la page tournée (la vue se place alors en haut ou en bas de la nouvelle page), ou 0.
+ */
+export function handleWheelPages(ev: WheelEvent, stage: HTMLElement): 1 | -1 | 0 {
+  if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.defaultPrevented || Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return 0;
+  if (!(ev.target instanceof Node) || !stage.contains(ev.target)) return 0;
+  if (modal.message !== null || tour.step !== null || pageHidden() || editor.editingText || editor.cropping) return 0;
+  const canUp = stage.scrollTop > 0;
+  const canDown = stage.scrollTop + stage.clientHeight < stage.scrollHeight - 1;
+  const r = wheelPages(pageWheel, ev.deltaY, ev.deltaMode, canUp, canDown, performance.now());
+  pageWheel = r.state;
+  if (r.scroll) return 0;
+  ev.preventDefault();
+  const next = editor.pageIndex + r.dir;
+  if (r.dir === 0 || next < 0 || next >= editor.doc.pages.length) return 0;
+  editor.pageIndex = next;
+  editor.selection = [];
+  return r.dir;
 }
 
 // Rafale de déplacements aux flèches : un seul pas d'annulation, comme un curseur que l'on fait glisser. Elle se

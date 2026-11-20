@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { a3Tiles, changeFormat, formatOf, printPageName, printSheet, TILE_OVERLAP_MM } from "./pageFormat";
+import { a3Tiles, changeFormat, fitZoom, formatOf, printPageName, printSheet, TILE_OVERLAP_MM } from "./pageFormat";
 import type { Page } from "./types";
 
 test("formats are recognised in both orientations", () => {
@@ -40,4 +40,11 @@ test("the sheet that comes out for a page", () => {
   // Une affiche A3 en tuiles : des A4 paysage.
   expect(printSheet({ width_mm: 297, height_mm: 420 }, true)).toEqual({ width_mm: 297, height_mm: 210 });
   expect(printSheet({ width_mm: 210, height_mm: 297 }, true)).toEqual({ width_mm: 210, height_mm: 297 });
+});
+
+test("une miniature tient dans sa boîte : une page A3 est réduite, une page A4 ou A5 garde l'échelle", () => {
+  expect(fitZoom({ width_mm: 210, height_mm: 297 }, 0.05, 297, 297)).toBe(0.05);
+  expect(fitZoom({ width_mm: 148, height_mm: 210 }, 0.05, 297, 297)).toBe(0.05);
+  expect(fitZoom({ width_mm: 297, height_mm: 420 }, 0.05, 297, 297) * 420).toBeCloseTo(0.05 * 297);
+  expect(fitZoom({ width_mm: 420, height_mm: 297 }, 0.05, 297, 297) * 420).toBeCloseTo(0.05 * 297);
 });

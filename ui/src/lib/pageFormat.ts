@@ -78,3 +78,9 @@ export function a3Tiles(size: PageSize): Tile[] {
         { sheet, scale, dx_mm: across, dy_mm: second },
       ];
 }
+
+/** L'échelle d'une miniature à `zoom`, réduite pour que la page tienne dans une boîte de `w_mm` × `h_mm` : les
+ *  miniatures d'une bande ou d'une grille gardent la même hauteur, même pour une page A3. */
+export function fitZoom(size: PageSize, zoom: number, w_mm: number, h_mm: number): number {
+  return zoom * Math.min(1, w_mm / size.width_mm, h_mm / size.height_mm);
+}

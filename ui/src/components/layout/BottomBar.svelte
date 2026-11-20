@@ -4,7 +4,7 @@
   import { editor } from "../../lib/docStore.svelte";
   import { nextZoom } from "../../lib/units";
   import { newPage } from "../../lib/factory";
-    import { formatOf, type Format } from "../../lib/pageFormat";
+    import { fitZoom, formatOf, type Format } from "../../lib/pageFormat";
   import { rotatePage, setPageFormat } from "../../lib/pageActions";
   import { deletePage } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
@@ -16,7 +16,8 @@
   import { DRAG_DEAD_ZONE_PX } from "../../lib/geometry";
   import type { Page } from "../../lib/types";
 
-  // Miniatures basses : la bande tient sur une ligne, sous les boutons de la page.
+  // Miniatures basses : la bande tient sur une ligne, sous les boutons de la page. Une page plus grande que l'A4 est
+  // réduite, pour que la bande garde sa hauteur.
   const MINI = 0.05;
 
   let strip = $state<HTMLElement>();
@@ -254,7 +255,7 @@
         onpointerdown={(e) => thumbDown(e, i)}
         onclick={() => open(i)}
       >
-        <PageView page={p} doc={editor.doc} zoom={MINI} />
+        <PageView page={p} doc={editor.doc} zoom={fitZoom(p.size, MINI, 297, 297)} />
         <span class="num" aria-hidden="true">{i + 1}</span>
       </button>
       {/if}

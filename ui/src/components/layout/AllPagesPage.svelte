@@ -9,11 +9,11 @@
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { deletePages, duplicatePages, followPage, keepsPages, movePagesTo } from "../../lib/manyPages";
-  import type { Document, Page } from "../../lib/types";
+  import { fitZoom } from "../../lib/pageFormat";
+  import type { Document } from "../../lib/types";
 
   // Chaque miniature tient dans la place d'une page A4 en portrait : une page en paysage ou en A3 est réduite.
   const ZOOM = 0.16;
-  const zoomOf = (p: Page) => ZOOM * Math.min(1, 250 / p.size.width_mm, 297 / p.size.height_mm);
 
   let selected = $state<string[]>([]);
   /** Le chapitre où ranger les pages : l'identifiant de la page qui l'ouvre, ou « -1 » pour le début du carnet. Il reste
@@ -141,7 +141,7 @@
               {@const chosen = selected.includes(p.id)}
               <div class="card" class:chosen class:current={i === editor.pageIndex}>
                 <button class="pic" aria-pressed={chosen} aria-label={fr.pageN(i + 1)} title={fr.allPagesChooseHint} onclick={() => toggle(p.id)} ondblclick={() => openPage(i)}>
-                  <PageView page={p} doc={editor.doc} zoom={zoomOf(p)} />
+                  <PageView page={p} doc={editor.doc} zoom={fitZoom(p.size, ZOOM, 250, 297)} />
                   {#if chosen}<span class="tick" aria-hidden="true"><Icon name="check" size={14} /></span>{/if}
                 </button>
                 <div class="foot">

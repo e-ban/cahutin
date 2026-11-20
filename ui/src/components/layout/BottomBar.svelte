@@ -12,7 +12,7 @@
   import { classes } from "../../lib/classStore.svelte";
   import { childOfPage, findChildPage } from "../../lib/classFill";
   import { dropSlot, duplicatePage, slotTarget } from "../../lib/pageOrder";
-  import { chapterOf, chapterSpans, type ChapterSpan } from "../../lib/chapters";
+  import { chapterOf, chapterSpans, hiddenPages, type ChapterSpan } from "../../lib/chapters";
   import { DRAG_DEAD_ZONE_PX } from "../../lib/geometry";
   import type { Page } from "../../lib/types";
 
@@ -24,26 +24,20 @@
   const students = $derived(classes.current?.class.students ?? []);
 
   // Chapitres : un onglet devant la première page de chacun ; replié, ses miniatures disparaissent de la bande, sauf
-  // celui de la page affichée.
+  // celle de la page affichée.
   const spans = $derived(chapterSpans(editor.doc.pages));
   const spanAt = $derived(new Map(spans.map((c) => [c.start, c])));
-  const isFolded = (c: ChapterSpan) => editor.foldedChapters.includes(editor.doc.pages[c.start].id) && !(c.start <= editor.pageIndex && editor.pageIndex < c.end);
-  const hidden = $derived(editor.doc.pages.map((_, i) => {
-    const c = chapterOf(editor.doc.pages, i);
-    return !!c && isFolded(c);
-  }));
+  const isFolded = (c: ChapterSpan) => editor.foldedChapters.includes(editor.doc.pages[c.start].id);
+  const hidden = $derived(hiddenPages(editor.doc.pages, editor.foldedChapters, editor.pageIndex));
 
   function toggleFold(c: ChapterSpan) {
     const id = editor.doc.pages[c.start].id;
-    const folded = editor.foldedChapters.includes(id);
-    editor.foldedChapters = folded ? editor.foldedChapters.filter((x) => x !== id) : [...editor.foldedChapters, id];
-    // Replier le chapitre de la page affichée : on va au début du chapitre, qui reste visible par son onglet.
-    if (!folded && c.start <= editor.pageIndex && editor.pageIndex < c.end) goToChapter(c.start, false);
+    editor.foldedChapters = isFolded(c) ? editor.foldedChapters.filter((x) => x !== id) : [...editor.foldedChapters, id];
   }
 
-  /** Va à la première page d'un chapitre ; `unfold` : ses pages se montrent aussi. */
-  function goToChapter(start: number, unfold = true) {
-    if (unfold) editor.foldedChapters = editor.foldedChapters.filter((x) => x !== editor.doc.pages[start].id);
+  /** Va à la première page d'un chapitre, et montre ses pages. */
+  function goToChapter(start: number) {
+    editor.foldedChapters = editor.foldedChapters.filter((x) => x !== editor.doc.pages[start].id);
     editor.pageIndex = start;
     editor.selection = [];
   }
@@ -390,7 +384,10 @@
     -webkit-box-orient: vertical;
     overflow-wrap: anywhere;
   }
+  /* Toute la ligne du haut de l'onglet replie ou déplie : une cible facile à toucher. */
   .tab .fold {
+    width: 100%;
+    min-height: 20px;
     display: flex;
     align-items: center;
     gap: 2px;

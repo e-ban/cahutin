@@ -70,3 +70,14 @@ export function moveChapter(doc: Document, start: number, dir: -1 | 1): { doc: D
   const pages = [...p.slice(0, a.start), ...p.slice(b.start, b.end), ...p.slice(a.start, a.end), ...p.slice(b.end)];
   return { doc: { ...doc, pages }, start: dir < 0 ? a.start : a.start + (b.end - b.start) };
 }
+
+/** Les miniatures cachées dans la bande : les pages des chapitres repliés (`folded` : la page qui ouvre chacun), sauf
+ *  la page affichée `current`, qui reste visible à côté de l'onglet de son chapitre. */
+export function hiddenPages(pages: Page[], folded: string[], current: number): boolean[] {
+  const hide = pages.map(() => false);
+  for (const c of chapterSpans(pages)) {
+    if (!folded.includes(pages[c.start].id)) continue;
+    for (let i = c.start; i < c.end; i++) hide[i] = i !== current;
+  }
+  return hide;
+}

@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { newDocument, newPage } from "./factory";
-import { carryChapter, chapterOf, chapterSpans, moveChapter, removeChapter, startChapter, updateChapter, withoutPage } from "./chapters";
+import { carryChapter, chapterOf, hiddenPages, chapterSpans, moveChapter, removeChapter, startChapter, updateChapter, withoutPage } from "./chapters";
 import { duplicatePage, movePage } from "./pageOrder";
 import type { Document } from "./types";
 
@@ -65,4 +65,13 @@ test("déplacer un chapitre emporte toutes ses pages ; les pages sans chapitre r
   expect(after.doc.pages.map((p) => p.id)).toEqual(before.doc.pages.map((p) => p.id));
   expect(moveChapter(doc, 1, -1)).toBeNull();
   expect(moveChapter(doc, 3, 1)).toBeNull();
+});
+
+test("un chapitre replié cache ses pages, même celui de la page affichée, sauf cette page", () => {
+  const doc = year();
+  const folded = [doc.pages[3].id];
+  expect(hiddenPages(doc.pages, folded, 0)).toEqual([false, false, false, true, true, true]);
+  // La page affichée est dans le chapitre replié : seule sa miniature reste.
+  expect(hiddenPages(doc.pages, folded, 4)).toEqual([false, false, false, true, false, true]);
+  expect(hiddenPages(doc.pages, [], 4)).toEqual([false, false, false, false, false, false]);
 });

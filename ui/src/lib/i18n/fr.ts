@@ -447,9 +447,7 @@ export const fr = {
   chapterMoveHint: "Le chapitre change de place avec toutes ses pages.",
   chapterRemove: "Retirer le chapitre",
   chapterRemoveHint: "Les pages restent, dans le chapitre d'avant.",
-  chapterTab: (title: string, pages: number) => `${title} · ${pages} page${pages > 1 ? "s" : ""}\nCliquez pour aller au début du chapitre`,
-  chapterFold: (title: string) => `Replier « ${title} » : ses pages ne prennent plus de place dans la bande`,
-  chapterUnfold: (title: string) => `Montrer les pages de « ${title} »`,
+  chapterTab: (title: string, pages: number) => `${title} · ${pages} page${pages > 1 ? "s" : ""}\nCliquez pour aller à ce chapitre et montrer ses pages`,
   chapterPages: (n: number) => `${n} p.`,
   // Toutes les pages
   allPages: "Toutes les pages",

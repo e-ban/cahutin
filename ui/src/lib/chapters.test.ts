@@ -67,11 +67,9 @@ test("déplacer un chapitre emporte toutes ses pages ; les pages sans chapitre r
   expect(moveChapter(doc, 3, 1)).toBeNull();
 });
 
-test("un chapitre replié cache ses pages, même celui de la page affichée, sauf cette page", () => {
+test("dans la bande, seul le chapitre de la page affichée montre ses pages ; celles d'avant le premier chapitre restent", () => {
   const doc = year();
-  const folded = [doc.pages[3].id];
-  expect(hiddenPages(doc.pages, folded, 0)).toEqual([false, false, false, true, true, true]);
-  // La page affichée est dans le chapitre replié : seule sa miniature reste.
-  expect(hiddenPages(doc.pages, folded, 4)).toEqual([false, false, false, true, false, true]);
-  expect(hiddenPages(doc.pages, [], 4)).toEqual([false, false, false, false, false, false]);
+  expect(hiddenPages(doc.pages, 0)).toEqual([false, true, true, true, true, true]);
+  expect(hiddenPages(doc.pages, 2)).toEqual([false, false, false, true, true, true]);
+  expect(hiddenPages(doc.pages, 4)).toEqual([false, true, true, false, false, false]);
 });

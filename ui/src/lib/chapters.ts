@@ -76,13 +76,11 @@ export function moveChapter(doc: Document, start: number, dir: -1 | 1): { doc: D
   return { doc: { ...doc, pages }, start: dir < 0 ? a.start : a.start + (b.end - b.start) };
 }
 
-/** Les miniatures cachées dans la bande : les pages des chapitres repliés (`folded` : la page qui ouvre chacun), sauf
- *  la page affichée `current`, qui reste visible à côté de l'onglet de son chapitre. */
-export function hiddenPages(pages: Page[], folded: string[], current: number): boolean[] {
+/** Les miniatures cachées dans la bande : les pages des chapitres autres que celui de la page affichée `current`, réduits
+ *  à leur onglet. Les pages d'avant le premier chapitre restent visibles. */
+export function hiddenPages(pages: Page[], current: number): boolean[] {
+  const open = chapterOf(pages, current);
   const hide = pages.map(() => false);
-  for (const c of chapterSpans(pages)) {
-    if (!folded.includes(pages[c.start].id)) continue;
-    for (let i = c.start; i < c.end; i++) hide[i] = i !== current;
-  }
+  for (const c of chapterSpans(pages)) if (c.start !== open?.start) for (let i = c.start; i < c.end; i++) hide[i] = true;
   return hide;
 }

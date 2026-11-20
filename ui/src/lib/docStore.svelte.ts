@@ -65,9 +65,6 @@ class Editor {
   printDuplex = $state(false);
   /** Pages en vis-à-vis dans la vue d'édition. */
   spread = $state(false);
-  /** Chapitres repliés dans la bande des pages (identifiant de la page qui ouvre chacun) ; celui de la page affichée
-   *  reste ouvert. Le temps de la séance seulement. */
-  foldedChapters = $state<string[]>([]);
   /** Panneau du fond de page. */
   showBackground = $state(false);
   /** La page vue comme la voit une personne daltonienne (bouton des Préférences). */

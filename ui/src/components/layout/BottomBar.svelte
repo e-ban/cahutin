@@ -23,28 +23,30 @@
   const count = $derived(editor.doc.pages.length);
   const students = $derived(classes.current?.class.students ?? []);
 
-  // Chapitres : un onglet devant la première page de chacun ; replié, ses miniatures disparaissent de la bande, sauf
-  // celle de la page affichée.
+  // Chapitres : un onglet devant la première page de chacun. Seul le chapitre de la page affichée montre ses
+  // miniatures ; les autres se replient sur leur onglet, qui mène à eux.
   const spans = $derived(chapterSpans(editor.doc.pages));
   const spanAt = $derived(new Map(spans.map((c) => [c.start, c])));
-  const isFolded = (c: ChapterSpan) => editor.foldedChapters.includes(editor.doc.pages[c.start].id);
-  const hidden = $derived(hiddenPages(editor.doc.pages, editor.foldedChapters, editor.pageIndex));
+  const hidden = $derived(hiddenPages(editor.doc.pages, editor.pageIndex));
+  const isOpen = (c: ChapterSpan) => c.start <= editor.pageIndex && editor.pageIndex < c.end;
 
-  function toggleFold(c: ChapterSpan) {
-    const id = editor.doc.pages[c.start].id;
-    editor.foldedChapters = isFolded(c) ? editor.foldedChapters.filter((x) => x !== id) : [...editor.foldedChapters, id];
-  }
-
-  /** Va à la première page d'un chapitre, et montre ses pages. */
+  /** Va à la première page d'un chapitre, qui se déplie. */
   function goToChapter(start: number) {
-    editor.foldedChapters = editor.foldedChapters.filter((x) => x !== editor.doc.pages[start].id);
     editor.pageIndex = start;
     editor.selection = [];
   }
 
-  // La miniature de la page courante reste visible dans la bande, même à la page 30.
+  // La miniature de la page courante reste visible dans la bande, même à la page 30 ; l'onglet de son chapitre aussi,
+  // s'il tient avec elle.
   $effect(() => {
-    strip?.querySelector(`[data-page="${editor.pageIndex}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const thumb = strip?.querySelector(`[data-page="${editor.pageIndex}"]`);
+    if (!strip || !thumb) return;
+    thumb.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const open = chapterOf(editor.doc.pages, editor.pageIndex);
+    const tab = open && strip.querySelector(`[data-chapter="${open.start}"]`);
+    if (!tab) return;
+    const [s, t, b] = [strip, tab, thumb].map((e) => e.getBoundingClientRect());
+    if (t.left < s.left && b.right - t.left + 12 <= s.width) strip.scrollLeft -= s.left - t.left + 6;
   });
 
   /** La molette fait défiler la bande des miniatures de gauche à droite ; Ctrl+molette reste le zoom. */
@@ -229,13 +231,11 @@
     {#each editor.doc.pages as p, i (p.id)}
       {@const c = spanAt.get(i)}
       {#if c}
-        {@const folded = isFolded(c)}
-        <div class="tab" class:folded class:drop-before={drag?.slot === i} style:--chapter={c.color}>
-          <button class="fold" title={folded ? fr.chapterUnfold(c.title) : fr.chapterFold(c.title)} aria-label={folded ? fr.chapterUnfold(c.title) : fr.chapterFold(c.title)} aria-expanded={!folded} onclick={() => toggleFold(c)}>
-            <Icon name={folded ? "chevronRight" : "chevronLeft"} size={12} />{#if folded}<span>{fr.chapterPages(c.end - c.start)}</span>{/if}
-          </button>
-          <button class="go" title={fr.chapterTab(c.title, c.end - c.start)} onclick={() => goToChapter(c.start)}>{c.title}</button>
-        </div>
+        {@const open = isOpen(c)}
+        <button class="tab" data-chapter={i} class:open class:drop-before={drag?.slot === i} style:--chapter={c.color} title={fr.chapterTab(c.title, c.end - c.start)} aria-expanded={open} onclick={() => goToChapter(c.start)}>
+          <span class="name">{c.title}</span>
+          <span class="count"><Icon name={open ? "chevronDown" : "chevronRight"} size={12} />{fr.chapterPages(c.end - c.start)}</span>
+        </button>
       {/if}
       {#if !hidden[i]}
       {@const own = chapterOf(editor.doc.pages, i)}
@@ -354,26 +354,29 @@
   .thumb.in-chapter {
     box-shadow: inset 0 -3px 0 var(--chapter);
   }
-  /* L'onglet d'un chapitre, devant sa première page : son nom, et de quoi replier ses pages. */
+  /* L'onglet d'un chapitre, devant sa première page : son nom et son nombre de pages ; un clic y mène. Replié, il
+   *  est plus pâle. */
   .tab {
     position: relative;
     flex: none;
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
+    gap: 2px;
     width: 76px;
+    padding: 3px 4px;
+    border: none;
     border-left: 4px solid var(--chapter);
     border-radius: 4px;
-    background: color-mix(in srgb, var(--chapter) 16%, var(--panel));
-    user-select: none;
-  }
-  .tab button {
-    border: none;
-    background: transparent;
-    padding: 2px 4px;
+    background: color-mix(in srgb, var(--chapter) 10%, var(--panel));
     text-align: left;
     color: var(--text);
+    user-select: none;
   }
-  .tab .go {
+  .tab.open {
+    background: color-mix(in srgb, var(--chapter) 22%, var(--panel));
+  }
+  .tab .name {
     font-size: 11px;
     font-weight: 600;
     line-height: 1.2;
@@ -384,10 +387,7 @@
     -webkit-box-orient: vertical;
     overflow-wrap: anywhere;
   }
-  /* Toute la ligne du haut de l'onglet replie ou déplie : une cible facile à toucher. */
-  .tab .fold {
-    width: 100%;
-    min-height: 20px;
+  .tab .count {
     display: flex;
     align-items: center;
     gap: 2px;

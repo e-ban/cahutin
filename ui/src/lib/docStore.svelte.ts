@@ -87,6 +87,8 @@ class Editor {
   showPhototheque = $state(false);
   /** Vue « Toutes les pages » : la grille du carnet, rangée par chapitre. */
   showAllPages = $state(false);
+  /** Réglages doit mettre le curseur dans le nom du chapitre de la page affichée (chapitre créé du clic droit). */
+  focusChapterName = $state(false);
   /** Page de la collection (thèmes, noms, images retirées), par-dessus tout. */
   showCollection = $state(false);
   /** Fenêtre des nouveautés de la version. */

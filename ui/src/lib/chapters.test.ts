@@ -73,3 +73,16 @@ test("dans la bande, seul le chapitre de la page affichée montre ses pages ; ce
   expect(hiddenPages(doc.pages, 2)).toEqual([false, false, false, true, true, true]);
   expect(hiddenPages(doc.pages, 4)).toEqual([false, true, true, false, false, false]);
 });
+
+test("un nouveau chapitre ne prend pas la couleur d'un chapitre voisin", () => {
+  const doc = year();
+  const [sept, oct] = [doc.pages[1].chapter!.color, doc.pages[3].chapter!.color];
+  const between = startChapter(doc, 2, "Entre les deux").pages[2].chapter!.color;
+  expect([sept, oct]).not.toContain(between);
+  // Sept chapitres et plus : les couleurs reviennent, jamais côte à côte.
+  let many = newDocument();
+  for (let k = 0; k < 9; k++) many.pages.push(newPage());
+  for (let k = 0; k < 9; k++) many = startChapter(many, k, `C${k}`);
+  const colors = chapterSpans(many.pages).map((c) => c.color);
+  colors.slice(1).forEach((c, k) => expect(c).not.toBe(colors[k]));
+});

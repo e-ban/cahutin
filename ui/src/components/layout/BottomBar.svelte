@@ -1,11 +1,11 @@
 <script lang="ts">
   import PageView from "../PageView.svelte";
+  import PageMenu from "./PageMenu.svelte";
   import Icon from "../Icon.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { nextZoom } from "../../lib/units";
   import { newPage } from "../../lib/factory";
-    import { fitZoom, formatOf, type Format } from "../../lib/pageFormat";
-  import { rotatePage, setPageFormat } from "../../lib/pageActions";
+    import { fitZoom } from "../../lib/pageFormat";
   import { deletePage } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
   import { settings } from "../../lib/settings.svelte";
@@ -30,6 +30,13 @@
   const spanAt = $derived(new Map(spans.map((c) => [c.start, c])));
   const hidden = $derived(hiddenPages(editor.doc.pages, editor.pageIndex));
   const isOpen = (c: ChapterSpan) => c.start <= editor.pageIndex && editor.pageIndex < c.end;
+
+  /** Clic droit sur une miniature ou un onglet : le menu de cette page. */
+  let menu = $state<{ index: number; x: number; y: number } | null>(null);
+  function openMenu(ev: MouseEvent, index: number) {
+    ev.preventDefault();
+    menu = { index, x: ev.clientX, y: ev.clientY };
+  }
 
   /** Va à la première page d'un chapitre, qui se déplie. */
   function goToChapter(start: number) {
@@ -211,12 +218,11 @@
     editor.selection = [];
   }
 
-  const landscape = $derived(editor.page.size.width_mm > editor.page.size.height_mm);
-  const formats: Format[] = ["A5", "A4", "A3"];
-
 </script>
 
 <svelte:window onpointermove={moved} onpointerup={released} onpointercancel={() => press && stop()} onkeydowncapture={escape} onblur={() => press && stop()} />
+
+{#if menu}<PageMenu index={menu.index} x={menu.x} y={menu.y} onclose={() => (menu = null)} />{/if}
 
 <footer class="pagebar">
   {#if count > 1}
@@ -233,7 +239,7 @@
       {@const c = spanAt.get(i)}
       {#if c}
         {@const open = isOpen(c)}
-        <button class="tab" data-chapter={i} class:open class:drop-before={drag?.slot === i} style:--chapter={c.color} title={fr.chapterTab(c.title, c.end - c.start)} aria-expanded={open} onclick={() => goToChapter(c.start)}>
+        <button class="tab" data-chapter={i} class:open class:drop-before={drag?.slot === i} style:--chapter={c.color} title={fr.chapterTab(c.title, c.end - c.start)} aria-expanded={open} onclick={() => goToChapter(c.start)} oncontextmenu={(e) => openMenu(e, c.start)}>
           <span class="name">{c.title}</span>
           <span class="count"><Icon name={open ? "chevronDown" : "chevronRight"} size={12} />{fr.chapterPages(c.end - c.start)}</span>
         </button>
@@ -254,6 +260,7 @@
         aria-current={i === editor.pageIndex ? "page" : undefined}
         onpointerdown={(e) => thumbDown(e, i)}
         onclick={() => open(i)}
+        oncontextmenu={(e) => openMenu(e, i)}
       >
         <PageView page={p} doc={editor.doc} zoom={fitZoom(p.size, MINI, 297, 297)} />
         <span class="num" aria-hidden="true">{i + 1}</span>
@@ -261,7 +268,8 @@
       {/if}
     {/each}
   </div>
-  <!-- Toutes les commandes de la page restent visibles : deux groupes, ajouter et retirer, puis son allure. -->
+  <!-- Ajouter, retirer, déplacer : les gestes sur les pages. L'allure de la page (format, orientation, fond,
+       vis-à-vis) est dans Réglages : la bande des pages garde la place pour montrer les chapitres. -->
   <button class="add" onclick={() => insert(newPage())} title={fr.addPage}><Icon name="add" /> {fr.addPage}</button>
   <button class="ghost" onclick={duplicate}><Icon name="duplicate" /> {fr.duplicatePage}</button>
   <button class="ghost" title={fr.deletePage} disabled={count === 1} onclick={() => deletePage(editor.pageIndex)}><Icon name="trash" /> {fr.delete}</button>
@@ -269,15 +277,7 @@
     <button class="ghost" title={fr.movePageBefore} aria-label={fr.movePageBefore} disabled={editor.pageIndex === 0} onclick={() => editor.movePage(editor.pageIndex, editor.pageIndex - 1)}><Icon name="arrowLeft" /></button>
     <button class="ghost" title={fr.movePageAfter} aria-label={fr.movePageAfter} disabled={editor.pageIndex >= count - 1} onclick={() => editor.movePage(editor.pageIndex, editor.pageIndex + 1)}><Icon name="arrowRight" /></button>
   </span>
-  <span class="sep"></span>
-  <button class="ghost" class:on={editor.showBackground} aria-pressed={editor.showBackground} onclick={() => (editor.showBackground = !editor.showBackground)}><Icon name="background" /> {fr.backgroundButton}</button>
-  <select class="format" title={fr.pageFormat} aria-label={fr.pageFormat} value={formatOf(editor.page.size) ?? ""} onchange={(e) => setPageFormat(e.currentTarget.value as Format)}>
-    {#if !formatOf(editor.page.size)}<option value="">{fr.pageFormatOther}</option>{/if}
-    {#each formats as f (f)}<option value={f}>{f}</option>{/each}
-  </select>
-  <button class="ghost" onclick={rotatePage}><Icon name={landscape ? "portrait" : "landscape"} /> {landscape ? fr.portrait : fr.landscape}</button>
-  <button class="ghost" class:on={editor.spread} aria-pressed={editor.spread} title={fr.spreadHint} onclick={() => (editor.spread = !editor.spread)}><Icon name="spread" /> {fr.spread}</button>
-  {#if settings.cvdPreview}<button class="ghost" class:on={editor.cvdView} aria-pressed={editor.cvdView} title={fr.cvdViewHint} onclick={() => (editor.cvdView = !editor.cvdView)}><Icon name="cvd" /> {fr.cvdView}</button>{/if}
+  {#if settings.cvdPreview}<span class="sep"></span><button class="ghost" class:on={editor.cvdView} aria-pressed={editor.cvdView} title={fr.cvdViewHint} onclick={() => (editor.cvdView = !editor.cvdView)}><Icon name="cvd" /> {fr.cvdView}</button>{/if}
   <span class="spacer"></span>
   <div class="zoom" aria-label={fr.zoom}>
     <button class="ghost" title={fr.zoomOut} aria-label={fr.zoomOut} onclick={() => (editor.zoom = nextZoom(editor.effectiveZoom, -1))}><Icon name="zoomOut" /></button>
@@ -301,7 +301,6 @@
     display: flex;
     gap: 8px;
     overflow-x: auto;
-    max-width: 50vw;
     min-width: 150px;
     flex: 0 1 auto;
     /* De quoi montrer le trait de dépôt avant la première miniature et après la dernière. */
@@ -324,8 +323,7 @@
     text-align: center;
   }
   /* Les boutons gardent leur libellé sur une ligne ; la bande des miniatures cède la place. */
-  .pagebar > button,
-  .pagebar > select {
+  .pagebar > button {
     white-space: nowrap;
     flex-shrink: 0;
   }

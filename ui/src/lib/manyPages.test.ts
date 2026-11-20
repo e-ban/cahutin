@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { newDocument, newPage } from "./factory";
 import { startChapter } from "./chapters";
-import { deletePages, duplicatePages, followPage, keepsPages, movePagesTo } from "./manyPages";
+import { deletePages, duplicatePages, followPage, keepsPages, movePagesTo, newChapterWith } from "./manyPages";
 import type { Document } from "./types";
 
 /** Six pages : la première sans chapitre, « Septembre » sur 1 et 2, « Octobre » sur 3 à 5. */
@@ -70,4 +70,18 @@ test("la page affichée est suivie ; supprimée, c'est la suivante qui reste qui
   const fewer = deletePages(doc, [p[2].id, p[3].id]);
   expect(fewer.pages[followPage(p, fewer.pages, 2)].id).toBe(p[4].id);
   expect(followPage(p, deletePages(doc, [p[5].id]).pages, 5)).toBe(4);
+});
+
+test("un nouveau chapitre avec les pages choisies se place après le chapitre de la première, sans en couper un", () => {
+  const doc = year();
+  const p = doc.pages;
+  const made = newChapterWith(doc, [p[4].id, p[2].id], "Sortie");
+  // La page 2 était dans Septembre : « Sortie » vient juste après lui, avant Octobre, qui garde ses pages 3 et 5.
+  expect(made.start).toBe(2);
+  expect(made.doc.pages.map((x) => x.id)).toEqual([p[0].id, p[1].id, p[2].id, p[4].id, p[3].id, p[5].id]);
+  expect(titles(made.doc)).toEqual(["", "Septembre", "Sortie", "", "Octobre", ""]);
+  // Avant le premier chapitre : le nouveau chapitre se met au début des chapitres.
+  const first = newChapterWith(doc, [p[0].id], "Couverture");
+  expect(first.start).toBe(0);
+  expect(titles(first.doc)).toEqual(["Couverture", "Septembre", "", "Octobre", "", ""]);
 });

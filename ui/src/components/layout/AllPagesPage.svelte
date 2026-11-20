@@ -1,14 +1,16 @@
 <script lang="ts">
   // Vue « Toutes les pages » : le carnet en grande grille, rangé par chapitre. On choisit des pages d'un clic (comme
   // dans « Ma collection »), puis on les range dans un chapitre, on les duplique ou on les supprime, en un seul pas
-  // d'annulation. « Ouvrir » (ou un double-clic) mène à la page.
+  // d'annulation. Les pages choisies peuvent aussi former un nouveau chapitre, et le titre d'un chapitre se renomme sur
+  // place. « Ouvrir » (ou un double-clic) mène à la page.
+  import { tick } from "svelte";
   import PageView from "../PageView.svelte";
   import Icon from "../Icon.svelte";
   import { ask } from "../../lib/ask";
-  import { chapterSpans } from "../../lib/chapters";
+  import { chapterSpans, updateChapter } from "../../lib/chapters";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
-  import { deletePages, duplicatePages, followPage, keepsPages, movePagesTo } from "../../lib/manyPages";
+  import { deletePages, duplicatePages, followPage, keepsPages, movePagesTo, newChapterWith } from "../../lib/manyPages";
   import { fitZoom } from "../../lib/pageFormat";
   import type { Document } from "../../lib/types";
 
@@ -83,6 +85,26 @@
     if (apply(deletePages(editor.doc, selected))) selected = [];
   }
 
+  /** Les pages choisies forment un nouveau chapitre ; son titre attend le nom qu'on lui donne. */
+  async function newChapter() {
+    const made = newChapterWith(editor.doc, selected, fr.chapterDefault(spans.length + 1));
+    if (!apply(made.doc)) return;
+    selected = [];
+    await tick();
+    const input = document.getElementById(`chapter-title-${made.doc.pages[made.start].id}`) as HTMLInputElement | null;
+    input?.scrollIntoView({ block: "center", behavior: "smooth" });
+    input?.focus();
+    input?.select();
+  }
+
+  function rename(start: number, input: HTMLInputElement) {
+    const title = input.value.trim();
+    const chapter = pages[start]?.chapter;
+    if (!chapter) return;
+    if (title && title !== chapter.title) editor.commit(updateChapter(editor.doc, start, { title }));
+    else input.value = chapter.title;
+  }
+
   function scrollTo(start: number) {
     document.getElementById(`all-pages-${start}`)?.scrollIntoView({ block: "start", behavior: "smooth" });
   }
@@ -95,7 +117,6 @@
     <button class="back" onclick={close}><Icon name="back" /> {fr.classPageBack}</button>
     <h1><Icon name="grid" size={24} /> {fr.allPages} <span class="n">{fr.allPagesCount(pages.length)}</span></h1>
   </div>
-  <p class="intro">{fr.allPagesIntro}</p>
   <div class="layout">
     {#if spans.length}
       <aside class="chapters" aria-label={fr.chapter}>
@@ -118,6 +139,7 @@
             </label>
             <button class="primary" disabled={target === ""} onclick={move}>{fr.allPagesMove}</button>
           {/if}
+          <button onclick={newChapter}><Icon name="add" /> {fr.allPagesNewChapter}</button>
           <button onclick={() => apply(duplicatePages(editor.doc, selected))}><Icon name="duplicate" /> {fr.duplicatePage}</button>
           <button onclick={remove}><Icon name="trash" /> {fr.delete}</button>
           <button class="plain" onclick={() => (selected = [])}>{fr.collectionUnselect}</button>
@@ -129,10 +151,15 @@
       {#each sections as c (c.start)}
         <div class="section" id={`all-pages-${c.start}`} style:--chapter={c.color || "var(--line)"}>
           {#if c.title}
+            {@const chapter = pages[c.start].chapter}
             <h2>
-              <span class="title">{c.title}</span>
+              {#if chapter}
+                <input class="title" id={`chapter-title-${pages[c.start].id}`} value={chapter.title} aria-label={fr.chapterName} title={fr.allPagesRenameHint} onchange={(e) => rename(c.start, e.currentTarget)} onkeydown={(e) => e.key === "Enter" && e.currentTarget.blur()} />
+              {:else}
+                <span class="title">{c.title}</span>
+              {/if}
               <span class="n">{fr.allPagesCount(c.end - c.start)}</span>
-              <button class="plain" onclick={() => chooseSection(c.start, c.end)}>{fr.allPagesChooseChapter}</button>
+              <button class="plain" onclick={() => chooseSection(c.start, c.end)}>{chapter ? fr.allPagesChooseChapter : fr.allPagesChooseThese}</button>
             </h2>
           {/if}
           <div class="grid">
@@ -140,12 +167,12 @@
               {@const i = c.start + k}
               {@const chosen = selected.includes(p.id)}
               <div class="card" class:chosen class:current={i === editor.pageIndex}>
-                <button class="pic" aria-pressed={chosen} aria-label={fr.pageN(i + 1)} title={fr.allPagesChooseHint} onclick={() => toggle(p.id)} ondblclick={() => openPage(i)}>
+                <button class="pic" aria-pressed={chosen} aria-label={fr.pageN(i + 1)} title={fr.allPagesPicHint} onclick={() => toggle(p.id)} ondblclick={() => openPage(i)}>
                   <PageView page={p} doc={editor.doc} zoom={fitZoom(p.size, ZOOM, 250, 297)} />
                   {#if chosen}<span class="tick" aria-hidden="true"><Icon name="check" size={14} /></span>{/if}
                 </button>
                 <div class="foot">
-                  <span>{fr.pageN(i + 1)}</span>
+                  <span>{fr.pageN(i + 1)}{#if i === editor.pageIndex}<b class="shown">{` · ${fr.allPagesShown}`}</b>{/if}</span>
                   <button onclick={() => openPage(i)}>{fr.allPagesOpen}</button>
                 </div>
               </div>
@@ -170,6 +197,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    margin-bottom: 14px;
   }
   h1 {
     font: 600 24px var(--ui-font);
@@ -177,10 +205,6 @@
     display: flex;
     align-items: center;
     gap: 8px;
-  }
-  .intro {
-    margin: 6px 0 14px;
-    color: var(--muted);
   }
   .back {
     border-color: transparent;
@@ -269,6 +293,26 @@
   h2 .plain {
     font: 14px var(--ui-font);
     padding: 2px 6px;
+  }
+  /* Le titre d'un chapitre se renomme sur place : un champ qui a l'air d'un titre, cadré au survol. */
+  h2 input.title {
+    font: inherit;
+    padding: 0 4px;
+    margin-left: -4px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    width: auto;
+    field-sizing: content;
+    min-width: 4em;
+  }
+  h2 input.title:hover,
+  h2 input.title:focus {
+    border-color: var(--line);
+    background: var(--surface);
+  }
+  .shown {
+    color: var(--accent);
   }
   .grid {
     display: grid;

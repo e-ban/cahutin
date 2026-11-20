@@ -3,6 +3,9 @@
 
 ## Non publié
 
+- Bande des pages plus large : le format, l'orientation, le fond et le vis-à-vis de la page sont dans Réglages (sans rien de sélectionné), et plus en bas de l'écran. La bande montre ainsi plus de pages et les onglets des chapitres.
+- Clic droit sur une miniature de la bande : commencer un chapitre à cette page (le curseur attend son nom dans Réglages), renommer le chapitre, dupliquer ou supprimer la page.
+- Toutes les pages : « Nouveau chapitre » avec les pages choisies, titre d'un chapitre renommé sur place, la page affichée signalée.
 - Molette : dans la vue de la page, elle tourne les pages. Une page zoomée défile d'abord ; arrivé en bas, un nouveau coup de molette passe à la page suivante (en haut, à la précédente). Une page A3 n'agrandit plus la bande des pages.
 - Toutes les pages : en bas de la colonne de gauche, le carnet en grande grille, rangé par chapitre, avec la liste des chapitres pour s'y rendre. On choisit des pages d'un clic, puis on les met dans un chapitre, on les duplique ou on les supprime d'un coup (Ctrl+Z annule) ; « Ouvrir » mène à la page.
 - Chapitres : un autre carnet importé avec ses chapitres arrive à la fin du chapitre en cours, sans le couper en deux.

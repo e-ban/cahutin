@@ -1,5 +1,6 @@
 // Actions sur plusieurs pages choisies dans la vue « Toutes les pages » : chacune rend le document d'un coup, pour un
 // seul pas d'annulation. Les chapitres des autres pages restent à leur place.
+import { chapterEnd, nextChapterColor } from "./chapters";
 import { duplicatePage } from "./pageOrder";
 import type { Document, Page } from "./types";
 
@@ -65,4 +66,19 @@ export function followPage(before: Page[], after: Page[], index: number): number
   // La page a disparu : la première page restante après elle, sinon la dernière.
   const later = before.slice(index + 1).map((p) => after.findIndex((q) => q.id === p.id)).find((i) => i >= 0);
   return later ?? Math.max(0, after.length - 1);
+}
+
+/** Les pages `ids` forment un nouveau chapitre nommé `title`, juste après le chapitre où était la première d'entre
+ *  elles (avant le premier chapitre : au début des chapitres) ; aucun chapitre n'est coupé en deux. `start` : sa
+ *  première page. */
+export function newChapterWith(doc: Document, ids: string[], title: string): { doc: Document; start: number } {
+  const first = doc.pages.findIndex((p) => ids.includes(p.id));
+  if (first < 0) return { doc, start: -1 };
+  const end = chapterEnd(doc.pages, first);
+  const { rest, taken } = takeOut(doc.pages, ids);
+  if (!taken.length) return { doc, start: -1 };
+  const at = doc.pages.slice(0, end).filter((p) => !ids.includes(p.id)).length;
+  const pages = [...rest.slice(0, at), ...taken, ...rest.slice(at)];
+  pages[at] = { ...pages[at], chapter: { title, color: nextChapterColor(pages, at) } };
+  return { doc: { ...doc, pages }, start: at };
 }

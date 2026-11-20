@@ -14,6 +14,14 @@
   const k = $derived(spans.findIndex((c) => c.start === i));
   let name = $state<HTMLInputElement>();
 
+  // Chapitre créé ou à renommer depuis la bande des pages : le curseur attend dans son nom.
+  $effect(() => {
+    if (!editor.focusChapterName || !name) return;
+    editor.focusChapterName = false;
+    name.focus();
+    name.select();
+  });
+
   async function start() {
     editor.commit(startChapter(editor.doc, i, fr.chapterDefault(spans.length + 1)));
     await tick();

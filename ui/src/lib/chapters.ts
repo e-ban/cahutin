@@ -28,10 +28,20 @@ function withChapter(doc: Document, i: number, chapter: Chapter | null): Documen
   return { ...doc, pages: doc.pages.map((p, k) => (k === i ? { ...p, chapter } : p)) };
 }
 
-/** La page `i` ouvre un chapitre nommé `title`, de la couleur suivante. */
+/** La couleur d'un nouveau chapitre ouvert à la page `i` : la moins employée des couleurs proposées, hors celles des
+ *  chapitres juste avant et juste après, pour que deux onglets voisins ne se confondent pas. */
+export function nextChapterColor(pages: Page[], i: number): string {
+  const spans = chapterSpans(pages).filter((c) => c.start !== i);
+  const before = [...spans].reverse().find((c) => c.start < i);
+  const after = spans.find((c) => c.start > i);
+  const uses = (color: string) => spans.filter((c) => c.color === color).length;
+  const free = CHAPTER_COLORS.filter((c) => c !== before?.color && c !== after?.color);
+  return [...free].sort((a, b) => uses(a) - uses(b))[0] ?? CHAPTER_COLORS[0];
+}
+
+/** La page `i` ouvre un chapitre nommé `title`, d'une couleur qui le distingue de ses voisins. */
 export function startChapter(doc: Document, i: number, title: string): Document {
-  const color = CHAPTER_COLORS[chapterSpans(doc.pages).length % CHAPTER_COLORS.length];
-  return withChapter(doc, i, { title, color });
+  return withChapter(doc, i, { title, color: nextChapterColor(doc.pages, i) });
 }
 
 export function updateChapter(doc: Document, i: number, patch: Partial<Chapter>): Document {

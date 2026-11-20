@@ -101,3 +101,17 @@ test("a drawing taken through its PDF says it is shown as it looks", () => {
     "fiche.odg : 2 pages importées (3 textes). Les pages ont été reprises telles qu'elles se voient : leurs images sont en morceaux. 12 tracés repris en image fixe, au fond de la page.",
   );
 });
+
+test("un carnet importé avec ses chapitres arrive à la fin du chapitre en cours, sans le couper", () => {
+  const doc = newDocument();
+  doc.pages.push(newPage(), newPage(), newPage());
+  doc.pages[1] = { ...doc.pages[1], chapter: { title: "Septembre", color: "#2e86de" } };
+  doc.pages[3] = { ...doc.pages[3], chapter: { title: "Octobre", color: "#e67e22" } };
+  const withChapter = part(2);
+  withChapter.pages[0] = { ...withChapter.pages[0], chapter: { title: "Ferme", color: "#27ae60" } };
+  const placed = insertImported(doc, 1, [withChapter]);
+  expect(placed.pageIndex).toBe(3);
+  expect(placed.doc.pages.map((p) => p.chapter?.title ?? "")).toEqual(["", "Septembre", "", "Ferme", "", "Octobre"]);
+  // Sans chapitre, les pages vont juste après la page affichée, dans son chapitre.
+  expect(insertImported(doc, 1, [part(1)]).pageIndex).toBe(2);
+});

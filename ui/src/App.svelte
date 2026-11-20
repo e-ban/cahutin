@@ -57,6 +57,7 @@
   import FontsDrawer from "./components/drawers/FontsDrawer.svelte";
   import ImagesDrawer from "./components/drawers/ImagesDrawer.svelte";
   import CollectionPage from "./components/layout/CollectionPage.svelte";
+  import AllPagesPage from "./components/layout/AllPagesPage.svelte";
   import ShapesDrawer from "./components/drawers/ShapesDrawer.svelte";
   import TemplatesDrawer from "./components/drawers/TemplatesDrawer.svelte";
   import TextDrawer from "./components/drawers/TextDrawer.svelte";
@@ -447,6 +448,7 @@
   {#if editor.showClassPage}<ClassPage />{/if}
   {#if editor.showPhototheque}<PhotothequePage />{/if}
   {#if editor.showCollection}<CollectionPage />{/if}
+{#if editor.showAllPages}<AllPagesPage />{/if}
   {#if editor.showAbout}<About />{/if}
 {#if editor.showPreferences}<Preferences />{/if}
   <UpdateBanner />

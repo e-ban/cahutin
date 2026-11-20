@@ -88,6 +88,8 @@ class Editor {
   showClassPage = $state(false);
   /** Photothèque de la classe (page entière). */
   showPhototheque = $state(false);
+  /** Vue « Toutes les pages » : la grille du carnet, rangée par chapitre. */
+  showAllPages = $state(false);
   /** Page de la collection (thèmes, noms, images retirées), par-dessus tout. */
   showCollection = $state(false);
   /** Fenêtre des nouveautés de la version. */

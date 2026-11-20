@@ -1,17 +1,20 @@
 // Pages importées (autre document Carnet, ou fichier converti par LibreOffice) ajoutées au document.
 import { newDocument } from "./factory";
-import { carryChapter } from "./chapters";
+import { carryChapter, chapterEnd } from "./chapters";
 import type { AssetMeta, Document, ImportedPages, ImportReport } from "./types";
 
 function mergedAssets(base: Record<string, AssetMeta | undefined>, parts: ImportedPages[]) {
   return { ...base, ...Object.fromEntries(parts.flatMap((p) => p.assets.map((a) => [a.id, a]))) };
 }
 
-/** Pages ajoutées après la page `pageIndex` ; `pageIndex` du résultat : la première page importée. */
+/** Pages ajoutées après la page `pageIndex` ; `pageIndex` du résultat : la première page importée. Des pages qui ouvrent
+ *  leurs propres chapitres (un autre carnet) vont à la fin du chapitre en cours, pour ne pas le couper en deux. */
 export function insertImported(doc: Document, pageIndex: number, parts: ImportedPages[]): { doc: Document; pageIndex: number } {
+  const added = parts.flatMap((p) => p.pages);
+  const at = added.some((p) => p.chapter) ? chapterEnd(doc.pages, pageIndex) : pageIndex + 1;
   const pages = [...doc.pages];
-  pages.splice(pageIndex + 1, 0, ...parts.flatMap((p) => p.pages));
-  return { doc: { ...doc, pages, assets: mergedAssets(doc.assets, parts) }, pageIndex: pageIndex + 1 };
+  pages.splice(at, 0, ...added);
+  return { doc: { ...doc, pages, assets: mergedAssets(doc.assets, parts) }, pageIndex: at };
 }
 
 /** Les pages remplies pour la classe prennent la place de la page modèle `pageIndex` (la première, son chapitre). */

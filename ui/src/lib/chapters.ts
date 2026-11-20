@@ -14,6 +14,11 @@ export function chapterSpans(pages: Page[]): ChapterSpan[] {
   return starts.map((start, k) => ({ ...pages[start].chapter!, start, end: starts[k + 1] ?? pages.length }));
 }
 
+/** La place juste après le chapitre de la page `i` (avant le premier chapitre : le début de celui-ci). */
+export function chapterEnd(pages: Page[], i: number): number {
+  return chapterOf(pages, i)?.end ?? chapterSpans(pages)[0]?.start ?? pages.length;
+}
+
 /** Le chapitre de la page `i`, ou `null` avant le premier chapitre. */
 export function chapterOf(pages: Page[], i: number): ChapterSpan | null {
   return chapterSpans(pages).find((c) => c.start <= i && i < c.end) ?? null;

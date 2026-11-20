@@ -31,6 +31,12 @@
       <span class="pill"><Icon name={item.icon} size={20} /></span>{item.label}
     </button>
   {/each}
+  {#if !editor.templateMode}
+    <!-- En bas, près de la bande des pages : le carnet entier, rangé par chapitre. -->
+    <button class="item all" data-tour="all-pages" class:on={editor.showAllPages} aria-pressed={editor.showAllPages} onclick={() => (editor.showAllPages = true)}>
+      <span class="pill"><Icon name="grid" size={20} /></span>{fr.allPages}
+    </button>
+  {/if}
 </nav>
 
 <style>
@@ -57,6 +63,9 @@
     font-size: 11px;
     color: var(--muted);
     text-align: center;
+  }
+  .item.all {
+    margin-top: auto;
   }
   .pill {
     display: flex;

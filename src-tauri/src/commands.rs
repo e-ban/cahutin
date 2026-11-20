@@ -1124,7 +1124,7 @@ mod tests {
     fn import_log_never_names_the_file() {
         let report = carnet_core::import::ImportReport { pages: 2, texts: 14, images: 1, shapes: 6, skipped: 3, ready_made: 2, drawn: 31, shrunk: 2, fallback: true };
         assert_eq!(import_log_line("docx", Ok(&report), 1234), "import_file kind=docx pages=2 texts=14 images=1 shapes=6 skipped=3 ready_made=2 drawn=31 shrunk=2 fallback=true ms=1234");
-        assert_eq!(import_log_line("pdf", Err(carnet_core::import::ImportError::Timeout), 120000), "import_file_failed kind=pdf error=Timeout ms=120000");
+        assert_eq!(import_log_line("pdf", Err(carnet_core::import::ImportError::Cancelled), 120000), "import_file_failed kind=pdf error=Cancelled ms=120000");
     }
 
     #[test]

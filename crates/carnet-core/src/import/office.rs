@@ -1,5 +1,6 @@
 //! Conversion par LibreOffice installé sur le poste : le fichier devient un PDF, puis l'import PDF de
-//! LibreOffice Draw en fait un ODG, lu par `read_odg`. Profil à part, sans interface, délai limite.
+//! LibreOffice Draw en fait un ODG, lu par `read_odg`. Profil à part, sans interface. Pas de délai limite : un gros
+//! fichier peut prendre plusieurs minutes, l'enseignant arrête la conversion par « Annuler ».
 
 use super::carnet::read_carnet;
 use super::odg::{from_cahutin, read_drawing, read_odg};
@@ -8,15 +9,12 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 #[cfg(windows)]
 pub const SOFFICE_EXE: &str = "soffice.exe";
 #[cfg(not(windows))]
 pub const SOFFICE_EXE: &str = "soffice";
-
-/// Délai limite de chaque fichier.
-pub const TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Formats confiés à LibreOffice.
 const OFFICE_EXTENSIONS: [&str; 6] = ["docx", "doc", "odt", "odg", "pdf", "pub"];
@@ -135,7 +133,7 @@ pub fn outside_appimage(vars: impl Iterator<Item = (OsString, OsString)>, appdir
     .collect()
 }
 
-fn run(soffice: &Path, args: Vec<OsString>, deadline: Instant, cancel: &AtomicBool) -> Result<(), ImportError> {
+fn run(soffice: &Path, args: Vec<OsString>, cancel: &AtomicBool) -> Result<(), ImportError> {
     let mut cmd = Command::new(soffice);
     cmd.args(args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     for (k, v) in outside_appimage(std::env::vars_os(), std::env::var_os("APPDIR").as_ref()) {
@@ -156,10 +154,6 @@ fn run(soffice: &Path, args: Vec<OsString>, deadline: Instant, cancel: &AtomicBo
         if cancel.load(Ordering::SeqCst) {
             kill_tree(&mut child);
             return Err(ImportError::Cancelled);
-        }
-        if Instant::now() >= deadline {
-            kill_tree(&mut child);
-            return Err(ImportError::Timeout);
         }
         match child.try_wait() {
             Ok(Some(_)) => return Ok(()),
@@ -191,8 +185,7 @@ fn write_offline_profile(profile_dir: &Path) -> Result<(), ImportError> {
 }
 
 /// Copie de l'entrée sous un nom neutre, PDF si besoin, puis ODG par l'import PDF de Draw.
-pub fn convert_to_odg(soffice: &Path, input: &Path, work: &Path, timeout: Duration, cancel: &AtomicBool) -> Result<PathBuf, ImportError> {
-    let deadline = Instant::now() + timeout;
+pub fn convert_to_odg(soffice: &Path, input: &Path, work: &Path, cancel: &AtomicBool) -> Result<PathBuf, ImportError> {
     let ext = extension(input);
     let source = work.join(format!("source.{ext}"));
     std::fs::copy(input, &source).map_err(|_| ImportError::Conversion)?;
@@ -201,7 +194,7 @@ pub fn convert_to_odg(soffice: &Path, input: &Path, work: &Path, timeout: Durati
     let pdf = if ext == "pdf" {
         source
     } else {
-        run(soffice, soffice_args(&profile, Step::ToPdf, &source, work), deadline, cancel)?;
+        run(soffice, soffice_args(&profile, Step::ToPdf, &source, work), cancel)?;
         let pdf = work.join("source.pdf");
         if !pdf.is_file() {
             return Err(ImportError::Conversion);
@@ -209,7 +202,7 @@ pub fn convert_to_odg(soffice: &Path, input: &Path, work: &Path, timeout: Durati
         pdf
     };
     let outdir = work.join("odg");
-    run(soffice, soffice_args(&profile, Step::PdfToOdg, &pdf, &outdir), deadline, cancel)?;
+    run(soffice, soffice_args(&profile, Step::PdfToOdg, &pdf, &outdir), cancel)?;
     let odg = outdir.join("source.odg");
     if odg.is_file() { Ok(odg) } else { Err(ImportError::Conversion) }
 }
@@ -262,7 +255,7 @@ pub fn import_file(path: &Path, soffice: Option<&Path>, known_fonts: &[String], 
     }
     let soffice = soffice.ok_or(ImportError::NoLibreOffice)?;
     let work = WorkDir::new()?;
-    let odg = convert_to_odg(soffice, path, &work.0, TIMEOUT, cancel)?;
+    let odg = convert_to_odg(soffice, path, &work.0, cancel)?;
     let file = std::fs::File::open(odg).map_err(|_| ImportError::Unreadable)?;
     let mut imported = read_odg(file, known_fonts)?;
     imported.report.fallback = ext == "odg";
@@ -449,20 +442,6 @@ mod tests {
             drop(WorkDir(work.clone()));
         });
         assert!(!work.exists());
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn timeout_kills_the_conversion() {
-        let dir = tempfile::tempdir().unwrap();
-        let soffice = fake_soffice(dir.path(), &dir.path().join("args.txt"), "exec sleep 30");
-        let input = dir.path().join("fiche.pdf");
-        std::fs::write(&input, b"%PDF-1.4").unwrap();
-        let work = tempfile::tempdir().unwrap();
-        let start = Instant::now();
-        let err = convert_to_odg(&soffice, &input, work.path(), Duration::from_millis(300), &AtomicBool::new(false)).err().unwrap();
-        assert_eq!(err, ImportError::Timeout);
-        assert!(start.elapsed() < Duration::from_secs(2));
     }
 
     /// Fiche de Cahutin (2 textes, 2 pictogrammes) où l'on a ajouté dans LibreOffice 26.8 des formes toutes faites

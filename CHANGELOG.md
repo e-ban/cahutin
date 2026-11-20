@@ -1,6 +1,10 @@
 # Journal des versions
 
 
+## Non publié
+
+- Import de fichiers : un gros fichier (Word, PDF, Publisher) n'est plus arrêté au bout de 2 minutes ; la conversion va jusqu'au bout, et « Annuler » l'arrête quand on veut.
+
 ## 0.19.0
 
 - Premier lancement : la visite guidée ne s'impose plus à la fermeture de l'accueil. Des bulles d'aide viennent au bon moment : à la première sélection (la barre et Réglages), au premier tiroir ouvert (cliquer pour ajouter), et pour dire où retrouver la visite (menu Aide). La question « Être prévenu quand une nouvelle version sort ? » attend le lancement suivant.

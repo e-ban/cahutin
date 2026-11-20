@@ -2,6 +2,7 @@
 export type { Align } from "./gen/Align";
 export type { AssetMeta } from "./gen/AssetMeta";
 export type { Background } from "./gen/Background";
+export type { Chapter } from "./gen/Chapter";
 export type { Pattern } from "./gen/Pattern";
 export type { Cell } from "./gen/Cell";
 export type { CellContent } from "./gen/CellContent";

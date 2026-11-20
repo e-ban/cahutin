@@ -2,6 +2,7 @@
 import { deleteTemplate, fillAutoFields, instantiateTemplate, listTemplates, savePageAsTemplate } from "./api";
 import { assistant } from "./assistant.svelte";
 import { completePage } from "./autoFields";
+import { carryChapter } from "./chapters";
 import { classes } from "./classStore.svelte";
 import { dateAsk } from "./dateAsk.svelte";
 import { editor } from "./docStore.svelte";
@@ -42,7 +43,7 @@ class Templates {
     const assets = Object.fromEntries(inst.assets.map((a) => [a.id, a]));
     const pages = [...editor.doc.pages];
     const at = replace ? editor.pageIndex : editor.pageIndex + 1;
-    pages.splice(at, replace ? 1 : 0, inst.page);
+    pages.splice(at, replace ? 1 : 0, ...(replace ? carryChapter(pages[at], [inst.page]) : [inst.page]));
     editor.commit({ ...editor.doc, pages, assets: { ...editor.doc.assets, ...assets } });
     editor.pageIndex = at;
     editor.selection = [];

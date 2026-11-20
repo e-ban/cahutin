@@ -8,6 +8,7 @@
   import FontSizeField from "../FontSizeField.svelte";
   import Icon from "../Icon.svelte";
   import Section from "./InspectorSection.svelte";
+  import ChapterSettings from "./ChapterSettings.svelte";
   import { editor } from "../../lib/docStore.svelte";
   import { fr } from "../../lib/i18n/fr";
   import { hasTemplateRole, templateRole, withTemplateRole } from "../../lib/templateRole";
@@ -218,6 +219,7 @@
       <span>{fr.backgroundButton}</span>
       <button onclick={() => (editor.showBackground = true)}><Icon name="background" /> {fr.pageBackgroundOpen}</button>
     </div>
+    <ChapterSettings />
     <label class="check" title={fr.spreadHint}><input type="checkbox" checked={editor.spread} onchange={(e) => (editor.spread = e.currentTarget.checked)} /> {fr.spread}</label>
   {:else}
     <h3>{selected.kind.type === "Photo" ? fr.photo : selected.kind.type === "Text" ? fr.text : selected.kind.type === "Image" ? fr.picture : fr.shape}</h3>

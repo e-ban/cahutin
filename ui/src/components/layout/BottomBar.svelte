@@ -12,6 +12,7 @@
   import { classes } from "../../lib/classStore.svelte";
   import { childOfPage, findChildPage } from "../../lib/classFill";
   import { dropSlot, duplicatePage, slotTarget } from "../../lib/pageOrder";
+  import { chapterOf, chapterSpans, type ChapterSpan } from "../../lib/chapters";
   import { DRAG_DEAD_ZONE_PX } from "../../lib/geometry";
   import type { Page } from "../../lib/types";
 
@@ -22,9 +23,34 @@
   const count = $derived(editor.doc.pages.length);
   const students = $derived(classes.current?.class.students ?? []);
 
+  // Chapitres : un onglet devant la première page de chacun ; replié, ses miniatures disparaissent de la bande, sauf
+  // celui de la page affichée.
+  const spans = $derived(chapterSpans(editor.doc.pages));
+  const spanAt = $derived(new Map(spans.map((c) => [c.start, c])));
+  const isFolded = (c: ChapterSpan) => editor.foldedChapters.includes(editor.doc.pages[c.start].id) && !(c.start <= editor.pageIndex && editor.pageIndex < c.end);
+  const hidden = $derived(editor.doc.pages.map((_, i) => {
+    const c = chapterOf(editor.doc.pages, i);
+    return !!c && isFolded(c);
+  }));
+
+  function toggleFold(c: ChapterSpan) {
+    const id = editor.doc.pages[c.start].id;
+    const folded = editor.foldedChapters.includes(id);
+    editor.foldedChapters = folded ? editor.foldedChapters.filter((x) => x !== id) : [...editor.foldedChapters, id];
+    // Replier le chapitre de la page affichée : on va au début du chapitre, qui reste visible par son onglet.
+    if (!folded && c.start <= editor.pageIndex && editor.pageIndex < c.end) goToChapter(c.start, false);
+  }
+
+  /** Va à la première page d'un chapitre ; `unfold` : ses pages se montrent aussi. */
+  function goToChapter(start: number, unfold = true) {
+    if (unfold) editor.foldedChapters = editor.foldedChapters.filter((x) => x !== editor.doc.pages[start].id);
+    editor.pageIndex = start;
+    editor.selection = [];
+  }
+
   // La miniature de la page courante reste visible dans la bande, même à la page 30.
   $effect(() => {
-    strip?.children[editor.pageIndex]?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    strip?.querySelector(`[data-page="${editor.pageIndex}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
   });
 
   /** La molette fait défiler la bande des miniatures de gauche à droite ; Ctrl+molette reste le zoom. */
@@ -37,10 +63,17 @@
   // L'enfant de chaque page (pages générées pour la classe), pour les info-bulles et la recherche.
   const children = $derived(editor.doc.pages.map((p) => childOfPage(p, students)));
 
-  /** Un numéro mène à cette page ; un prénom, à la page suivante faite pour cet enfant. */
+  /** Un numéro mène à cette page ; le nom d'un chapitre, à son début ; un prénom, à la page suivante faite pour cet
+   *  enfant. */
   function goTo(input: HTMLInputElement) {
     const text = input.value.trim();
     const n = Number(text);
+    const chapter = spans.find((c) => c.title.toLocaleLowerCase("fr") === text.toLocaleLowerCase("fr"));
+    if (chapter) {
+      goToChapter(chapter.start);
+      input.value = String(editor.pageIndex + 1);
+      return;
+    }
     const target = /^\d+$/.test(text) ? Math.min(count, Math.max(1, n)) - 1 : findChildPage(editor.doc.pages, students, text, editor.pageIndex);
     if (target === undefined) editor.notice = fr.pageChildNotFound(text);
     else {
@@ -110,11 +143,14 @@
     if (!drag || !strip) return;
     const r = strip.getBoundingClientRect();
     const near = pointer.y > r.top - REACH_PX && pointer.y < r.bottom + REACH_PX && pointer.x > r.left - REACH_PX && pointer.x < r.right + REACH_PX;
-    const mids = [...strip.querySelectorAll<HTMLElement>(".thumb")].map((t) => {
+    // Seules les miniatures montrées comptent : la fente se traduit en place dans le document.
+    const thumbs = [...strip.querySelectorAll<HTMLElement>(".thumb")];
+    const mids = thumbs.map((t) => {
       const b = t.getBoundingClientRect();
       return b.left + b.width / 2;
     });
-    const slot = dropSlot(mids, pointer.x);
+    const k = dropSlot(mids, pointer.x);
+    const slot = k < thumbs.length ? Number(thumbs[k].dataset.page) : Number(thumbs[thumbs.length - 1].dataset.page) + 1;
     drag = { ...drag, slot: near && slotTarget(drag.from, slot) !== null ? slot : null };
   }
 
@@ -193,15 +229,30 @@
     </label>
   {/if}
   <datalist id="page-children">
-    {#each [...new Set(children.filter(Boolean))] as c (c)}<option value={c}></option>{/each}
+    {#each [...new Set([...spans.map((c) => c.title), ...children.filter((c): c is string => !!c)])] as c (c)}<option value={c}></option>{/each}
   </datalist>
   <div class="pages" class:moving={drag} bind:this={strip} onwheel={scrollStrip} onscroll={aim}>
     {#each editor.doc.pages as p, i (p.id)}
+      {@const c = spanAt.get(i)}
+      {#if c}
+        {@const folded = isFolded(c)}
+        <div class="tab" class:folded class:drop-before={drag?.slot === i} style:--chapter={c.color}>
+          <button class="fold" title={folded ? fr.chapterUnfold(c.title) : fr.chapterFold(c.title)} aria-label={folded ? fr.chapterUnfold(c.title) : fr.chapterFold(c.title)} aria-expanded={!folded} onclick={() => toggleFold(c)}>
+            <Icon name={folded ? "chevronRight" : "chevronLeft"} size={12} />{#if folded}<span>{fr.chapterPages(c.end - c.start)}</span>{/if}
+          </button>
+          <button class="go" title={fr.chapterTab(c.title, c.end - c.start)} onclick={() => goToChapter(c.start)}>{c.title}</button>
+        </div>
+      {/if}
+      {#if !hidden[i]}
+      {@const own = chapterOf(editor.doc.pages, i)}
       <button
         class="thumb"
+        data-page={i}
+        style:--chapter={own?.color}
+        class:in-chapter={!!own}
         class:current={i === editor.pageIndex}
         class:dragged={drag?.from === i}
-        class:drop-before={drag?.slot === i}
+        class:drop-before={drag?.slot === i && !c}
         class:drop-after={drag?.slot === count && i === count - 1}
         title={count > 1 ? `${thumbTitle(i)}\n${fr.pageThumbDrag}` : thumbTitle(i)}
         aria-label={thumbTitle(i)}
@@ -212,6 +263,7 @@
         <PageView page={p} doc={editor.doc} zoom={MINI} />
         <span class="num" aria-hidden="true">{i + 1}</span>
       </button>
+      {/if}
     {/each}
   </div>
   <!-- Toutes les commandes de la page restent visibles : deux groupes, ajouter et retirer, puis son allure. -->
@@ -304,6 +356,58 @@
     user-select: none;
   }
   /* La miniature qu'on glisse s'efface à moitié ; un trait épais marque l'endroit où elle tombera. */
+  /* Les pages d'un chapitre portent sa couleur sous leur miniature. */
+  .thumb.in-chapter {
+    box-shadow: inset 0 -3px 0 var(--chapter);
+  }
+  /* L'onglet d'un chapitre, devant sa première page : son nom, et de quoi replier ses pages. */
+  .tab {
+    position: relative;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    width: 76px;
+    border-left: 4px solid var(--chapter);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--chapter) 16%, var(--panel));
+    user-select: none;
+  }
+  .tab button {
+    border: none;
+    background: transparent;
+    padding: 2px 4px;
+    text-align: left;
+    color: var(--text);
+  }
+  .tab .go {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+  }
+  .tab .fold {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .tab.drop-before::before {
+    content: "";
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    left: -10px;
+    width: 4px;
+    border-radius: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 0 1px var(--panel);
+  }
   .thumb.dragged {
     opacity: 0.4;
   }

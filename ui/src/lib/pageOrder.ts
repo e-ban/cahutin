@@ -1,13 +1,16 @@
 import { remapTables } from "./table";
 import { remapAttach } from "./connectors";
+import { passChapterOn } from "./chapters";
 // Ordre des pages : déplacer une page, et la place où tombe une miniature glissée dans la bande des pages.
 import type { Document, Page } from "./types";
 
-/** `doc` avec la page `from` à la place `to` (sa place finale) ; le même document s'il n'y a rien à changer. */
+/** `doc` avec la page `from` à la place `to` (sa place finale) ; le même document s'il n'y a rien à changer. Le
+ *  chapitre qu'elle ouvre reste où il est (voir `passChapterOn`) ; posée ailleurs, elle rejoint le chapitre de la page
+ *  d'avant. */
 export function movePage(doc: Document, from: number, to: number): Document {
   const n = doc.pages.length;
   if (from === to || from < 0 || from >= n || to < 0 || to >= n) return doc;
-  const pages = [...doc.pages];
+  const pages = [...passChapterOn(doc.pages, from)];
   const [page] = pages.splice(from, 1);
   pages.splice(to, 0, page);
   return { ...doc, pages };
@@ -43,6 +46,8 @@ export function duplicatePage(p: Page): Page {
   return {
     ...structuredClone(p),
     id: crypto.randomUUID(),
+    // La copie suit le chapitre de la page copiée, sans en ouvrir un second.
+    chapter: null,
     elements: remapAttach(remapTables(p.elements.map((e) => ({ ...structuredClone(e), id: ids.get(e.id)! })), ids), ids),
     grid: p.grid ? { ...p.grid, cells: p.grid.cells.map((c) => ({ ...c, element_id: ids.get(c.element_id)! })) } : null,
   };

@@ -59,8 +59,8 @@ pub fn renew_ids(page: &mut Page) {
 /// accents, `{prenom}` ; 9 : recette des lignes de graphisme, lue seulement : une version plus ancienne voit des
 /// lignes ordinaires ; 11 : interligne d'un texte ; 12 : texte écrit sur les lignes de son cadre ; 13 : puce devant un
 /// paragraphe ; 14 : terminaisons choisies sur un trait ; 15 : chemin à coudes ; 16 : bout accroché à un élément ;
-/// 11 à 16, les seules versions que `native::written_version` écrit au-delà de 8).
-pub const FORMAT_VERSION: u32 = 17;
+/// 11 à 16, les seules versions que `native::written_version` écrit au-delà de 8) ; 17 : pointe de bulle ; 18 : chapitres.
+pub const FORMAT_VERSION: u32 = 18;
 pub const A4_PORTRAIT: PageSize = PageSize { width_mm: 210.0, height_mm: 297.0 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -141,6 +141,18 @@ pub struct Page {
     #[serde(default)]
     #[ts(optional = nullable)]
     pub background: Option<Background>,
+    /// Chapitre qui commence à cette page et va jusqu'au suivant ; absent : la page suit le chapitre d'avant.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub chapter: Option<Chapter>,
+}
+
+/// Chapitre d'un carnet (« Septembre », « Sortie à la ferme ») : un nom et une couleur d'onglet.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export)]
+pub struct Chapter {
+    pub title: String,
+    pub color: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
@@ -162,7 +174,7 @@ pub enum Pattern {
 
 impl Page {
     pub fn new(size: PageSize) -> Page {
-        Page { id: new_id(), size, elements: vec![], grid: None, background: None }
+        Page { id: new_id(), size, elements: vec![], grid: None, background: None, chapter: None }
     }
 }
 

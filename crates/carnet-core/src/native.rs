@@ -92,6 +92,10 @@ pub fn written_version(doc: &Document) -> u32 {
     // Miroir d'un élément autre qu'une photo de gauche à droite, ou de haut en bas : inconnu avant la version 7.
     // Champ de la classe sans accents (`{prenom}`) : une version plus ancienne l'afficherait sans le remplir.
     let new_field = |e: &Element| matches!(&e.kind, ElementKind::Text(t) if crate::fields::has_fields_text(t) || crate::fields::has_class_fields_text(t) || crate::fields::has_auto_fields_text(t));
+    // Chapitres : une version plus ancienne les effacerait en enregistrant.
+    if doc.pages.iter().any(|p| p.chapter.is_some()) {
+        return 18;
+    }
     // Pointe réglable d'une bulle, bulle de pensée : une version plus ancienne dessinerait la bulle fixe, sans la pointe,
     // puis l'effacerait.
     if elements().any(|e| matches!(&e.kind, ElementKind::Shape(s) if s.tail.is_some())) {
@@ -702,6 +706,20 @@ mod tests {
     }
 
     #[test]
+    fn written_version_is_18_with_a_chapter() {
+        let mut doc = Document::new("v");
+        assert_eq!(written_version(&doc), 1);
+        doc.pages[0].chapter = Some(crate::model::Chapter { title: "Septembre".into(), color: "#e8590c".into() });
+        assert_eq!(written_version(&doc), 18);
+        let mut buf = Cursor::new(Vec::new());
+        save(&doc, &AssetStore::default(), &FontSet::builtin(), &mut buf).unwrap();
+        buf.set_position(0);
+        let loaded = load(buf).unwrap().doc;
+        assert_eq!(loaded.format_version, 18);
+        assert_eq!(loaded.pages[0].chapter, doc.pages[0].chapter);
+    }
+
+    #[test]
     fn written_version_is_15_with_points() {
         let mut doc = Document::new("v");
         let mut line = picture(None);
@@ -772,9 +790,9 @@ mod tests {
     }
 
     #[test]
-    fn newer_than_17_is_refused() {
+    fn newer_than_18_is_refused() {
         let mut doc = Document::new("futur");
-        doc.format_version = 18;
+        doc.format_version = 19;
         let json = serde_json::to_vec(&doc).unwrap();
         let mut buf = Cursor::new(Vec::new());
         {
@@ -785,7 +803,7 @@ mod tests {
         }
         buf.set_position(0);
         let err = load(buf).err().unwrap();
-        assert_eq!(err, NativeError::NewerVersion(18));
+        assert_eq!(err, NativeError::NewerVersion(19));
         assert!(err.message_fr().contains("plus récente"));
         assert!(err.message_fr().contains("mettez Cahutin à jour"), "dire quoi faire");
     }

@@ -7,6 +7,7 @@ import { ask } from "./ask";
 import { classHoldAfterSave, localTime } from "./autosave";
 import { autosave, autosaver } from "./autosave.svelte";
 import { clearBackup, copyState } from "./backupCopy";
+import { withoutPage } from "./chapters";
 import { imagesDecoded } from "./printImages";
 import { confirmDiscardIfDirty, editor, type DiscardChoice } from "./docStore.svelte";
 import { newDocument } from "./factory";
@@ -479,7 +480,7 @@ export async function problemReport() {
 export async function deletePage(index: number) {
   if (editor.doc.pages.length === 1) return;
   if (!(await ask(`Supprimer la page ${index + 1} ?`, "Supprimer"))) return;
-  editor.commit({ ...editor.doc, pages: editor.doc.pages.filter((_, i) => i !== index) });
+  editor.commit({ ...editor.doc, pages: withoutPage(editor.doc.pages, index) });
 }
 
 /**

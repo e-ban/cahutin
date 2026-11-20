@@ -427,6 +427,8 @@ pub fn from_page(name: &str, page: &Page, store: &AssetStore) -> Template {
 /// l'assistant a écrits à la demande : ils ne viennent pas de l'enseignante).
 pub fn from_page_keeping(name: &str, page: &Page, store: &AssetStore, keep: &[Id]) -> Template {
     let mut page = page.clone();
+    // Un modèle n'ouvre pas de chapitre : chaque page faite à partir de lui suit celui où elle est posée.
+    page.chapter = None;
     // Les cases des tableaux restent, vidées comme des zones.
     let cells: Vec<Id> = page
         .elements

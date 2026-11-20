@@ -1,5 +1,6 @@
 // Pages importées (autre document Carnet, ou fichier converti par LibreOffice) ajoutées au document.
 import { newDocument } from "./factory";
+import { carryChapter } from "./chapters";
 import type { AssetMeta, Document, ImportedPages, ImportReport } from "./types";
 
 function mergedAssets(base: Record<string, AssetMeta | undefined>, parts: ImportedPages[]) {
@@ -13,10 +14,10 @@ export function insertImported(doc: Document, pageIndex: number, parts: Imported
   return { doc: { ...doc, pages, assets: mergedAssets(doc.assets, parts) }, pageIndex: pageIndex + 1 };
 }
 
-/** Les pages remplies pour la classe prennent la place de la page modèle `pageIndex`. */
+/** Les pages remplies pour la classe prennent la place de la page modèle `pageIndex` (la première, son chapitre). */
 export function replacePage(doc: Document, pageIndex: number, part: ImportedPages): { doc: Document; pageIndex: number } {
   const pages = [...doc.pages];
-  pages.splice(pageIndex, 1, ...part.pages);
+  pages.splice(pageIndex, 1, ...carryChapter(doc.pages[pageIndex], part.pages));
   return { doc: { ...doc, pages, assets: mergedAssets(doc.assets, [part]) }, pageIndex };
 }
 

@@ -3,6 +3,7 @@
 
 ## Non publié
 
+- Chapitres : un long carnet (cahier de vie) se range en chapitres. Réglages de la page > Chapitre : « Commencer un chapitre à cette page », avec un nom et une couleur. Dans la bande des pages, un onglet de couleur devant chaque chapitre : un clic y mène, la flèche replie ses pages. Le chapitre change de place avec toutes ses pages (« Avant le chapitre précédent », « Après le chapitre suivant »). Le champ du numéro de page mène aussi à un chapitre par son nom. Un carnet avec des chapitres s'ouvre seulement dans cette version de Cahutin ou une plus récente.
 - Import de fichiers : un gros fichier (Word, PDF, Publisher) n'est plus arrêté au bout de 2 minutes ; la conversion va jusqu'au bout, et « Annuler » l'arrête quand on veut.
 
 ## 0.19.0

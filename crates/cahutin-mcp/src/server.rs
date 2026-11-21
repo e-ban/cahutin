@@ -126,6 +126,7 @@ mod tests {
                 "set_text_style",
                 "set_look",
                 "set_background",
+                "set_chapter",
                 "add_text",
                 "set_text",
                 "add_shape",

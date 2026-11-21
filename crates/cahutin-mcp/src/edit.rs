@@ -1,9 +1,9 @@
-//! Ce que l'assistant peut changer : position et taille, style d'un texte, fond d'une page ; il peut aussi
+//! Ce que l'assistant peut changer : position et taille, style d'un texte, fond et chapitre d'une page ; il peut aussi
 //! ajouter des éléments, écrire un texte sans le lire, supprimer un élément et ajouter une page. Il ne lit
 //! jamais le contenu d'un texte ni une photo.
 
 use carnet_core::{
-    Align, Background, Crop, Document, Element, ElementKind, Frame, HeadSize, ImageProps, LineEnd, LineEnds, Page, Pattern, PhotoProps, RichText, ShapeKind, ShapeProps, Stroke,
+    Align, Background, Chapter, Crop, Document, Element, ElementKind, Frame, HeadSize, ImageProps, LineEnd, LineEnds, Page, Pattern, PhotoProps, RichText, ShapeKind, ShapeProps, Stroke,
     StrokeStyle, TextFrame, TextProps, TextStyle, VAlign, new_id,
 };
 use serde_json::{Value, json};
@@ -252,6 +252,39 @@ pub fn set_look(doc: &mut Document, args: &Value) -> Result<Value, String> {
         ElementKind::Image(_) => return Err("une image de la banque n'a ni remplissage ni bord".into()),
         ElementKind::Table(_) => return Err("le bord d'un tableau ne se change pas ici".into()),
     }
+    Ok(json!({ "ok": true }))
+}
+
+/// Couleurs d'onglet proposées aux nouveaux chapitres, comme dans l'éditeur.
+const CHAPTER_COLORS: [&str; 6] = ["#2e86de", "#e67e22", "#27ae60", "#8e44ad", "#c0392b", "#f1c40f"];
+
+/// La couleur d'un chapitre ouvert à la page `index` : la moins employée, hors celles des chapitres voisins.
+fn chapter_color(doc: &Document, index: usize) -> String {
+    let color_at = |i: usize| doc.pages[i].chapter.as_ref().map(|c| c.color.as_str());
+    let before = (0..index).rev().find_map(color_at);
+    let after = (index + 1..doc.pages.len()).find_map(color_at);
+    let uses = |c: &str| doc.pages.iter().enumerate().filter(|(i, p)| *i != index && p.chapter.as_ref().is_some_and(|ch| ch.color == c)).count();
+    CHAPTER_COLORS.iter().filter(|c| Some(**c) != before && Some(**c) != after).min_by_key(|c| uses(c)).unwrap_or(&CHAPTER_COLORS[0]).to_string()
+}
+
+/// Chapitre qui commence à une page (il va jusqu'au suivant) : `title` le crée ou le renomme, `color` change son
+/// onglet, `remove` le retire (ses pages rejoignent le chapitre d'avant).
+pub fn set_chapter(doc: &mut Document, args: &Value) -> Result<Value, String> {
+    let index = number(args, "page")?.ok_or("« page » manque")? as usize;
+    if index >= doc.pages.len() {
+        return Err(format!("aucune page {index}"));
+    }
+    if flag(args, "remove")?.unwrap_or(false) {
+        doc.pages[index].chapter = None;
+        return Ok(json!({ "ok": true }));
+    }
+    let title = text(args, "title")?.map(str::trim).filter(|t| !t.is_empty()).map(str::to_string);
+    let col = color(args, "color")?;
+    let chapter = match doc.pages[index].chapter.clone() {
+        Some(c) => Chapter { title: title.unwrap_or(c.title), color: col.unwrap_or(c.color) },
+        None => Chapter { title: title.ok_or("« title » manque pour commencer un chapitre")?, color: col.unwrap_or_else(|| chapter_color(doc, index)) },
+    };
+    doc.pages[index].chapter = Some(chapter);
     Ok(json!({ "ok": true }))
 }
 
@@ -810,6 +843,24 @@ mod tests {
         let ElementKind::Table(t) = &el(&d, &table).kind else { panic!() };
         let cell = t.cells[0].element_id.clone();
         assert!(delete_element(&mut d, &json!({ "element_id": cell })).is_err());
+    }
+
+    #[test]
+    fn set_chapter_starts_renames_and_removes_a_chapter() {
+        let mut d = Document::new("t");
+        d.pages.push(Page::new(carnet_core::A4_PORTRAIT));
+        d.pages.push(Page::new(carnet_core::A4_PORTRAIT));
+        assert!(set_chapter(&mut d, &json!({ "page": 1 })).is_err(), "un nouveau chapitre demande un titre");
+        set_chapter(&mut d, &json!({ "page": 0, "title": "Septembre" })).unwrap();
+        set_chapter(&mut d, &json!({ "page": 1, "title": " Octobre " })).unwrap();
+        let (sept, oct) = (d.pages[0].chapter.clone().unwrap(), d.pages[1].chapter.clone().unwrap());
+        assert_eq!(oct.title, "Octobre");
+        assert_ne!(sept.color, oct.color, "deux chapitres voisins ne partagent pas leur couleur");
+        set_chapter(&mut d, &json!({ "page": 1, "color": "#000000" })).unwrap();
+        assert_eq!(d.pages[1].chapter.as_ref().unwrap(), &Chapter { title: "Octobre".into(), color: "#000000".into() });
+        set_chapter(&mut d, &json!({ "page": 1, "remove": true })).unwrap();
+        assert!(d.pages[1].chapter.is_none());
+        assert!(set_chapter(&mut d, &json!({ "page": 7, "title": "x" })).is_err());
     }
 
     #[test]

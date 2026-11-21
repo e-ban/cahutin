@@ -11,6 +11,7 @@ pub const MUTATING: &[&str] = &[
     "set_text_style",
     "set_look",
     "set_background",
+    "set_chapter",
     "add_text",
     "set_text",
     "add_shape",
@@ -60,6 +61,7 @@ fn run(doc: &mut Document, name: &str, args: &Value, selection: &[Id]) -> Result
         "set_text_style" => edit::set_text_style(doc, args),
         "set_look" => edit::set_look(doc, args),
         "set_background" => edit::set_background(doc, args),
+        "set_chapter" => edit::set_chapter(doc, args),
         "add_text" => edit::add_text(doc, args),
         "set_text" => edit::set_text(doc, args),
         "add_shape" => edit::add_shape(doc, args),
@@ -137,6 +139,11 @@ pub fn definitions() -> Value {
             "name": "set_background",
             "description": "Fond d'une page : couleur et motif ; seules les valeurs données changent.",
             "inputSchema": obj(&["page"], json!({ "page": int, "color": text, "pattern": { "type": ["string", "null"], "enum": ["seyes", "small_squares", "lines", "dots", null] } })),
+        },
+        {
+            "name": "set_chapter",
+            "description": "Chapitre ouvert à une page, jusqu'au suivant (get_layout : chapter) : title le crée ou le renomme, color, remove.",
+            "inputSchema": obj(&["page"], json!({ "page": int, "title": text, "color": text, "remove": { "type": "boolean" } })),
         },
         {
             "name": "add_text",
@@ -316,11 +323,11 @@ mod tests {
 mod size {
     /// Les descriptions des outils partent à chaque demande, et chaque échange les relit : un petit modèle
     /// local (Ollama, 16 000 jetons) doit garder la place de la page et de la conversation. Les terminaisons
-    /// des traits (start, end), les chemins (points, curve), puis le cadre autour d'un bloc (block_frame) ont
-    /// demandé un peu de place.
+    /// des traits (start, end), les chemins (points, curve), le cadre autour d'un bloc (block_frame), puis les
+    /// chapitres (set_chapter) ont demandé un peu de place.
     #[test]
     fn the_tool_descriptions_stay_small() {
         let n = serde_json::to_string(&super::definitions()).unwrap().len();
-        assert!(n <= 10_790, "{n} octets");
+        assert!(n <= 11_110, "{n} octets");
     }
 }

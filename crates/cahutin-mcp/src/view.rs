@@ -24,6 +24,11 @@ pub fn layout(doc: &Document, page: Option<usize>, selection: &[Id]) -> Value {
     json!({ "page_count": doc.pages.len(), "pages": pages, "text_styles": styles })
 }
 
+fn chapter_of(doc: &Document, index: usize) -> Option<Value> {
+    let number = doc.pages[..=index].iter().filter(|p| p.chapter.is_some()).count();
+    (number > 0).then(|| json!({ "number": number, "starts": doc.pages[index].chapter.is_some() }))
+}
+
 fn page_view(doc: &Document, index: usize, page: &Page, selection: &[Id]) -> Value {
     let background = page.background.as_ref().map(|b| {
         json!({ "color": b.color, "pattern": b.pattern.map(pattern_name) })
@@ -45,6 +50,9 @@ fn page_view(doc: &Document, index: usize, page: &Page, selection: &[Id]) -> Val
         })),
         "landscape": page.size.width_mm > page.size.height_mm,
         "background": background,
+        // Le chapitre de la page : son numéro (1 : le premier) et si elle l'ouvre. Jamais son titre, écrit par
+        // l'enseignant (il peut nommer un enfant).
+        "chapter": chapter_of(doc, index),
         "elements": page.elements.iter().map(|e| element_view(doc, page, e, selection.contains(&e.id))).collect::<Vec<_>>(),
     })
 }
@@ -467,5 +475,26 @@ mod tests {
         assert_eq!(v["pages"].as_array().unwrap().len(), 1);
         assert_eq!(v["pages"][0]["index"], 1);
         assert_eq!(v["page_count"], 2);
+    }
+}
+
+#[cfg(test)]
+mod chapter_tests {
+    use super::*;
+
+    /// L'assistant voit le numéro du chapitre de chaque page, jamais son titre : il peut nommer un enfant.
+    #[test]
+    fn the_chapter_is_a_number_never_its_title() {
+        let mut d = Document::new("t");
+        d.pages.push(Page::new(carnet_core::A4_PORTRAIT));
+        d.pages.push(Page::new(carnet_core::A4_PORTRAIT));
+        d.pages[1].chapter = Some(carnet_core::Chapter { title: "Anniversaire de Léa".into(), color: "#2e86de".into() });
+        let v = layout(&d, None, &[]);
+        let text = v.to_string();
+        assert!(!text.contains("Léa") && !text.contains("Anniversaire"), "{text}");
+        assert!(v["pages"][0].get("chapter").is_none_or(Value::is_null));
+        assert_eq!(v["pages"][1]["chapter"], json!({ "number": 1, "starts": true }));
+        assert_eq!(v["pages"][2]["chapter"]["number"], 1);
+        assert!(v["pages"][2]["chapter"].get("starts").is_none_or(|s| s == false), "{}", v["pages"][2]);
     }
 }

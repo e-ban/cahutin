@@ -431,13 +431,13 @@ mod tests {
 
     /// La consigne et les outils repartent à chaque échange (relus en cache avec Claude, pas toujours
     /// ailleurs) : ils étaient de 19,5 Ko avant d'être allégés. Les réglages des lignes de graphisme (dots,
-    /// guides, arrow) ont demandé un peu de place, puis les terminaisons des traits (start, end) et le cadre
-    /// autour d'un bloc (block_frame).
+    /// guides, arrow) ont demandé un peu de place, puis les terminaisons des traits (start, end), le cadre
+    /// autour d'un bloc (block_frame) et les chapitres (set_chapter).
     #[test]
     fn the_fixed_part_of_a_request_stays_small() {
         let (tools, system) = (openai_tools().to_string().len(), system_prompt().len());
-        assert!(tools <= 11_685, "outils : {tools} octets");
-        assert!(tools + system <= 14_460, "outils et consigne : {} octets", tools + system);
+        assert!(tools <= 12_037, "outils : {tools} octets");
+        assert!(tools + system <= 14_817, "outils et consigne : {} octets", tools + system);
     }
 
     #[test]

@@ -474,6 +474,16 @@ pub fn describe(before: &Document, after: &Document) -> Vec<String> {
             out.push(format!("Fond de la page {} : couleur changée", i + 1));
         }
     }
+    // Le chapitre qu'ouvre une page : l'enseignant lit son titre (l'assistant, lui, ne le lit jamais).
+    for (i, pb, pa) in same_pages(before, after) {
+        match (&pb.chapter, &pa.chapter) {
+            (None, Some(c)) => out.push(format!("Page {} : chapitre « {} » commencé", i + 1, c.title)),
+            (Some(c), None) => out.push(format!("Page {} : chapitre « {} » retiré", i + 1, c.title)),
+            (Some(b), Some(a)) if b.title != a.title => out.push(format!("Chapitre « {} » renommé « {} »", b.title, a.title)),
+            (Some(b), Some(a)) if b.color != a.color => out.push(format!("Chapitre « {} » : couleur changée", a.title)),
+            _ => {}
+        }
+    }
     counted(out)
 }
 
@@ -599,6 +609,24 @@ mod tests {
             edit::set_background(d, &json!({ "page": 0, "color": "#ffffe0" })).unwrap();
         });
         assert_eq!(describe(&b, &a), ["Fond de la page 1 : couleur changée"]);
+    }
+
+    #[test]
+    fn chapters_started_renamed_and_removed() {
+        let (b, a) = after(|d| {
+            edit::set_chapter(d, &json!({ "page": 0, "title": "Septembre" })).unwrap();
+        });
+        assert_eq!(describe(&b, &a), ["Page 1 : chapitre « Septembre » commencé"]);
+        let mut b = a.clone();
+        let mut a = b.clone();
+        edit::set_chapter(&mut a, &json!({ "page": 0, "title": "Rentrée" })).unwrap();
+        assert_eq!(describe(&b, &a), ["Chapitre « Septembre » renommé « Rentrée »"]);
+        b = a.clone();
+        edit::set_chapter(&mut a, &json!({ "page": 0, "color": "#000000" })).unwrap();
+        assert_eq!(describe(&b, &a), ["Chapitre « Rentrée » : couleur changée"]);
+        b = a.clone();
+        edit::set_chapter(&mut a, &json!({ "page": 0, "remove": true })).unwrap();
+        assert_eq!(describe(&b, &a), ["Page 1 : chapitre « Rentrée » retiré"]);
     }
 
     #[test]

@@ -239,7 +239,7 @@
       {@const c = spanAt.get(i)}
       {#if c}
         {@const open = isOpen(c)}
-        <button class="tab" data-chapter={i} class:open class:drop-before={drag?.slot === i} style:--chapter={c.color} title={fr.chapterTab(c.title, c.end - c.start)} aria-expanded={open} onclick={() => goToChapter(c.start)} oncontextmenu={(e) => openMenu(e, c.start)}>
+        <button class="chapter-tab" data-chapter={i} class:open class:drop-before={drag?.slot === i} style:--chapter={c.color} title={fr.chapterTab(c.title, c.end - c.start)} aria-expanded={open} onclick={() => goToChapter(c.start)} oncontextmenu={(e) => openMenu(e, c.start)}>
           <span class="name">{c.title}</span>
           <span class="count"><Icon name={open ? "chevronDown" : "chevronRight"} size={12} />{fr.chapterPages(c.end - c.start)}</span>
         </button>
@@ -355,7 +355,7 @@
   }
   /* L'onglet d'un chapitre, devant sa première page : son nom et son nombre de pages ; un clic y mène. Replié, il
    *  est plus pâle. */
-  .tab {
+  .chapter-tab {
     position: relative;
     flex: none;
     display: flex;
@@ -372,10 +372,10 @@
     color: var(--text);
     user-select: none;
   }
-  .tab.open {
+  .chapter-tab.open {
     background: color-mix(in srgb, var(--chapter) 22%, var(--panel));
   }
-  .tab .name {
+  .chapter-tab .name {
     font-size: 11px;
     font-weight: 600;
     line-height: 1.2;
@@ -386,14 +386,14 @@
     -webkit-box-orient: vertical;
     overflow-wrap: anywhere;
   }
-  .tab .count {
+  .chapter-tab .count {
     display: flex;
     align-items: center;
     gap: 2px;
     font-size: 10px;
     color: var(--muted);
   }
-  .tab.drop-before::before {
+  .chapter-tab.drop-before::before {
     content: "";
     position: absolute;
     top: -2px;

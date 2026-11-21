@@ -2,9 +2,9 @@
   // Menu du clic droit sur une miniature de la bande des pages : commencer un chapitre à cette page (ou renommer celui
   // qu'elle ouvre), la dupliquer, la supprimer.
   import Icon from "../Icon.svelte";
-  import { chapterSpans, startChapter } from "../../lib/chapters";
+  import { chapterOf, chapterSpans, startChapter } from "../../lib/chapters";
   import { editor } from "../../lib/docStore.svelte";
-  import { deletePage } from "../../lib/fileActions";
+  import { deletePage, printChapter } from "../../lib/fileActions";
   import { fr } from "../../lib/i18n/fr";
   import { duplicatePage } from "../../lib/pageOrder";
 
@@ -58,6 +58,9 @@
     <button role="menuitem" onclick={() => run(nameChapter)}><span class="ico"><Icon name="text" /></span><span>{fr.pageMenuRenameChapter}</span></button>
   {:else}
     <button role="menuitem" onclick={() => run(newChapter)}><span class="ico"><Icon name="add" /></span><span>{fr.chapterStart}</span></button>
+  {/if}
+  {#if chapterOf(editor.doc.pages, index)}
+    <button role="menuitem" onclick={() => run(() => printChapter(index))}><span class="ico"><Icon name="print" /></span><span>{fr.printThisChapter}</span></button>
   {/if}
   <hr />
   <button role="menuitem" onclick={() => run(duplicate)}><span class="ico"><Icon name="duplicate" /></span><span>{fr.pageMenuDuplicate}</span></button>

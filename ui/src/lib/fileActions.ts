@@ -7,7 +7,7 @@ import { ask } from "./ask";
 import { classHoldAfterSave, localTime } from "./autosave";
 import { autosave, autosaver } from "./autosave.svelte";
 import { clearBackup, copyState } from "./backupCopy";
-import { withoutPage } from "./chapters";
+import { chapterFileName, chapterOf, chapterOutline, withoutPage } from "./chapters";
 import { imagesDecoded } from "./printImages";
 import { confirmDiscardIfDirty, editor, type DiscardChoice } from "./docStore.svelte";
 import { newDocument } from "./factory";
@@ -434,10 +434,31 @@ function showAtRisk() {
   editor.selection = expandSelection(editor.page, atRisk(editor.page).map((e) => e.id));
 }
 
+/** Les pages qui partent à l'impression ou dans le PDF : tout le carnet, ou le chapitre demandé. */
+function printedPages() {
+  const r = editor.printRange;
+  return r ? editor.doc.pages.slice(r.start, r.end) : editor.doc.pages;
+}
+
+/** Imprime, ou enregistre en PDF, le seul chapitre de la page `index` (pour l'envoyer aux familles, par exemple). */
+async function onlyChapter(index: number, action: (title: string) => Promise<void>) {
+  const c = chapterOf(editor.doc.pages, index);
+  if (!c) return;
+  editor.printRange = { start: c.start, end: c.end };
+  try {
+    await action(c.title);
+  } finally {
+    editor.printRange = null;
+  }
+}
+
+export const printChapter = (index: number) => onlyChapter(index, () => print());
+export const exportChapterPdf = (index: number) => onlyChapter(index, (title) => exportPdf(undefined, title));
+
 export async function print() {
   if (!(await assistant.settle())) return;
   warnPrint(false);
-  const sheet = printSheet(editor.doc.pages[0].size, editor.printTiles);
+  const sheet = printSheet(printedPages()[0].size, editor.printTiles);
   // Selon le moteur, window.print() bloque ou rend la main tout de suite : on garde les pages
   // jusqu'à la fin de l'impression.
   await withPrintPages(async () => {
@@ -450,19 +471,24 @@ export async function print() {
   });
 }
 
-/** `target` : chemin déjà choisi, sans fenêtre (essais en développement). */
-export async function exportPdf(target?: string) {
+/** `target` : chemin déjà choisi, sans fenêtre (essais en développement). `chapter` : le titre du chapitre exporté
+ *  seul (pour le nom du fichier). Le PDF porte un signet par chapitre. */
+export async function exportPdf(target?: string, chapter?: string) {
   if (!(await assistant.settle())) return;
-  const picked = target ?? (await saveDialog({ defaultPath: `${baseName()}.pdf`, filters: [{ name: "PDF", extensions: ["pdf"] }] }));
+  const base = chapter ? chapterFileName(baseName(), chapter) : baseName();
+  const picked = target ?? (await saveDialog({ defaultPath: `${base}.pdf`, filters: [{ name: "PDF", extensions: ["pdf"] }] }));
   if (!picked) return;
   const path = withExt(picked, "pdf");
-  const first = editor.doc.pages[0].size;
+  const pages = printedPages();
+  const first = pages[0].size;
   // Chaque page à son format, sauf avec une page de format libre : seule la voie de secours la met à sa taille.
-  const pageSizes = editor.doc.pages.every((p) => formatOf(p.size) !== null);
-  const route = await withPrintPages(() => guard(() => api.exportPdf(path, first.width_mm, first.height_mm, pageSizes)));
+  const pageSizes = pages.every((p) => formatOf(p.size) !== null);
+  const r = editor.printRange;
+  const outline = chapterOutline(editor.doc.pages, r?.start, r?.end);
+  const route = await withPrintPages(() => guard(() => api.exportPdf(path, first.width_mm, first.height_mm, pageSizes, outline)));
   if (route === undefined) return;
   const saved = `PDF enregistré : ${fileName(path)}`;
-  warnPrint(true, route === "first_page_size" && mixedSheets(editor.doc, false) ? `${saved}\n\n${fr.pdfFirstPageSize}` : saved);
+  warnPrint(true, route === "first_page_size" && mixedSheets({ ...editor.doc, pages }, false) ? `${saved}\n\n${fr.pdfFirstPageSize}` : saved);
 }
 
 export async function problemReport() {

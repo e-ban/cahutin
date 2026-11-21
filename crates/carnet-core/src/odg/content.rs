@@ -933,11 +933,34 @@ fn write_run_text(x: &mut Xml, text: &str, at_start: &mut bool) {
     x.text(&word);
 }
 
+/// Le nom de chaque page dans LibreOffice Draw : le titre de son chapitre et son rang dedans (« Septembre 2 »), ou
+/// « page3 » hors chapitre. Un nom déjà pris (deux chapitres du même titre) reçoit le numéro de la page.
+fn page_names(doc: &Document) -> Vec<String> {
+    let mut names: Vec<String> = Vec::with_capacity(doc.pages.len());
+    let mut chapter: Option<(&str, usize)> = None;
+    for (i, page) in doc.pages.iter().enumerate() {
+        if let Some(c) = &page.chapter {
+            chapter = Some((c.title.as_str(), 0));
+        }
+        let name = match &mut chapter {
+            Some((title, rank)) => {
+                *rank += 1;
+                let name = format!("{title} {rank}");
+                if names.contains(&name) { format!("{name} (page {})", i + 1) } else { name }
+            }
+            None => format!("page{}", i + 1),
+        };
+        names.push(name);
+    }
+    names
+}
+
 pub(crate) fn content_xml(doc: &Document, store: &AssetStore, reg: &mut Registry) -> Result<(String, Vec<Picture>), OdgError> {
     let mut w = Writer { reg, store, pictures: vec![], body: Xml::fragment() };
+    let names = page_names(doc);
     for (i, page) in doc.pages.iter().enumerate() {
         let master = w.reg.master_page(page.size, page.background.as_ref());
-        w.body.open("draw:page", &[("draw:name", &format!("page{}", i + 1)), ("draw:master-page-name", &master)]);
+        w.body.open("draw:page", &[("draw:name", &names[i]), ("draw:master-page-name", &master)]);
         // Les membres consécutifs d'un même groupe sont écrits dans un groupe LibreOffice, un groupe dans un
         // groupe dans un groupe LibreOffice imbriqué.
         let mut open: Vec<Id> = Vec::new();

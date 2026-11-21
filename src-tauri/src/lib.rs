@@ -9,6 +9,7 @@ mod phototheque_commands;
 pub mod commands;
 mod legacy;
 pub mod pdf_cdp;
+mod pdf_outline;
 #[cfg(windows)]
 pub mod pdf_windows;
 mod print_setup;

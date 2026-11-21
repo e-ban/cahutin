@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { newDocument, newPage } from "./factory";
-import { carryChapter, chapterOf, hiddenPages, chapterSpans, moveChapter, removeChapter, startChapter, updateChapter, withoutPage } from "./chapters";
+import { carryChapter, chapterFileName, chapterOf, chapterOutline, hiddenPages, chapterSpans, moveChapter, removeChapter, startChapter, updateChapter, withoutPage } from "./chapters";
 import { duplicatePage, movePage } from "./pageOrder";
 import type { Document } from "./types";
 
@@ -85,4 +85,16 @@ test("un nouveau chapitre ne prend pas la couleur d'un chapitre voisin", () => {
   for (let k = 0; k < 9; k++) many = startChapter(many, k, `C${k}`);
   const colors = chapterSpans(many.pages).map((c) => c.color);
   colors.slice(1).forEach((c, k) => expect(c).not.toBe(colors[k]));
+});
+
+test("signets d'un PDF : un par chapitre, à sa première page dans le PDF", () => {
+  const doc = year();
+  expect(chapterOutline(doc.pages)).toEqual([
+    { title: "Septembre", page: 1 },
+    { title: "Octobre", page: 3 },
+  ]);
+  // Le PDF du seul chapitre Octobre : un signet, à sa première page.
+  expect(chapterOutline(doc.pages, 3, 6)).toEqual([{ title: "Octobre", page: 0 }]);
+  expect(chapterFileName("Cahier de vie", "Sortie : la ferme / mai")).toBe("Cahier de vie - Sortie la ferme mai");
+  expect(chapterFileName("Cahier", "  ")).toBe("Cahier");
 });

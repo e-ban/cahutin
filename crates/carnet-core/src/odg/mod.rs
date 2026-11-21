@@ -641,6 +641,24 @@ mod tests {
         assert_eq!(e.xml("content.xml").matches("<draw:page ").count(), 2);
     }
 
+    /// Une page porte le nom de son chapitre et son rang dedans (« Septembre 2 ») : LibreOffice Draw le montre dans
+    /// la liste des pages. Hors chapitre, « page1 » ; deux chapitres du même nom ne donnent jamais deux pages du même nom.
+    #[test]
+    fn pages_are_named_after_their_chapter() {
+        let mut d = Document::new("année");
+        for _ in 0..5 {
+            d.pages.push(Page::new(A4_PORTRAIT));
+        }
+        let chapter = |t: &str| Some(crate::model::Chapter { title: t.into(), color: "#2e86de".into() });
+        d.pages[1].chapter = chapter("Septembre");
+        d.pages[3].chapter = chapter("Sortie & <ferme>");
+        d.pages[4].chapter = chapter("Septembre");
+        let mut e = export(&d, &AssetStore::default());
+        let content = e.xml("content.xml");
+        let names: Vec<&str> = content.split(r#"<draw:page draw:name=""#).skip(1).map(|s| s.split('"').next().unwrap()).collect();
+        assert_eq!(names, ["page1", "Septembre 1", "Septembre 2", "Sortie &amp; &lt;ferme&gt; 1", "Septembre 1 (page 5)", "Septembre 2 (page 6)"]);
+    }
+
     #[test]
     fn empty_zones_are_not_exported() {
         let d = doc_with(vec![photo(None, frame(10.0, 10.0, 50.0, 50.0), 0.0), text(RichText::default(), Some("Texte"))]);

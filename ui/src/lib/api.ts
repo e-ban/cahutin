@@ -126,9 +126,10 @@ export const problemReportMail = (path: string) => invoke<ReportMail>("problem_r
 export const canExportPdf = () => invoke<boolean>("can_export_pdf");
 /** Une taille de feuille pour tout le PDF : celle de la première page. */
 export const isStoreBuild = () => invoke<boolean>("is_store_build");
-/** `pageSizes` faux : toutes les pages au format donné. La voie rendue dit si chaque page a gardé son format. */
-export const exportPdf = (path: string, widthMm: number, heightMm: number, pageSizes = true) =>
-  invoke<PdfRoute>("export_pdf", { path, widthMm, heightMm, pageSizes });
+/** `pageSizes` faux : toutes les pages au format donné. La voie rendue dit si chaque page a gardé son format.
+ *  `outline` : un signet par chapitre, à sa première page dans le PDF (0 : la première). */
+export const exportPdf = (path: string, widthMm: number, heightMm: number, pageSizes = true, outline: { title: string; page: number }[] = []) =>
+  invoke<PdfRoute>("export_pdf", { path, widthMm, heightMm, pageSizes, outline });
 /** Sous Linux, pré-règle la fenêtre d'impression (papier, orientation) ; ailleurs, ne fait rien. */
 export const preparePrint = (widthMm: number, heightMm: number) => invoke<void>("prepare_print", { widthMm, heightMm });
 export const checkUpdate = () => invoke<string | null>("check_update");

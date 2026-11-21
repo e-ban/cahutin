@@ -30,6 +30,8 @@ open = "5.4.5"
 trash = "5"
 # Export PDF sous Windows : le PDF de la voie DevTools arrive en base64 (déjà dans Cargo.lock).
 base64 = "0.23"
+# Signets des chapitres ajoutés au PDF exporté (sans l'horloge ni le parallélisme par défaut).
+lopdf = { version = "0.47", default-features = false }
 
 [dev-dependencies]
 tempfile = "3"

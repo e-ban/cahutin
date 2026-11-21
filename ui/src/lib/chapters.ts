@@ -94,3 +94,17 @@ export function hiddenPages(pages: Page[], current: number): boolean[] {
   for (const c of chapterSpans(pages)) if (c.start !== open?.start) for (let i = c.start; i < c.end; i++) hide[i] = true;
   return hide;
 }
+
+/** Les signets d'un PDF des pages `start` à `end` (exclue) : un par chapitre qui commence dans ces pages, avec le rang
+ *  de sa première page dans le PDF (0 : la première). Le chapitre où commencent ces pages compte aussi. */
+export function chapterOutline(pages: Page[], start = 0, end = pages.length): { title: string; page: number }[] {
+  return chapterSpans(pages)
+    .filter((c) => c.end > start && c.start < end)
+    .map((c) => ({ title: c.title, page: Math.max(c.start, start) - start }));
+}
+
+/** Nom de fichier pour un chapitre : « Cahier de vie - Septembre », sans les signes qu'un nom de fichier refuse. */
+export function chapterFileName(base: string, title: string): string {
+  const clean = title.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
+  return clean ? `${base} - ${clean}` : base;
+}

@@ -761,20 +761,27 @@ pub async fn export_pdf(
     width_mm: f64,
     height_mm: f64,
     page_sizes: Option<bool>,
+    outline: Option<Vec<crate::pdf_outline::OutlineEntry>>,
 ) -> Result<crate::pdf_cdp::PdfRoute, String> {
     #[cfg(windows)]
     {
         let page_sizes = page_sizes.unwrap_or(true);
-        let result =
-            tauri::async_runtime::spawn_blocking(move || crate::pdf_windows::print_to_pdf(&webview, &path, width_mm, height_mm, page_sizes))
-                .await
-                .map_err(|e| e.to_string())?;
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            let route = crate::pdf_windows::print_to_pdf(&webview, &path, width_mm, height_mm, page_sizes)?;
+            // Les signets des chapitres : sans eux, le PDF reste bon ; l'échec est seulement noté.
+            if let Err(e) = crate::pdf_outline::add_outline(std::path::Path::new(&path), &outline.unwrap_or_default()) {
+                log::warn!("export_pdf signets : {e}");
+            }
+            Ok(route)
+        })
+        .await
+        .map_err(|e| e.to_string())?;
         log::info!("export_pdf ok={} route={}", result.is_ok(), result.as_ref().map_or("none", |r| r.log_name()));
         result
     }
     #[cfg(not(windows))]
     {
-        let _ = (webview, path, width_mm, height_mm, page_sizes);
+        let _ = (webview, path, width_mm, height_mm, page_sizes, outline);
         Err("L'export PDF direct n'existe que sous Windows : utilisez Imprimer, puis Enregistrer en PDF.".into())
     }
 }

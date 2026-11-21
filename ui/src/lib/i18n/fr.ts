@@ -451,6 +451,9 @@ export const fr = {
   chapterPages: (n: number) => `${n} p.`,
   pageMenuRenameChapter: "Renommer le chapitre",
   pageMenuDuplicate: "Dupliquer la page",
+  printThisChapter: "Imprimer ce chapitre",
+  printChapter: (title: string) => `Imprimer « ${title} »`,
+  exportChapterPdf: (title: string) => `PDF de « ${title} »`,
   // Toutes les pages
   allPages: "Toutes les pages",
   allPagesNoChapter: "Début du carnet",

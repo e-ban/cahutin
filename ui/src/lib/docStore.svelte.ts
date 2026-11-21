@@ -63,6 +63,8 @@ class Editor {
   printTiles = $state(false);
   /** Impression recto-verso de cartes : les pages paires (versos) inversées de gauche à droite. */
   printDuplex = $state(false);
+  /** À l'impression ou dans le PDF, seulement ces pages (un chapitre) ; null : tout le carnet. */
+  printRange = $state<{ start: number; end: number } | null>(null);
   /** Pages en vis-à-vis dans la vue d'édition. */
   spread = $state(false);
   /** Panneau du fond de page. */

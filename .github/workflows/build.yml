@@ -1,6 +1,7 @@
-# Construction : tests, puis installeurs Windows (NSIS, utilisateur courant) et Linux (AppImage, .deb)
-# publiés en artefacts. Un tag vX.Y.Z publie en plus une version GitHub avec les installeurs, leurs
-# empreintes (SHA256SUMS, signées ensuite par scripts/sign-release.sh) et la section de CHANGELOG.md.
+# Construction : tests à chaque envoi sur main. Les installeurs Windows (NSIS, utilisateur courant, et MSIX du Store)
+# et Linux (AppImage, .deb) ne se construisent que pour un tag vX.Y.Z, ou à la demande (« Run workflow » sur GitHub) :
+# ils sont alors publiés en artefacts. Un tag publie en plus une version GitHub avec les installeurs, leurs empreintes
+# (SHA256SUMS, signées ensuite par scripts/sign-release.sh) et la section de CHANGELOG.md.
 name: Construction
 
 on:
@@ -13,11 +14,11 @@ on:
 permissions:
   contents: read
 
-# Un run à la fois : un nouvel envoi attend la fin du run en cours au lieu de l'annuler (le cache
-# Rust n'est enregistré qu'à la fin d'un run réussi). GitHub ne garde que le dernier run en attente.
+# Un run à la fois par branche ou tag. Sur main, un nouvel envoi annule le run en cours : seul le dernier état compte
+# (le cache Rust reste celui du dernier run réussi). Un tag, lui, va toujours jusqu'au bout.
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   # Avant les constructions : le tag doit être la version de l'application et avoir ses notes.
@@ -89,6 +90,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Installeur
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         env:
           # Paquet distribué : optimisation à l'édition de liens et un seul bloc de génération.
           CARGO_PROFILE_RELEASE_LTO: thin
@@ -96,6 +98,7 @@ jobs:
         run: npm run tauri build
 
       - name: Publier l'installeur
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: cahutin-installeur-windows-${{ github.sha }}
@@ -107,6 +110,7 @@ jobs:
       # paquet MSIX que le Store signe. L'identité vient des variables du dépôt (Partner Center) ; sans
       # elles, une identité d'essai vérifie seulement que le paquet se construit.
       - name: Application pour le Store
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         env:
           CAHUTIN_STORE: "1"
           # Paquet distribué : optimisation à l'édition de liens et un seul bloc de génération.
@@ -115,6 +119,7 @@ jobs:
         run: npm run tauri build -- --no-bundle
 
       - name: Paquet MSIX
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: >-
           scripts/build-msix.ps1
@@ -123,7 +128,7 @@ jobs:
           -PublisherDisplay "${{ vars.STORE_PUBLISHER_DISPLAY || 'Essai' }}"
 
       - name: Publier le paquet MSIX
-        if: vars.STORE_IDENTITY_NAME != ''
+        if: vars.STORE_IDENTITY_NAME != '' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: cahutin-msix-${{ github.sha }}
@@ -170,6 +175,7 @@ jobs:
 
       # tauri.conf.json ne vise que NSIS (installeur Windows) : les paquets Linux sont demandés ici.
       - name: Paquets
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         env:
           # Paquet distribué : optimisation à l'édition de liens et un seul bloc de génération.
           CARGO_PROFILE_RELEASE_LTO: thin
@@ -177,6 +183,7 @@ jobs:
         run: npm run tauri build -- --bundles appimage,deb
 
       - name: Publier les paquets
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: cahutin-linux-${{ github.sha }}
@@ -196,10 +203,27 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: LibreOffice Draw et poppler
+      # Les paquets de LibreOffice (85 Mo) se téléchargeaient en 6 minutes : ils sont gardés en cache, sous une clé
+      # faite de leurs versions, pour qu'une mise à jour d'Ubuntu en télécharge seulement les nouveaux.
+      - name: Versions de LibreOffice Draw et poppler
+        id: lo
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libreoffice-draw poppler-utils
+          echo "key=$(apt-cache policy libreoffice-draw poppler-utils | grep Candidate | tr -d ' ' | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Paquets de LibreOffice en cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          key: libreoffice-ubuntu-24.04-${{ steps.lo.outputs.key }}
+          restore-keys: libreoffice-ubuntu-24.04-
+
+      - name: LibreOffice Draw et poppler
+        run: |
+          mkdir -p ~/apt-archives/partial
+          sudo apt-get install -y --no-install-recommends -o Dir::Cache::Archives="$HOME/apt-archives" libreoffice-draw poppler-utils
+          # Le cache est enregistré par l'utilisateur du runner : les paquets téléchargés par apt lui reviennent.
+          sudo chown -R "$USER" ~/apt-archives
           soffice --version
 
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable

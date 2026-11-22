@@ -1,7 +1,7 @@
 # Journal des versions
 
 
-## Non publié
+## 0.20.0
 
 - Chapitres : un long carnet (cahier de vie) se range en chapitres, chacun avec un nom et une couleur. Pour en commencer un : clic droit sur une miniature de la bande des pages, « Commencer un chapitre à cette page », puis tapez son nom ; ou Réglages de la page (sans rien de sélectionné) > Chapitre. Dans la bande, un onglet de couleur devant chaque chapitre : seul le chapitre de la page affichée montre ses pages, les autres sont repliés sur leur onglet, qui y mène d'un clic. Un chapitre change de place avec toutes ses pages (« Avant le chapitre précédent », « Après le chapitre suivant ») ; le champ du numéro de page mène aussi à un chapitre par son nom. Un autre carnet importé avec ses chapitres arrive à la fin du chapitre en cours, sans le couper en deux. Un carnet avec des chapitres s'ouvre seulement dans cette version de Cahutin ou une plus récente.
 - Imprimer un chapitre seul : « Imprimer / Exporter » > « Imprimer « Septembre » » quand la page affichée est dans un chapitre, ou clic droit sur une miniature > « Imprimer ce chapitre » ; sous Windows, « PDF de « Septembre » » enregistre le chapitre seul. Le PDF du carnet porte un signet par chapitre, que le lecteur PDF montre dans son panneau. Dans l'export pour LibreOffice, chaque page porte le nom de son chapitre (« Septembre 2 »).

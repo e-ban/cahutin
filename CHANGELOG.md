@@ -10,6 +10,7 @@
 - Bande des pages plus large : le format, l'orientation, le fond et le vis-à-vis de la page sont dans Réglages (sans rien de sélectionné), et plus en bas de l'écran. La bande montre ainsi plus de pages et les onglets des chapitres. Clic droit sur une miniature : commencer ou renommer un chapitre, dupliquer ou supprimer la page. Une page A3 n'agrandit plus la bande.
 - Molette : dans la vue de la page, elle tourne les pages. Une page zoomée défile d'abord ; arrivé en bas, un nouveau coup de molette passe à la page suivante (en haut, à la précédente).
 - Import de fichiers : un gros fichier (Word, PDF, Publisher) n'est plus arrêté au bout de 2 minutes ; la conversion va jusqu'au bout, et « Annuler » l'arrête quand on veut.
+- Sécurité : la bibliothèque url passe en 2.5.9, qui corrige un dépassement de pile sur des adresses `blob:` imbriquées (RUSTSEC-2026-0592).
 
 ## 0.19.0
 

@@ -201,6 +201,30 @@ const scenes = {
     await run(`window.__editor.selection = [];`);
     await sleep(600);
   },
+  // Un cahier de vie rangé en chapitres, vu dans « Toutes les pages » : la liste des chapitres et leurs pages.
+  // Neuf pages par chapitre, comme une vraie année : chaque chapitre remplit sa rangée.
+  async "store-chapitres"() {
+    await s.size(1896, 1032);
+    await run(`
+      const c = window.__carnet, e = window.__editor;
+      const ids = ["ferme", "emotions", "meteo", "saisons", "sens", "anniversaire", "jours", "semaine", "regles"];
+      const chapters = [["Septembre", "#2e86de"], ["Sortie à la ferme", "#27ae60"], ["Octobre", "#e67e22"], ["Novembre", "#8e44ad"]];
+      const pages = [], assets = {};
+      await c.openExampleDoc("prenom");
+      pages.push({ ...e.doc.pages[0], chapter: null });
+      for (const [k, [title, color]] of chapters.entries()) {
+        for (let n = 0; n < 9; n++) {
+          await c.openExampleDoc(ids[(n + k * 2) % ids.length]);
+          pages.push({ ...e.doc.pages[0], chapter: n === 0 ? { title, color } : null });
+          Object.assign(assets, e.doc.assets);
+        }
+      }
+      e.reset({ ...e.doc, title: "Cahier de vie", pages, assets }, null);
+      e.showWelcome = false; e.zoom = "fit"; e.selection = [];
+      e.showAllPages = true;
+    `);
+    await sleep(2500);
+  },
   // Une vraie proposition de l'assistant, avec Ollama sur l'ordinateur (qwen3:4b).
   async "store-fleches"() {
     await s.size(1896, 1032);

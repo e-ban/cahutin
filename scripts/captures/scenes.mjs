@@ -57,6 +57,24 @@ async function clickText(selector, text) {
   return ok;
 }
 
+/** Un cahier de vie de treize pages prises dans les exemples, rangé en chapitres (la couverture n'en a pas). */
+async function cahier() {
+  await run(`
+    const c = window.__carnet, e = window.__editor;
+    const plan = [["prenom"], ["regles", "Septembre", "#2e86de"], ["emotions"], ["sens"], ["ferme", "Sortie à la ferme", "#27ae60"], ["saisons"],
+      ["anniversaire", "Octobre", "#e67e22"], ["meteo"], ["jours"], ["semaine", "Novembre", "#8e44ad"], ["anniversaire"], ["emotions", "Décembre", "#c0392b"], ["meteo"]];
+    const pages = [], assets = {};
+    for (const [id, title, color] of plan) {
+      await c.openExampleDoc(id);
+      pages.push({ ...e.doc.pages[0], chapter: title ? { title, color } : null });
+      Object.assign(assets, e.doc.assets);
+    }
+    e.reset({ ...e.doc, title: "Cahier de vie", pages, assets }, null);
+    e.showWelcome = false; e.zoom = "fit"; e.selection = [];
+  `);
+  await sleep(1200);
+}
+
 const scenes = {
   async welcome() {
     await s.size(1440, 1032);
@@ -435,6 +453,30 @@ const scenes = {
     await open("ferme");
     // Rien de choisi, Réglages ouvert : le panneau règle la page.
     await run(`const e = window.__editor; e.selection = []; e.inspectorOpen = true;`);
+    await sleep(800);
+  },
+  async "nouv-chapitres"() {
+    await s.size(1440, 888);
+    await cahier();
+    // La page de la sortie, sa photo posée : son chapitre est déplié dans la bande, les autres repliés sur leur onglet.
+    await run(`window.__editor.goToPage(5);`);
+    await sleep(800);
+    await fillPhoto();
+    await run(`window.__editor.selection = [];`);
+    await sleep(1200);
+  },
+  async "nouv-toutes-pages"() {
+    await s.size(1440, 888);
+    await cahier();
+    await run(`window.__editor.showAllPages = true;`);
+    await sleep(2000);
+  },
+  async "nouv-imprimer-chapitre"() {
+    await s.size(1440, 888);
+    await cahier();
+    await run(`window.__editor.goToPage(8);`);
+    await sleep(800);
+    await clickText(".top button", "Imprimer");
     await sleep(800);
   },
   async "barre-du-bas"() {

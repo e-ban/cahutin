@@ -19,6 +19,30 @@ export interface Release {
 /** De la plus récente à la plus ancienne. */
 export const RELEASES: Release[] = [
   {
+    version: "0.20",
+    items: [
+      {
+        title: "Un cahier de vie rangé en chapitres",
+        text: "Clic droit sur une miniature, en bas : « Commencer un chapitre à cette page », puis tapez son nom (« Septembre », « Sortie à la ferme »). Chaque chapitre a son onglet de couleur dans la bande des pages : seul celui de la page affichée montre ses pages, un clic sur un autre onglet y mène. Attention : un carnet avec des chapitres ne s'ouvre pas dans une version plus ancienne de Cahutin ; mettez à jour vos autres ordinateurs.",
+        image: "/nouveautes/0.20/chapitres.webp",
+      },
+      {
+        title: "Toutes les pages d'un coup",
+        text: "« Toutes les pages », en bas de la colonne de gauche, montre le carnet en grand, rangé par chapitre. Cliquez des pages pour les choisir, puis rangez-les dans un chapitre, faites-en un nouveau chapitre, dupliquez-les ou supprimez-les. Cliquez le titre d'un chapitre pour le renommer.",
+        image: "/nouveautes/0.20/toutes-pages.webp",
+      },
+      {
+        title: "Imprimer un seul chapitre",
+        text: "Sur une page d'un chapitre, « Imprimer / Exporter » propose de l'imprimer seul : pratique pour envoyer un mois du cahier de vie aux familles. Sous Windows, il s'enregistre aussi seul en PDF, et le PDF du carnet a un signet par chapitre.",
+        image: "/nouveautes/0.20/imprimer.webp",
+      },
+      {
+        title: "Plus de place pour les pages",
+        text: "La molette tourne les pages : une page zoomée défile d'abord, puis la molette passe à la suivante. La bande des pages, en bas, montre plus de miniatures : le format, l'orientation, le fond et le vis-à-vis sont dans Réglages, quand rien n'est sélectionné. Un gros fichier importé (Word, PDF) n'est plus arrêté au bout de 2 minutes.",
+      },
+    ],
+  },
+  {
     version: "0.19",
     items: [
       {

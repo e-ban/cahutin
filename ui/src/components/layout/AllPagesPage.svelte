@@ -170,9 +170,10 @@
                 <button class="pic" aria-pressed={chosen} aria-label={fr.pageN(i + 1)} title={fr.allPagesPicHint} onclick={() => toggle(p.id)} ondblclick={() => openPage(i)}>
                   <PageView page={p} doc={editor.doc} zoom={fitZoom(p.size, ZOOM, 250, 297)} />
                   {#if chosen}<span class="tick" aria-hidden="true"><Icon name="check" size={14} /></span>{/if}
+                  {#if i === editor.pageIndex}<span class="shown">{fr.allPagesShown}</span>{/if}
                 </button>
                 <div class="foot">
-                  <span>{fr.pageN(i + 1)}{#if i === editor.pageIndex}<b class="shown">{` · ${fr.allPagesShown}`}</b>{/if}</span>
+                  <span>{fr.pageN(i + 1)}</span>
                   <button onclick={() => openPage(i)}>{fr.allPagesOpen}</button>
                 </div>
               </div>
@@ -311,8 +312,17 @@
     border-color: var(--line);
     background: var(--surface);
   }
+  /* La page affichée dans l'éditeur : une étiquette dans le coin de sa miniature. */
   .shown {
-    color: var(--accent);
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: 11px;
+    font-weight: 600;
   }
   .grid {
     display: grid;

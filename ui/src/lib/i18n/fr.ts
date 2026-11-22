@@ -465,7 +465,7 @@ export const fr = {
   allPagesPicHint: "Cliquez pour choisir cette page (ou la retirer du choix) ; double-clic : l'ouvrir",
   allPagesNewChapter: "Nouveau chapitre",
   allPagesRenameHint: "Cliquez pour renommer le chapitre",
-  allPagesShown: "affichée",
+  allPagesShown: "Affichée",
   allPagesChooseHint: "Cliquez des pages pour les choisir, puis rangez-les dans un chapitre, dupliquez-les ou supprimez-les. « Ouvrir » (ou un double-clic) mène à la page.",
   allPagesOpen: "Ouvrir",
   allPagesCount: (n: number) => `${n} page${n > 1 ? "s" : ""}`,
